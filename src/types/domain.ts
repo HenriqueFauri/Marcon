@@ -22,7 +22,57 @@ export interface Produto {
   unidade_medida: string;
   sku: string | null;
   fornecedor_nome: string | null;
+  fornecedor_id: string | null;
   created_at: string;
+}
+
+export interface ProdutoVariacao {
+  id: string;
+  produto_id: string;
+  nome_combinacao: string;
+  atributos: Record<string, string>;
+  custo: number | null;
+  preco_venda: number | null;
+  estoque: number;
+  sku: string | null;
+  created_at: string;
+}
+
+export interface ProdutoFoto {
+  id: string;
+  produto_id: string;
+  variacao_id: string | null;
+  path: string;
+  ordem: number;
+  created_at: string;
+}
+
+export interface Fornecedor {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  email: string | null;
+  observacoes: string | null;
+  created_at: string;
+}
+
+export interface CanalVenda {
+  id: string;
+  nome: string;
+}
+
+export interface FormaPagamento {
+  id: string;
+  nome: string;
+}
+
+export interface ProdutoAnuncio {
+  id: string;
+  produto_id: string;
+  canal_id: string;
+  titulo: string | null;
+  descricao: string | null;
+  updated_at: string;
 }
 
 export interface ProdutoComEstoque extends Produto {
@@ -43,6 +93,7 @@ export interface MovimentoEstoque {
   valor_unitario: number;
   data: string;
   fornecedor_nome: string | null;
+  fornecedor_id: string | null;
   observacoes: string | null;
   created_at: string;
 }
@@ -83,6 +134,8 @@ export interface Venda {
   data: string;
   canal: string | null;
   forma_pagamento: string | null;
+  canal_id: string | null;
+  forma_pagamento_id: string | null;
   tipo_pagamento: VendaTipoPagamento;
   valor_total: number;
   desconto: number;

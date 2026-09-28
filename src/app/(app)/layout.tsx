@@ -8,8 +8,10 @@ const NAV = [
   { href: "/produtos", label: "Produtos" },
   { href: "/vendas", label: "Vendas" },
   { href: "/clientes", label: "Clientes" },
+  { href: "/fornecedores", label: "Fornecedores" },
   { href: "/contas-a-receber", label: "Contas a receber" },
   { href: "/fluxo-de-caixa", label: "Fluxo de caixa" },
+  { href: "/configuracoes", label: "Configurações" },
 ];
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {

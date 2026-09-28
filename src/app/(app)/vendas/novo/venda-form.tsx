@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import type { Cliente, ProdutoComEstoque } from "@/types/domain";
+import type { CanalVenda, Cliente, FormaPagamento, ProdutoComEstoque } from "@/types/domain";
 import { registrarVenda } from "../actions";
 
 function formatBRL(value: number) {
@@ -18,15 +18,23 @@ interface ItemCarrinho {
 export function VendaForm({
   produtos,
   clientes,
+  canais,
+  formas,
 }: {
   produtos: ProdutoComEstoque[];
   clientes: Cliente[];
+  canais: CanalVenda[];
+  formas: FormaPagamento[];
 }) {
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [produtoSelecionado, setProdutoSelecionado] = useState(produtos[0]?.id ?? "");
   const [quantidade, setQuantidade] = useState(1);
   const [clienteId, setClienteId] = useState("");
   const [clienteNomeManual, setClienteNomeManual] = useState("");
+  const [canalId, setCanalId] = useState("");
+  const [canalManual, setCanalManual] = useState("");
+  const [formaPagamentoId, setFormaPagamentoId] = useState("");
+  const [formaPagamentoManual, setFormaPagamentoManual] = useState("");
   const [desconto, setDesconto] = useState(0);
   const [tipoPagamento, setTipoPagamento] = useState<"a_vista" | "a_prazo">("a_vista");
   const [numeroParcelas, setNumeroParcelas] = useState(2);
@@ -231,20 +239,54 @@ export function VendaForm({
 
           <div className="mb-3">
             <label className="mb-1 block text-xs text-neutral-400">Forma de pagamento</label>
-            <input
-              name="forma_pagamento"
-              placeholder="PIX, dinheiro..."
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            />
+            <select
+              value={formaPagamentoId}
+              onChange={(e) => setFormaPagamentoId(e.target.value)}
+              name="forma_pagamento_id"
+              className="mb-1 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+            >
+              <option value="">Sem cadastro / digitar</option>
+              {formas.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nome}
+                </option>
+              ))}
+            </select>
+            {!formaPagamentoId && (
+              <input
+                name="forma_pagamento_manual"
+                value={formaPagamentoManual}
+                onChange={(e) => setFormaPagamentoManual(e.target.value)}
+                placeholder="PIX, dinheiro..."
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              />
+            )}
           </div>
 
           <div className="mb-3">
             <label className="mb-1 block text-xs text-neutral-400">Canal</label>
-            <input
-              name="canal"
-              placeholder="Instagram, WhatsApp..."
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            />
+            <select
+              value={canalId}
+              onChange={(e) => setCanalId(e.target.value)}
+              name="canal_id"
+              className="mb-1 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+            >
+              <option value="">Sem cadastro / digitar</option>
+              {canais.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+            {!canalId && (
+              <input
+                name="canal_manual"
+                value={canalManual}
+                onChange={(e) => setCanalManual(e.target.value)}
+                placeholder="Instagram, WhatsApp..."
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              />
+            )}
           </div>
 
           <div>

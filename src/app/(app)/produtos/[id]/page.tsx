@@ -1,7 +1,18 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { MovimentoEstoque, ProdutoComEstoque } from "@/types/domain";
+import type {
+  CanalVenda,
+  Fornecedor,
+  MovimentoEstoque,
+  ProdutoAnuncio,
+  ProdutoComEstoque,
+  ProdutoFoto,
+  ProdutoVariacao,
+} from "@/types/domain";
 import { EntradaEstoqueForm } from "./entrada-estoque-form";
+import { VariacoesSection } from "./variacoes-section";
+import { FotosSection } from "./fotos-section";
+import { AnunciosSection } from "./anuncios-section";
 
 function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -19,7 +30,15 @@ export default async function ProdutoDetalhePage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: produto }, { data: movimentos }] = await Promise.all([
+  const [
+    { data: produto },
+    { data: movimentos },
+    { data: variacoesData },
+    { data: fotosData },
+    { data: fornecedoresData },
+    { data: canaisData },
+    { data: anunciosData },
+  ] = await Promise.all([
     supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", id).single(),
     supabase
       .from("movimentos_estoque")
@@ -27,12 +46,29 @@ export default async function ProdutoDetalhePage({
       .eq("produto_id", id)
       .order("data", { ascending: false })
       .order("created_at", { ascending: false }),
+    supabase.from("produto_variacoes").select("*").eq("produto_id", id).order("nome_combinacao"),
+    supabase.from("produto_fotos").select("*").eq("produto_id", id).order("ordem"),
+    supabase.from("fornecedores").select("*").order("nome"),
+    supabase.from("canais_venda").select("*").order("nome"),
+    supabase.from("produto_anuncios").select("*").eq("produto_id", id),
   ]);
 
   if (!produto) notFound();
 
   const p = produto as ProdutoComEstoque;
   const historico = (movimentos ?? []) as MovimentoEstoque[];
+  const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
+  const fotos = (fotosData ?? []) as ProdutoFoto[];
+  const fornecedores = (fornecedoresData ?? []) as Fornecedor[];
+  const canais = (canaisData ?? []) as CanalVenda[];
+  const anuncios = (anunciosData ?? []) as ProdutoAnuncio[];
+
+  const fotosComUrl = await Promise.all(
+    fotos.map(async (foto) => {
+      const { data } = await supabase.storage.from("produto-fotos").createSignedUrl(foto.path, 3600);
+      return { id: foto.id, path: foto.path, url: data?.signedUrl ?? null };
+    }),
+  );
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -64,9 +100,34 @@ export default async function ProdutoDetalhePage({
         </div>
       </div>
 
+      {p.tem_variacoes && (
+        <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+          <h2 className="mb-4 text-sm font-semibold text-white">Variações</h2>
+          <VariacoesSection produtoId={p.id} variacoes={variacoes} />
+        </div>
+      )}
+
       <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
         <h2 className="mb-4 text-sm font-semibold text-white">Registrar entrada de estoque</h2>
-        <EntradaEstoqueForm produtoId={p.id} custoAtual={p.custo_min} />
+        <EntradaEstoqueForm
+          produtoId={p.id}
+          custoAtual={p.custo_min}
+          variacoes={variacoes}
+          fornecedores={fornecedores}
+        />
+      </div>
+
+      <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+        <h2 className="mb-4 text-sm font-semibold text-white">Fotos</h2>
+        <FotosSection produtoId={p.id} fotos={fotosComUrl} />
+      </div>
+
+      <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+        <h2 className="mb-1 text-sm font-semibold text-white">Anúncios por canal</h2>
+        <p className="mb-4 text-xs text-neutral-500">
+          Título e descrição podem variar por canal (Shopee, Mercado Livre, Instagram...).
+        </p>
+        <AnunciosSection produtoId={p.id} canais={canais} anuncios={anuncios} />
       </div>
 
       <div>
