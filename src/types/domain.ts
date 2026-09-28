@@ -62,3 +62,57 @@ export interface LancamentoCaixa {
   afeta_lucro: boolean;
   afeta_caixa: boolean;
 }
+
+export interface Cliente {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  email: string | null;
+  cpf_cnpj: string | null;
+  observacoes: string | null;
+  created_at: string;
+}
+
+export type VendaTipoPagamento = "a_vista" | "a_prazo";
+export type VendaStatus = "concluida" | "cancelada";
+
+export interface Venda {
+  id: string;
+  cliente_id: string | null;
+  cliente_nome: string | null;
+  data: string;
+  canal: string | null;
+  forma_pagamento: string | null;
+  tipo_pagamento: VendaTipoPagamento;
+  valor_total: number;
+  desconto: number;
+  custo_total: number;
+  status: VendaStatus;
+}
+
+export interface VendaItem {
+  id: string;
+  venda_id: string;
+  produto_id: string | null;
+  produto_nome: string;
+  quantidade: number;
+  preco_unitario: number;
+  custo_unitario: number;
+}
+
+export type ParcelaStatus = "pendente" | "pago" | "atrasado";
+
+export interface Parcela {
+  id: string;
+  venda_id: string;
+  numero_parcela: number;
+  valor: number;
+  vencimento: string;
+  status: ParcelaStatus;
+  status_efetivo: ParcelaStatus;
+  data_pagamento: string | null;
+}
+
+export interface ParcelaComVenda extends Parcela {
+  vendas: { cliente_nome: string | null } | null;
+}

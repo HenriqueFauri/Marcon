@@ -41,12 +41,26 @@ const client = new Client({
 await client.connect();
 console.log(`Conectado a db.${ref}.supabase.co`);
 
+await client.query(`
+  create table if not exists public.schema_migrations (
+    filename text primary key,
+    applied_at timestamptz not null default now()
+  )
+`);
+const { rows: applied } = await client.query("select filename from public.schema_migrations");
+const appliedSet = new Set(applied.map((r) => r.filename));
+
 for (const file of files) {
+  if (appliedSet.has(file)) {
+    console.log(`\n→ ${file} já aplicada, pulando`);
+    continue;
+  }
   const sql = readFileSync(path.join(migrationsDir, file), "utf8");
   console.log(`\n→ aplicando ${file}...`);
   try {
     await client.query("begin");
     await client.query(sql);
+    await client.query("insert into public.schema_migrations (filename) values ($1)", [file]);
     await client.query("commit");
     console.log(`  ok`);
   } catch (err) {

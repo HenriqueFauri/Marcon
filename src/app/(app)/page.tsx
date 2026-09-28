@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import type { LancamentoCaixa, ProdutoComEstoque } from "@/types/domain";
+import type { LancamentoCaixa, ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
 
 function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -9,19 +9,26 @@ function formatBRL(value: number) {
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const [{ data: produtosData }, { data: lancamentosData }] = await Promise.all([
-    supabase.from("produtos_com_estoque").select("*"),
-    supabase.from("lancamentos_caixa").select("*"),
-  ]);
+  const [{ data: produtosData }, { data: lancamentosData }, { data: vendasData }, { data: parcelasData }] =
+    await Promise.all([
+      supabase.from("produtos_com_estoque").select("*"),
+      supabase.from("lancamentos_caixa").select("*"),
+      supabase.from("vendas").select("*"),
+      supabase.from("parcelas_com_status").select("*").neq("status", "pago"),
+    ]);
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
   const lancamentos = (lancamentosData ?? []) as LancamentoCaixa[];
+  const vendas = (vendasData ?? []) as Venda[];
+  const parcelasPendentes = (parcelasData ?? []) as ParcelaComVenda[];
 
   const valorEstoque = produtos.reduce((s, p) => s + p.estoque_total * p.custo_min, 0);
   const entradas = lancamentos.filter((l) => l.tipo === "entrada").reduce((s, l) => s + l.valor, 0);
   const saidas = lancamentos.filter((l) => l.tipo === "saida").reduce((s, l) => s + l.valor, 0);
   const saldo = entradas - saidas;
   const produtosSemEstoque = produtos.filter((p) => p.estoque_total <= 0).length;
+  const totalAReceber = parcelasPendentes.reduce((s, p) => s + p.valor, 0);
+  const atrasadas = parcelasPendentes.filter((p) => p.status_efetivo === "atrasado").length;
 
   const cards = [
     { label: "Entradas de caixa", value: formatBRL(entradas), color: "text-emerald-400" },
@@ -46,7 +53,7 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white">Produtos</h2>
@@ -64,12 +71,25 @@ export default async function DashboardPage() {
 
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white">Fluxo de caixa</h2>
-            <Link href="/fluxo-de-caixa" className="text-xs text-emerald-400 hover:underline">
+            <h2 className="text-sm font-semibold text-white">Vendas</h2>
+            <Link href="/vendas" className="text-xs text-emerald-400 hover:underline">
+              Ver todas
+            </Link>
+          </div>
+          <p className="text-sm text-neutral-400">{vendas.length} venda(s) no total</p>
+        </div>
+
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-white">A receber</h2>
+            <Link href="/contas-a-receber" className="text-xs text-emerald-400 hover:underline">
               Ver tudo
             </Link>
           </div>
-          <p className="text-sm text-neutral-400">{lancamentos.length} lançamento(s) no total</p>
+          <p className="text-sm text-neutral-400">{formatBRL(totalAReceber)} pendente</p>
+          <p className="text-sm text-neutral-400">
+            {atrasadas > 0 ? `${atrasadas} parcela(s) atrasada(s)` : "Nenhuma parcela atrasada"}
+          </p>
         </div>
       </div>
     </div>
