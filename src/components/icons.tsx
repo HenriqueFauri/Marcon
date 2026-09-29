@@ -160,3 +160,8 @@ export const IconMoon = (p: P) => (
     <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" />
   </Icon>
 );
+export const IconChevronDown = (p: P) => (
+  <Icon {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Icon>
+);

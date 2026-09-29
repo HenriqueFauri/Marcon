@@ -4,9 +4,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, type ActionResult } from "@/lib/action";
 
+// Aceita "10000", "10.000", "10.000,50" e "4200.50".
 function valorMeta(formData: FormData, campo: string) {
-  const bruto = String(formData.get(campo) ?? "").trim().replace(/\./g, "").replace(",", ".");
-  if (!bruto) return null;
+  const original = String(formData.get(campo) ?? "").trim();
+  if (!original) return null;
+  let bruto = original.replace(/[^\d.,]/g, "");
+  if (!bruto) return NaN;
+  if (bruto.includes(",")) bruto = bruto.replace(/\./g, "").replace(",", ".");
+  else if (/\.\d{3}$/.test(bruto) || (bruto.match(/\./g) ?? []).length > 1) bruto = bruto.replace(/\./g, "");
   const n = Number(bruto);
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : NaN;
 }

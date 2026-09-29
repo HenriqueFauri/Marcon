@@ -113,19 +113,26 @@ export function VendaForm({
   canais,
   formas,
   hoje,
+  produtoInicial,
 }: {
   vendaveis: Vendavel[];
   clientes: Cliente[];
   canais: CanalVenda[];
   formas: FormaPagamento[];
   hoje: string;
+  produtoInicial?: string | null;
 }) {
   const router = useRouter();
   const { isPending, run } = useAction();
 
-  const [busca, setBusca] = useState("");
+  // vindo de "Vender este produto": com uma opção só, já entra no carrinho; com
+  // variações, a busca abre filtrada pelo nome pra escolher qual
+  const iniciais = produtoInicial ? vendaveis.filter((v) => v.produto_id === produtoInicial) : [];
+  const [busca, setBusca] = useState(iniciais.length > 1 ? iniciais[0].nome.split(" — ")[0] : "");
   const [tabela, setTabela] = useState<"varejo" | "atacado">("varejo");
-  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
+  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>(() =>
+    iniciais.length === 1 ? [{ chave: iniciais[0].chave, quantidade: 1, preco: iniciais[0].preco_varejo.toFixed(2) }] : [],
+  );
   const [clienteId, setClienteId] = useState("");
   const [clienteNome, setClienteNome] = useState("");
   const [canalId, setCanalId] = useState("");

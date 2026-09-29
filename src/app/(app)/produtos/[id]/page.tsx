@@ -15,7 +15,7 @@ import { formatBRL, formatData, hojeISO } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
 import { Badge, Card, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { IconPencil } from "@/components/icons";
-import { EntradaEstoqueForm } from "./entrada-estoque-form";
+import { ProdutoAcoes } from "./produto-acoes";
 import { VariacoesSection } from "./variacoes-section";
 import { FotosSection } from "./fotos-section";
 import { AnunciosSection } from "./anuncios-section";
@@ -89,6 +89,15 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         description={[p.categorias?.nome ?? "Sem categoria", p.marca, p.sku ? `SKU ${p.sku}` : null].filter(Boolean).join(" · ")}
         action={
           <>
+            <ProdutoAcoes
+              produtoId={p.id}
+              custoAtual={Number(p.custo_min)}
+              variacoes={variacoes}
+              fornecedores={fornecedores}
+              fornecedorPadrao={p.fornecedor_id}
+              hoje={hojeISO()}
+              precisaVariacao={precisaVariacao}
+            />
             <Link href={`/produtos/${p.id}/editar`} className={btnSecondary}>
               <IconPencil width={16} height={16} /> Editar
             </Link>
@@ -124,24 +133,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
           </Card>
         )}
 
-        <Card
-          title="Registrar entrada de estoque"
-          description="Compras de mercadoria: somam no estoque, recalculam o custo médio e lançam a saída no caixa."
-        >
-          {precisaVariacao ? (
-            <p className="text-sm text-warning">Adicione pelo menos uma variação acima antes de registrar estoque.</p>
-          ) : (
-            <EntradaEstoqueForm
-              produtoId={p.id}
-              custoAtual={Number(p.custo_min)}
-              variacoes={variacoes}
-              fornecedores={fornecedores}
-              fornecedorPadrao={p.fornecedor_id}
-              hoje={hojeISO()}
-            />
-          )}
-        </Card>
-
         <Card title="Fotos">
           <FotosSection produtoId={p.id} fotos={fotosComUrl} />
         </Card>
@@ -154,9 +145,9 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         </Card>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-ink">Histórico de compras e ajustes</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Histórico de estoque</h2>
           {historico.length === 0 ? (
-            <p className="text-sm text-ink-muted">Nenhuma entrada de estoque registrada ainda.</p>
+            <p className="text-sm text-ink-muted">Nenhuma entrada ou saída de estoque registrada ainda.</p>
           ) : (
             <Table>
               <thead className={theadClass}>

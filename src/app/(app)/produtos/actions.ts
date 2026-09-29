@@ -200,6 +200,36 @@ export async function registrarEntradaEstoque(formData: FormData): Promise<Actio
   }
 }
 
+export async function registrarSaidaEstoque(formData: FormData): Promise<ActionResult> {
+  try {
+    const produtoId = texto(formData, "produto_id");
+    const variacaoId = texto(formData, "variacao_id") || null;
+    const quantidade = numero(formData, "quantidade");
+    const motivo = texto(formData, "motivo");
+    const dataBruta = texto(formData, "data");
+
+    if (quantidade === null || !Number.isInteger(quantidade) || quantidade <= 0)
+      return { ok: false, error: "Informe uma quantidade inteira maior que zero." };
+    if (!["perda", "uso", "ajuste"].includes(motivo)) return { ok: false, error: "Escolha o motivo da saída." };
+
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("registrar_saida_estoque", {
+      p_produto_id: produtoId,
+      p_variacao_id: variacaoId,
+      p_quantidade: quantidade,
+      p_motivo: motivo,
+      p_data: /^\d{4}-\d{2}-\d{2}$/.test(dataBruta) ? dataBruta : hojeISO(),
+      p_observacoes: textoOuNull(formData, "observacoes"),
+    });
+    if (error) return falha(error);
+
+    revalidarProduto(produtoId);
+    return ok(`Saída de ${quantidade} unidade(s) registrada.`);
+  } catch (e) {
+    return falha(e);
+  }
+}
+
 export async function criarVariacao(formData: FormData): Promise<ActionResult> {
   try {
     const produtoId = texto(formData, "produto_id");
