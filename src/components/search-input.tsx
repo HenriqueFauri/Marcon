@@ -38,6 +38,7 @@ export function SearchInput({ placeholder = "Buscar..." }: { placeholder?: strin
         onChange={(e) => atualizar(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
+        autoFocus={searchParams.get("buscar") === "1"}
         className={`${inputClass} pl-9`}
       />
     </div>

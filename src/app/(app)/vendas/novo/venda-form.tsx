@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { useAction } from "@/components/use-action";
-import { Card, Field, btnIcon, btnIconDanger, btnPrimary, inputClass } from "@/components/ui";
-import { IconMinus, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { Card, Field, btnPrimary, inputClass } from "@/components/ui";
+import { IconBox, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { registrarVenda } from "../actions";
 
 export interface Vendavel {
@@ -228,6 +228,21 @@ export function VendaForm({
 
   return (
     <form onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
+      <div className="flex flex-col items-center gap-0.5 pb-1 pt-2 lg:hidden" aria-live="polite">
+        <span className="text-[15px] text-ink-muted">
+          Total · {linhas.length} {linhas.length === 1 ? "item" : "itens"}
+        </span>
+        <span className="text-[44px] font-bold leading-[1.05] tracking-tight tabular-nums text-ink">{formatBRL(total)}</span>
+        {linhas.length > 0 && (
+          <span
+            className={`mt-1.5 rounded-full px-3 py-1 text-[13px] font-semibold ${
+              lucro >= 0 ? "bg-positive-tint text-positive" : "bg-danger-tint text-danger"
+            }`}
+          >
+            {lucro >= 0 ? "Lucro de" : "Prejuízo de"} {formatBRL(Math.abs(lucro))}
+          </span>
+        )}
+      </div>
       <div className="flex flex-col gap-4 lg:col-span-3">
         <Card
           title="Produtos"
@@ -257,6 +272,7 @@ export function VendaForm({
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar produto, marca ou SKU..."
               aria-label="Buscar produto"
+              id="buscar-produto"
               className={`${inputClass} pl-9`}
             />
           </div>
@@ -297,24 +313,41 @@ export function VendaForm({
           {linhas.length === 0 ? (
             <p className="py-4 text-center text-sm text-ink-muted">Toque num produto acima para adicionar.</p>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul className="-mx-1 divide-y divide-line">
               {linhas.map(({ item, produto }) => (
-                <li key={item.chave} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
-                  <div className="min-w-0 flex-1 basis-40">
-                    <p className="truncate text-sm text-ink">{produto.nome}</p>
-                    <p className="text-xs text-ink-muted">
-                      Subtotal {formatBRL(item.quantidade * paraNumero(item.preco))}
-                    </p>
+                <li key={item.chave} className="flex items-center gap-3 px-1 py-2.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-brand-text">
+                    <IconBox width={22} height={22} strokeWidth={1.9} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[17px] text-ink">{produto.nome}</p>
+                    <label className="flex items-center gap-1 text-[15px] text-ink-muted">
+                      R$
+                      <input
+                        inputMode="decimal"
+                        value={item.preco}
+                        onChange={(e) =>
+                          setCarrinho((prev) =>
+                            prev.map((i) => (i.chave === item.chave ? { ...i, preco: e.target.value } : i)),
+                          )
+                        }
+                        aria-label={`Preço unitário de ${produto.nome}`}
+                        className="w-20 rounded-md bg-transparent px-1 tabular-nums text-ink-muted outline-none focus:bg-fill focus:text-ink"
+                      />
+                    </label>
                   </div>
-                  <div className="flex items-center rounded-lg border border-line-strong">
+                  <div className="flex items-center rounded-full bg-canvas">
                     <button
                       type="button"
-                      className={btnIcon}
+                      className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
                       aria-label="Diminuir quantidade"
-                      onClick={() => alterarQuantidade(item.chave, item.quantidade - 1)}
-                      disabled={item.quantidade <= 1}
+                      onClick={() =>
+                        item.quantidade <= 1
+                          ? setCarrinho((prev) => prev.filter((i) => i.chave !== item.chave))
+                          : alterarQuantidade(item.chave, item.quantidade - 1)
+                      }
                     >
-                      <IconMinus width={14} height={14} />
+                      {item.quantidade <= 1 ? <IconTrash width={16} height={16} /> : "−"}
                     </button>
                     <input
                       type="number"
@@ -324,44 +357,35 @@ export function VendaForm({
                       value={item.quantidade}
                       onChange={(e) => alterarQuantidade(item.chave, Number(e.target.value))}
                       aria-label={`Quantidade de ${produto.nome}`}
-                      className="w-10 bg-transparent text-center text-sm text-ink outline-none"
+                      className="w-8 bg-transparent text-center text-[17px] font-semibold tabular-nums text-ink outline-none"
                     />
                     <button
                       type="button"
-                      className={btnIcon}
+                      className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
                       aria-label="Aumentar quantidade"
                       onClick={() => alterarQuantidade(item.chave, item.quantidade + 1)}
                       disabled={item.quantidade >= produto.estoque}
                     >
-                      <IconPlus width={14} height={14} />
+                      +
                     </button>
                   </div>
-                  <label className="flex items-center gap-1 text-xs text-ink-muted">
-                    R$
-                    <input
-                      inputMode="decimal"
-                      value={item.preco}
-                      onChange={(e) =>
-                        setCarrinho((prev) =>
-                          prev.map((i) => (i.chave === item.chave ? { ...i, preco: e.target.value } : i)),
-                        )
-                      }
-                      aria-label={`Preço unitário de ${produto.nome}`}
-                      className={`${inputClass.replace("w-full ", "")} w-24 py-1.5 text-right`}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className={btnIconDanger}
-                    aria-label={`Remover ${produto.nome}`}
-                    onClick={() => setCarrinho((prev) => prev.filter((i) => i.chave !== item.chave))}
-                  >
-                    <IconTrash width={16} height={16} />
-                  </button>
                 </li>
               ))}
             </ul>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById("buscar-produto")?.focus();
+              document.getElementById("buscar-produto")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+            className="mt-1 flex w-full items-center gap-3 border-t border-line px-1 pt-3 text-left text-[17px] text-brand-text"
+          >
+            <span className="flex w-11 justify-center">
+              <IconPlus width={22} height={22} strokeWidth={2.2} />
+            </span>
+            Adicionar produto
+          </button>
         </Card>
 
         <Card title="Cliente">
