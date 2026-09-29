@@ -21,7 +21,13 @@ import { FotosSection } from "./fotos-section";
 import { AnunciosSection } from "./anuncios-section";
 import { ExcluirProdutoButton } from "./excluir-produto-button";
 
-export const metadata: Metadata = { title: "Produto" };
+// o título da aba mostra o nome do produto
+export async function generateMetadata({ params }: PageProps<"/produtos/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase.from("produtos").select("nome").eq("id", id).maybeSingle();
+  return { title: data?.nome ?? "Produto" };
+}
 
 export default async function ProdutoDetalhePage({ params }: PageProps<"/produtos/[id]">) {
   const { id } = await params;
