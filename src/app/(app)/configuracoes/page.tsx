@@ -5,6 +5,8 @@ import { Card, PageHeader } from "@/components/ui";
 import { ListaSimples } from "./lista-simples";
 import { criarCanal, excluirCanal, criarFormaPagamento, excluirFormaPagamento } from "./actions";
 import { NotificacoesConfig } from "./notificacoes-config";
+import { ModelosNotificacao } from "./modelos-notificacao";
+import { resolverModelo } from "@/lib/notificacao-modelos";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 import { MetasForm } from "./metas-form";
@@ -81,6 +83,13 @@ export default async function ConfiguracoesPage() {
 
         <Card title="Notificações">
           <NotificacoesConfig />
+        </Card>
+
+        <Card
+          title="Modelo da notificação de venda"
+          description="Escolha como o aviso aparece na tela do celular a cada venda registrada."
+        >
+          <ModelosNotificacao atual={resolverModelo(meta)} />
         </Card>
       </div>
     </div>
