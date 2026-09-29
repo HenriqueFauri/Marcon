@@ -1,6 +1,10 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useRef } from "react";
+import type { ActionResult } from "@/lib/action";
+import { useAction } from "@/components/use-action";
+import { ConfirmButton } from "@/components/confirm-button";
+import { btnPrimary, inputClass } from "@/components/ui";
 
 interface Item {
   id: string;
@@ -10,59 +14,70 @@ interface Item {
 export function ListaSimples({
   itens,
   placeholder,
+  sugestoes = [],
   onCriar,
   onExcluir,
 }: {
   itens: Item[];
   placeholder: string;
-  onCriar: (formData: FormData) => Promise<void>;
-  onExcluir: (id: string) => Promise<void>;
+  sugestoes?: string[];
+  onCriar: (formData: FormData) => Promise<ActionResult>;
+  onExcluir: (id: string) => Promise<ActionResult>;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [isPending, startTransition] = useTransition();
+  const { isPending, run } = useAction();
+  const existentes = new Set(itens.map((i) => i.nome.toLowerCase()));
+  const faltando = sugestoes.filter((s) => !existentes.has(s.toLowerCase()));
+
+  function adicionar(nome: string) {
+    const fd = new FormData();
+    fd.set("nome", nome);
+    run(() => onCriar(fd));
+  }
 
   return (
     <div>
       <form
         ref={formRef}
-        action={(formData) =>
-          startTransition(async () => {
-            await onCriar(formData);
-            formRef.current?.reset();
-          })
-        }
+        action={(formData) => run(() => onCriar(formData), { onSuccess: () => formRef.current?.reset() })}
         className="mb-3 flex gap-2"
       >
-        <input
-          name="nome"
-          required
-          placeholder={placeholder}
-          className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-        />
-        <button
-          type="submit"
-          disabled={isPending}
-          className="shrink-0 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
-        >
+        <input name="nome" required placeholder={placeholder} aria-label={placeholder} className={`${inputClass} flex-1`} />
+        <button type="submit" disabled={isPending} className={`${btnPrimary} shrink-0`}>
           Adicionar
         </button>
       </form>
+
+      {faltando.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-neutral-500">Sugestões:</span>
+          {faltando.map((s) => (
+            <button
+              key={s}
+              type="button"
+              disabled={isPending}
+              onClick={() => adicionar(s)}
+              className="rounded-full border border-neutral-700 px-2.5 py-0.5 text-xs text-neutral-300 hover:border-emerald-500 hover:text-emerald-400 disabled:opacity-50"
+            >
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
 
       {itens.length === 0 ? (
         <p className="text-sm text-neutral-500">Nenhum item cadastrado ainda.</p>
       ) : (
         <ul className="divide-y divide-neutral-800 rounded-lg border border-neutral-800">
           {itens.map((item) => (
-            <li key={item.id} className="flex items-center justify-between px-3 py-2 text-sm">
+            <li key={item.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
               <span className="text-white">{item.nome}</span>
-              <button
-                onClick={() => {
-                  if (confirm(`Excluir "${item.nome}"?`)) startTransition(() => onExcluir(item.id));
-                }}
-                className="rounded-md px-2 py-1 text-xs text-neutral-400 hover:bg-red-500/10 hover:text-red-400"
-              >
-                Excluir
-              </button>
+              <ConfirmButton
+                title={`Excluir “${item.nome}”?`}
+                description="Vendas antigas mantêm o nome registrado."
+                ariaLabel={`Excluir ${item.nome}`}
+                onConfirm={() => onExcluir(item.id)}
+              />
             </li>
           ))}
         </ul>

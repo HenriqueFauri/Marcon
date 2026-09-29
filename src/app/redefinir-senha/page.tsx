@@ -1,0 +1,74 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { traduzirErroAuth } from "@/lib/auth-erros";
+import { Field, btnPrimary, inputClass } from "@/components/ui";
+
+export default function RedefinirSenhaPage() {
+  const router = useRouter();
+  const [senha, setSenha] = useState("");
+  const [confirmacao, setConfirmacao] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault();
+    if (senha !== confirmacao) {
+      setErro("As senhas não conferem.");
+      return;
+    }
+    setErro(null);
+    setSalvando(true);
+    const { error } = await createClient().auth.updateUser({ password: senha });
+    if (error) {
+      setErro(traduzirErroAuth(error.message));
+      setSalvando(false);
+      return;
+    }
+    router.push("/");
+    router.refresh();
+  }
+
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-neutral-950 px-4">
+      <form onSubmit={salvar} className="w-full max-w-sm rounded-2xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8">
+        <h1 className="mb-1 text-xl font-semibold text-white">Nova senha</h1>
+        <p className="mb-6 text-sm text-neutral-400">Escolha a senha que vai usar para entrar daqui pra frente.</p>
+        <div className="flex flex-col gap-4">
+          <Field label="Nova senha">
+            <input
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Repita a nova senha">
+            <input
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={confirmacao}
+              onChange={(e) => setConfirmacao(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          {erro && (
+            <p role="alert" className="text-sm text-red-400">
+              {erro}
+            </p>
+          )}
+          <button type="submit" disabled={salvando} className={`${btnPrimary} py-2.5`}>
+            {salvando ? "Salvando..." : "Salvar nova senha"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

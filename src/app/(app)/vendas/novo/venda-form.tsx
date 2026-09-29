@@ -1,329 +1,521 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import type { CanalVenda, Cliente, FormaPagamento, ProdutoComEstoque } from "@/types/domain";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
+import { formatBRL, formatData } from "@/lib/format";
+import { useAction } from "@/components/use-action";
+import { Card, Field, btnIcon, btnIconDanger, btnPrimary, inputClass } from "@/components/ui";
+import { IconMinus, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { registrarVenda } from "../actions";
 
-function formatBRL(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+export interface Vendavel {
+  chave: string;
+  produto_id: string;
+  variacao_id: string | null;
+  nome: string;
+  detalhe: string;
+  preco_varejo: number;
+  preco_atacado: number | null;
+  custo: number;
+  estoque: number;
 }
 
 interface ItemCarrinho {
-  produto_id: string;
-  nome: string;
+  chave: string;
   quantidade: number;
-  preco_unitario: number;
+  preco: string; // texto pra permitir digitar "12," sem o campo brigar com o usuário
 }
 
-export function VendaForm({
-  produtos,
-  clientes,
-  canais,
-  formas,
+function paraNumero(v: string) {
+  const n = Number(v.replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function somarMeses(dataISO: string, meses: number) {
+  const [a, m, d] = dataISO.split("-").map(Number);
+  const alvo = new Date(a, m - 1 + meses, 1);
+  const ultimoDia = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+  alvo.setDate(Math.min(d, ultimoDia));
+  return `${alvo.getFullYear()}-${String(alvo.getMonth() + 1).padStart(2, "0")}-${String(alvo.getDate()).padStart(2, "0")}`;
+}
+
+// Campo "escolha da lista ou digite": select com os cadastrados + texto livre.
+function SelectOuTexto({
+  label,
+  opcoes,
+  id,
+  setId,
+  texto,
+  setTexto,
+  placeholder,
+  vazio,
 }: {
-  produtos: ProdutoComEstoque[];
-  clientes: Cliente[];
-  canais: CanalVenda[];
-  formas: FormaPagamento[];
+  label: string;
+  opcoes: { id: string; nome: string }[];
+  id: string;
+  setId: (v: string) => void;
+  texto: string;
+  setTexto: (v: string) => void;
+  placeholder: string;
+  vazio: string;
 }) {
-  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
-  const [produtoSelecionado, setProdutoSelecionado] = useState(produtos[0]?.id ?? "");
-  const [quantidade, setQuantidade] = useState(1);
-  const [clienteId, setClienteId] = useState("");
-  const [clienteNomeManual, setClienteNomeManual] = useState("");
-  const [canalId, setCanalId] = useState("");
-  const [canalManual, setCanalManual] = useState("");
-  const [formaPagamentoId, setFormaPagamentoId] = useState("");
-  const [formaPagamentoManual, setFormaPagamentoManual] = useState("");
-  const [desconto, setDesconto] = useState(0);
-  const [tipoPagamento, setTipoPagamento] = useState<"a_vista" | "a_prazo">("a_vista");
-  const [numeroParcelas, setNumeroParcelas] = useState(2);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  const produtoAtual = produtos.find((p) => p.id === produtoSelecionado);
-  const total = carrinho.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0) - desconto;
-  const valorParcela = tipoPagamento === "a_prazo" && numeroParcelas > 0 ? total / numeroParcelas : 0;
-
-  function adicionarItem() {
-    if (!produtoAtual) return;
-    if (quantidade < 1) return;
-    setCarrinho((prev) => {
-      const existente = prev.find((i) => i.produto_id === produtoAtual.id);
-      if (existente) {
-        return prev.map((i) =>
-          i.produto_id === produtoAtual.id ? { ...i, quantidade: i.quantidade + quantidade } : i,
-        );
-      }
-      return [
-        ...prev,
-        {
-          produto_id: produtoAtual.id,
-          nome: produtoAtual.nome,
-          quantidade,
-          preco_unitario: produtoAtual.preco_varejo,
-        },
-      ];
-    });
-    setQuantidade(1);
-  }
-
-  function removerItem(produtoId: string) {
-    setCarrinho((prev) => prev.filter((i) => i.produto_id !== produtoId));
-  }
-
-  const itensJson = useMemo(
-    () =>
-      JSON.stringify(
-        carrinho.map((i) => ({
-          produto_id: i.produto_id,
-          quantidade: i.quantidade,
-          preco_unitario: i.preco_unitario,
-        })),
-      ),
-    [carrinho],
-  );
-
   return (
-    <form
-      action={(formData) =>
-        startTransition(async () => {
-          setError(null);
-          try {
-            await registrarVenda(formData);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "erro ao registrar venda");
-          }
-        })
-      }
-      className="grid grid-cols-1 gap-6 lg:grid-cols-3"
-    >
-      <input type="hidden" name="itens" value={itensJson} />
-
-      <div className="flex flex-col gap-4 lg:col-span-2">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-white">Produtos</h2>
-          <div className="flex flex-wrap gap-2">
-            <select
-              value={produtoSelecionado}
-              onChange={(e) => setProdutoSelecionado(e.target.value)}
-              className="min-w-0 flex-1 basis-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 sm:basis-auto"
-            >
-              {produtos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nome} — {formatBRL(p.preco_varejo)} ({p.estoque_total} em estoque)
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              min={1}
-              value={quantidade}
-              onChange={(e) => setQuantidade(Number(e.target.value))}
-              className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            />
-            <button
-              type="button"
-              onClick={adicionarItem}
-              className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
-            >
-              Adicionar
-            </button>
-          </div>
-
-          {carrinho.length > 0 && (
-            <div className="mt-4 divide-y divide-neutral-800 border-t border-neutral-800">
-              {carrinho.map((item) => (
-                <div key={item.produto_id} className="flex items-center justify-between py-2 text-sm">
-                  <span className="text-white">
-                    {item.quantidade}x {item.nome}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-neutral-300">
-                      {formatBRL(item.quantidade * item.preco_unitario)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removerItem(item.produto_id)}
-                      className="text-xs text-neutral-500 hover:text-red-400"
-                    >
-                      Remover
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-white">Cliente</h2>
-          <select
-            value={clienteId}
-            onChange={(e) => setClienteId(e.target.value)}
-            name="cliente_id"
-            className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-          >
-            <option value="">Sem cliente cadastrado / venda avulsa</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
+    <div className="space-y-1.5">
+      <Field label={label}>
+        {opcoes.length > 0 ? (
+          <select value={id} onChange={(e) => setId(e.target.value)} className={inputClass}>
+            <option value="">{vazio}</option>
+            {opcoes.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.nome}
               </option>
             ))}
           </select>
-          {!clienteId && (
+        ) : (
+          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={placeholder} className={inputClass} />
+        )}
+      </Field>
+      {opcoes.length > 0 && !id && (
+        <input
+          aria-label={`${label} (digitar)`}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder={placeholder}
+          className={inputClass}
+        />
+      )}
+    </div>
+  );
+}
+
+export function VendaForm({
+  vendaveis,
+  clientes,
+  canais,
+  formas,
+  hoje,
+}: {
+  vendaveis: Vendavel[];
+  clientes: Cliente[];
+  canais: CanalVenda[];
+  formas: FormaPagamento[];
+  hoje: string;
+}) {
+  const router = useRouter();
+  const { isPending, run } = useAction();
+
+  const [busca, setBusca] = useState("");
+  const [tabela, setTabela] = useState<"varejo" | "atacado">("varejo");
+  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
+  const [clienteId, setClienteId] = useState("");
+  const [clienteNome, setClienteNome] = useState("");
+  const [canalId, setCanalId] = useState("");
+  const [canalNome, setCanalNome] = useState("");
+  const [formaId, setFormaId] = useState("");
+  const [formaNome, setFormaNome] = useState("");
+  const [desconto, setDesconto] = useState("");
+  const [tipoPagamento, setTipoPagamento] = useState<"a_vista" | "a_prazo">("a_vista");
+  const [numeroParcelas, setNumeroParcelas] = useState(2);
+  const [data, setData] = useState(hoje);
+  const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarMeses(hoje, 1));
+  const [erro, setErro] = useState<string | null>(null);
+
+  const porChave = useMemo(() => new Map(vendaveis.map((v) => [v.chave, v])), [vendaveis]);
+  const temAtacado = vendaveis.some((v) => v.preco_atacado != null);
+
+  const resultados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    const lista = termo
+      ? vendaveis.filter((v) => `${v.nome} ${v.detalhe}`.toLowerCase().includes(termo))
+      : vendaveis;
+    return lista.slice(0, 50);
+  }, [busca, vendaveis]);
+
+  const linhas = carrinho
+    .map((item) => ({ item, produto: porChave.get(item.chave)! }))
+    .filter((l) => l.produto);
+  const subtotal = linhas.reduce((s, l) => s + l.item.quantidade * paraNumero(l.item.preco), 0);
+  const custo = linhas.reduce((s, l) => s + l.item.quantidade * l.produto.custo, 0);
+  const valorDesconto = paraNumero(desconto);
+  const total = subtotal - valorDesconto;
+  const lucro = total - custo;
+  const parcelasValidas = Math.min(Math.max(Math.trunc(numeroParcelas) || 1, 1), 60);
+  const valorParcela = parcelasValidas > 0 ? total / parcelasValidas : 0;
+
+  function precoPadrao(v: Vendavel) {
+    return tabela === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
+  }
+
+  function adicionar(v: Vendavel) {
+    setErro(null);
+    setCarrinho((prev) => {
+      const existente = prev.find((i) => i.chave === v.chave);
+      if (existente) {
+        return prev.map((i) =>
+          i.chave === v.chave ? { ...i, quantidade: Math.min(i.quantidade + 1, v.estoque) } : i,
+        );
+      }
+      return [...prev, { chave: v.chave, quantidade: 1, preco: precoPadrao(v).toFixed(2) }];
+    });
+  }
+
+  function alterarQuantidade(chave: string, quantidade: number) {
+    const max = porChave.get(chave)?.estoque ?? 1;
+    setCarrinho((prev) =>
+      prev.map((i) => (i.chave === chave ? { ...i, quantidade: Math.min(Math.max(quantidade, 1), max) } : i)),
+    );
+  }
+
+  function trocarTabela(nova: "varejo" | "atacado") {
+    setTabela(nova);
+    // reaplica o preço da tabela nos itens que já estão no carrinho
+    setCarrinho((prev) =>
+      prev.map((i) => {
+        const v = porChave.get(i.chave);
+        if (!v) return i;
+        const preco = nova === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
+        return { ...i, preco: preco.toFixed(2) };
+      }),
+    );
+  }
+
+  function validar() {
+    if (linhas.length === 0) return "Adicione pelo menos um produto.";
+    if (linhas.some((l) => paraNumero(l.item.preco) < 0)) return "Há um item com preço negativo.";
+    if (valorDesconto < 0) return "O desconto não pode ser negativo.";
+    if (valorDesconto > subtotal) return "O desconto é maior que o total da venda.";
+    if (tipoPagamento === "a_prazo" && !clienteId && !clienteNome.trim())
+      return "Informe o cliente — venda a prazo precisa saber de quem cobrar.";
+    return null;
+  }
+
+  function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    const problema = validar();
+    setErro(problema);
+    if (problema) return;
+
+    run(
+      () =>
+        registrarVenda({
+          itens: linhas.map((l) => ({
+            produto_id: l.produto.produto_id,
+            variacao_id: l.produto.variacao_id,
+            quantidade: l.item.quantidade,
+            preco_unitario: Math.round(paraNumero(l.item.preco) * 100) / 100,
+          })),
+          clienteId: clienteId || null,
+          clienteNome: clienteNome || null,
+          canalId: canalId || null,
+          canalNome: canalNome || null,
+          formaPagamentoId: formaId || null,
+          formaPagamentoNome: formaNome || null,
+          tipoPagamento,
+          numeroParcelas: parcelasValidas,
+          primeiroVencimento,
+          desconto: valorDesconto,
+          data,
+        }).then((r) => {
+          if (r.ok && r.id) router.push(`/vendas/${r.id}`);
+          return r;
+        }),
+      { onError: setErro },
+    );
+  }
+
+  const noCarrinho = new Map(carrinho.map((i) => [i.chave, i.quantidade]));
+
+  return (
+    <form onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
+      <div className="flex flex-col gap-4 lg:col-span-3">
+        <Card
+          title="Produtos"
+          action={
+            temAtacado && (
+              <div className="flex rounded-lg border border-neutral-700 p-0.5 text-xs" role="group" aria-label="Tabela de preço">
+                {(["varejo", "atacado"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => trocarTabela(t)}
+                    aria-pressed={tabela === t}
+                    className={`rounded-md px-2.5 py-1 capitalize ${tabela === t ? "bg-neutral-700 text-white" : "text-neutral-400"}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )
+          }
+        >
+          <div className="relative mb-3">
+            <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" width={16} height={16} />
             <input
-              name="cliente_nome_manual"
-              value={clienteNomeManual}
-              onChange={(e) => setClienteNomeManual(e.target.value)}
-              placeholder="Ou só digite o nome (sem cadastrar)"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar produto, marca ou SKU..."
+              aria-label="Buscar produto"
+              className={`${inputClass} pl-9`}
             />
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-white">Pagamento</h2>
-
-          <div className="mb-3 flex gap-2">
-            <label className="flex-1 cursor-pointer rounded-lg border border-neutral-700 p-2 text-center text-sm has-[:checked]:border-emerald-500 has-[:checked]:text-emerald-400">
-              <input
-                type="radio"
-                name="tipo_pagamento"
-                value="a_vista"
-                checked={tipoPagamento === "a_vista"}
-                onChange={() => setTipoPagamento("a_vista")}
-                className="sr-only"
-              />
-              À vista
-            </label>
-            <label className="flex-1 cursor-pointer rounded-lg border border-neutral-700 p-2 text-center text-sm has-[:checked]:border-emerald-500 has-[:checked]:text-emerald-400">
-              <input
-                type="radio"
-                name="tipo_pagamento"
-                value="a_prazo"
-                checked={tipoPagamento === "a_prazo"}
-                onChange={() => setTipoPagamento("a_prazo")}
-                className="sr-only"
-              />
-              Parcelado / fiado
-            </label>
           </div>
 
-          {tipoPagamento === "a_prazo" && (
-            <div className="mb-3 grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-xs text-neutral-400">Nº de parcelas</label>
-                <input
-                  type="number"
-                  name="numero_parcelas"
-                  min={1}
-                  value={numeroParcelas}
-                  onChange={(e) => setNumeroParcelas(Number(e.target.value))}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-                />
+          <ul className="max-h-72 divide-y divide-neutral-800 overflow-y-auto rounded-lg border border-neutral-800">
+            {resultados.length === 0 && <li className="px-3 py-6 text-center text-sm text-neutral-500">Nada encontrado.</li>}
+            {resultados.map((v) => {
+              const qtd = noCarrinho.get(v.chave) ?? 0;
+              const esgotado = qtd >= v.estoque;
+              return (
+                <li key={v.chave}>
+                  <button
+                    type="button"
+                    onClick={() => adicionar(v)}
+                    disabled={esgotado}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-white">{v.nome}</span>
+                      <span className="block truncate text-xs text-neutral-500">
+                        {v.estoque - qtd} disponível{v.detalhe ? ` · ${v.detalhe}` : ""}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="tabular-nums text-neutral-300">{formatBRL(precoPadrao(v))}</span>
+                      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+                        {qtd > 0 ? <span className="text-xs font-semibold">{qtd}</span> : <IconPlus width={16} height={16} />}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+
+        <Card title={`Carrinho${linhas.length ? ` (${linhas.length})` : ""}`}>
+          {linhas.length === 0 ? (
+            <p className="py-4 text-center text-sm text-neutral-500">Toque num produto acima para adicionar.</p>
+          ) : (
+            <ul className="divide-y divide-neutral-800">
+              {linhas.map(({ item, produto }) => (
+                <li key={item.chave} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+                  <div className="min-w-0 flex-1 basis-40">
+                    <p className="truncate text-sm text-white">{produto.nome}</p>
+                    <p className="text-xs text-neutral-500">
+                      Subtotal {formatBRL(item.quantidade * paraNumero(item.preco))}
+                    </p>
+                  </div>
+                  <div className="flex items-center rounded-lg border border-neutral-700">
+                    <button
+                      type="button"
+                      className={btnIcon}
+                      aria-label="Diminuir quantidade"
+                      onClick={() => alterarQuantidade(item.chave, item.quantidade - 1)}
+                      disabled={item.quantidade <= 1}
+                    >
+                      <IconMinus width={14} height={14} />
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={produto.estoque}
+                      value={item.quantidade}
+                      onChange={(e) => alterarQuantidade(item.chave, Number(e.target.value))}
+                      aria-label={`Quantidade de ${produto.nome}`}
+                      className="w-10 bg-transparent text-center text-sm text-white outline-none"
+                    />
+                    <button
+                      type="button"
+                      className={btnIcon}
+                      aria-label="Aumentar quantidade"
+                      onClick={() => alterarQuantidade(item.chave, item.quantidade + 1)}
+                      disabled={item.quantidade >= produto.estoque}
+                    >
+                      <IconPlus width={14} height={14} />
+                    </button>
+                  </div>
+                  <label className="flex items-center gap-1 text-xs text-neutral-500">
+                    R$
+                    <input
+                      inputMode="decimal"
+                      value={item.preco}
+                      onChange={(e) =>
+                        setCarrinho((prev) =>
+                          prev.map((i) => (i.chave === item.chave ? { ...i, preco: e.target.value } : i)),
+                        )
+                      }
+                      aria-label={`Preço unitário de ${produto.nome}`}
+                      className={`${inputClass.replace("w-full ", "")} w-24 py-1.5 text-right`}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className={btnIconDanger}
+                    aria-label={`Remover ${produto.nome}`}
+                    onClick={() => setCarrinho((prev) => prev.filter((i) => i.chave !== item.chave))}
+                  >
+                    <IconTrash width={16} height={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Cliente">
+          <SelectOuTexto
+            label="Cliente"
+            opcoes={clientes}
+            id={clienteId}
+            setId={setClienteId}
+            texto={clienteNome}
+            setTexto={setClienteNome}
+            placeholder="Ou digite só o nome (sem cadastrar)"
+            vazio="Venda avulsa / digitar nome"
+          />
+        </Card>
+      </div>
+
+      <div className="flex flex-col gap-4 lg:col-span-2">
+        <Card title="Pagamento">
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de pagamento">
+              {(
+                [
+                  ["a_vista", "À vista"],
+                  ["a_prazo", "A prazo / fiado"],
+                ] as const
+              ).map(([valor, rotulo]) => (
+                <label
+                  key={valor}
+                  className="cursor-pointer rounded-lg border border-neutral-700 p-2 text-center text-sm text-neutral-300 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 has-[:checked]:text-emerald-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-emerald-500/40"
+                >
+                  <input
+                    type="radio"
+                    name="tipo_pagamento"
+                    value={valor}
+                    checked={tipoPagamento === valor}
+                    onChange={() => setTipoPagamento(valor)}
+                    className="sr-only"
+                  />
+                  {rotulo}
+                </label>
+              ))}
+            </div>
+
+            {tipoPagamento === "a_prazo" && (
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Nº de parcelas">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={60}
+                    value={numeroParcelas}
+                    onChange={(e) => setNumeroParcelas(Number(e.target.value))}
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="1º vencimento">
+                  <input
+                    type="date"
+                    value={primeiroVencimento}
+                    onChange={(e) => setPrimeiroVencimento(e.target.value)}
+                    className={inputClass}
+                  />
+                </Field>
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-neutral-400">1º vencimento</label>
+            )}
+
+            <SelectOuTexto
+              label="Forma de pagamento"
+              opcoes={formas}
+              id={formaId}
+              setId={setFormaId}
+              texto={formaNome}
+              setTexto={setFormaNome}
+              placeholder="PIX, dinheiro, cartão..."
+              vazio="Digitar"
+            />
+
+            <SelectOuTexto
+              label="Canal de venda"
+              opcoes={canais}
+              id={canalId}
+              setId={setCanalId}
+              texto={canalNome}
+              setTexto={setCanalNome}
+              placeholder="Instagram, WhatsApp, loja..."
+              vazio="Digitar"
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Desconto (R$)">
                 <input
-                  type="date"
-                  name="primeiro_vencimento"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                  inputMode="decimal"
+                  value={desconto}
+                  onChange={(e) => setDesconto(e.target.value)}
+                  placeholder="0,00"
+                  className={inputClass}
                 />
+              </Field>
+              <Field label="Data da venda">
+                <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} className={inputClass} />
+              </Field>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="lg:sticky lg:top-6">
+          <dl className="space-y-1.5 text-sm">
+            <div className="flex justify-between text-neutral-400">
+              <dt>Subtotal</dt>
+              <dd className="tabular-nums">{formatBRL(subtotal)}</dd>
+            </div>
+            {valorDesconto > 0 && (
+              <div className="flex justify-between text-neutral-400">
+                <dt>Desconto</dt>
+                <dd className="tabular-nums">− {formatBRL(valorDesconto)}</dd>
               </div>
+            )}
+            <div className="flex items-baseline justify-between pt-1">
+              <dt className="text-neutral-300">Total</dt>
+              <dd className="text-2xl font-semibold tabular-nums text-white">{formatBRL(total)}</dd>
+            </div>
+            {linhas.length > 0 && (
+              <div className="flex justify-between text-xs">
+                <dt className="text-neutral-500">Lucro estimado</dt>
+                <dd className={`tabular-nums ${lucro >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatBRL(lucro)}</dd>
+              </div>
+            )}
+          </dl>
+
+          {tipoPagamento === "a_prazo" && total > 0 && (
+            <div className="mt-3 rounded-lg bg-neutral-800/60 p-3 text-xs text-neutral-400">
+              <p className="mb-1 font-medium text-neutral-300">
+                {parcelasValidas}x de {formatBRL(valorParcela)}
+              </p>
+              {primeiroVencimento && (
+                <p>
+                  {Array.from({ length: Math.min(parcelasValidas, 4) }, (_, i) => formatData(somarMeses(primeiroVencimento, i))).join(", ")}
+                  {parcelasValidas > 4 && "..."}
+                </p>
+              )}
             </div>
           )}
 
-          <div className="mb-3">
-            <label className="mb-1 block text-xs text-neutral-400">Forma de pagamento</label>
-            <select
-              value={formaPagamentoId}
-              onChange={(e) => setFormaPagamentoId(e.target.value)}
-              name="forma_pagamento_id"
-              className="mb-1 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            >
-              <option value="">Sem cadastro / digitar</option>
-              {formas.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome}
-                </option>
-              ))}
-            </select>
-            {!formaPagamentoId && (
-              <input
-                name="forma_pagamento_manual"
-                value={formaPagamentoManual}
-                onChange={(e) => setFormaPagamentoManual(e.target.value)}
-                placeholder="PIX, dinheiro..."
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-              />
-            )}
-          </div>
-
-          <div className="mb-3">
-            <label className="mb-1 block text-xs text-neutral-400">Canal</label>
-            <select
-              value={canalId}
-              onChange={(e) => setCanalId(e.target.value)}
-              name="canal_id"
-              className="mb-1 w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            >
-              <option value="">Sem cadastro / digitar</option>
-              {canais.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome}
-                </option>
-              ))}
-            </select>
-            {!canalId && (
-              <input
-                name="canal_manual"
-                value={canalManual}
-                onChange={(e) => setCanalManual(e.target.value)}
-                placeholder="Instagram, WhatsApp..."
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs text-neutral-400">Desconto (R$)</label>
-            <input
-              type="number"
-              name="desconto"
-              min={0}
-              step="0.01"
-              value={desconto}
-              onChange={(e) => setDesconto(Number(e.target.value))}
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <div className="flex items-center justify-between text-sm text-neutral-400">
-            <span>Total</span>
-            <span className="text-lg font-semibold text-white">{formatBRL(total)}</span>
-          </div>
-          {tipoPagamento === "a_prazo" && numeroParcelas > 0 && (
-            <p className="mt-1 text-xs text-neutral-500">
-              {numeroParcelas}x de {formatBRL(valorParcela)}
+          {erro && (
+            <p role="alert" className="mt-3 text-sm text-red-400">
+              {erro}
             </p>
           )}
-        </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <button
-          type="submit"
-          disabled={isPending || carrinho.length === 0}
-          className="rounded-lg bg-emerald-500 px-4 py-3 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
-        >
-          {isPending ? "Registrando..." : "Registrar venda"}
-        </button>
+          <button type="submit" disabled={isPending || linhas.length === 0} className={`${btnPrimary} mt-4 w-full py-3`}>
+            {isPending ? "Registrando..." : `Registrar venda${linhas.length ? ` · ${formatBRL(total)}` : ""}`}
+          </button>
+        </Card>
       </div>
     </form>
   );

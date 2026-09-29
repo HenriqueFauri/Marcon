@@ -2,36 +2,69 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { falha, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 
-export async function criarCliente(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("não autenticado");
+function camposCliente(formData: FormData) {
+  return {
+    nome: texto(formData, "nome"),
+    telefone: textoOuNull(formData, "telefone"),
+    email: textoOuNull(formData, "email"),
+    cpf_cnpj: textoOuNull(formData, "cpf_cnpj"),
+    observacoes: textoOuNull(formData, "observacoes"),
+  };
+}
 
-  const nome = String(formData.get("nome") ?? "").trim();
-  if (!nome) throw new Error("nome é obrigatório");
-
-  const { error } = await supabase.from("clientes").insert({
-    owner_id: user.id,
-    nome,
-    telefone: String(formData.get("telefone") ?? "").trim() || null,
-    email: String(formData.get("email") ?? "").trim() || null,
-    cpf_cnpj: String(formData.get("cpf_cnpj") ?? "").trim() || null,
-    observacoes: String(formData.get("observacoes") ?? "").trim() || null,
-  });
-  if (error) throw error;
-
+function revalidar() {
   revalidatePath("/clientes");
   revalidatePath("/vendas/novo");
 }
 
-export async function excluirCliente(id: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("clientes").delete().eq("id", id);
-  if (error) throw error;
+export async function criarCliente(formData: FormData): Promise<ActionResult> {
+  try {
+    const campos = camposCliente(formData);
+    if (!campos.nome) return { ok: false, error: "O nome é obrigatório." };
 
-  revalidatePath("/clientes");
-  revalidatePath("/vendas/novo");
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { error } = await supabase.from("clientes").insert({ owner_id: user.id, ...campos });
+    if (error) return falha(error);
+
+    revalidar();
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function atualizarCliente(id: string, formData: FormData): Promise<ActionResult> {
+  try {
+    const campos = camposCliente(formData);
+    if (!campos.nome) return { ok: false, error: "O nome é obrigatório." };
+
+    const supabase = await createClient();
+    const { error } = await supabase.from("clientes").update(campos).eq("id", id);
+    if (error) return falha(error);
+
+    revalidar();
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function excluirCliente(id: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from("clientes").delete().eq("id", id);
+    if (error) return falha(error);
+
+    revalidar();
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
 }

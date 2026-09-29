@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useToast } from "@/components/toaster";
+import { mensagemDeErro } from "@/lib/action";
+import { btnPrimary, btnSecondary } from "@/components/ui";
 import { removerInscricaoPush, salvarInscricaoPush } from "./push-actions";
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -10,59 +13,78 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
+const semAssinatura = () => () => {};
+const pushSuportado = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
 export function NotificacoesConfig() {
-  const [suportado, setSuportado] = useState(false);
-  const [inscrito, setInscrito] = useState(false);
+  const toast = useToast();
+  const suportado = useSyncExternalStore(semAssinatura, pushSuportado, () => false);
+  const [inscrito, setInscrito] = useState<boolean | null>(null);
   const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    setSuportado(true);
-    navigator.serviceWorker.ready.then(async (registration) => {
-      const sub = await registration.pushManager.getSubscription();
-      setInscrito(!!sub);
-    });
-  }, []);
+    if (!suportado) return;
+    let ativo = true;
+    navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((sub) => {
+        if (ativo) setInscrito(!!sub);
+      })
+      .catch(() => {
+        if (ativo) setInscrito(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [suportado]);
 
   async function ativar() {
-    setErro(null);
     setCarregando(true);
     try {
+      if (!vapid) throw new Error("As notificações ainda não foram configuradas no servidor.");
       const permissao = await Notification.requestPermission();
-      if (permissao !== "granted") throw new Error("permissão de notificação negada");
+      if (permissao !== "granted") {
+        throw new Error("Permissão negada. Libere as notificações para este site nas configurações do navegador.");
+      }
 
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+        applicationServerKey: urlBase64ToUint8Array(vapid),
       });
       const json = subscription.toJSON();
-      await salvarInscricaoPush({
+      const r = await salvarInscricaoPush({
         endpoint: json.endpoint!,
         keys: { p256dh: json.keys!.p256dh, auth: json.keys!.auth },
       });
+      if (!r.ok) {
+        await subscription.unsubscribe();
+        throw new Error(r.error);
+      }
       setInscrito(true);
+      toast.success("Notificações ativadas neste dispositivo.");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "erro ao ativar notificações");
+      toast.error(mensagemDeErro(e, "Erro ao ativar notificações."));
     } finally {
       setCarregando(false);
     }
   }
 
   async function desativar() {
-    setErro(null);
     setCarregando(true);
     try {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
-        await removerInscricaoPush(subscription.endpoint);
+        const r = await removerInscricaoPush(subscription.endpoint);
+        if (!r.ok) throw new Error(r.error);
         await subscription.unsubscribe();
       }
       setInscrito(false);
+      toast.success("Notificações desativadas neste dispositivo.");
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "erro ao desativar notificações");
+      toast.error(mensagemDeErro(e, "Erro ao desativar notificações."));
     } finally {
       setCarregando(false);
     }
@@ -71,7 +93,8 @@ export function NotificacoesConfig() {
   if (!suportado) {
     return (
       <p className="text-sm text-neutral-500">
-        Seu navegador não suporta notificações push, ou o app ainda não foi aberto como PWA instalado.
+        Este navegador não suporta notificações. No iPhone, instale o app primeiro (Compartilhar → Adicionar à Tela de
+        Início) e abra por lá.
       </p>
     );
   }
@@ -79,26 +102,19 @@ export function NotificacoesConfig() {
   return (
     <div>
       <p className="mb-3 text-sm text-neutral-400">
-        Receba um aviso a cada venda registrada e quando uma parcela for paga.
+        Receba um aviso a cada venda registrada e quando uma parcela for recebida. Vale só para este dispositivo.
       </p>
-      {inscrito ? (
-        <button
-          onClick={desativar}
-          disabled={carregando}
-          className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
-        >
+      {inscrito === null ? (
+        <p className="text-sm text-neutral-500">Verificando...</p>
+      ) : inscrito ? (
+        <button onClick={desativar} disabled={carregando} className={btnSecondary}>
           {carregando ? "Desativando..." : "Desativar notificações"}
         </button>
       ) : (
-        <button
-          onClick={ativar}
-          disabled={carregando}
-          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
-        >
+        <button onClick={ativar} disabled={carregando} className={btnPrimary}>
           {carregando ? "Ativando..." : "Ativar notificações"}
         </button>
       )}
-      {erro && <p className="mt-2 text-xs text-red-400">{erro}</p>}
     </div>
   );
 }
