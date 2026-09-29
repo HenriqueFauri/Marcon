@@ -2,98 +2,117 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { falha, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 
-export async function atualizarPerfil(formData: FormData) {
-  const supabase = await createClient();
-  const nome = String(formData.get("nome") ?? "").trim();
-  const nomeNegocio = String(formData.get("nome_negocio") ?? "").trim();
-  if (!nome) throw new Error("seu nome é obrigatório");
-  if (!nomeNegocio) throw new Error("nome do negócio é obrigatório");
+export async function atualizarPerfil(formData: FormData): Promise<ActionResult> {
+  try {
+    const nome = texto(formData, "nome");
+    const nomeNegocio = texto(formData, "nome_negocio");
+    if (!nome) return { ok: false, error: "Seu nome é obrigatório." };
+    if (!nomeNegocio) return { ok: false, error: "O nome do negócio é obrigatório." };
 
-  const { error } = await supabase.auth.updateUser({ data: { nome, nome_negocio: nomeNegocio } });
-  if (error) throw error;
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({ data: { nome, nome_negocio: nomeNegocio } });
+    if (error) return falha(error);
 
-  revalidatePath("/", "layout");
+    revalidatePath("/", "layout");
+    return ok("Perfil atualizado.");
+  } catch (e) {
+    return falha(e);
+  }
 }
 
-export async function atualizarEmpresa(formData: FormData) {
-  const supabase = await createClient();
+export async function atualizarEmpresa(formData: FormData): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        empresa_telefone: textoOuNull(formData, "empresa_telefone"),
+        empresa_email: textoOuNull(formData, "empresa_email"),
+        empresa_endereco: textoOuNull(formData, "empresa_endereco"),
+        empresa_documento: textoOuNull(formData, "empresa_documento"),
+      },
+    });
+    if (error) return falha(error);
 
-  const { error } = await supabase.auth.updateUser({
-    data: {
-      empresa_telefone: String(formData.get("empresa_telefone") ?? "").trim() || null,
-      empresa_email: String(formData.get("empresa_email") ?? "").trim() || null,
-      empresa_endereco: String(formData.get("empresa_endereco") ?? "").trim() || null,
-      empresa_documento: String(formData.get("empresa_documento") ?? "").trim() || null,
-    },
-  });
-  if (error) throw error;
-
-  revalidatePath("/configuracoes");
+    revalidatePath("/configuracoes");
+    return ok("Dados da empresa salvos.");
+  } catch (e) {
+    return falha(e);
+  }
 }
 
-export async function atualizarLogoEmpresa(path: string | null) {
-  const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({ data: { empresa_logo_path: path } });
-  if (error) throw error;
+export async function atualizarLogoEmpresa(path: string | null): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const anterior = user?.user_metadata?.empresa_logo_path as string | undefined;
 
-  revalidatePath("/configuracoes");
+    const { error } = await supabase.auth.updateUser({ data: { empresa_logo_path: path } });
+    if (error) return falha(error);
+    if (anterior && anterior !== path) await supabase.storage.from("logo-empresa").remove([anterior]);
+
+    revalidatePath("/configuracoes");
+    return ok(path ? "Logo atualizado." : "Logo removido.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+type TabelaSimples = "canais_venda" | "formas_pagamento";
+
+async function criarItem(tabela: TabelaSimples, formData: FormData): Promise<ActionResult> {
+  try {
+    const nome = texto(formData, "nome");
+    if (!nome) return { ok: false, error: "O nome é obrigatório." };
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { error } = await supabase.from(tabela).upsert({ owner_id: user.id, nome }, { onConflict: "owner_id,nome" });
+    if (error) return falha(error);
+
+    revalidatePath("/configuracoes");
+    revalidatePath("/vendas/novo");
+    revalidatePath("/produtos", "layout");
+    return ok(`“${nome}” adicionado.`);
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+async function excluirItem(tabela: TabelaSimples, id: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from(tabela).delete().eq("id", id);
+    if (error) return falha(error);
+
+    revalidatePath("/configuracoes");
+    revalidatePath("/vendas/novo");
+    revalidatePath("/produtos", "layout");
+    return ok("Removido.");
+  } catch (e) {
+    return falha(e);
+  }
 }
 
 export async function criarCanal(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("não autenticado");
-
-  const nome = String(formData.get("nome") ?? "").trim();
-  if (!nome) throw new Error("nome é obrigatório");
-
-  const { error } = await supabase
-    .from("canais_venda")
-    .upsert({ owner_id: user.id, nome }, { onConflict: "owner_id,nome" });
-  if (error) throw error;
-
-  revalidatePath("/configuracoes");
-  revalidatePath("/vendas/novo");
-  revalidatePath("/produtos");
+  return criarItem("canais_venda", formData);
 }
 
 export async function excluirCanal(id: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("canais_venda").delete().eq("id", id);
-  if (error) throw error;
-
-  revalidatePath("/configuracoes");
-  revalidatePath("/vendas/novo");
-  revalidatePath("/produtos");
+  return excluirItem("canais_venda", id);
 }
 
 export async function criarFormaPagamento(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("não autenticado");
-
-  const nome = String(formData.get("nome") ?? "").trim();
-  if (!nome) throw new Error("nome é obrigatório");
-
-  const { error } = await supabase
-    .from("formas_pagamento")
-    .upsert({ owner_id: user.id, nome }, { onConflict: "owner_id,nome" });
-  if (error) throw error;
-
-  revalidatePath("/configuracoes");
-  revalidatePath("/vendas/novo");
+  return criarItem("formas_pagamento", formData);
 }
 
 export async function excluirFormaPagamento(id: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("formas_pagamento").delete().eq("id", id);
-  if (error) throw error;
-
-  revalidatePath("/configuracoes");
-  revalidatePath("/vendas/novo");
+  return excluirItem("formas_pagamento", id);
 }

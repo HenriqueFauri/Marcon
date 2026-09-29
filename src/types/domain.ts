@@ -79,6 +79,8 @@ export interface ProdutoComEstoque extends Produto {
   estoque_total: number;
   custo_min: number;
   custo_max: number;
+  // só existe depois da migration 0008
+  valor_estoque?: number;
   categorias?: { nome: string } | null;
 }
 
@@ -112,6 +114,10 @@ export interface LancamentoCaixa {
   data: string;
   afeta_lucro: boolean;
   afeta_caixa: boolean;
+  venda_id: string | null;
+  parcela_id: string | null;
+  movimento_estoque_id: string | null;
+  created_at: string;
 }
 
 export interface Cliente {
@@ -141,12 +147,15 @@ export interface Venda {
   desconto: number;
   custo_total: number;
   status: VendaStatus;
+  observacoes: string | null;
+  created_at: string;
 }
 
 export interface VendaItem {
   id: string;
   venda_id: string;
   produto_id: string | null;
+  variacao_id: string | null;
   produto_nome: string;
   quantidade: number;
   preco_unitario: number;
@@ -167,5 +176,9 @@ export interface Parcela {
 }
 
 export interface ParcelaComVenda extends Parcela {
-  vendas: { cliente_nome: string | null } | null;
+  vendas: {
+    cliente_nome: string | null;
+    cliente_id: string | null;
+    clientes?: { telefone: string | null } | null;
+  } | null;
 }

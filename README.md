@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gestor
 
-## Getting Started
+Gestão de vendas, estoque e caixa para pequenos negócios: produtos (com variações, fotos e anúncios por canal), vendas à vista e a prazo, contas a receber, fluxo de caixa, clientes e fornecedores. Funciona como PWA no celular, com notificações push.
 
-First, run the development server:
+Stack: Next.js 16 (App Router, Server Actions), Supabase (Postgres + Auth + Storage, com RLS por dono) e Tailwind CSS 4.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Rodando localmente
+
+Crie um `.env.local` com:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_DB_PASSWORD=...          # só para o script de migrations
+
+# opcional — notificações push (sem elas o app funciona normalmente)
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:voce@exemplo.com
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+npm install
+node scripts/run-migrations.mjs   # aplica o que falta em supabase/migrations
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Banco de dados
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+As migrations ficam em `supabase/migrations` e são aplicadas em ordem pelo `scripts/run-migrations.mjs`, que registra o que já rodou em `public.schema_migrations`.
 
-## Learn More
+Regras que valem para todo o schema:
 
-To learn more about Next.js, take a look at the following resources:
+- Toda tabela tem `owner_id` e RLS restringindo ao dono.
+- Operações que mexem em mais de uma tabela (venda, entrada de estoque, pagamento de parcela, cancelamento) são funções SQL — tudo ou nada numa transação.
+- Excluir um cadastro (produto, cliente, fornecedor) nunca apaga histórico financeiro: as referências viram `NULL` e o nome fica guardado como snapshot.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Organização do código
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app/(app)/*` — telas autenticadas; cada pasta tem `page.tsx` e um `actions.ts` com as Server Actions.
+- `src/components` — UI compartilhada (`ui.tsx`, modal, toasts, navegação, busca, seletor de mês).
+- `src/lib` — Supabase, formatação (moeda, datas no fuso de Brasília) e o tipo `ActionResult`.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+As Server Actions devolvem `ActionResult` (`{ ok: true }` ou `{ ok: false, error }`) em vez de lançar erro: em produção o Next esconde a mensagem de erros lançados. No cliente, o hook `useAction` transforma o resultado em aviso na tela.

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type {
@@ -9,24 +11,19 @@ import type {
   ProdutoFoto,
   ProdutoVariacao,
 } from "@/types/domain";
+import { formatBRL, formatData, hojeISO } from "@/lib/format";
+import { situacaoEstoque } from "@/lib/estoque";
+import { Badge, Card, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { IconPencil } from "@/components/icons";
 import { EntradaEstoqueForm } from "./entrada-estoque-form";
 import { VariacoesSection } from "./variacoes-section";
 import { FotosSection } from "./fotos-section";
 import { AnunciosSection } from "./anuncios-section";
+import { ExcluirProdutoButton } from "./excluir-produto-button";
 
-function formatBRL(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+export const metadata: Metadata = { title: "Produto" };
 
-function formatData(value: string) {
-  return new Date(value + "T00:00:00").toLocaleDateString("pt-BR");
-}
-
-export default async function ProdutoDetalhePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function ProdutoDetalhePage({ params }: PageProps<"/produtos/[id]">) {
   const { id } = await params;
   const supabase = await createClient();
 
@@ -38,19 +35,22 @@ export default async function ProdutoDetalhePage({
     { data: fornecedoresData },
     { data: canaisData },
     { data: anunciosData },
+    { data: vendidosData },
   ] = await Promise.all([
-    supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", id).single(),
+    supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", id).maybeSingle(),
     supabase
       .from("movimentos_estoque")
       .select("*")
       .eq("produto_id", id)
       .order("data", { ascending: false })
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(50),
     supabase.from("produto_variacoes").select("*").eq("produto_id", id).order("nome_combinacao"),
-    supabase.from("produto_fotos").select("*").eq("produto_id", id).order("ordem"),
+    supabase.from("produto_fotos").select("*").eq("produto_id", id).order("ordem").order("created_at"),
     supabase.from("fornecedores").select("*").order("nome"),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("produto_anuncios").select("*").eq("produto_id", id),
+    supabase.from("venda_itens").select("quantidade, preco_unitario, custo_unitario, vendas!inner(status)").eq("produto_id", id).neq("vendas.status", "cancelada"),
   ]);
 
   if (!produto) notFound();
@@ -62,110 +62,134 @@ export default async function ProdutoDetalhePage({
   const fornecedores = (fornecedoresData ?? []) as Fornecedor[];
   const canais = (canaisData ?? []) as CanalVenda[];
   const anuncios = (anunciosData ?? []) as ProdutoAnuncio[];
+  const vendidos = (vendidosData ?? []) as { quantidade: number; preco_unitario: number; custo_unitario: number }[];
 
-  const fotosComUrl = await Promise.all(
-    fotos.map(async (foto) => {
-      const { data } = await supabase.storage.from("produto-fotos").createSignedUrl(foto.path, 3600);
-      return { id: foto.id, path: foto.path, url: data?.signedUrl ?? null };
-    }),
-  );
+  const unidadesVendidas = vendidos.reduce((s, v) => s + v.quantidade, 0);
+  const lucroVendas = vendidos.reduce((s, v) => s + v.quantidade * (Number(v.preco_unitario) - Number(v.custo_unitario)), 0);
+  const margem = Number(p.preco_varejo) > 0 ? ((Number(p.preco_varejo) - Number(p.custo_min)) / Number(p.preco_varejo)) * 100 : null;
+  const situacao = situacaoEstoque(p);
+
+  const { data: assinadas } = fotos.length
+    ? await supabase.storage.from("produto-fotos").createSignedUrls(fotos.map((f) => f.path), 3600)
+    : { data: [] };
+  const fotosComUrl = fotos.map((foto, i) => ({ id: foto.id, path: foto.path, url: assinadas?.[i]?.signedUrl ?? null }));
+
+  const precisaVariacao = p.tem_variacoes && variacoes.length === 0;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-white">{p.nome}</h1>
-        <p className="text-sm text-neutral-400">
-          {p.categorias?.nome ?? "Sem categoria"} · SKU {p.sku ?? "—"}
-        </p>
-      </div>
+    <div className="mx-auto max-w-4xl">
+      <PageHeader
+        back={{ href: "/produtos", label: "Produtos" }}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {p.nome}
+            {p.status === "inativo" && <Badge>Inativo</Badge>}
+          </span>
+        }
+        description={[p.categorias?.nome ?? "Sem categoria", p.marca, p.sku ? `SKU ${p.sku}` : null].filter(Boolean).join(" · ")}
+        action={
+          <>
+            <Link href={`/produtos/${p.id}/editar`} className={btnSecondary}>
+              <IconPencil width={16} height={16} /> Editar
+            </Link>
+            <ExcluirProdutoButton produtoId={p.id} nome={p.nome} />
+          </>
+        }
+      />
 
-      <div className="mb-8 grid grid-cols-4 gap-3">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Custo</p>
-          <p className="text-lg font-semibold text-red-400">{formatBRL(p.custo_min)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Varejo</p>
-          <p className="text-lg font-semibold text-white">{formatBRL(p.preco_varejo)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Atacado</p>
-          <p className="text-lg font-semibold text-white">
-            {p.preco_atacado ? formatBRL(p.preco_atacado) : "—"}
-          </p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Estoque</p>
-          <p className="text-lg font-semibold text-emerald-400">{p.estoque_total}</p>
-        </div>
-      </div>
-
-      {p.tem_variacoes && (
-        <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-          <h2 className="mb-4 text-sm font-semibold text-white">Variações</h2>
-          <VariacoesSection produtoId={p.id} variacoes={variacoes} />
-        </div>
-      )}
-
-      <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-white">Registrar entrada de estoque</h2>
-        <EntradaEstoqueForm
-          produtoId={p.id}
-          custoAtual={p.custo_min}
-          variacoes={variacoes}
-          fornecedores={fornecedores}
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          label={p.tem_variacoes ? "Custo (menor)" : "Custo médio"}
+          value={formatBRL(p.custo_min)}
+          hint={p.fornecedor_nome ? `Fornecedor: ${p.fornecedor_nome}` : undefined}
         />
+        <StatCard
+          label="Preço de venda"
+          value={formatBRL(p.preco_varejo)}
+          hint={p.preco_atacado != null ? `Atacado ${formatBRL(p.preco_atacado)}` : margem !== null ? `${margem.toFixed(1)}% de margem` : undefined}
+        />
+        <StatCard
+          label="Em estoque"
+          value={`${p.estoque_total} ${p.unidade_medida}`}
+          tone={situacao === "sem" ? "negative" : situacao === "baixo" ? "warning" : "positive"}
+          hint={p.alerta_estoque_baixo != null ? `Alerta com ${p.alerta_estoque_baixo} ou menos` : undefined}
+        />
+        <StatCard label="Vendidos" value={unidadesVendidas} hint={`${formatBRL(lucroVendas)} de lucro`} />
       </div>
 
-      <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-white">Fotos</h2>
-        <FotosSection produtoId={p.id} fotos={fotosComUrl} />
-      </div>
+      <div className="flex flex-col gap-6">
+        {p.tem_variacoes && (
+          <Card title="Variações" description="Cada variação tem estoque, custo e preço próprios.">
+            <VariacoesSection produtoId={p.id} variacoes={variacoes} precoPadrao={Number(p.preco_varejo)} />
+          </Card>
+        )}
 
-      <div className="mb-8 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
-        <h2 className="mb-1 text-sm font-semibold text-white">Anúncios por canal</h2>
-        <p className="mb-4 text-xs text-neutral-500">
-          Título e descrição podem variar por canal (Shopee, Mercado Livre, Instagram...).
-        </p>
-        <AnunciosSection produtoId={p.id} canais={canais} anuncios={anuncios} />
-      </div>
+        <Card
+          title="Registrar entrada de estoque"
+          description="Compras de mercadoria: somam no estoque, recalculam o custo médio e lançam a saída no caixa."
+        >
+          {precisaVariacao ? (
+            <p className="text-sm text-warning">Adicione pelo menos uma variação acima antes de registrar estoque.</p>
+          ) : (
+            <EntradaEstoqueForm
+              produtoId={p.id}
+              custoAtual={Number(p.custo_min)}
+              variacoes={variacoes}
+              fornecedores={fornecedores}
+              fornecedorPadrao={p.fornecedor_id}
+              hoje={hojeISO()}
+            />
+          )}
+        </Card>
 
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-white">
-          Histórico de compras e ajustes
-        </h2>
-        {historico.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nenhuma entrada de estoque registrada ainda.</p>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-neutral-800">
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-900 text-left text-xs uppercase tracking-wide text-neutral-500">
+        <Card title="Fotos">
+          <FotosSection produtoId={p.id} fotos={fotosComUrl} />
+        </Card>
+
+        <Card
+          title="Anúncios por canal"
+          description="Título e descrição podem variar por canal (Shopee, Mercado Livre, Instagram...)."
+        >
+          <AnunciosSection produtoId={p.id} canais={canais} anuncios={anuncios} nomeProduto={p.nome} descricaoProduto={p.descricao} />
+        </Card>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Histórico de compras e ajustes</h2>
+          {historico.length === 0 ? (
+            <p className="text-sm text-ink-muted">Nenhuma entrada de estoque registrada ainda.</p>
+          ) : (
+            <Table>
+              <thead className={theadClass}>
                 <tr>
-                  <th className="px-4 py-2 font-medium">Data</th>
-                  <th className="px-4 py-2 font-medium">Tipo</th>
-                  <th className="px-4 py-2 font-medium">Qtd.</th>
-                  <th className="px-4 py-2 font-medium">Preço unit.</th>
-                  <th className="px-4 py-2 font-medium">Total</th>
-                  <th className="px-4 py-2 font-medium">Fornecedor</th>
+                  <th className={thClass}>Data</th>
+                  <th className={thClass}>Item</th>
+                  <th className={`${thClass} text-right`}>Qtd.</th>
+                  <th className={`${thClass} text-right`}>Preço unit.</th>
+                  <th className={`${thClass} text-right`}>Total</th>
+                  <th className={thClass}>Fornecedor</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800">
+              <tbody className={tbodyClass}>
                 {historico.map((m) => (
                   <tr key={m.id}>
-                    <td className="px-4 py-2 text-neutral-300">{formatData(m.data)}</td>
-                    <td className="px-4 py-2 capitalize text-neutral-300">{m.tipo}</td>
-                    <td className="px-4 py-2 text-white">{m.quantidade}</td>
-                    <td className="px-4 py-2 text-neutral-300">{formatBRL(m.valor_unitario)}</td>
-                    <td className="px-4 py-2 text-white">
-                      {formatBRL(m.quantidade * m.valor_unitario)}
+                    <td className={`${tdClass} whitespace-nowrap text-ink-2`}>{formatData(m.data)}</td>
+                    <td className={`${tdClass} text-ink-2`}>
+                      <span className="capitalize">{m.tipo}</span>
+                      {m.produto_nome !== p.nome && (
+                        <span className="block text-xs text-ink-muted">{m.produto_nome.replace(`${p.nome} — `, "")}</span>
+                      )}
+                      {m.observacoes && <span className="block text-xs text-ink-muted">{m.observacoes}</span>}
                     </td>
-                    <td className="px-4 py-2 text-neutral-400">{m.fornecedor_nome ?? "—"}</td>
+                    <td className={`${tdClass} text-right tabular-nums text-ink`}>{m.quantidade}</td>
+                    <td className={`${tdClass} text-right tabular-nums text-ink-2`}>{formatBRL(m.valor_unitario)}</td>
+                    <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(m.quantidade * Number(m.valor_unitario))}</td>
+                    <td className={`${tdClass} text-ink-muted`}>{m.fornecedor_nome ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
-        )}
+            </Table>
+          )}
+        </section>
       </div>
     </div>
   );

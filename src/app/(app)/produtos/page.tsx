@@ -1,104 +1,186 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { ProdutoComEstoque } from "@/types/domain";
-import { ExcluirProdutoButton } from "./excluir-produto-button";
+import { formatBRL } from "@/lib/format";
+import { situacaoEstoque } from "@/lib/estoque";
+import { SearchInput } from "@/components/search-input";
+import {
+  Badge,
+  EmptyState,
+  ErrorMessage,
+  PageHeader,
+  StatCard,
+  Table,
+  btnPrimary,
+  tbodyClass,
+  tdClass,
+  thClass,
+  theadClass,
+} from "@/components/ui";
+import { IconPlus } from "@/components/icons";
 
-function formatBRL(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+export const metadata: Metadata = { title: "Produtos" };
 
-export default async function ProdutosPage() {
+const FILTROS = [
+  { valor: "", label: "Ativos" },
+  { valor: "baixo", label: "Estoque baixo" },
+  { valor: "sem", label: "Sem estoque" },
+  { valor: "inativos", label: "Inativos" },
+] as const;
+
+export default async function ProdutosPage({ searchParams }: PageProps<"/produtos">) {
+  const sp = await searchParams;
+  const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase() : "";
+  const filtro = FILTROS.find((f) => f.valor === sp.filtro)?.valor ?? "";
+
   const supabase = await createClient();
-  const { data: produtos, error } = await supabase
-    .from("produtos_com_estoque")
-    .select("*, categorias(nome)")
-    .order("nome");
+  const { data, error } = await supabase.from("produtos_com_estoque").select("*, categorias(nome)").order("nome");
+
+  const novo = (
+    <Link href="/produtos/novo" className={btnPrimary}>
+      <IconPlus width={16} height={16} /> Novo produto
+    </Link>
+  );
 
   if (error) {
-    return <p className="text-sm text-red-400">Erro ao carregar produtos: {error.message}</p>;
+    return (
+      <div>
+        <PageHeader title="Produtos" action={novo} />
+        <ErrorMessage>Não foi possível carregar os produtos: {error.message}</ErrorMessage>
+      </div>
+    );
   }
 
-  const lista = (produtos ?? []) as ProdutoComEstoque[];
+  const todos = (data ?? []) as ProdutoComEstoque[];
+  const ativos = todos.filter((p) => p.status !== "inativo");
+  const valorEstoque = ativos.reduce(
+    (s, p) => s + Number(p.valor_estoque ?? Math.max(p.estoque_total, 0) * Number(p.custo_min)),
+    0,
+  );
+  const contagem = {
+    baixo: ativos.filter((p) => situacaoEstoque(p) === "baixo").length,
+    sem: ativos.filter((p) => situacaoEstoque(p) === "sem").length,
+  };
+
+  const lista = todos.filter((p) => {
+    if (filtro === "inativos") {
+      if (p.status !== "inativo") return false;
+    } else {
+      if (p.status === "inativo") return false;
+      if (filtro && situacaoEstoque(p) !== filtro) return false;
+    }
+    if (!q) return true;
+    return [p.nome, p.marca, p.sku, p.categorias?.nome].some((v) => v?.toLowerCase().includes(q));
+  });
+
+  const filtroHref = (valor: string) => {
+    const qs = new URLSearchParams();
+    if (valor) qs.set("filtro", valor);
+    if (q) qs.set("q", q);
+    const s = qs.toString();
+    return s ? `/produtos?${s}` : "/produtos";
+  };
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Produtos</h1>
-          <p className="text-sm text-neutral-400">Gerencie seu estoque de produtos</p>
-        </div>
-        <Link
-          href="/produtos/novo"
-          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
-        >
-          + Novo produto
-        </Link>
+      <PageHeader title="Produtos" description="Seu catálogo, preços e estoque." action={novo} />
+
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Produtos ativos" value={ativos.length} />
+        <StatCard label="Valor em estoque (custo)" value={formatBRL(valorEstoque)} />
+        <StatCard
+          label="Estoque baixo"
+          value={contagem.baixo}
+          tone={contagem.baixo ? "warning" : "neutral"}
+          href={contagem.baixo ? "/produtos?filtro=baixo" : undefined}
+        />
+        <StatCard
+          label="Sem estoque"
+          value={contagem.sem}
+          tone={contagem.sem ? "negative" : "neutral"}
+          href={contagem.sem ? "/produtos?filtro=sem" : undefined}
+        />
       </div>
 
-      {lista.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-neutral-800 p-10 text-center text-sm text-neutral-500">
-          Nenhum produto cadastrado ainda.
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <SearchInput placeholder="Buscar por nome, marca, SKU..." />
+        <div className="flex gap-1 overflow-x-auto">
+          {FILTROS.map((f) => (
+            <Link
+              key={f.valor}
+              href={filtroHref(f.valor)}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${filtro === f.valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
+            >
+              {f.label}
+            </Link>
+          ))}
         </div>
+      </div>
+
+      {todos.length === 0 ? (
+        <EmptyState
+          title="Nenhum produto cadastrado"
+          description="Cadastre seus produtos com custo e preço de venda — o lucro de cada venda é calculado sozinho."
+          action={novo}
+        />
+      ) : lista.length === 0 ? (
+        <EmptyState title="Nenhum produto encontrado" description="Tente outro termo de busca ou filtro." />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-900 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Produto</th>
-                <th className="px-4 py-3 font-medium">Categoria</th>
-                <th className="px-4 py-3 font-medium">Custo</th>
-                <th className="px-4 py-3 font-medium">Varejo / atacado</th>
-                <th className="px-4 py-3 font-medium">Estoque</th>
-                <th className="px-4 py-3 font-medium text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-800">
-              {lista.map((produto) => {
-                const margem =
-                  produto.preco_varejo > 0
-                    ? ((produto.preco_varejo - produto.custo_min) / produto.preco_varejo) * 100
-                    : 0;
-                return (
-                  <tr key={produto.id} className="hover:bg-neutral-900/60">
-                    <td className="px-4 py-3">
-                      <Link href={`/produtos/${produto.id}`} className="font-medium text-white hover:underline">
-                        {produto.nome}
-                      </Link>
-                      <p className="text-xs text-neutral-500">{margem.toFixed(1)}% de margem</p>
-                    </td>
-                    <td className="px-4 py-3 text-neutral-300">
-                      {produto.categorias?.nome ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-red-400">{formatBRL(produto.custo_min)}</td>
-                    <td className="px-4 py-3">
-                      <p className="text-white">{formatBRL(produto.preco_varejo)}</p>
-                      {produto.preco_atacado && (
-                        <p className="text-xs text-neutral-500">
-                          Atac. {formatBRL(produto.preco_atacado)}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={
-                          "rounded-full px-2 py-0.5 text-xs font-medium " +
-                          (produto.estoque_total > 0
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : "bg-red-500/10 text-red-400")
-                        }
-                      >
-                        {produto.estoque_total}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <ExcluirProdutoButton produtoId={produto.id} nome={produto.nome} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table compacta>
+          <thead className={theadClass}>
+            <tr>
+              <th className={thClass}>Produto</th>
+              <th className={`${thClass} hidden text-right sm:table-cell`}>Custo</th>
+              <th className={`${thClass} text-right`}>Venda</th>
+              <th className={`${thClass} hidden text-right sm:table-cell`}>Margem</th>
+              <th className={`${thClass} text-right`}>Estoque</th>
+            </tr>
+          </thead>
+          <tbody className={tbodyClass}>
+            {lista.map((p) => {
+              const preco = Number(p.preco_varejo);
+              const custo = Number(p.custo_min);
+              const margem = preco > 0 ? ((preco - custo) / preco) * 100 : null;
+              const situacao = situacaoEstoque(p);
+              return (
+                <tr key={p.id} className="relative hover:bg-fill/50">
+                  <td className={tdClass}>
+                    <Link href={`/produtos/${p.id}`} className="font-medium text-ink after:absolute after:inset-0">
+                      {p.nome}
+                    </Link>
+                    <p className="text-xs text-ink-muted">
+                      {[p.categorias?.nome, p.marca, p.tem_variacoes ? "com variações" : null].filter(Boolean).join(" · ") ||
+                        "Sem categoria"}
+                    </p>
+                  </td>
+                  <td className={`${tdClass} hidden text-right tabular-nums text-ink-muted sm:table-cell`}>
+                    {formatBRL(custo)}
+                    {p.tem_variacoes && Number(p.custo_max) !== custo && (
+                      <span className="block text-xs text-ink-faint">até {formatBRL(p.custo_max)}</span>
+                    )}
+                  </td>
+                  <td className={`${tdClass} text-right tabular-nums text-ink`}>
+                    {formatBRL(preco)}
+                    {p.preco_atacado != null && (
+                      <span className="block text-xs text-ink-muted">atac. {formatBRL(p.preco_atacado)}</span>
+                    )}
+                  </td>
+                  <td
+                    className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${margem === null ? "text-ink-faint" : margem < 0 ? "text-danger" : margem < 20 ? "text-warning" : "text-positive"}`}
+                  >
+                    {margem === null ? "—" : `${margem.toFixed(0)}%`}
+                  </td>
+                  <td className={`${tdClass} text-right`}>
+                    <Badge tone={situacao === "sem" ? "negative" : situacao === "baixo" ? "warning" : "positive"}>
+                      {p.estoque_total} {p.unidade_medida}
+                    </Badge>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
       )}
     </div>
   );

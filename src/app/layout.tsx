@@ -14,13 +14,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gestor",
+  title: { default: "Marcon", template: "%s · Marcon" },
   description: "Gestão de vendas, estoque e caixa num só lugar.",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Gestor" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Marcon" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -29,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100">
+      <body className="flex min-h-full flex-col bg-canvas font-sans text-ink">
         <ServiceWorkerRegistration />
         {children}
       </body>

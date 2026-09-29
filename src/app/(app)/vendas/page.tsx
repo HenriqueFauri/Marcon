@@ -1,92 +1,144 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Venda } from "@/types/domain";
+import { formatBRL, formatData, intervaloDoMes, mesAtual, mesValido } from "@/lib/format";
+import { MonthPicker } from "@/components/month-picker";
+import {
+  Badge,
+  EmptyState,
+  ErrorMessage,
+  PageHeader,
+  StatCard,
+  Table,
+  btnPrimary,
+  tbodyClass,
+  tdClass,
+  thClass,
+  theadClass,
+} from "@/components/ui";
+import { IconPlus } from "@/components/icons";
 
-function formatBRL(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+export const metadata: Metadata = { title: "Vendas" };
 
-function formatData(value: string) {
-  return new Date(value + "T00:00:00").toLocaleDateString("pt-BR");
-}
+export default async function VendasPage({ searchParams }: PageProps<"/vendas">) {
+  const sp = await searchParams;
+  const mes = mesValido(typeof sp.mes === "string" ? sp.mes : null) ?? mesAtual();
+  const { inicio, fimExclusivo } = intervaloDoMes(mes);
 
-export default async function VendasPage() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("vendas")
     .select("*")
+    .gte("data", inicio)
+    .lt("data", fimExclusivo)
     .order("data", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .order("created_at", { ascending: false });
+
+  const novaVenda = (
+    <Link href="/vendas/novo" className={btnPrimary}>
+      <IconPlus width={16} height={16} /> Nova venda
+    </Link>
+  );
 
   if (error) {
-    return <p className="text-sm text-red-400">Erro ao carregar vendas: {error.message}</p>;
+    return (
+      <div>
+        <PageHeader title="Vendas" action={novaVenda} />
+        <ErrorMessage>Não foi possível carregar as vendas: {error.message}</ErrorMessage>
+      </div>
+    );
   }
 
   const vendas = (data ?? []) as Venda[];
-  const totalVendido = vendas.reduce((s, v) => s + v.valor_total, 0);
-  const lucroTotal = vendas.reduce((s, v) => s + (v.valor_total - v.custo_total), 0);
+  const concluidas = vendas.filter((v) => v.status !== "cancelada");
+  const totalVendido = concluidas.reduce((s, v) => s + Number(v.valor_total), 0);
+  const lucroTotal = concluidas.reduce((s, v) => s + (Number(v.valor_total) - Number(v.custo_total)), 0);
+  const ticketMedio = concluidas.length ? totalVendido / concluidas.length : 0;
+  const margem = totalVendido > 0 ? (lucroTotal / totalVendido) * 100 : 0;
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Vendas</h1>
-          <p className="text-sm text-neutral-400">Registre e acompanhe suas vendas.</p>
-        </div>
-        <Link
-          href="/vendas/novo"
-          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400"
-        >
-          + Nova venda
-        </Link>
+      <PageHeader title="Vendas" description="Registre e acompanhe suas vendas." action={novaVenda} />
+
+      <div className="mb-4">
+        <MonthPicker mes={mes} basePath="/vendas" />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Total vendido</p>
-          <p className="text-lg font-semibold text-white">{formatBRL(totalVendido)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Lucro das vendas</p>
-          <p className="text-lg font-semibold text-emerald-400">{formatBRL(lucroTotal)}</p>
-        </div>
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Total vendido" value={formatBRL(totalVendido)} />
+        <StatCard
+          label="Lucro bruto"
+          value={formatBRL(lucroTotal)}
+          tone={lucroTotal >= 0 ? "positive" : "negative"}
+          hint={`${margem.toFixed(1)}% de margem`}
+        />
+        <StatCard label="Vendas" value={concluidas.length} />
+        <StatCard label="Ticket médio" value={formatBRL(ticketMedio)} />
       </div>
 
       {vendas.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-neutral-800 p-10 text-center text-sm text-neutral-500">
-          Nenhuma venda registrada ainda.
-        </div>
+        <EmptyState
+          title="Nenhuma venda neste mês"
+          description="Quando você registrar uma venda, ela aparece aqui com o lucro calculado automaticamente."
+          action={novaVenda}
+        />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-900 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Data</th>
-                <th className="px-4 py-3 font-medium">Cliente</th>
-                <th className="px-4 py-3 font-medium">Pagamento</th>
-                <th className="px-4 py-3 font-medium">Total</th>
-                <th className="px-4 py-3 font-medium">Lucro</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-800">
-              {vendas.map((v) => (
-                <tr key={v.id} className="hover:bg-neutral-900/60">
-                  <td className="px-4 py-3 text-neutral-300">{formatData(v.data)}</td>
-                  <td className="px-4 py-3 text-white">{v.cliente_nome ?? "—"}</td>
-                  <td className="px-4 py-3 text-neutral-400">
-                    {v.tipo_pagamento === "a_prazo" ? "Parcelado" : "À vista"}
-                    {v.forma_pagamento ? ` · ${v.forma_pagamento}` : ""}
+        <Table compacta>
+          <thead className={theadClass}>
+            <tr>
+              <th className={thClass}>Data</th>
+              <th className={thClass}>Cliente</th>
+              <th className={`${thClass} hidden sm:table-cell`}>Pagamento</th>
+              <th className={`${thClass} text-right`}>Total</th>
+              <th className={`${thClass} hidden text-right sm:table-cell`}>Lucro</th>
+            </tr>
+          </thead>
+          <tbody className={tbodyClass}>
+            {vendas.map((v) => {
+              const cancelada = v.status === "cancelada";
+              const lucro = Number(v.valor_total) - Number(v.custo_total);
+              return (
+                <tr key={v.id} className={`relative hover:bg-fill/50 ${cancelada ? "opacity-50" : ""}`}>
+                  <td className={`${tdClass} whitespace-nowrap text-ink-2`}>
+                    <Link href={`/vendas/${v.id}`} className="after:absolute after:inset-0">
+                      {formatData(v.data)}
+                    </Link>
                   </td>
-                  <td className="px-4 py-3 text-white">{formatBRL(v.valor_total)}</td>
-                  <td className="px-4 py-3 text-emerald-400">
-                    {formatBRL(v.valor_total - v.custo_total)}
+                  <td className={`${tdClass} text-ink`}>
+                    {v.cliente_nome ?? <span className="text-ink-muted">Avulsa</span>}
+                    {v.canal && <span className="block text-xs text-ink-muted">{v.canal}</span>}
+                    <span className="mt-0.5 block sm:hidden">
+                      {cancelada ? (
+                        <Badge tone="negative">Cancelada</Badge>
+                      ) : (
+                        v.tipo_pagamento === "a_prazo" && <Badge tone="warning">A prazo</Badge>
+                      )}
+                    </span>
+                  </td>
+                  <td className={`${tdClass} hidden text-ink-muted sm:table-cell`}>
+                    {cancelada ? (
+                      <Badge tone="negative">Cancelada</Badge>
+                    ) : (
+                      <>
+                        {v.tipo_pagamento === "a_prazo" ? <Badge tone="warning">A prazo</Badge> : "À vista"}
+                        {v.forma_pagamento && <span className="ml-1">· {v.forma_pagamento}</span>}
+                      </>
+                    )}
+                  </td>
+                  <td className={`${tdClass} text-right tabular-nums text-ink ${cancelada ? "line-through" : ""}`}>
+                    {formatBRL(v.valor_total)}
+                  </td>
+                  <td
+                    className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${lucro >= 0 ? "text-positive" : "text-danger"} ${cancelada ? "line-through" : ""}`}
+                  >
+                    {formatBRL(lucro)}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </Table>
       )}
     </div>
   );

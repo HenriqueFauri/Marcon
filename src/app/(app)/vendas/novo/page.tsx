@@ -1,32 +1,81 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import type { CanalVenda, Cliente, FormaPagamento, ProdutoComEstoque } from "@/types/domain";
-import { VendaForm } from "./venda-form";
+import type { CanalVenda, Cliente, FormaPagamento, ProdutoComEstoque, ProdutoVariacao } from "@/types/domain";
+import { EmptyState, PageHeader, btnPrimary } from "@/components/ui";
+import { hojeISO } from "@/lib/format";
+import { VendaForm, type Vendavel } from "./venda-form";
+
+export const metadata: Metadata = { title: "Nova venda" };
 
 export default async function NovaVendaPage() {
   const supabase = await createClient();
-  const [{ data: produtosData }, { data: clientesData }, { data: canaisData }, { data: formasData }] =
+  const [{ data: produtosData }, { data: variacoesData }, { data: clientesData }, { data: canaisData }, { data: formasData }] =
     await Promise.all([
-      supabase.from("produtos_com_estoque").select("*").gt("estoque_total", 0).order("nome"),
+      supabase.from("produtos_com_estoque").select("*").neq("status", "inativo").gt("estoque_total", 0).order("nome"),
+      supabase.from("produto_variacoes").select("*").gt("estoque", 0).order("nome_combinacao"),
       supabase.from("clientes").select("*").order("nome"),
       supabase.from("canais_venda").select("*").order("nome"),
       supabase.from("formas_pagamento").select("*").order("nome"),
     ]);
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
-  const clientes = (clientesData ?? []) as Cliente[];
-  const canais = (canaisData ?? []) as CanalVenda[];
-  const formas = (formasData ?? []) as FormaPagamento[];
+  const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
+
+  // cada variação é um item vendável separado, com estoque, preço e custo próprios
+  const vendaveis: Vendavel[] = produtos.flatMap((p): Vendavel[] => {
+    if (!p.tem_variacoes) {
+      return [
+        {
+          chave: p.id,
+          produto_id: p.id,
+          variacao_id: null,
+          nome: p.nome,
+          detalhe: [p.marca, p.sku].filter(Boolean).join(" · "),
+          preco_varejo: Number(p.preco_varejo),
+          preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
+          custo: Number(p.custo),
+          estoque: p.estoque_total,
+        },
+      ];
+    }
+    return variacoes
+      .filter((v) => v.produto_id === p.id)
+      .map((v) => ({
+        chave: `${p.id}:${v.id}`,
+        produto_id: p.id,
+        variacao_id: v.id,
+        nome: `${p.nome} — ${v.nome_combinacao}`,
+        detalhe: [p.marca, v.sku].filter(Boolean).join(" · "),
+        preco_varejo: Number(v.preco_venda ?? p.preco_varejo),
+        preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
+        custo: Number(v.custo ?? p.custo),
+        estoque: v.estoque,
+      }));
+  });
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-semibold text-white">Nova venda</h1>
+      <PageHeader title="Nova venda" back={{ href: "/vendas", label: "Vendas" }} />
 
-      {produtos.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-neutral-800 p-10 text-center text-sm text-neutral-500">
-          Nenhum produto com estoque disponível pra vender.
-        </div>
+      {vendaveis.length === 0 ? (
+        <EmptyState
+          title="Nenhum produto com estoque"
+          description="Cadastre um produto ou registre uma entrada de estoque para poder vender."
+          action={
+            <Link href="/produtos" className={btnPrimary}>
+              Ir para produtos
+            </Link>
+          }
+        />
       ) : (
-        <VendaForm produtos={produtos} clientes={clientes} canais={canais} formas={formas} />
+        <VendaForm
+          vendaveis={vendaveis}
+          clientes={(clientesData ?? []) as Cliente[]}
+          canais={(canaisData ?? []) as CanalVenda[]}
+          formas={(formasData ?? []) as FormaPagamento[]}
+          hoje={hojeISO()}
+        />
       )}
     </div>
   );

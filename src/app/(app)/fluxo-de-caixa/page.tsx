@@ -1,102 +1,217 @@
+import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { LancamentoCaixa } from "@/types/domain";
+import { formatBRL, formatData, hojeISO, intervaloDoMes, mesAtual, mesValido } from "@/lib/format";
+import { MonthPicker } from "@/components/month-picker";
+import { ConfirmButton } from "@/components/confirm-button";
+import {
+  Badge,
+  EmptyState,
+  ErrorMessage,
+  PageHeader,
+  StatCard,
+  Table,
+  tbodyClass,
+  tdClass,
+  thClass,
+  theadClass,
+} from "@/components/ui";
 import { NovoLancamentoForm } from "./novo-lancamento-form";
-import { ExcluirLancamentoButton } from "./excluir-lancamento-button";
+import { excluirLancamento } from "./actions";
 
-function formatBRL(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+export const metadata: Metadata = { title: "Fluxo de caixa" };
+
+function origem(l: LancamentoCaixa) {
+  if (l.parcela_id) return { label: "Parcela", tone: "positive" as const };
+  if (l.venda_id) return l.tipo === "saida" ? { label: "Estorno", tone: "negative" as const } : { label: "Venda", tone: "positive" as const };
+  if (l.movimento_estoque_id || l.origem === "compra") return { label: "Estoque", tone: "info" as const };
+  return { label: "Manual", tone: "neutral" as const };
 }
 
-function formatData(value: string) {
-  return new Date(value + "T00:00:00").toLocaleDateString("pt-BR");
-}
+export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/fluxo-de-caixa">) {
+  const sp = await searchParams;
+  const mes = mesValido(typeof sp.mes === "string" ? sp.mes : null) ?? mesAtual();
+  const tipo = sp.tipo === "entrada" || sp.tipo === "saida" ? sp.tipo : undefined;
+  const { inicio, fimExclusivo } = intervaloDoMes(mes);
 
-export default async function FluxoDeCaixaPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("lancamentos_caixa")
     .select("*")
+    .gte("data", inicio)
+    .lt("data", fimExclusivo)
     .order("data", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .order("created_at", { ascending: false });
+  if (tipo) query = query.eq("tipo", tipo);
+
+  const [{ data, error }, { data: anterioresData }] = await Promise.all([
+    query,
+    // saldo acumulado até o início do mês, pra mostrar o saldo real do caixa
+    supabase.from("lancamentos_caixa").select("tipo, valor").lt("data", inicio),
+  ]);
+
+  const hoje = hojeISO();
 
   if (error) {
-    return <p className="text-sm text-red-400">Erro ao carregar fluxo de caixa: {error.message}</p>;
+    return (
+      <div>
+        <PageHeader title="Fluxo de caixa" />
+        <ErrorMessage>Não foi possível carregar o fluxo de caixa: {error.message}</ErrorMessage>
+      </div>
+    );
   }
 
   const lancamentos = (data ?? []) as LancamentoCaixa[];
-  const entradas = lancamentos.filter((l) => l.tipo === "entrada").reduce((s, l) => s + l.valor, 0);
-  const saidas = lancamentos.filter((l) => l.tipo === "saida").reduce((s, l) => s + l.valor, 0);
-  const saldo = entradas - saidas;
+  const categorias = Array.from(new Set(lancamentos.map((l) => l.categoria)));
+  const soma = (t: "entrada" | "saida") =>
+    lancamentos.filter((l) => l.tipo === t).reduce((s, l) => s + Number(l.valor), 0);
+  const entradas = soma("entrada");
+  const saidas = soma("saida");
+  const resultado = entradas - saidas;
+  const saldoAnterior = (anterioresData ?? []).reduce(
+    (s, l) => s + (l.tipo === "entrada" ? Number(l.valor) : -Number(l.valor)),
+    0,
+  );
+
+  // gastos por categoria no mês
+  const porCategoria = new Map<string, number>();
+  for (const l of lancamentos) {
+    if (l.tipo !== "saida") continue;
+    porCategoria.set(l.categoria, (porCategoria.get(l.categoria) ?? 0) + Number(l.valor));
+  }
+  const topCategorias = [...porCategoria.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const filtroHref = (t?: string) => {
+    const qs = new URLSearchParams();
+    if (mes !== mesAtual()) qs.set("mes", mes);
+    if (t) qs.set("tipo", t);
+    const s = qs.toString();
+    return s ? `/fluxo-de-caixa?${s}` : "/fluxo-de-caixa";
+  };
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-white">Fluxo de caixa</h1>
-          <p className="text-sm text-neutral-400">
-            Tudo interligado: estoque, gastos e ajustes manuais.
-          </p>
+      <PageHeader
+        title="Fluxo de caixa"
+        description="Vendas, parcelas, compras de estoque e lançamentos manuais num só lugar."
+        action={<NovoLancamentoForm hoje={hoje} categorias={categorias} />}
+      />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <MonthPicker mes={mes} basePath="/fluxo-de-caixa" params={{ tipo }} />
+        <div className="flex gap-1">
+          {[
+            [undefined, "Tudo"],
+            ["entrada", "Entradas"],
+            ["saida", "Saídas"],
+          ].map(([valor, rotulo]) => (
+            <Link
+              key={rotulo}
+              href={filtroHref(valor)}
+              className={`rounded-lg px-3 py-1.5 text-sm ${tipo === valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
+            >
+              {rotulo}
+            </Link>
+          ))}
         </div>
-        <NovoLancamentoForm />
       </div>
 
-      <div className="mb-6 grid grid-cols-3 gap-3">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Entradas</p>
-          <p className="text-lg font-semibold text-emerald-400">{formatBRL(entradas)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Saídas</p>
-          <p className="text-lg font-semibold text-red-400">{formatBRL(saidas)}</p>
-        </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs text-neutral-500">Saldo</p>
-          <p className={"text-lg font-semibold " + (saldo >= 0 ? "text-emerald-400" : "text-red-400")}>
-            {formatBRL(saldo)}
-          </p>
-        </div>
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Entradas no mês" value={formatBRL(entradas)} tone="positive" />
+        <StatCard label="Saídas no mês" value={formatBRL(saidas)} tone="negative" />
+        <StatCard label="Resultado do mês" value={formatBRL(resultado)} tone={resultado >= 0 ? "positive" : "negative"} />
+        <StatCard
+          label="Saldo em caixa"
+          value={formatBRL(saldoAnterior + resultado)}
+          tone={saldoAnterior + resultado >= 0 ? "neutral" : "negative"}
+          hint={`${formatBRL(saldoAnterior)} vindo do mês anterior`}
+        />
       </div>
+
+      {!tipo && topCategorias.length > 0 && (
+        <div className="mb-6 rounded-3xl bg-surface p-5">
+          <h2 className="mb-3 text-sm font-semibold text-ink">Para onde foi o dinheiro</h2>
+          <ul className="space-y-2">
+            {topCategorias.map(([cat, valor]) => (
+              <li key={cat} className="text-sm">
+                <div className="mb-1 flex justify-between">
+                  <span className="text-ink-2">{cat}</span>
+                  <span className="tabular-nums text-ink-muted">{formatBRL(valor)}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-fill">
+                  <div className="h-full rounded-full bg-danger/70" style={{ width: `${(valor / saidas) * 100}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {lancamentos.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-neutral-800 p-10 text-center text-sm text-neutral-500">
-          Nenhum lançamento ainda.
-        </div>
+        <EmptyState
+          title="Nenhum lançamento neste período"
+          description="Vendas à vista, parcelas recebidas e compras de estoque entram aqui automaticamente."
+        />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-neutral-800">
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-900 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Data</th>
-                <th className="px-4 py-3 font-medium">Descrição</th>
-                <th className="px-4 py-3 font-medium">Categoria</th>
-                <th className="px-4 py-3 font-medium">Valor</th>
-                <th className="px-4 py-3 font-medium text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-800">
-              {lancamentos.map((l) => (
-                <tr key={l.id} className="hover:bg-neutral-900/60">
-                  <td className="px-4 py-3 text-neutral-300">{formatData(l.data)}</td>
-                  <td className="px-4 py-3 text-white">{l.descricao}</td>
-                  <td className="px-4 py-3 text-neutral-400">{l.categoria}</td>
+        <Table compacta>
+          <thead className={theadClass}>
+            <tr>
+              <th className={thClass}>Data</th>
+              <th className={thClass}>Descrição</th>
+              <th className={`${thClass} hidden sm:table-cell`}>Categoria</th>
+              <th className={`${thClass} text-right`}>Valor</th>
+              <th className={`${thClass} text-right`}>
+                <span className="sr-only">Ações</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className={tbodyClass}>
+            {lancamentos.map((l) => {
+              const o = origem(l);
+              const manual = o.label === "Manual";
+              return (
+                <tr key={l.id} className="hover:bg-fill/50">
+                  <td className={`${tdClass} whitespace-nowrap text-ink-2`}>{formatData(l.data)}</td>
+                  <td className={tdClass}>
+                    {l.venda_id ? (
+                      <Link href={`/vendas/${l.venda_id}`} className="text-ink hover:underline">
+                        {l.descricao}
+                      </Link>
+                    ) : l.produto_id ? (
+                      <Link href={`/produtos/${l.produto_id}`} className="text-ink hover:underline">
+                        {l.descricao}
+                      </Link>
+                    ) : (
+                      <span className="text-ink">{l.descricao}</span>
+                    )}
+                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      <Badge tone={o.tone}>{o.label}</Badge>
+                      <span className="text-xs text-ink-muted sm:hidden">{l.categoria}</span>
+                    </span>
+                  </td>
+                  <td className={`${tdClass} hidden text-ink-muted sm:table-cell`}>{l.categoria}</td>
                   <td
-                    className={
-                      "px-4 py-3 font-medium " +
-                      (l.tipo === "entrada" ? "text-emerald-400" : "text-red-400")
-                    }
+                    className={`${tdClass} whitespace-nowrap text-right font-medium tabular-nums ${l.tipo === "entrada" ? "text-positive" : "text-danger"}`}
                   >
-                    {l.tipo === "entrada" ? "+ " : "- "}
+                    {l.tipo === "entrada" ? "+ " : "− "}
                     {formatBRL(l.valor)}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <ExcluirLancamentoButton id={l.id} />
+                  <td className={`${tdClass} text-right`}>
+                    {manual && (
+                      <ConfirmButton
+                        title="Excluir este lançamento?"
+                        description={`${l.descricao} — ${formatBRL(l.valor)}`}
+                        ariaLabel="Excluir lançamento"
+                        onConfirm={excluirLancamento.bind(null, l.id)}
+                      />
+                    )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </Table>
       )}
     </div>
   );

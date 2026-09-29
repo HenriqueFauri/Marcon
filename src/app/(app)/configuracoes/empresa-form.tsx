@@ -1,8 +1,14 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { mensagemDeErro } from "@/lib/action";
+import { useAction } from "@/components/use-action";
+import { useToast } from "@/components/toaster";
+import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { atualizarEmpresa, atualizarLogoEmpresa } from "./actions";
+
+const TAMANHO_MAX = 2 * 1024 * 1024;
 
 export function EmpresaForm({
   telefone,
@@ -18,15 +24,18 @@ export function EmpresaForm({
   logoUrl: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isPending, startTransition] = useTransition();
-  const [isUploading, setIsUploading] = useState(false);
-  const [logoError, setLogoError] = useState<string | null>(null);
+  const { isPending, run } = useAction();
+  const toast = useToast();
+  const [enviando, setEnviando] = useState(false);
 
   async function handleLogoUpload(files: FileList | null) {
     const file = files?.[0];
     if (!file) return;
-    setLogoError(null);
-    setIsUploading(true);
+    if (file.size > TAMANHO_MAX) {
+      toast.error("O logo precisa ter no máximo 2 MB.");
+      return;
+    }
+    setEnviando(true);
     try {
       const supabase = createClient();
       const {
@@ -34,102 +43,78 @@ export function EmpresaForm({
       } = await supabase.auth.getUser();
       if (!user) throw new Error("não autenticado");
 
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}/logo.${ext}`;
+      const ext = (file.name.split(".").pop() ?? "png").toLowerCase().replace(/[^a-z0-9]/g, "");
+      // nome novo a cada envio: evita o navegador mostrar o logo antigo do cache
+      const path = `${user.id}/logo-${Date.now()}.${ext || "png"}`;
       const { error: uploadError } = await supabase.storage
         .from("logo-empresa")
-        .upload(path, file, { upsert: true });
+        .upload(path, file, { upsert: true, contentType: file.type || undefined });
       if (uploadError) throw uploadError;
 
-      await atualizarLogoEmpresa(path);
+      const r = await atualizarLogoEmpresa(path);
+      if (!r.ok) throw new Error(r.error);
+      toast.success("Logo atualizado.");
     } catch (e) {
-      setLogoError(e instanceof Error ? e.message : "erro ao enviar logo");
+      toast.error(mensagemDeErro(e, "Erro ao enviar o logo."));
     } finally {
-      setIsUploading(false);
+      setEnviando(false);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <form
-        action={(formData) => startTransition(() => atualizarEmpresa(formData))}
-        className="flex flex-col gap-3"
-      >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs text-neutral-400">Telefone</label>
-            <input
-              name="empresa_telefone"
-              defaultValue={telefone}
-              placeholder="(11) 99999-9999"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            />
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center gap-4">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="Logo da empresa" className="h-16 w-16 rounded-xl border border-line object-cover" />
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-line-strong text-xs text-ink-muted">
+            sem logo
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-neutral-400">E-mail de contato</label>
-            <input
-              name="empresa_email"
-              type="email"
-              defaultValue={email}
-              placeholder="contato@empresa.com"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-            />
-          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={enviando} className={btnSecondary}>
+            {enviando ? "Enviando..." : logoUrl ? "Trocar logo" : "Enviar logo"}
+          </button>
+          {logoUrl && (
+            <button type="button" onClick={() => run(() => atualizarLogoEmpresa(null))} disabled={isPending} className={btnGhost}>
+              Remover
+            </button>
+          )}
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-neutral-400">Endereço</label>
-          <textarea
-            name="empresa_endereco"
-            defaultValue={endereco}
-            rows={2}
-            placeholder="Rua, número, bairro, cidade..."
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-          />
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          onChange={(e) => handleLogoUpload(e.target.files)}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      </div>
+
+      <form action={(formData) => run(() => atualizarEmpresa(formData))} className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Telefone">
+            <input name="empresa_telefone" type="tel" defaultValue={telefone} placeholder="(11) 99999-9999" className={inputClass} />
+          </Field>
+          <Field label="E-mail de contato">
+            <input name="empresa_email" type="email" defaultValue={email} placeholder="contato@empresa.com" className={inputClass} />
+          </Field>
         </div>
+        <Field label="Endereço">
+          <textarea name="empresa_endereco" defaultValue={endereco} rows={2} placeholder="Rua, número, bairro, cidade..." className={inputClass} />
+        </Field>
+        <Field label="CPF / CNPJ" className="sm:max-w-xs">
+          <input name="empresa_documento" defaultValue={documento} placeholder="Opcional" className={inputClass} />
+        </Field>
         <div>
-          <label className="mb-1 block text-xs text-neutral-400">CPF / CNPJ</label>
-          <input
-            name="empresa_documento"
-            defaultValue={documento}
-            placeholder="Opcional"
-            className="w-full max-w-xs rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-          />
-        </div>
-        <div>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
-          >
+          <button type="submit" disabled={isPending} className={btnPrimary}>
             {isPending ? "Salvando..." : "Salvar"}
           </button>
         </div>
       </form>
-
-      <div className="border-t border-neutral-800 pt-4">
-        <label className="mb-2 block text-xs text-neutral-400">Logo da empresa</label>
-        <div className="flex items-center gap-3">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Logo da empresa" className="h-12 w-12 rounded-lg object-cover" />
-          ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-neutral-800 text-xs text-neutral-500">
-              sem logo
-            </div>
-          )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            onChange={(e) => handleLogoUpload(e.target.files)}
-            disabled={isUploading}
-            className="text-sm text-neutral-300 file:mr-3 file:rounded-lg file:border-0 file:bg-neutral-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-neutral-700"
-          />
-        </div>
-        {isUploading && <p className="mt-2 text-xs text-neutral-500">Enviando...</p>}
-        {logoError && <p className="mt-2 text-xs text-red-400">{logoError}</p>}
-      </div>
     </div>
   );
 }
