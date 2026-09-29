@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
 import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
-import { EmptyState, btnPrimary } from "@/components/ui";
+import { Badge, EmptyState, btnPrimary } from "@/components/ui";
 import { MetasButton } from "./metas-button";
 import { IconAlert, IconBox, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
 
@@ -193,6 +193,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const vendasHoje = todasVendas.filter((v) => v.data === hoje);
   const listaVendas = periodo === "hoje" ? vendasHoje : vendasPeriodo;
 
+  const faturamentoLista = listaVendas.reduce((s, v) => s + Number(v.valor_total), 0);
   const faturamento = vendasPeriodo.reduce((s, v) => s + Number(v.valor_total), 0);
   const lucro = vendasPeriodo.reduce((s, v) => s + Number(v.valor_total) - Number(v.custo_total), 0);
 
@@ -376,44 +377,71 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             )}
           </Grupo>
 
-          <section className="hairline hidden rounded-3xl bg-surface px-6 pb-3 pt-2 lg:block">
-            <div className="flex items-baseline justify-between pb-1.5 pt-3">
-              <h2 className="text-[17px] font-bold tracking-tight text-ink">
-                {periodo === "hoje" ? "Vendas de hoje" : periodo === "semana" ? "Vendas da semana" : "Vendas do mês"}
-              </h2>
-              <Link href="/vendas" className="text-[13px] text-brand-text hover:underline">
-                Mostrar todas
+          <section className="hairline hidden rounded-3xl bg-surface px-6 pb-4 pt-5 lg:block">
+            <div className="flex items-start justify-between gap-4 pb-3">
+              <div>
+                <h2 className="text-[17px] font-bold tracking-tight text-ink">
+                  {periodo === "hoje" ? "Vendas de hoje" : periodo === "semana" ? "Vendas da semana" : "Vendas do mês"}
+                </h2>
+                <p className="mt-0.5 text-[13px] text-ink-muted">
+                  {listaVendas.length} {listaVendas.length === 1 ? "venda" : "vendas"}
+                  {listaVendas.length > 0 && <> · ticket médio {formatBRL(faturamentoLista / listaVendas.length)}</>}
+                </p>
+              </div>
+              <Link href="/vendas" className="rounded-full bg-fill px-3.5 py-1.5 text-[13px] font-medium text-ink-2 transition hover:bg-fill-strong hover:text-ink">
+                Ver todas as vendas
               </Link>
             </div>
             {listaVendas.length === 0 ? (
-              <p className="py-6 text-center text-[15px] text-ink-muted">Nenhuma venda {rotuloPeriodo} ainda.</p>
+              <p className="py-8 text-center text-[15px] text-ink-muted">Nenhuma venda {rotuloPeriodo} ainda.</p>
             ) : (
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-line text-left text-[11px] font-semibold text-ink-muted">
-                    <th className="w-24 py-1.5 font-semibold">{periodo === "hoje" ? "Hora" : "Data"}</th>
-                    <th className="py-1.5 font-semibold">Cliente</th>
-                    <th className="py-1.5 font-semibold">Itens</th>
-                    <th className="w-32 py-1.5 font-semibold">Pagamento</th>
-                    <th className="w-28 py-1.5 text-right font-semibold">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {listaVendas.slice(0, 8).map((v) => (
-                    <tr key={v.id} className="even:bg-canvas/70">
-                      <td className="rounded-l-lg py-2 pl-2 text-ink-muted">
-                        <Link href={`/vendas/${v.id}`} className="block">
-                          {periodo === "hoje" ? horaDaVenda(v.created_at) : formatDataCurta(v.data)}
-                        </Link>
-                      </td>
-                      <td className="py-2 font-medium text-ink">{v.cliente_nome ?? "Venda avulsa"}</td>
-                      <td className="max-w-0 truncate py-2 text-ink-muted">{resumoItens(v.venda_itens)}</td>
-                      <td className={`py-2 ${v.tipo_pagamento === "a_prazo" ? "font-medium text-warning" : "text-ink"}`}>{pagamentoDe(v)}</td>
-                      <td className="rounded-r-lg py-2 pr-2 text-right font-semibold tabular-nums text-ink">{formatBRL(v.valor_total)}</td>
+              <>
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-ink-muted">
+                      <th className="w-24 py-2 pl-2 font-semibold">{periodo === "hoje" ? "Hora" : "Data"}</th>
+                      <th className="py-2 font-semibold">Cliente</th>
+                      <th className="py-2 font-semibold">Itens</th>
+                      <th className="w-32 py-2 font-semibold">Pagamento</th>
+                      <th className="w-28 py-2 text-right font-semibold">Lucro</th>
+                      <th className="w-28 py-2 pr-2 text-right font-semibold">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {listaVendas.slice(0, 10).map((v) => {
+                      const lucroVenda = Number(v.valor_total) - Number(v.custo_total);
+                      return (
+                        <tr key={v.id} className="relative border-b border-line/60 transition last:border-b-0 hover:bg-fill/60">
+                          <td className="py-2.5 pl-2 text-ink-muted">
+                            <Link href={`/vendas/${v.id}`} className="after:absolute after:inset-0" aria-label={`Abrir venda de ${v.cliente_nome ?? "cliente avulso"}`}>
+                              {periodo === "hoje" ? horaDaVenda(v.created_at) : formatDataCurta(v.data)}
+                            </Link>
+                          </td>
+                          <td className="py-2.5 font-medium text-ink">{v.cliente_nome ?? <span className="font-normal text-ink-muted">Venda avulsa</span>}</td>
+                          <td className="max-w-0 truncate py-2.5 pr-3 text-ink-2" title={resumoItens(v.venda_itens)}>
+                            {resumoItens(v.venda_itens)}
+                          </td>
+                          <td className="py-2.5">
+                            <Badge tone={v.tipo_pagamento === "a_prazo" ? "warning" : "neutral"}>{pagamentoDe(v)}</Badge>
+                          </td>
+                          <td className={`py-2.5 text-right tabular-nums ${lucroVenda >= 0 ? "text-positive" : "text-danger"}`}>
+                            {lucroVenda >= 0 ? "+" : "−"} {formatBRL(Math.abs(lucroVenda))}
+                          </td>
+                          <td className="py-2.5 pr-2 text-right font-semibold tabular-nums text-ink">{formatBRL(v.valor_total)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {listaVendas.length > 10 && (
+                  <p className="pt-3 text-center text-[13px] text-ink-muted">
+                    Mostrando as 10 mais recentes de {listaVendas.length}.{" "}
+                    <Link href="/vendas" className="text-brand-text hover:underline">
+                      Ver todas
+                    </Link>
+                  </p>
+                )}
+              </>
             )}
           </section>
         </>

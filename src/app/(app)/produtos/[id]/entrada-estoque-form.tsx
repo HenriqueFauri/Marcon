@@ -19,6 +19,7 @@ export function EntradaEstoqueForm({
   fornecedores,
   fornecedorPadrao,
   hoje,
+  onConcluido,
 }: {
   produtoId: string;
   custoAtual: number;
@@ -26,6 +27,7 @@ export function EntradaEstoqueForm({
   fornecedores: Fornecedor[];
   fornecedorPadrao: string | null;
   hoje: string;
+  onConcluido?: () => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const { isPending, run } = useAction();
@@ -41,7 +43,10 @@ export function EntradaEstoqueForm({
       ref={formRef}
       action={(formData) =>
         run(() => registrarEntradaEstoque(formData), {
-          onSuccess: () => setQuantidade(""),
+          onSuccess: () => {
+            setQuantidade("");
+            onConcluido?.();
+          },
         })
       }
       className="flex flex-col gap-4"

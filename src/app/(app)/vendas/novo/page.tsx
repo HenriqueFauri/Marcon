@@ -9,7 +9,9 @@ import { VendaForm, type Vendavel } from "./venda-form";
 
 export const metadata: Metadata = { title: "Nova venda" };
 
-export default async function NovaVendaPage() {
+export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas/novo">) {
+  const sp = await searchParams;
+  const produtoInicial = typeof sp.produto === "string" ? sp.produto : null;
   const supabase = await createClient();
   const [{ data: produtosData }, { data: variacoesData }, { data: clientesData }, { data: canaisData }, { data: formasData }] =
     await Promise.all([
@@ -89,6 +91,7 @@ export default async function NovaVendaPage() {
           canais={(canaisData ?? []) as CanalVenda[]}
           formas={(formasData ?? []) as FormaPagamento[]}
           hoje={hojeISO()}
+          produtoInicial={produtoInicial}
         />
       )}
     </div>
