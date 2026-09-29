@@ -20,7 +20,7 @@ export function SignOutButton() {
     <button
       onClick={handleSignOut}
       disabled={saindo}
-      className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-neutral-400 transition hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+      className="mt-4 flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-ink-muted transition hover:bg-fill hover:text-ink disabled:opacity-50"
     >
       <IconLogout />
       {saindo ? "Saindo..." : "Sair"}

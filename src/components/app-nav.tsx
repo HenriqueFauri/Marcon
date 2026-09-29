@@ -44,12 +44,12 @@ function ativo(pathname: string, href: string) {
 function Marca({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-neutral-950">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-brand-fill text-sm font-bold text-on-brand">
         {nomeNegocio.trim().charAt(0).toUpperCase() || "G"}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-white">{nomeNegocio}</p>
-        <p className="truncate text-xs text-neutral-500">{nome}</p>
+        <p className="truncate text-sm font-semibold text-ink">{nomeNegocio}</p>
+        <p className="truncate text-xs text-ink-muted">{nome}</p>
       </div>
     </div>
   );
@@ -67,10 +67,10 @@ function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             href={item.href}
             onClick={onNavigate}
             aria-current={isAtivo ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+            className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[15px] transition ${
               isAtivo
-                ? "bg-emerald-500/10 font-medium text-emerald-400"
-                : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                ? "bg-brand-tint font-medium text-brand-text"
+                : "text-ink-2 hover:bg-fill hover:text-ink"
             }`}
           >
             <Icone />
@@ -85,7 +85,7 @@ function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
 export function Sidebar({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
   const pathname = usePathname();
   return (
-    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900 px-3 py-4 lg:flex">
+    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-surface/60 px-3 py-5 lg:flex">
       <div className="mb-6 px-2">
         <Marca nomeNegocio={nomeNegocio} nome={nome} />
       </div>
@@ -114,13 +114,13 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-neutral-800 bg-neutral-950/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
+      <header className="glass sticky top-0 z-30 flex items-center justify-between border-b border-line/60 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
         <Marca nomeNegocio={nomeNegocio} nome={nome} />
       </header>
 
       <nav
         aria-label="Atalhos"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-neutral-800 bg-neutral-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 grid grid-cols-5 rounded-full p-1 shadow-lg shadow-black/15 ring-1 ring-line/60 lg:hidden"
       >
         {atalhos.map((item) => {
           const isAtivo = ativo(pathname, item.href);
@@ -130,8 +130,8 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
               key={item.href}
               href={item.href}
               aria-current={isAtivo ? "page" : undefined}
-              className={`flex flex-col items-center gap-1 py-2.5 text-[11px] ${
-                isAtivo ? "text-emerald-400" : "text-neutral-400"
+              className={`flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-medium ${
+                isAtivo ? "bg-fill text-brand-text" : "text-ink-2"
               }`}
             >
               <Icone width={20} height={20} />
@@ -143,7 +143,7 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
         })}
         <button
           onClick={() => setAberto(true)}
-          className={`flex flex-col items-center gap-1 py-2.5 text-[11px] ${menuAtivo ? "text-emerald-400" : "text-neutral-400"}`}
+          className={`flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-medium ${menuAtivo ? "bg-fill text-brand-text" : "text-ink-2"}`}
         >
           <IconMenu width={20} height={20} />
           Menu
@@ -156,7 +156,7 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
         onClick={(e) => {
           if (e.target === ref.current) setAberto(false);
         }}
-        className="mb-0 mt-auto max-h-[85dvh] w-full max-w-none rounded-t-2xl border border-neutral-800 bg-neutral-900 p-0 text-neutral-100 backdrop:bg-black/70"
+        className="mb-0 mt-auto max-h-[85dvh] w-full max-w-none rounded-t-[28px] bg-surface p-0 text-ink backdrop:bg-black/40 backdrop:backdrop-blur-sm"
       >
         <div className="flex flex-col gap-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between">
@@ -164,7 +164,7 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
             <button
               onClick={() => setAberto(false)}
               aria-label="Fechar menu"
-              className="rounded-md p-1 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+              className="rounded-md p-1 text-ink-muted hover:bg-fill hover:text-ink"
             >
               <IconX />
             </button>

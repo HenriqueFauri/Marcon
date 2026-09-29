@@ -40,12 +40,12 @@ export function NovoLancamentoForm({ hoje, categorias }: { hoje: string; categor
           }
           className="flex flex-col gap-4"
         >
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo">
-            <label className="cursor-pointer rounded-lg border border-neutral-700 p-2 text-center text-sm text-neutral-300 has-[:checked]:border-red-500 has-[:checked]:bg-red-500/10 has-[:checked]:text-red-400">
+          <div className="grid grid-cols-2 gap-1 rounded-full bg-fill p-1" role="radiogroup" aria-label="Tipo">
+            <label className="cursor-pointer rounded-full py-2 text-center text-[15px] font-medium text-ink-2 transition has-[:checked]:bg-surface has-[:checked]:font-semibold has-[:checked]:shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40 has-[:checked]:text-danger">
               <input type="radio" name="tipo" value="saida" defaultChecked className="sr-only" />
               Saída (gasto)
             </label>
-            <label className="cursor-pointer rounded-lg border border-neutral-700 p-2 text-center text-sm text-neutral-300 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 has-[:checked]:text-emerald-400">
+            <label className="cursor-pointer rounded-full py-2 text-center text-[15px] font-medium text-ink-2 transition has-[:checked]:bg-surface has-[:checked]:font-semibold has-[:checked]:shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40 has-[:checked]:text-positive">
               <input type="radio" name="tipo" value="entrada" className="sr-only" />
               Entrada
             </label>
@@ -74,7 +74,7 @@ export function NovoLancamentoForm({ hoje, categorias }: { hoje: string; categor
           </Field>
 
           {erro && (
-            <p role="alert" className="text-sm text-red-400">
+            <p role="alert" className="text-sm text-danger">
               {erro}
             </p>
           )}

@@ -1,4 +1,4 @@
-const CACHE_NAME = "gestor-v2";
+const CACHE_NAME = "marcon-v3";
 
 // Só arquivos estáticos (JS/CSS com hash e ícones) vão pro cache. Páginas e
 // dados não são guardados: são privados de cada conta e mudam o tempo todo —
@@ -10,7 +10,7 @@ function ehEstatico(url) {
   );
 }
 
-const PAGINA_OFFLINE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sem conexão</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0a;color:#ededed;font-family:system-ui,sans-serif;text-align:center;padding:24px}button{margin-top:16px;background:#10b981;color:#0a0a0a;border:0;border-radius:8px;padding:10px 16px;font-weight:600}</style></head><body><div><h1 style="font-size:18px">Sem conexão</h1><p style="color:#a3a3a3;font-size:14px">Verifique sua internet e tente de novo.</p><button onclick="location.reload()">Tentar de novo</button></div></body></html>`;
+const PAGINA_OFFLINE = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sem conexão</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f2f2f7;color:#1d1d1f;font-family:system-ui,sans-serif;text-align:center;padding:24px}button{margin-top:16px;background:#d45f30;color:#1c0a02;border:0;border-radius:999px;padding:10px 16px;font-weight:600}</style></head><body><div><h1 style="font-size:18px">Sem conexão</h1><p style="color:#6e6e73;font-size:14px">Verifique sua internet e tente de novo.</p><button onclick="location.reload()">Tentar de novo</button></div></body></html>`;
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -63,11 +63,11 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "Gestor", body: event.data.text() };
+    payload = { title: "Marcon", body: event.data.text() };
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? "Gestor", {
+    self.registration.showNotification(payload.title ?? "Marcon", {
       body: payload.body ?? "",
       icon: "/icon.svg",
       badge: "/icon.svg",

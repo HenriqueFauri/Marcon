@@ -129,7 +129,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
           description="Compras de mercadoria: somam no estoque, recalculam o custo médio e lançam a saída no caixa."
         >
           {precisaVariacao ? (
-            <p className="text-sm text-amber-400">Adicione pelo menos uma variação acima antes de registrar estoque.</p>
+            <p className="text-sm text-warning">Adicione pelo menos uma variação acima antes de registrar estoque.</p>
           ) : (
             <EntradaEstoqueForm
               produtoId={p.id}
@@ -154,9 +154,9 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         </Card>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-white">Histórico de compras e ajustes</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Histórico de compras e ajustes</h2>
           {historico.length === 0 ? (
-            <p className="text-sm text-neutral-500">Nenhuma entrada de estoque registrada ainda.</p>
+            <p className="text-sm text-ink-muted">Nenhuma entrada de estoque registrada ainda.</p>
           ) : (
             <Table>
               <thead className={theadClass}>
@@ -172,18 +172,18 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
               <tbody className={tbodyClass}>
                 {historico.map((m) => (
                   <tr key={m.id}>
-                    <td className={`${tdClass} whitespace-nowrap text-neutral-300`}>{formatData(m.data)}</td>
-                    <td className={`${tdClass} text-neutral-300`}>
+                    <td className={`${tdClass} whitespace-nowrap text-ink-2`}>{formatData(m.data)}</td>
+                    <td className={`${tdClass} text-ink-2`}>
                       <span className="capitalize">{m.tipo}</span>
                       {m.produto_nome !== p.nome && (
-                        <span className="block text-xs text-neutral-500">{m.produto_nome.replace(`${p.nome} — `, "")}</span>
+                        <span className="block text-xs text-ink-muted">{m.produto_nome.replace(`${p.nome} — `, "")}</span>
                       )}
-                      {m.observacoes && <span className="block text-xs text-neutral-500">{m.observacoes}</span>}
+                      {m.observacoes && <span className="block text-xs text-ink-muted">{m.observacoes}</span>}
                     </td>
-                    <td className={`${tdClass} text-right tabular-nums text-white`}>{m.quantidade}</td>
-                    <td className={`${tdClass} text-right tabular-nums text-neutral-300`}>{formatBRL(m.valor_unitario)}</td>
-                    <td className={`${tdClass} text-right tabular-nums text-white`}>{formatBRL(m.quantidade * Number(m.valor_unitario))}</td>
-                    <td className={`${tdClass} text-neutral-400`}>{m.fornecedor_nome ?? "—"}</td>
+                    <td className={`${tdClass} text-right tabular-nums text-ink`}>{m.quantidade}</td>
+                    <td className={`${tdClass} text-right tabular-nums text-ink-2`}>{formatBRL(m.valor_unitario)}</td>
+                    <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(m.quantidade * Number(m.valor_unitario))}</td>
+                    <td className={`${tdClass} text-ink-muted`}>{m.fornecedor_nome ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

@@ -109,7 +109,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
             <Link
               key={rotulo}
               href={filtroHref(valor)}
-              className={`rounded-lg px-3 py-1.5 text-sm ${tipo === valor ? "bg-neutral-800 font-medium text-white" : "text-neutral-400 hover:text-white"}`}
+              className={`rounded-lg px-3 py-1.5 text-sm ${tipo === valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
             >
               {rotulo}
             </Link>
@@ -130,17 +130,17 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
       </div>
 
       {!tipo && topCategorias.length > 0 && (
-        <div className="mb-6 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-white">Para onde foi o dinheiro</h2>
+        <div className="mb-6 rounded-3xl bg-surface p-5">
+          <h2 className="mb-3 text-sm font-semibold text-ink">Para onde foi o dinheiro</h2>
           <ul className="space-y-2">
             {topCategorias.map(([cat, valor]) => (
               <li key={cat} className="text-sm">
                 <div className="mb-1 flex justify-between">
-                  <span className="text-neutral-300">{cat}</span>
-                  <span className="tabular-nums text-neutral-400">{formatBRL(valor)}</span>
+                  <span className="text-ink-2">{cat}</span>
+                  <span className="tabular-nums text-ink-muted">{formatBRL(valor)}</span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-neutral-800">
-                  <div className="h-full rounded-full bg-red-400/70" style={{ width: `${(valor / saidas) * 100}%` }} />
+                <div className="h-1.5 overflow-hidden rounded-full bg-fill">
+                  <div className="h-full rounded-full bg-danger/70" style={{ width: `${(valor / saidas) * 100}%` }} />
                 </div>
               </li>
             ))}
@@ -171,28 +171,28 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
               const o = origem(l);
               const manual = o.label === "Manual";
               return (
-                <tr key={l.id} className="hover:bg-neutral-900/60">
-                  <td className={`${tdClass} whitespace-nowrap text-neutral-300`}>{formatData(l.data)}</td>
+                <tr key={l.id} className="hover:bg-fill/50">
+                  <td className={`${tdClass} whitespace-nowrap text-ink-2`}>{formatData(l.data)}</td>
                   <td className={tdClass}>
                     {l.venda_id ? (
-                      <Link href={`/vendas/${l.venda_id}`} className="text-white hover:underline">
+                      <Link href={`/vendas/${l.venda_id}`} className="text-ink hover:underline">
                         {l.descricao}
                       </Link>
                     ) : l.produto_id ? (
-                      <Link href={`/produtos/${l.produto_id}`} className="text-white hover:underline">
+                      <Link href={`/produtos/${l.produto_id}`} className="text-ink hover:underline">
                         {l.descricao}
                       </Link>
                     ) : (
-                      <span className="text-white">{l.descricao}</span>
+                      <span className="text-ink">{l.descricao}</span>
                     )}
                     <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
                       <Badge tone={o.tone}>{o.label}</Badge>
-                      <span className="text-xs text-neutral-500 sm:hidden">{l.categoria}</span>
+                      <span className="text-xs text-ink-muted sm:hidden">{l.categoria}</span>
                     </span>
                   </td>
-                  <td className={`${tdClass} hidden text-neutral-400 sm:table-cell`}>{l.categoria}</td>
+                  <td className={`${tdClass} hidden text-ink-muted sm:table-cell`}>{l.categoria}</td>
                   <td
-                    className={`${tdClass} whitespace-nowrap text-right font-medium tabular-nums ${l.tipo === "entrada" ? "text-emerald-400" : "text-red-400"}`}
+                    className={`${tdClass} whitespace-nowrap text-right font-medium tabular-nums ${l.tipo === "entrada" ? "text-positive" : "text-danger"}`}
                   >
                     {l.tipo === "entrada" ? "+ " : "− "}
                     {formatBRL(l.valor)}

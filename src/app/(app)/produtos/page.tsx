@@ -110,7 +110,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
             <Link
               key={f.valor}
               href={filtroHref(f.valor)}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${filtro === f.valor ? "bg-neutral-800 font-medium text-white" : "text-neutral-400 hover:text-white"}`}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${filtro === f.valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
             >
               {f.label}
             </Link>
@@ -144,30 +144,30 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
               const margem = preco > 0 ? ((preco - custo) / preco) * 100 : null;
               const situacao = situacaoEstoque(p);
               return (
-                <tr key={p.id} className="relative hover:bg-neutral-900/60">
+                <tr key={p.id} className="relative hover:bg-fill/50">
                   <td className={tdClass}>
-                    <Link href={`/produtos/${p.id}`} className="font-medium text-white after:absolute after:inset-0">
+                    <Link href={`/produtos/${p.id}`} className="font-medium text-ink after:absolute after:inset-0">
                       {p.nome}
                     </Link>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-ink-muted">
                       {[p.categorias?.nome, p.marca, p.tem_variacoes ? "com variações" : null].filter(Boolean).join(" · ") ||
                         "Sem categoria"}
                     </p>
                   </td>
-                  <td className={`${tdClass} hidden text-right tabular-nums text-neutral-400 sm:table-cell`}>
+                  <td className={`${tdClass} hidden text-right tabular-nums text-ink-muted sm:table-cell`}>
                     {formatBRL(custo)}
                     {p.tem_variacoes && Number(p.custo_max) !== custo && (
-                      <span className="block text-xs text-neutral-600">até {formatBRL(p.custo_max)}</span>
+                      <span className="block text-xs text-ink-faint">até {formatBRL(p.custo_max)}</span>
                     )}
                   </td>
-                  <td className={`${tdClass} text-right tabular-nums text-white`}>
+                  <td className={`${tdClass} text-right tabular-nums text-ink`}>
                     {formatBRL(preco)}
                     {p.preco_atacado != null && (
-                      <span className="block text-xs text-neutral-500">atac. {formatBRL(p.preco_atacado)}</span>
+                      <span className="block text-xs text-ink-muted">atac. {formatBRL(p.preco_atacado)}</span>
                     )}
                   </td>
                   <td
-                    className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${margem === null ? "text-neutral-600" : margem < 0 ? "text-red-400" : margem < 20 ? "text-amber-400" : "text-emerald-400"}`}
+                    className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${margem === null ? "text-ink-faint" : margem < 0 ? "text-danger" : margem < 20 ? "text-warning" : "text-positive"}`}
                   >
                     {margem === null ? "—" : `${margem.toFixed(0)}%`}
                   </td>

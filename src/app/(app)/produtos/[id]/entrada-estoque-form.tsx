@@ -114,10 +114,10 @@ export function EntradaEstoqueForm({
         </Field>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800 pt-4">
-        <p className="text-sm text-neutral-400">
-          Total da compra: <strong className="tabular-nums text-white">{formatBRL(total)}</strong>
-          <span className="block text-xs text-neutral-500">Sai do caixa como &quot;Fornecimento&quot;.</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+        <p className="text-sm text-ink-muted">
+          Total da compra: <strong className="tabular-nums text-ink">{formatBRL(total)}</strong>
+          <span className="block text-xs text-ink-muted">Sai do caixa como &quot;Fornecimento&quot;.</span>
         </p>
         <button type="submit" disabled={isPending} className={btnPrimary}>
           {isPending ? "Salvando..." : "Registrar entrada"}

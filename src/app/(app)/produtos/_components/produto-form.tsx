@@ -154,8 +154,8 @@ export function ProdutoForm({
           </Field>
         </div>
         {lucroUnit !== null && (
-          <p className={`mt-3 text-sm ${lucroUnit >= 0 ? "text-neutral-400" : "text-red-400"}`}>
-            Lucro de <strong className={lucroUnit >= 0 ? "text-emerald-400" : "text-red-400"}>{formatBRL(lucroUnit)}</strong>{" "}
+          <p className={`mt-3 text-sm ${lucroUnit >= 0 ? "text-ink-muted" : "text-danger"}`}>
+            Lucro de <strong className={lucroUnit >= 0 ? "text-positive" : "text-danger"}>{formatBRL(lucroUnit)}</strong>{" "}
             por unidade
             {margem !== null && ` · margem de ${margem.toFixed(1)}%`}
             {markup !== null && ` · markup de ${markup.toFixed(0)}%`}
@@ -166,18 +166,18 @@ export function ProdutoForm({
       <Card title="Estoque">
         <div className="flex flex-col gap-4">
           {!editando && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-neutral-800 bg-neutral-950/40 p-3 text-sm text-neutral-200">
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3 text-sm text-ink">
               <input
                 type="checkbox"
                 name="tem_variacoes"
                 value="true"
                 checked={temVariacoes}
                 onChange={(e) => setTemVariacoes(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-emerald-500"
+                className="mt-0.5 h-4 w-4 accent-brand"
               />
               <span>
                 Este produto tem variações (tamanho, cor...)
-                <span className="mt-0.5 block text-xs text-neutral-500">
+                <span className="mt-0.5 block text-xs text-ink-muted">
                   O estoque passa a ser controlado por variação. Depois de salvar, adicione as variações na página do produto.
                 </span>
               </span>
@@ -262,7 +262,7 @@ export function ProdutoForm({
       </Card>
 
       {erro && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="text-sm text-danger">
           {erro}
         </p>
       )}

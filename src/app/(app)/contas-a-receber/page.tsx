@@ -98,12 +98,12 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
             role="tab"
             aria-selected={filtro === f.valor}
             className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition ${
-              filtro === f.valor ? "bg-neutral-800 font-medium text-white" : "text-neutral-400 hover:text-white"
+              filtro === f.valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"
             }`}
           >
             {f.label}
             {f.valor === "atrasadas" && atrasadas.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-red-500/20 px-1.5 text-xs text-red-400">{atrasadas.length}</span>
+              <span className="ml-1.5 rounded-full bg-danger-tint px-1.5 text-xs text-danger">{atrasadas.length}</span>
             )}
           </Link>
         ))}
@@ -143,23 +143,23 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
                     )
                   : null;
               return (
-                <tr key={p.id} className="hover:bg-neutral-900/60">
-                  <td className={`${tdClass} whitespace-nowrap text-neutral-300`}>
+                <tr key={p.id} className="hover:bg-fill/50">
+                  <td className={`${tdClass} whitespace-nowrap text-ink-2`}>
                     {formatData(p.vencimento)}
                     {p.data_pagamento && (
-                      <span className="block text-xs text-neutral-500">paga em {formatData(p.data_pagamento)}</span>
+                      <span className="block text-xs text-ink-muted">paga em {formatData(p.data_pagamento)}</span>
                     )}
                     <span className="mt-0.5 block sm:hidden">
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </span>
                   </td>
                   <td className={tdClass}>
-                    <Link href={`/vendas/${p.venda_id}`} className="text-white hover:underline">
+                    <Link href={`/vendas/${p.venda_id}`} className="text-ink hover:underline">
                       {cliente ?? "Sem nome"}
                     </Link>
-                    <span className="block text-xs text-neutral-500">Parcela {p.numero_parcela}</span>
+                    <span className="block text-xs text-ink-muted">Parcela {p.numero_parcela}</span>
                   </td>
-                  <td className={`${tdClass} text-right tabular-nums text-white`}>{formatBRL(p.valor)}</td>
+                  <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(p.valor)}</td>
                   <td className={`${tdClass} hidden sm:table-cell`}>
                     <Badge tone={status.tone}>{status.label}</Badge>
                   </td>
@@ -172,7 +172,7 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
                           rel="noopener noreferrer"
                           aria-label={`Cobrar ${cliente ?? "cliente"} no WhatsApp`}
                           title="Cobrar no WhatsApp"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-emerald-500/10 hover:text-emerald-400"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-muted hover:bg-brand-tint hover:text-brand-text"
                         >
                           <IconWhatsapp width={16} height={16} />
                         </a>

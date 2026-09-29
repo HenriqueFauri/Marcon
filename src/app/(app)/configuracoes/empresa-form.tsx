@@ -67,9 +67,9 @@ export function EmpresaForm({
       <div className="flex items-center gap-4">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="Logo da empresa" className="h-16 w-16 rounded-xl border border-neutral-800 object-cover" />
+          <img src={logoUrl} alt="Logo da empresa" className="h-16 w-16 rounded-xl border border-line object-cover" />
         ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-neutral-700 text-xs text-neutral-500">
+          <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-line-strong text-xs text-ink-muted">
             sem logo
           </div>
         )}

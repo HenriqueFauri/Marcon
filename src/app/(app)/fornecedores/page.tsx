@@ -97,13 +97,13 @@ export default async function FornecedoresPage({ searchParams }: PageProps<"/for
             {fornecedores.map((f) => {
               const whatsapp = linkWhatsApp(f.telefone);
               return (
-                <tr key={f.id} className="hover:bg-neutral-900/60">
+                <tr key={f.id} className="hover:bg-fill/50">
                   <td className={tdClass}>
-                    <p className="font-medium text-white">{f.nome}</p>
-                    {f.observacoes && <p className="max-w-xs truncate text-xs text-neutral-500">{f.observacoes}</p>}
+                    <p className="font-medium text-ink">{f.nome}</p>
+                    {f.observacoes && <p className="max-w-xs truncate text-xs text-ink-muted">{f.observacoes}</p>}
                   </td>
-                  <td className={`${tdClass} text-neutral-300`}>{f.telefone ?? "—"}</td>
-                  <td className={`${tdClass} hidden text-neutral-300 sm:table-cell`}>{f.email ?? "—"}</td>
+                  <td className={`${tdClass} text-ink-2`}>{f.telefone ?? "—"}</td>
+                  <td className={`${tdClass} hidden text-ink-2 sm:table-cell`}>{f.email ?? "—"}</td>
                   <td className={`${tdClass} text-right`}>
                     <div className="flex items-center justify-end gap-1">
                       {whatsapp && (

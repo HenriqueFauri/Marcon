@@ -91,7 +91,7 @@ export function ContatoModal({
           </Field>
 
           {erro && (
-            <p role="alert" className="text-sm text-red-400">
+            <p role="alert" className="text-sm text-danger">
               {erro}
             </p>
           )}

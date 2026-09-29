@@ -99,15 +99,15 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
               const cancelada = v.status === "cancelada";
               const lucro = Number(v.valor_total) - Number(v.custo_total);
               return (
-                <tr key={v.id} className={`relative hover:bg-neutral-900/60 ${cancelada ? "opacity-50" : ""}`}>
-                  <td className={`${tdClass} whitespace-nowrap text-neutral-300`}>
+                <tr key={v.id} className={`relative hover:bg-fill/50 ${cancelada ? "opacity-50" : ""}`}>
+                  <td className={`${tdClass} whitespace-nowrap text-ink-2`}>
                     <Link href={`/vendas/${v.id}`} className="after:absolute after:inset-0">
                       {formatData(v.data)}
                     </Link>
                   </td>
-                  <td className={`${tdClass} text-white`}>
-                    {v.cliente_nome ?? <span className="text-neutral-500">Avulsa</span>}
-                    {v.canal && <span className="block text-xs text-neutral-500">{v.canal}</span>}
+                  <td className={`${tdClass} text-ink`}>
+                    {v.cliente_nome ?? <span className="text-ink-muted">Avulsa</span>}
+                    {v.canal && <span className="block text-xs text-ink-muted">{v.canal}</span>}
                     <span className="mt-0.5 block sm:hidden">
                       {cancelada ? (
                         <Badge tone="negative">Cancelada</Badge>
@@ -116,7 +116,7 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
                       )}
                     </span>
                   </td>
-                  <td className={`${tdClass} hidden text-neutral-400 sm:table-cell`}>
+                  <td className={`${tdClass} hidden text-ink-muted sm:table-cell`}>
                     {cancelada ? (
                       <Badge tone="negative">Cancelada</Badge>
                     ) : (
@@ -126,11 +126,11 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
                       </>
                     )}
                   </td>
-                  <td className={`${tdClass} text-right tabular-nums text-white ${cancelada ? "line-through" : ""}`}>
+                  <td className={`${tdClass} text-right tabular-nums text-ink ${cancelada ? "line-through" : ""}`}>
                     {formatBRL(v.valor_total)}
                   </td>
                   <td
-                    className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${lucro >= 0 ? "text-emerald-400" : "text-red-400"} ${cancelada ? "line-through" : ""}`}
+                    className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${lucro >= 0 ? "text-positive" : "text-danger"} ${cancelada ? "line-through" : ""}`}
                   >
                     {formatBRL(lucro)}
                   </td>

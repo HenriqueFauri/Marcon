@@ -233,14 +233,14 @@ export function VendaForm({
           title="Produtos"
           action={
             temAtacado && (
-              <div className="flex rounded-lg border border-neutral-700 p-0.5 text-xs" role="group" aria-label="Tabela de preço">
+              <div className="flex rounded-full bg-fill p-0.5 text-xs" role="group" aria-label="Tabela de preço">
                 {(["varejo", "atacado"] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => trocarTabela(t)}
                     aria-pressed={tabela === t}
-                    className={`rounded-md px-2.5 py-1 capitalize ${tabela === t ? "bg-neutral-700 text-white" : "text-neutral-400"}`}
+                    className={`rounded-full px-3 py-1 font-medium capitalize ${tabela === t ? "bg-surface text-ink shadow-sm" : "text-ink-muted"}`}
                   >
                     {t}
                   </button>
@@ -250,7 +250,7 @@ export function VendaForm({
           }
         >
           <div className="relative mb-3">
-            <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" width={16} height={16} />
+            <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" width={16} height={16} />
             <input
               type="search"
               value={busca}
@@ -261,8 +261,8 @@ export function VendaForm({
             />
           </div>
 
-          <ul className="max-h-72 divide-y divide-neutral-800 overflow-y-auto rounded-lg border border-neutral-800">
-            {resultados.length === 0 && <li className="px-3 py-6 text-center text-sm text-neutral-500">Nada encontrado.</li>}
+          <ul className="max-h-72 divide-y divide-line overflow-y-auto rounded-2xl border border-line">
+            {resultados.length === 0 && <li className="px-3 py-6 text-center text-sm text-ink-muted">Nada encontrado.</li>}
             {resultados.map((v) => {
               const qtd = noCarrinho.get(v.chave) ?? 0;
               const esgotado = qtd >= v.estoque;
@@ -272,17 +272,17 @@ export function VendaForm({
                     type="button"
                     onClick={() => adicionar(v)}
                     disabled={esgotado}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-fill disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-white">{v.nome}</span>
-                      <span className="block truncate text-xs text-neutral-500">
+                      <span className="block truncate text-ink">{v.nome}</span>
+                      <span className="block truncate text-xs text-ink-muted">
                         {v.estoque - qtd} disponível{v.detalhe ? ` · ${v.detalhe}` : ""}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
-                      <span className="tabular-nums text-neutral-300">{formatBRL(precoPadrao(v))}</span>
-                      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+                      <span className="tabular-nums text-ink-2">{formatBRL(precoPadrao(v))}</span>
+                      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-tint text-brand-text">
                         {qtd > 0 ? <span className="text-xs font-semibold">{qtd}</span> : <IconPlus width={16} height={16} />}
                       </span>
                     </span>
@@ -295,18 +295,18 @@ export function VendaForm({
 
         <Card title={`Carrinho${linhas.length ? ` (${linhas.length})` : ""}`}>
           {linhas.length === 0 ? (
-            <p className="py-4 text-center text-sm text-neutral-500">Toque num produto acima para adicionar.</p>
+            <p className="py-4 text-center text-sm text-ink-muted">Toque num produto acima para adicionar.</p>
           ) : (
-            <ul className="divide-y divide-neutral-800">
+            <ul className="divide-y divide-line">
               {linhas.map(({ item, produto }) => (
                 <li key={item.chave} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
                   <div className="min-w-0 flex-1 basis-40">
-                    <p className="truncate text-sm text-white">{produto.nome}</p>
-                    <p className="text-xs text-neutral-500">
+                    <p className="truncate text-sm text-ink">{produto.nome}</p>
+                    <p className="text-xs text-ink-muted">
                       Subtotal {formatBRL(item.quantidade * paraNumero(item.preco))}
                     </p>
                   </div>
-                  <div className="flex items-center rounded-lg border border-neutral-700">
+                  <div className="flex items-center rounded-lg border border-line-strong">
                     <button
                       type="button"
                       className={btnIcon}
@@ -324,7 +324,7 @@ export function VendaForm({
                       value={item.quantidade}
                       onChange={(e) => alterarQuantidade(item.chave, Number(e.target.value))}
                       aria-label={`Quantidade de ${produto.nome}`}
-                      className="w-10 bg-transparent text-center text-sm text-white outline-none"
+                      className="w-10 bg-transparent text-center text-sm text-ink outline-none"
                     />
                     <button
                       type="button"
@@ -336,7 +336,7 @@ export function VendaForm({
                       <IconPlus width={14} height={14} />
                     </button>
                   </div>
-                  <label className="flex items-center gap-1 text-xs text-neutral-500">
+                  <label className="flex items-center gap-1 text-xs text-ink-muted">
                     R$
                     <input
                       inputMode="decimal"
@@ -381,7 +381,7 @@ export function VendaForm({
       <div className="flex flex-col gap-4 lg:col-span-2">
         <Card title="Pagamento">
           <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de pagamento">
+            <div className="grid grid-cols-2 gap-1 rounded-full bg-fill p-1" role="radiogroup" aria-label="Tipo de pagamento">
               {(
                 [
                   ["a_vista", "À vista"],
@@ -390,7 +390,7 @@ export function VendaForm({
               ).map(([valor, rotulo]) => (
                 <label
                   key={valor}
-                  className="cursor-pointer rounded-lg border border-neutral-700 p-2 text-center text-sm text-neutral-300 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 has-[:checked]:text-emerald-400 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-emerald-500/40"
+                  className="cursor-pointer rounded-full py-2 text-center text-[15px] font-medium text-ink-2 transition has-[:checked]:bg-surface has-[:checked]:font-semibold has-[:checked]:shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40 has-[:checked]:text-ink"
                 >
                   <input
                     type="radio"
@@ -470,31 +470,31 @@ export function VendaForm({
 
         <Card className="lg:sticky lg:top-6">
           <dl className="space-y-1.5 text-sm">
-            <div className="flex justify-between text-neutral-400">
+            <div className="flex justify-between text-ink-muted">
               <dt>Subtotal</dt>
               <dd className="tabular-nums">{formatBRL(subtotal)}</dd>
             </div>
             {valorDesconto > 0 && (
-              <div className="flex justify-between text-neutral-400">
+              <div className="flex justify-between text-ink-muted">
                 <dt>Desconto</dt>
                 <dd className="tabular-nums">− {formatBRL(valorDesconto)}</dd>
               </div>
             )}
             <div className="flex items-baseline justify-between pt-1">
-              <dt className="text-neutral-300">Total</dt>
-              <dd className="text-2xl font-semibold tabular-nums text-white">{formatBRL(total)}</dd>
+              <dt className="text-ink-2">Total</dt>
+              <dd className="text-2xl font-semibold tabular-nums text-ink">{formatBRL(total)}</dd>
             </div>
             {linhas.length > 0 && (
               <div className="flex justify-between text-xs">
-                <dt className="text-neutral-500">Lucro estimado</dt>
-                <dd className={`tabular-nums ${lucro >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatBRL(lucro)}</dd>
+                <dt className="text-ink-muted">Lucro estimado</dt>
+                <dd className={`tabular-nums ${lucro >= 0 ? "text-positive" : "text-danger"}`}>{formatBRL(lucro)}</dd>
               </div>
             )}
           </dl>
 
           {tipoPagamento === "a_prazo" && total > 0 && (
-            <div className="mt-3 rounded-lg bg-neutral-800/60 p-3 text-xs text-neutral-400">
-              <p className="mb-1 font-medium text-neutral-300">
+            <div className="mt-3 rounded-lg bg-fill/60 p-3 text-xs text-ink-muted">
+              <p className="mb-1 font-medium text-ink-2">
                 {parcelasValidas}x de {formatBRL(valorParcela)}
               </p>
               {primeiroVencimento && (
@@ -507,7 +507,7 @@ export function VendaForm({
           )}
 
           {erro && (
-            <p role="alert" className="mt-3 text-sm text-red-400">
+            <p role="alert" className="mt-3 text-sm text-danger">
               {erro}
             </p>
           )}

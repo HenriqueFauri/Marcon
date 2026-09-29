@@ -31,7 +31,7 @@ export function SearchInput({ placeholder = "Buscar..." }: { placeholder?: strin
 
   return (
     <div className="relative w-full sm:max-w-xs">
-      <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" width={16} height={16} />
+      <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" width={16} height={16} />
       <input
         type="search"
         value={valor}

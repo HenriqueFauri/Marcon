@@ -92,7 +92,7 @@ export function NotificacoesConfig() {
 
   if (!suportado) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-ink-muted">
         Este navegador não suporta notificações. No iPhone, instale o app primeiro (Compartilhar → Adicionar à Tela de
         Início) e abra por lá.
       </p>
@@ -101,11 +101,11 @@ export function NotificacoesConfig() {
 
   return (
     <div>
-      <p className="mb-3 text-sm text-neutral-400">
+      <p className="mb-3 text-sm text-ink-muted">
         Receba um aviso a cada venda registrada e quando uma parcela for recebida. Vale só para este dispositivo.
       </p>
       {inscrito === null ? (
-        <p className="text-sm text-neutral-500">Verificando...</p>
+        <p className="text-sm text-ink-muted">Verificando...</p>
       ) : inscrito ? (
         <button onClick={desativar} disabled={carregando} className={btnSecondary}>
           {carregando ? "Desativando..." : "Desativar notificações"}

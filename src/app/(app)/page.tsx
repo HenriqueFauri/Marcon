@@ -91,8 +91,8 @@ export default async function DashboardPage() {
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-white">{primeiroNome ? `Olá, ${primeiroNome}` : "Início"}</h1>
-          <p className="text-sm text-neutral-400">{nomeDoMes(mes)}</p>
+          <h1 className="text-[34px] font-bold leading-tight tracking-tight text-ink">{primeiroNome ? `Olá, ${primeiroNome}` : "Início"}</h1>
+          <p className="text-sm text-ink-muted">{nomeDoMes(mes)}</p>
         </div>
         <div className="flex gap-2">
           <Link href="/produtos/novo" className={`${btnSecondary} hidden sm:inline-flex`}>
@@ -169,23 +169,23 @@ export default async function DashboardPage() {
             <Card
               title="Últimas vendas"
               action={
-                <Link href="/vendas" className="text-xs text-emerald-400 hover:underline">
+                <Link href="/vendas" className="text-xs text-brand-text hover:underline">
                   Ver todas
                 </Link>
               }
             >
               {vendasMes.length === 0 ? (
-                <p className="text-sm text-neutral-500">Nenhuma venda neste mês ainda.</p>
+                <p className="text-sm text-ink-muted">Nenhuma venda neste mês ainda.</p>
               ) : (
-                <ul className="divide-y divide-neutral-800">
+                <ul className="divide-y divide-line">
                   {vendasMes.slice(0, 5).map((v) => (
                     <li key={v.id}>
                       <Link href={`/vendas/${v.id}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                         <span className="min-w-0">
-                          <span className="block truncate text-neutral-200">{v.cliente_nome ?? "Venda avulsa"}</span>
-                          <span className="text-xs text-neutral-500">{formatDataCurta(v.data)}</span>
+                          <span className="block truncate text-ink">{v.cliente_nome ?? "Venda avulsa"}</span>
+                          <span className="text-xs text-ink-muted">{formatDataCurta(v.data)}</span>
                         </span>
-                        <span className="shrink-0 tabular-nums text-white">{formatBRL(v.valor_total)}</span>
+                        <span className="shrink-0 tabular-nums text-ink">{formatBRL(v.valor_total)}</span>
                       </Link>
                     </li>
                   ))}
@@ -196,26 +196,26 @@ export default async function DashboardPage() {
             <Card
               title="Próximos recebimentos"
               action={
-                <Link href="/contas-a-receber" className="text-xs text-emerald-400 hover:underline">
+                <Link href="/contas-a-receber" className="text-xs text-brand-text hover:underline">
                   Ver tudo
                 </Link>
               }
             >
               {proximas.length === 0 ? (
-                <p className="text-sm text-neutral-500">Nenhuma parcela em aberto.</p>
+                <p className="text-sm text-ink-muted">Nenhuma parcela em aberto.</p>
               ) : (
-                <ul className="divide-y divide-neutral-800">
+                <ul className="divide-y divide-line">
                   {proximas.map((p) => (
                     <li key={p.id}>
                       <Link href={`/vendas/${p.venda_id}`} className="flex items-center justify-between gap-3 py-2 text-sm">
                         <span className="min-w-0">
-                          <span className="block truncate text-neutral-200">{p.vendas?.cliente_nome ?? "Sem nome"}</span>
-                          <span className={`text-xs ${p.status_efetivo === "atrasado" ? "text-red-400" : "text-neutral-500"}`}>
+                          <span className="block truncate text-ink">{p.vendas?.cliente_nome ?? "Sem nome"}</span>
+                          <span className={`text-xs ${p.status_efetivo === "atrasado" ? "text-danger" : "text-ink-muted"}`}>
                             {p.status_efetivo === "atrasado" ? "venceu " : "vence "}
                             {formatDataCurta(p.vencimento)}
                           </span>
                         </span>
-                        <span className="shrink-0 tabular-nums text-white">{formatBRL(p.valor)}</span>
+                        <span className="shrink-0 tabular-nums text-ink">{formatBRL(p.valor)}</span>
                       </Link>
                     </li>
                   ))}
@@ -226,21 +226,21 @@ export default async function DashboardPage() {
             <Card
               title="Repor estoque"
               action={
-                <Link href="/produtos?filtro=baixo" className="text-xs text-emerald-400 hover:underline">
+                <Link href="/produtos?filtro=baixo" className="text-xs text-brand-text hover:underline">
                   Ver produtos
                 </Link>
               }
             >
               {alertasEstoque.length === 0 ? (
-                <p className="text-sm text-neutral-500">
+                <p className="text-sm text-ink-muted">
                   Nenhum produto acabando. Defina o &quot;avisar quando tiver até&quot; no cadastro de cada produto.
                 </p>
               ) : (
-                <ul className="divide-y divide-neutral-800">
+                <ul className="divide-y divide-line">
                   {alertasEstoque.slice(0, 6).map((p) => (
                     <li key={p.id}>
                       <Link href={`/produtos/${p.id}`} className="flex items-center justify-between gap-3 py-2 text-sm">
-                        <span className="truncate text-neutral-200">{p.nome}</span>
+                        <span className="truncate text-ink">{p.nome}</span>
                         <Badge tone={p.estoque_total <= 0 ? "negative" : "warning"}>
                           {p.estoque_total <= 0 ? "zerado" : `${p.estoque_total} ${p.unidade_medida}`}
                         </Badge>

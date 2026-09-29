@@ -118,18 +118,18 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
               const saldo = emAberto.get(c.id);
               const whatsapp = linkWhatsApp(c.telefone);
               return (
-                <tr key={c.id} className="hover:bg-neutral-900/60">
+                <tr key={c.id} className="hover:bg-fill/50">
                   <td className={tdClass}>
-                    <p className="font-medium text-white">{c.nome}</p>
-                    {c.telefone && <p className="text-xs text-neutral-400 sm:hidden">{c.telefone}</p>}
-                    {c.observacoes && <p className="max-w-xs truncate text-xs text-neutral-500">{c.observacoes}</p>}
+                    <p className="font-medium text-ink">{c.nome}</p>
+                    {c.telefone && <p className="text-xs text-ink-muted sm:hidden">{c.telefone}</p>}
+                    {c.observacoes && <p className="max-w-xs truncate text-xs text-ink-muted">{c.observacoes}</p>}
                   </td>
-                  <td className={`${tdClass} hidden text-neutral-300 sm:table-cell`}>
+                  <td className={`${tdClass} hidden text-ink-2 sm:table-cell`}>
                     <p>{c.telefone ?? "—"}</p>
-                    {c.email && <p className="text-xs text-neutral-500">{c.email}</p>}
+                    {c.email && <p className="text-xs text-ink-muted">{c.email}</p>}
                   </td>
                   <td
-                    className={`${tdClass} text-right tabular-nums ${saldo ? (saldo.atrasado ? "text-red-400" : "text-amber-400") : "text-neutral-600"}`}
+                    className={`${tdClass} text-right tabular-nums ${saldo ? (saldo.atrasado ? "text-danger" : "text-warning") : "text-ink-faint"}`}
                   >
                     {saldo ? formatBRL(saldo.valor) : "—"}
                   </td>

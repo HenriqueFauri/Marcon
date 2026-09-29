@@ -47,16 +47,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6 lg:items-end lg:px-6"
+        className="pointer-events-none fixed inset-x-0 bottom-24 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6 lg:items-end lg:px-6"
       >
         {toasts.map((t) => (
           <div
             key={t.id}
             role={t.tipo === "error" ? "alert" : "status"}
-            className={`pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-xl border px-4 py-3 text-sm shadow-lg shadow-black/40 ${
+            className={`pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-2xl border px-4 py-3 text-sm shadow-lg shadow-black/40 ${
               t.tipo === "error"
-                ? "border-red-500/30 bg-neutral-900 text-red-300"
-                : "border-emerald-500/30 bg-neutral-900 text-emerald-300"
+                ? "border-danger/30 bg-surface text-danger"
+                : "border-positive/30 bg-surface text-positive"
             }`}
           >
             {t.tipo === "error" ? (
@@ -68,7 +68,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <button
               onClick={() => remover(t.id)}
               aria-label="Fechar aviso"
-              className="shrink-0 text-neutral-500 hover:text-white"
+              className="shrink-0 text-ink-muted hover:text-ink"
             >
               <IconX width={16} height={16} />
             </button>

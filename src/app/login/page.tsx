@@ -111,18 +111,30 @@ function LoginForm() {
   return (
     <div className="w-full max-w-sm">
       <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-lg font-bold text-neutral-950">
-          G
-        </div>
+        <svg viewBox="0 0 512 512" width="44" height="44" role="img" aria-label="Marcon" className="shrink-0 drop-shadow-md">
+          <defs>
+            <linearGradient id="marcon-logo" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#e5794a" />
+              <stop offset=".55" stopColor="#d45f30" />
+              <stop offset="1" stopColor="#b85028" />
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="116" fill="url(#marcon-logo)" />
+          <path
+            transform="translate(127.9 355.4)"
+            fill="#fff"
+            d="M20.72 0V-198.8H77.5L128.13 -54.04L178.64 -198.8H235.42V0H192.86V-128.8L146.1 -0.5H109.87L63.28 -128.8V0Z"
+          />
+        </svg>
         <div>
-          <p className="text-base font-semibold text-white">Gestor</p>
-          <p className="text-xs text-neutral-500">Vendas, estoque e caixa num só lugar</p>
+          <p className="text-[17px] font-bold tracking-tight text-ink">Marcon</p>
+          <p className="text-xs text-ink-muted">Vendas, estoque e caixa num só lugar</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8">
-        <h1 className="mb-1 text-xl font-semibold text-white">{TITULOS[mode]}</h1>
-        <p className="mb-6 text-sm text-neutral-400">
+      <div className="rounded-[28px] bg-surface p-6 shadow-sm sm:p-8">
+        <h1 className="mb-1 text-[28px] font-bold tracking-tight text-ink">{TITULOS[mode]}</h1>
+        <p className="mb-6 text-sm text-ink-muted">
           {mode === "reset"
             ? "Informe seu e-mail e enviaremos um link para criar uma nova senha."
             : mode === "signup"
@@ -133,7 +145,7 @@ function LoginForm() {
         {aviso && (
           <p
             role="status"
-            className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300"
+            className="mb-4 rounded-lg border border-positive/30 bg-positive-tint px-3 py-2 text-sm text-positive"
           >
             {aviso}
           </p>
@@ -181,14 +193,14 @@ function LoginForm() {
           {mode !== "reset" && (
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <label htmlFor="senha" className="text-xs font-medium text-neutral-400">
+                <label htmlFor="senha" className="text-xs font-medium text-ink-muted">
                   Senha
                 </label>
                 {mode === "signin" && (
                   <button
                     type="button"
                     onClick={() => trocarModo("reset")}
-                    className="text-xs text-neutral-400 hover:text-emerald-400"
+                    className="text-xs text-ink-muted hover:text-brand-text"
                   >
                     Esqueci a senha
                   </button>
@@ -209,7 +221,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setMostrarSenha((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-neutral-400 hover:text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-1 text-xs text-ink-muted hover:text-ink"
                   aria-label={mostrarSenha ? "Esconder senha" : "Mostrar senha"}
                 >
                   {mostrarSenha ? "Ocultar" : "Mostrar"}
@@ -219,7 +231,7 @@ function LoginForm() {
           )}
 
           {error && (
-            <p role="alert" className="text-sm text-red-400">
+            <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}
@@ -232,16 +244,16 @@ function LoginForm() {
         {mode !== "reset" && (
           <>
             <div className="my-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-neutral-800" />
-              <span className="text-xs text-neutral-500">ou</span>
-              <div className="h-px flex-1 bg-neutral-800" />
+              <div className="h-px flex-1 bg-fill" />
+              <span className="text-xs text-ink-muted">ou</span>
+              <div className="h-px flex-1 bg-fill" />
             </div>
 
             <button
               type="button"
               onClick={handleGoogleSignIn}
               disabled={googleLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-fill px-4 py-3 text-[15px] font-semibold text-ink transition hover:bg-fill-strong disabled:opacity-50"
             >
               <GoogleIcon />
               {googleLoading ? "Aguarde..." : "Continuar com Google"}
@@ -250,18 +262,18 @@ function LoginForm() {
         )}
       </div>
 
-      <p className="mt-5 text-center text-sm text-neutral-400">
+      <p className="mt-5 text-center text-sm text-ink-muted">
         {mode === "signin" ? (
           <>
             Não tem conta?{" "}
-            <button onClick={() => trocarModo("signup")} className="font-medium text-emerald-400 hover:underline">
+            <button onClick={() => trocarModo("signup")} className="font-medium text-brand-text hover:underline">
               Criar uma
             </button>
           </>
         ) : (
           <>
             {mode === "signup" ? "Já tem conta? " : "Lembrou a senha? "}
-            <button onClick={() => trocarModo("signin")} className="font-medium text-emerald-400 hover:underline">
+            <button onClick={() => trocarModo("signin")} className="font-medium text-brand-text hover:underline">
               Entrar
             </button>
           </>
@@ -273,7 +285,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-neutral-950 px-4 py-10">
+    <div className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
       <Suspense>
         <LoginForm />
       </Suspense>

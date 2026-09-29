@@ -22,17 +22,17 @@ export function MonthPicker({
   const noFuturo = mes >= mesAtual();
 
   return (
-    <div className="inline-flex items-center rounded-lg border border-neutral-800 bg-neutral-900">
-      <Link href={href(deslocarMes(mes, -1))} aria-label="Mês anterior" className="p-2 text-neutral-400 hover:text-white">
+    <div className="inline-flex items-center rounded-full bg-surface">
+      <Link href={href(deslocarMes(mes, -1))} aria-label="Mês anterior" className="p-2 text-ink-muted hover:text-ink">
         <IconChevronLeft width={16} height={16} />
       </Link>
-      <span className="min-w-36 px-1 text-center text-sm font-medium text-white">{nomeDoMes(mes)}</span>
+      <span className="min-w-36 px-1 text-center text-sm font-medium text-ink">{nomeDoMes(mes)}</span>
       {noFuturo ? (
-        <span className="p-2 text-neutral-700" aria-hidden="true">
+        <span className="p-2 text-ink-faint" aria-hidden="true">
           <IconChevronRight width={16} height={16} />
         </span>
       ) : (
-        <Link href={href(deslocarMes(mes, 1))} aria-label="Próximo mês" className="p-2 text-neutral-400 hover:text-white">
+        <Link href={href(deslocarMes(mes, 1))} aria-label="Próximo mês" className="p-2 text-ink-muted hover:text-ink">
           <IconChevronRight width={16} height={16} />
         </Link>
       )}

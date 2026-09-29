@@ -50,14 +50,14 @@ export function ListaSimples({
 
       {faltando.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-neutral-500">Sugestões:</span>
+          <span className="text-xs text-ink-muted">Sugestões:</span>
           {faltando.map((s) => (
             <button
               key={s}
               type="button"
               disabled={isPending}
               onClick={() => adicionar(s)}
-              className="rounded-full border border-neutral-700 px-2.5 py-0.5 text-xs text-neutral-300 hover:border-emerald-500 hover:text-emerald-400 disabled:opacity-50"
+              className="rounded-full border border-line-strong px-2.5 py-0.5 text-xs text-ink-2 hover:border-brand hover:text-brand-text disabled:opacity-50"
             >
               + {s}
             </button>
@@ -66,12 +66,12 @@ export function ListaSimples({
       )}
 
       {itens.length === 0 ? (
-        <p className="text-sm text-neutral-500">Nenhum item cadastrado ainda.</p>
+        <p className="text-sm text-ink-muted">Nenhum item cadastrado ainda.</p>
       ) : (
-        <ul className="divide-y divide-neutral-800 rounded-lg border border-neutral-800">
+        <ul className="divide-y divide-line rounded-2xl border border-line">
           {itens.map((item) => (
             <li key={item.id} className="flex items-center justify-between px-3 py-1.5 text-sm">
-              <span className="text-white">{item.nome}</span>
+              <span className="text-ink">{item.nome}</span>
               <ConfirmButton
                 title={`Excluir “${item.nome}”?`}
                 description="Vendas antigas mantêm o nome registrado."

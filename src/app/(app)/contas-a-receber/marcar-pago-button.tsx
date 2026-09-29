@@ -12,7 +12,7 @@ export function MarcarPagoButton({ id }: { id: string }) {
       type="button"
       disabled={isPending}
       onClick={() => run(() => marcarParcelaPaga(id))}
-      className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-medium text-neutral-950 transition hover:bg-emerald-400 disabled:opacity-50"
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-on-brand transition hover:bg-brand-hover disabled:opacity-50"
     >
       <IconCheck width={14} height={14} />
       {isPending ? "Salvando..." : "Recebi"}

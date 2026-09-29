@@ -74,12 +74,12 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
     <div>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
         {fotos.map((foto, i) => (
-          <div key={foto.id} className="group relative aspect-square overflow-hidden rounded-lg border border-neutral-800 bg-neutral-800">
+          <div key={foto.id} className="group relative aspect-square overflow-hidden rounded-2xl border border-line bg-fill">
             {foto.url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={foto.url} alt={`Foto ${i + 1} do produto`} className="h-full w-full object-cover" loading="lazy" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-neutral-500">sem preview</div>
+              <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">sem preview</div>
             )}
             {i === 0 && (
               <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">Capa</span>
@@ -89,7 +89,7 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
               disabled={isPending}
               onClick={() => run(() => excluirFoto(foto.id, foto.path, produtoId))}
               aria-label={`Remover foto ${i + 1}`}
-              className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-red-500 disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+              className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-danger disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
             >
               <IconX width={14} height={14} />
             </button>
@@ -99,7 +99,7 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={!!enviando}
-          className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-700 text-xs text-neutral-400 transition hover:border-emerald-500 hover:text-emerald-400 disabled:opacity-50"
+          className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
         >
           <IconPlus />
           {enviando ? `${enviando.atual}/${enviando.total}...` : "Adicionar"}
@@ -117,7 +117,7 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
         aria-hidden="true"
       />
       {fotos.length === 0 && !enviando && (
-        <p className="mt-3 text-xs text-neutral-500">A primeira foto vira a capa. Dá pra enviar várias de uma vez.</p>
+        <p className="mt-3 text-xs text-ink-muted">A primeira foto vira a capa. Dá pra enviar várias de uma vez.</p>
       )}
     </div>
   );

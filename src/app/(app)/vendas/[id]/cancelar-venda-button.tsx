@@ -11,7 +11,7 @@ export function CancelarVendaButton({ vendaId }: { vendaId: string }) {
       description="Os itens voltam para o estoque, o que já foi recebido é estornado no fluxo de caixa e as parcelas em aberto são removidas. A venda continua no histórico marcada como cancelada."
       confirmLabel="Cancelar venda"
       onConfirm={() => cancelarVenda(vendaId)}
-      className={`${btnSecondary} hover:border-red-500/50 hover:text-red-400`}
+      className={`${btnSecondary} hover:border-danger/50 hover:text-danger`}
       ariaLabel="Cancelar venda"
     >
       Cancelar venda

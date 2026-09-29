@@ -24,12 +24,12 @@ export function VariacoesSection({
   return (
     <div>
       {variacoes.length > 0 ? (
-        <ul className="mb-5 divide-y divide-neutral-800 rounded-lg border border-neutral-800">
+        <ul className="mb-5 divide-y divide-line rounded-2xl border border-line">
           {variacoes.map((v) => (
             <li key={v.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-white">{v.nome_combinacao}</p>
-                <p className="text-xs text-neutral-500">
+                <p className="truncate font-medium text-ink">{v.nome_combinacao}</p>
+                <p className="text-xs text-ink-muted">
                   {[
                     v.sku && `SKU ${v.sku}`,
                     v.custo != null && `custo ${formatBRL(v.custo)}`,
@@ -50,7 +50,7 @@ export function VariacoesSection({
           ))}
         </ul>
       ) : (
-        <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+        <p className="mb-4 rounded-lg border border-warning/30 bg-warning-tint px-3 py-2 text-sm text-warning">
           Nenhuma variação ainda. Adicione a primeira abaixo (ex: &quot;Azul / M&quot;).
         </p>
       )}

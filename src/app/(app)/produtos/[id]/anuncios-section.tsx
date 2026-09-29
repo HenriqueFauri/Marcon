@@ -39,12 +39,12 @@ function AnuncioForm({
   return (
     <form
       action={(formData) => run(() => salvarAnuncio(formData))}
-      className="rounded-lg border border-neutral-800 p-3"
+      className="rounded-2xl border border-line p-3"
     >
       <input type="hidden" name="produto_id" value={produtoId} />
       <input type="hidden" name="canal_id" value={canal.id} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-medium text-white">{canal.nome}</span>
+        <span className="text-sm font-medium text-ink">{canal.nome}</span>
         <div className="flex gap-1">
           {!titulo && !descricao && (
             <button
@@ -108,9 +108,9 @@ export function AnunciosSection({
 }) {
   if (canais.length === 0) {
     return (
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-ink-muted">
         Cadastre canais de venda em{" "}
-        <Link href="/configuracoes" className="text-emerald-400 hover:underline">
+        <Link href="/configuracoes" className="text-brand-text hover:underline">
           Configurações
         </Link>{" "}
         para escrever um anúncio diferente para cada canal.

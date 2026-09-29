@@ -16,7 +16,7 @@ export function ExcluirProdutoButton({ produtoId, nome }: { produtoId: string; n
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className={`${btnSecondary} hover:border-red-500/50 hover:text-red-400`}>
+      <button onClick={() => setOpen(true)} className={`${btnSecondary} hover:border-danger/50 hover:text-danger`}>
         <IconTrash width={16} height={16} /> Excluir
       </button>
       <Modal
@@ -26,16 +26,16 @@ export function ExcluirProdutoButton({ produtoId, nome }: { produtoId: string; n
         description="O produto será apagado. As compras e lançamentos de caixa que ele já gerou são seus — escolha o que fazer com eles."
         size="sm"
       >
-        <label className="mb-4 flex items-start gap-3 rounded-lg border border-neutral-800 p-3 text-sm text-neutral-300">
+        <label className="mb-4 flex items-start gap-3 rounded-2xl border border-line p-3 text-sm text-ink-2">
           <input
             type="checkbox"
             checked={apagarHistorico}
             onChange={(e) => setApagarHistorico(e.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-red-500"
+            className="mt-0.5 h-4 w-4 accent-danger"
           />
           <span>
             Apagar também o histórico de estoque e os lançamentos de caixa deste produto
-            <span className="mt-1 block text-xs text-neutral-500">
+            <span className="mt-1 block text-xs text-ink-muted">
               Desmarcado (recomendado): o produto some, mas o dinheiro que ele já movimentou continua nos seus relatórios.
             </span>
           </span>

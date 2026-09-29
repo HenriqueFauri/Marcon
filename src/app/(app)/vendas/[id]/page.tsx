@@ -65,35 +65,35 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
       </div>
 
       <Card title="Itens" className="mb-6">
-        <ul className="divide-y divide-neutral-800">
+        <ul className="divide-y divide-line">
           {itens.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0">
-                <p className="truncate text-white">{item.produto_nome}</p>
-                <p className="text-xs text-neutral-500">
+                <p className="truncate text-ink">{item.produto_nome}</p>
+                <p className="text-xs text-ink-muted">
                   {item.quantidade} × {formatBRL(item.preco_unitario)}
                 </p>
               </div>
-              <span className="shrink-0 tabular-nums text-neutral-200">
+              <span className="shrink-0 tabular-nums text-ink">
                 {formatBRL(item.quantidade * Number(item.preco_unitario))}
               </span>
             </li>
           ))}
         </ul>
-        <dl className="mt-3 space-y-1 border-t border-neutral-800 pt-3 text-sm">
+        <dl className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
           {Number(venda.desconto) > 0 && (
             <>
-              <div className="flex justify-between text-neutral-400">
+              <div className="flex justify-between text-ink-muted">
                 <dt>Subtotal</dt>
                 <dd className="tabular-nums">{formatBRL(subtotal)}</dd>
               </div>
-              <div className="flex justify-between text-neutral-400">
+              <div className="flex justify-between text-ink-muted">
                 <dt>Desconto</dt>
                 <dd className="tabular-nums">− {formatBRL(venda.desconto)}</dd>
               </div>
             </>
           )}
-          <div className="flex justify-between font-semibold text-white">
+          <div className="flex justify-between font-semibold text-ink">
             <dt>Total</dt>
             <dd className="tabular-nums">{formatBRL(venda.valor_total)}</dd>
           </div>
@@ -103,16 +103,16 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
       <Card title="Pagamento" className="mb-6">
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <div>
-            <dt className="text-xs text-neutral-500">Tipo</dt>
-            <dd className="text-white">{venda.tipo_pagamento === "a_prazo" ? "A prazo / fiado" : "À vista"}</dd>
+            <dt className="text-xs text-ink-muted">Tipo</dt>
+            <dd className="text-ink">{venda.tipo_pagamento === "a_prazo" ? "A prazo / fiado" : "À vista"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">Forma</dt>
-            <dd className="text-white">{venda.forma_pagamento ?? "—"}</dd>
+            <dt className="text-xs text-ink-muted">Forma</dt>
+            <dd className="text-ink">{venda.forma_pagamento ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-neutral-500">Canal</dt>
-            <dd className="text-white">{venda.canal ?? "—"}</dd>
+            <dt className="text-xs text-ink-muted">Canal</dt>
+            <dd className="text-ink">{venda.canal ?? "—"}</dd>
           </div>
         </dl>
       </Card>
@@ -139,16 +139,16 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
                 const status = STATUS_PARCELA[p.status_efetivo];
                 return (
                   <tr key={p.id}>
-                    <td className={`${tdClass} text-neutral-300`}>
+                    <td className={`${tdClass} text-ink-2`}>
                       {p.numero_parcela}/{parcelas.length}
                     </td>
-                    <td className={`${tdClass} text-neutral-300`}>
+                    <td className={`${tdClass} text-ink-2`}>
                       {formatData(p.vencimento)}
                       {p.data_pagamento && (
-                        <span className="block text-xs text-neutral-500">paga em {formatData(p.data_pagamento)}</span>
+                        <span className="block text-xs text-ink-muted">paga em {formatData(p.data_pagamento)}</span>
                       )}
                     </td>
-                    <td className={`${tdClass} text-right tabular-nums text-white`}>{formatBRL(p.valor)}</td>
+                    <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(p.valor)}</td>
                     <td className={tdClass}>
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </td>

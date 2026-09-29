@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Gestor",
-    short_name: "Gestor",
+    name: "Marcon",
+    short_name: "Marcon",
     description: "Gestão de vendas, estoque e caixa num só lugar.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0a0a0a",
-    theme_color: "#0a0a0a",
+    background_color: "#f2f2f7",
+    theme_color: "#d45f30",
     icons: [
       {
         src: "/icon.svg",
