@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
+import { enviarNotificacao } from "@/lib/push/send";
+import { EXEMPLO, MODELOS, MODELO_PERSONALIZADO, renderizarModelo, resolverModelo } from "@/lib/notificacao-modelos";
 
 export async function atualizarPerfil(formData: FormData): Promise<ActionResult> {
   try {
@@ -118,4 +120,57 @@ export async function criarFormaPagamento(formData: FormData) {
 
 export async function excluirFormaPagamento(id: string) {
   return excluirItem("formas_pagamento", id);
+}
+
+export async function salvarModeloNotificacao(formData: FormData): Promise<ActionResult> {
+  try {
+    const modelo = texto(formData, "modelo");
+    const titulo = texto(formData, "titulo");
+    const corpo = String(formData.get("corpo") ?? "").trim();
+
+    if (modelo !== MODELO_PERSONALIZADO && !MODELOS.some((m) => m.id === modelo)) {
+      return { ok: false, error: "Escolha um modelo válido." };
+    }
+    if (modelo === MODELO_PERSONALIZADO) {
+      if (!titulo) return { ok: false, error: "Escreva o título da notificação." };
+      if (titulo.length > 80) return { ok: false, error: "O título pode ter até 80 caracteres." };
+      if (corpo.length > 300) return { ok: false, error: "O texto pode ter até 300 caracteres." };
+    }
+
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        notif_modelo: modelo,
+        notif_titulo: modelo === MODELO_PERSONALIZADO ? titulo : null,
+        notif_corpo: modelo === MODELO_PERSONALIZADO ? corpo : null,
+      },
+    });
+    if (error) return falha(error);
+
+    revalidatePath("/configuracoes");
+    return ok("Modelo de notificação salvo.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// Envia para os dispositivos do usuário um exemplo com o modelo já salvo.
+export async function enviarNotificacaoTeste(): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { count } = await supabase.from("push_subscriptions").select("id", { count: "exact", head: true });
+    if (!count) return { ok: false, error: "Ative as notificações neste dispositivo antes de testar." };
+
+    const modelo = resolverModelo(user.user_metadata);
+    const { titulo, corpo } = renderizarModelo(modelo.titulo, modelo.corpo, EXEMPLO);
+    await enviarNotificacao(user.id, titulo, corpo, "/vendas");
+    return ok("Notificação de teste enviada.");
+  } catch (e) {
+    return falha(e);
+  }
 }
