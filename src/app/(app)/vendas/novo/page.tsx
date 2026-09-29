@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { CanalVenda, Cliente, FormaPagamento, ProdutoComEstoque, ProdutoVariacao } from "@/types/domain";
 import { EmptyState, PageHeader, btnPrimary } from "@/components/ui";
 import { hojeISO } from "@/lib/format";
+import { IconX } from "@/components/icons";
 import { VendaForm, type Vendavel } from "./venda-form";
 
 export const metadata: Metadata = { title: "Nova venda" };
@@ -56,7 +57,20 @@ export default async function NovaVendaPage() {
 
   return (
     <div>
-      <PageHeader title="Nova venda" back={{ href: "/vendas", label: "Vendas" }} />
+      <div className="mb-4 flex items-center justify-between lg:hidden">
+        <Link
+          href="/vendas"
+          aria-label="Fechar"
+          className="glass flex h-11 w-11 items-center justify-center rounded-full text-ink shadow-sm ring-1 ring-line/60"
+        >
+          <IconX width={18} height={18} strokeWidth={2.4} />
+        </Link>
+        <h1 className="text-[17px] font-semibold text-ink">Nova venda</h1>
+        <span className="h-11 w-11" aria-hidden="true" />
+      </div>
+      <div className="hidden lg:block">
+        <PageHeader title="Nova venda" back={{ href: "/vendas", label: "Vendas" }} />
+      </div>
 
       {vendaveis.length === 0 ? (
         <EmptyState

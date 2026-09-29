@@ -131,11 +131,13 @@ export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: strin
     if (!aberto && dialog.open) dialog.close();
   }, [aberto]);
 
+  // a tela de nova venda ocupa o celular inteiro, sem abas nem cabeçalho
+  const emVenda = pathname.startsWith("/vendas/novo");
   const atalhos = NAV.filter((i) => NAV_MOBILE.includes(i.href));
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center justify-end gap-2.5 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+      <header className={`sticky top-0 z-30 ${emVenda ? "hidden" : "flex"} items-center justify-end gap-2.5 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden`}>
         <Link
           href="/produtos?buscar=1"
           aria-label="Buscar produtos"
@@ -154,7 +156,7 @@ export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: strin
 
       <nav
         aria-label="Atalhos"
-        className="glass fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-4 right-[5.25rem] z-40 grid grid-cols-4 items-center rounded-full p-1 shadow-lg shadow-black/15 ring-1 ring-line/60 lg:hidden"
+        className={`glass fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-4 right-[5.25rem] z-40 ${emVenda ? "hidden" : "grid"} grid-cols-4 items-center rounded-full p-1 shadow-lg shadow-black/15 ring-1 ring-line/60 lg:hidden`}
       >
         {atalhos.map((item) => {
           const isAtivo = ativo(pathname, item.href);
@@ -175,7 +177,7 @@ export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: strin
         })}
       </nav>
 
-      {!pathname.startsWith("/vendas/novo") && (
+      {!emVenda && (
         <Link
           href="/vendas/novo"
           aria-label="Nova venda"
