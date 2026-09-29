@@ -7,12 +7,10 @@ import { falha, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 export async function atualizarPerfil(formData: FormData): Promise<ActionResult> {
   try {
     const nome = texto(formData, "nome");
-    const nomeNegocio = texto(formData, "nome_negocio");
     if (!nome) return { ok: false, error: "Seu nome é obrigatório." };
-    if (!nomeNegocio) return { ok: false, error: "O nome do negócio é obrigatório." };
 
     const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({ data: { nome, nome_negocio: nomeNegocio } });
+    const { error } = await supabase.auth.updateUser({ data: { nome } });
     if (error) return falha(error);
 
     revalidatePath("/", "layout");
@@ -24,9 +22,13 @@ export async function atualizarPerfil(formData: FormData): Promise<ActionResult>
 
 export async function atualizarEmpresa(formData: FormData): Promise<ActionResult> {
   try {
+    const nomeNegocio = texto(formData, "nome_negocio");
+    if (!nomeNegocio) return { ok: false, error: "O nome do negócio é obrigatório." };
+
     const supabase = await createClient();
     const { error } = await supabase.auth.updateUser({
       data: {
+        nome_negocio: nomeNegocio,
         empresa_telefone: textoOuNull(formData, "empresa_telefone"),
         empresa_email: textoOuNull(formData, "empresa_email"),
         empresa_endereco: textoOuNull(formData, "empresa_endereco"),
@@ -35,33 +37,9 @@ export async function atualizarEmpresa(formData: FormData): Promise<ActionResult
     });
     if (error) return falha(error);
 
-    revalidatePath("/configuracoes");
-    return ok("Dados da empresa salvos.");
-  } catch (e) {
-    return falha(e);
-  }
-}
-
-function valorMeta(formData: FormData, campo: string) {
-  const bruto = String(formData.get(campo) ?? "").trim().replace(/\./g, "").replace(",", ".");
-  if (!bruto) return null;
-  const n = Number(bruto);
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : NaN;
-}
-
-export async function atualizarMetas(formData: FormData): Promise<ActionResult> {
-  try {
-    const vendas = valorMeta(formData, "meta_vendas");
-    const lucro = valorMeta(formData, "meta_lucro");
-    if (Number.isNaN(vendas) || Number.isNaN(lucro)) {
-      return { ok: false, error: "Digite um valor maior que zero, ou deixe em branco pra não ter meta." };
-    }
-    const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({ data: { meta_vendas: vendas, meta_lucro: lucro } });
-    if (error) return falha(error);
-
+    // o nome do negócio aparece na barra lateral de todas as telas
     revalidatePath("/", "layout");
-    return ok("Metas salvas.");
+    return ok("Dados da empresa salvos.");
   } catch (e) {
     return falha(e);
   }

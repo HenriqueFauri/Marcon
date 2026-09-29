@@ -7,7 +7,6 @@ import { criarCanal, excluirCanal, criarFormaPagamento, excluirFormaPagamento } 
 import { NotificacoesConfig } from "./notificacoes-config";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
-import { MetasForm } from "./metas-form";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -39,18 +38,12 @@ export default async function ConfiguracoesPage() {
 
       <div className="flex flex-col gap-6">
         <Card title="Perfil">
-          <PerfilForm nome={nome} nomeNegocio={nomeNegocio} email={user?.email ?? ""} />
+          <PerfilForm nome={nome} email={user?.email ?? ""} />
         </Card>
 
-        <Card title="Metas do mês" description="Aparecem como anéis no início. Deixe em branco pra não ter meta.">
-          <MetasForm
-            metaVendas={typeof meta.meta_vendas === "number" ? meta.meta_vendas : null}
-            metaLucro={typeof meta.meta_lucro === "number" ? meta.meta_lucro : null}
-          />
-        </Card>
-
-        <Card title="Dados da empresa" description="Opcional — usados em recibos e documentos.">
+        <Card title="Dados da empresa" description="O nome aparece no menu; o resto é opcional e vai nos recibos.">
           <EmpresaForm
+            nomeNegocio={nomeNegocio}
             telefone={(meta.empresa_telefone as string | undefined) ?? ""}
             email={(meta.empresa_email as string | undefined) ?? ""}
             endereco={(meta.empresa_endereco as string | undefined) ?? ""}

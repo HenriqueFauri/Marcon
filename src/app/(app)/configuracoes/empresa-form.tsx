@@ -11,12 +11,14 @@ import { atualizarEmpresa, atualizarLogoEmpresa } from "./actions";
 const TAMANHO_MAX = 2 * 1024 * 1024;
 
 export function EmpresaForm({
+  nomeNegocio,
   telefone,
   email,
   endereco,
   documento,
   logoUrl,
 }: {
+  nomeNegocio: string;
   telefone: string;
   email: string;
   endereco: string;
@@ -95,6 +97,16 @@ export function EmpresaForm({
       </div>
 
       <form action={(formData) => run(() => atualizarEmpresa(formData))} className="flex flex-col gap-4">
+        <Field label="Nome do negócio">
+          <input
+            name="nome_negocio"
+            defaultValue={nomeNegocio}
+            required
+            placeholder="Ex: Marcon Utilidades"
+            className={inputClass}
+            autoComplete="organization"
+          />
+        </Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Telefone">
             <input name="empresa_telefone" type="tel" defaultValue={telefone} placeholder="(11) 99999-9999" className={inputClass} />
