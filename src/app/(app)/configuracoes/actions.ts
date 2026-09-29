@@ -4,7 +4,17 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 import { enviarNotificacao } from "@/lib/push/send";
-import { EXEMPLO, MODELOS, MODELO_PERSONALIZADO, renderizarModelo, resolverModelo } from "@/lib/notificacao-modelos";
+import {
+  EVENTOS,
+  GRUPOS,
+  MODELOS,
+  MODELO_PERSONALIZADO,
+  lerPreferencias,
+  normalizarTexto,
+  renderizar,
+  textoDoEvento,
+  type Texto,
+} from "@/lib/notificacao-modelos";
 
 export async function atualizarPerfil(formData: FormData): Promise<ActionResult> {
   try {
@@ -125,38 +135,62 @@ export async function excluirFormaPagamento(id: string) {
 export async function salvarModeloNotificacao(formData: FormData): Promise<ActionResult> {
   try {
     const modelo = texto(formData, "modelo");
-    const titulo = texto(formData, "titulo");
-    const corpo = String(formData.get("corpo") ?? "").trim();
-
     if (modelo !== MODELO_PERSONALIZADO && !MODELOS.some((m) => m.id === modelo)) {
       return { ok: false, error: "Escolha um modelo válido." };
     }
-    if (modelo === MODELO_PERSONALIZADO) {
-      if (!titulo) return { ok: false, error: "Escreva o título da notificação." };
-      if (titulo.length > 80) return { ok: false, error: "O título pode ter até 80 caracteres." };
-      if (corpo.length > 300) return { ok: false, error: "O texto pode ter até 300 caracteres." };
+
+    let bruto: Record<string, { titulo?: unknown; corpo?: unknown }> = {};
+    let desativados: unknown[] = [];
+    try {
+      bruto = JSON.parse(String(formData.get("personalizados") ?? "{}"));
+      desativados = JSON.parse(String(formData.get("desativados") ?? "[]"));
+    } catch {
+      return { ok: false, error: "Não foi possível ler as opções. Recarregue a página." };
     }
+
+    // textos personalizados: só guarda quando o modelo é o personalizado
+    const personalizados: Record<string, Texto> = {};
+    if (modelo === MODELO_PERSONALIZADO) {
+      for (const evento of EVENTOS) {
+        const t = bruto[evento.id];
+        const titulo = normalizarTexto(String(t?.titulo ?? ""));
+        const corpo = normalizarTexto(String(t?.corpo ?? ""));
+        if (!titulo) return { ok: false, error: `Escreva o título da notificação “${evento.rotulo}”.` };
+        if (titulo.length > 80) return { ok: false, error: `O título de “${evento.rotulo}” pode ter até 80 caracteres.` };
+        if (corpo.length > 300) return { ok: false, error: `O texto de “${evento.rotulo}” pode ter até 300 caracteres.` };
+        personalizados[evento.id] = { titulo, corpo };
+      }
+    }
+
+    const idsGrupo = GRUPOS.map((g) => g.id as string);
+    const desligados = desativados.filter((g): g is string => typeof g === "string" && idsGrupo.includes(g));
 
     const supabase = await createClient();
     const { error } = await supabase.auth.updateUser({
       data: {
         notif_modelo: modelo,
-        notif_titulo: modelo === MODELO_PERSONALIZADO ? titulo : null,
-        notif_corpo: modelo === MODELO_PERSONALIZADO ? corpo : null,
+        notif_custom: modelo === MODELO_PERSONALIZADO ? personalizados : null,
+        notif_desativados: desligados,
+        // campos do formato antigo (só a venda)
+        notif_titulo: null,
+        notif_corpo: null,
       },
     });
     if (error) return falha(error);
 
     revalidatePath("/configuracoes");
-    return ok("Modelo de notificação salvo.");
+    return ok("Notificações salvas.");
   } catch (e) {
     return falha(e);
   }
 }
 
-// Envia para os dispositivos do usuário um exemplo com o modelo já salvo.
-export async function enviarNotificacaoTeste(): Promise<ActionResult> {
+// Envia para os dispositivos do usuário um exemplo do evento, com o modelo já salvo.
+export async function enviarNotificacaoTeste(eventoId: string): Promise<ActionResult> {
   try {
+    const evento = EVENTOS.find((e) => e.id === eventoId);
+    if (!evento) return { ok: false, error: "Evento inválido." };
+
     const supabase = await createClient();
     const {
       data: { user },
@@ -166,9 +200,9 @@ export async function enviarNotificacaoTeste(): Promise<ActionResult> {
     const { count } = await supabase.from("push_subscriptions").select("id", { count: "exact", head: true });
     if (!count) return { ok: false, error: "Ative as notificações neste dispositivo antes de testar." };
 
-    const modelo = resolverModelo(user.user_metadata);
-    const { titulo, corpo } = renderizarModelo(modelo.titulo, modelo.corpo, EXEMPLO);
-    await enviarNotificacao(user.id, titulo, corpo, "/vendas");
+    const { titulo, corpo } = textoDoEvento(lerPreferencias(user.user_metadata), evento.id);
+    const r = renderizar(titulo, corpo, evento.exemplo);
+    await enviarNotificacao(user.id, r.titulo, r.corpo, "/");
     return ok("Notificação de teste enviada.");
   } catch (e) {
     return falha(e);

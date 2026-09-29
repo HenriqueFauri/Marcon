@@ -3,10 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { enviarNotificacao } from "@/lib/push/send";
+import { avisarVenda } from "@/lib/push/eventos";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { hojeISO } from "@/lib/format";
-import { renderizarModelo, resolverModelo } from "@/lib/notificacao-modelos";
 
 export interface NovaVendaInput {
   itens: { produto_id: string; variacao_id: string | null; quantidade: number; preco_unitario: number }[];
@@ -99,7 +98,6 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
     if (error) return falha(error);
 
     const total = subtotal - desconto;
-    const modelo = resolverModelo(user.user_metadata);
     after(async () => {
       try {
         const { data: venda } = await supabase.from("vendas").select("custo_total").eq("id", vendaId).single();
@@ -107,7 +105,9 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
           .from("venda_itens")
           .select("produto_nome, quantidade")
           .eq("venda_id", vendaId);
-        const { titulo, corpo } = renderizarModelo(modelo.titulo, modelo.corpo, {
+        await avisarVenda(supabase, user, {
+          vendaId: String(vendaId),
+          data,
           valor: total,
           lucro: total - Number(venda?.custo_total ?? 0),
           desconto,
@@ -116,7 +116,6 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
           formaPagamento: formaNome,
           itens: (itensVenda ?? []).map((i) => ({ nome: i.produto_nome, quantidade: i.quantidade })),
         });
-        await enviarNotificacao(user.id, titulo, corpo, `/vendas/${vendaId}`);
       } catch {
         // aviso é opcional: falhar aqui não pode afetar a venda já registrada
       }

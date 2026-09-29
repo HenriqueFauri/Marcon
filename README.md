@@ -17,6 +17,10 @@ SUPABASE_DB_PASSWORD=...          # só para o script de migrations
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
 VAPID_PRIVATE_KEY=...
 VAPID_SUBJECT=mailto:voce@exemplo.com
+
+# opcional — lembrete diário de cobrança (só no servidor, nunca no navegador)
+SUPABASE_SERVICE_ROLE_KEY=...
+CRON_SECRET=...                   # qualquer texto longo e aleatório
 ```
 
 ```bash
@@ -24,6 +28,12 @@ npm install
 node scripts/run-migrations.mjs   # aplica o que falta em supabase/migrations
 npm run dev
 ```
+
+## Notificações
+
+Em Configurações o usuário escolhe um estilo (ou escreve o seu) e o que quer receber: venda, meta batida, níveis de faturamento do mês (R$ 1 mil, 5 mil e 10 mil) e lembrete de cobrança. Os avisos de venda, meta e nível saem na hora, ao registrar a venda. Meta e níveis são avisados uma vez, no momento em que o mês cruza o valor.
+
+O lembrete de cobrança precisa de um agendador: `vercel.json` já chama `GET /api/cron/cobrancas` todo dia às 11h UTC (8h em Brasília). A rota exige `Authorization: Bearer $CRON_SECRET` (a Vercel envia sozinha quando `CRON_SECRET` está definido). Em outra hospedagem, agende essa mesma chamada.
 
 ## Banco de dados
 
