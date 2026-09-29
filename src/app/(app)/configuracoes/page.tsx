@@ -5,8 +5,8 @@ import { Card, PageHeader } from "@/components/ui";
 import { ListaSimples } from "./lista-simples";
 import { criarCanal, excluirCanal, criarFormaPagamento, excluirFormaPagamento } from "./actions";
 import { NotificacoesConfig } from "./notificacoes-config";
-import { ModelosNotificacao } from "./modelos-notificacao";
-import { lerPreferencias } from "@/lib/notificacao-modelos";
+import { NotificacoesPreferencias } from "./notificacoes-preferencias";
+import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 
@@ -79,10 +79,10 @@ export default async function ConfiguracoesPage() {
         </Card>
 
         <Card
-          title="Modelos de notificação"
-          description="Escolha o estilo dos avisos de venda, meta, faturamento e cobrança, e o que você quer receber."
+          title="O que aparece nas notificações"
+          description="Os avisos mudam de frase a cada vez, é surpresa. Aqui você escolhe o que receber e quais dados mostrar."
         >
-          <ModelosNotificacao atual={lerPreferencias(meta)} />
+          <NotificacoesPreferencias atual={lerPreferencias(meta)} />
         </Card>
       </div>
     </div>

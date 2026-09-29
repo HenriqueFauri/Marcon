@@ -31,7 +31,9 @@ npm run dev
 
 ## Notificações
 
-Em Configurações o usuário escolhe um estilo (ou escreve o seu) e o que quer receber: venda, meta batida, níveis de faturamento do mês (R$ 1 mil, 5 mil e 10 mil) e lembrete de cobrança. Os avisos de venda, meta e nível saem na hora, ao registrar a venda. Meta e níveis são avisados uma vez, no momento em que o mês cruza o valor.
+Os avisos são descontraídos e **mudam de frase a cada vez** (venda, meta batida, marcos de faturamento de R$ 1 mil, 5 mil e 10 mil no mês, e lembrete de cobrança). As frases ficam em `src/lib/notificacoes.ts` e não aparecem em Configurações, para manter a surpresa. Lá o usuário só escolhe **o que receber** e **quais dados mostrar** (venda: produto, valor, lucro, cliente, canal; cobrança: valor total e quem deve). Um botão manda um aviso de exemplo para conferir se chega.
+
+Os avisos de venda, meta e marco saem na hora, ao registrar a venda; meta e marco são avisados uma vez, quando o mês cruza o valor. A frase da venda é sorteada pelo id da venda e a de cobrança percorre a lista dia após dia, então nunca repete a de ontem.
 
 O lembrete de cobrança precisa de um agendador: `vercel.json` já chama `GET /api/cron/cobrancas` todo dia às 11h UTC (8h em Brasília). A rota exige `Authorization: Bearer $CRON_SECRET` (a Vercel envia sozinha quando `CRON_SECRET` está definido). Em outra hospedagem, agende essa mesma chamada.
 

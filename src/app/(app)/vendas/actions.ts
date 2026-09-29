@@ -110,10 +110,8 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
           data,
           valor: total,
           lucro: total - Number(venda?.custo_total ?? 0),
-          desconto,
           cliente: clienteNome,
           canal: canalNome,
-          formaPagamento: formaNome,
           itens: (itensVenda ?? []).map((i) => ({ nome: i.produto_nome, quantidade: i.quantidade })),
         });
       } catch {
