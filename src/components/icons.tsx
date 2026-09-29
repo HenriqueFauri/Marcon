@@ -149,3 +149,14 @@ export const IconWhatsapp = (p: P) => (
     <path d="M9 9.5c.3 2 2.5 4.2 4.5 4.5l1.2-1.1 1.8.9-.4 1.6c-3 .5-7.6-4-7.1-7.1l1.6-.4.9 1.8L9 9.5Z" />
   </Icon>
 );
+export const IconSun = (p: P) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+  </Icon>
+);
+export const IconMoon = (p: P) => (
+  <Icon {...p}>
+    <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" />
+  </Icon>
+);

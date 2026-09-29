@@ -63,7 +63,7 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={`rounded-3xl bg-surface p-5 sm:p-6 ${className}`}>
+    <section className={`hairline rounded-3xl bg-surface p-5 sm:p-6 ${className}`}>
       {(title || action) && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -107,7 +107,7 @@ export function StatCard({
       {hint && <p className="mt-0.5 truncate text-[13px] text-ink-muted">{hint}</p>}
     </>
   );
-  const classe = "block rounded-3xl bg-surface p-4 sm:p-5";
+  const classe = "hairline block rounded-3xl bg-surface p-4 sm:p-5";
   return href ? (
     <Link href={href} className={`${classe} transition hover:bg-surface/70 active:scale-[0.99]`}>
       {conteudo}
@@ -127,7 +127,7 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-3xl bg-surface px-6 py-14 text-center">
+    <div className="hairline flex flex-col items-center gap-2 rounded-3xl bg-surface px-6 py-14 text-center">
       <p className="text-[17px] font-semibold text-ink">{title}</p>
       {description && <p className="max-w-sm text-[15px] text-ink-muted">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
@@ -185,7 +185,7 @@ export function Table({ children, compacta = false }: { children: ReactNode; com
   // compacta: a tabela esconde colunas secundárias no celular (hidden sm:table-cell)
   // e por isso não precisa de largura mínima
   return (
-    <div className="relative overflow-x-auto rounded-3xl bg-surface">
+    <div className="hairline relative overflow-x-auto rounded-3xl bg-surface">
       <table className={`w-full text-sm ${compacta ? "" : "min-w-[560px]"}`}>{children}</table>
     </div>
   );

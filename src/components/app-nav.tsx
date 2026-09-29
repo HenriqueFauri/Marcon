@@ -17,6 +17,7 @@ import {
   IconX,
 } from "./icons";
 import { SignOutButton } from "./sign-out-button";
+import { ThemeToggle } from "./theme-toggle";
 
 interface NavItem {
   href: string;
@@ -110,6 +111,9 @@ export function Sidebar({ nomeNegocio, nome, contagens }: { nomeNegocio: string;
       <div className="flex-1 overflow-y-auto">
         <ListaNav pathname={pathname} contagens={contagens} />
       </div>
+      <div className="mt-3 px-1">
+        <ThemeToggle />
+      </div>
       <SignOutButton />
     </aside>
   );
@@ -142,7 +146,7 @@ export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: strin
         <button
           onClick={() => setAberto(true)}
           aria-label="Abrir menu"
-          className="glass flex h-11 w-11 items-center justify-center rounded-full text-[15px] font-semibold text-ink-2 shadow-sm ring-1 ring-line/60"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-fill text-[15px] font-semibold text-ink-muted"
         >
           {(nome || nomeNegocio).trim().charAt(0).toUpperCase() || "M"}
         </button>
@@ -161,7 +165,7 @@ export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: strin
               href={item.href}
               aria-current={isAtivo ? "page" : undefined}
               className={`flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-medium ${
-                isAtivo ? "bg-fill font-semibold text-brand-text" : "text-ink-2"
+                isAtivo ? "bg-tab-active font-semibold text-brand-text" : "text-tab-ink"
               }`}
             >
               <Icone width={22} height={22} />
@@ -201,6 +205,7 @@ export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: strin
             </button>
           </div>
           <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} contagens={contagens} />
+          <ThemeToggle />
           <SignOutButton />
         </div>
       </dialog>

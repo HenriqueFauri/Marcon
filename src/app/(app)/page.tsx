@@ -48,11 +48,11 @@ function Aneis({ vendas, lucro, metaVendas, metaLucro }: { vendas: number; lucro
         strokeDasharray={`${pv * C_EXTERNO} ${C_EXTERNO}`}
         transform="rotate(-90 50 50)" className="stroke-brand"
       />
-      <circle cx="50" cy="50" r="25" fill="none" strokeWidth="13" className="stroke-positive-tint" />
+      <circle cx="50" cy="50" r="25" fill="none" strokeWidth="13" className="stroke-ring-track" />
       <circle
         cx="50" cy="50" r="25" fill="none" strokeWidth="13" strokeLinecap="round"
         strokeDasharray={`${pl * C_INTERNO} ${C_INTERNO}`}
-        transform="rotate(-90 50 50)" className="stroke-positive"
+        transform="rotate(-90 50 50)" className="stroke-tile-positive"
       />
     </svg>
   );
@@ -77,7 +77,7 @@ function Grupo({ titulo, children, className = "" }: { titulo: string; children:
   return (
     <section className={className}>
       <h2 className="mb-1.5 px-4 text-[13px] uppercase text-ink-muted">{titulo}</h2>
-      <div className="overflow-hidden rounded-3xl bg-surface">{children}</div>
+      <div className="hairline overflow-hidden rounded-3xl bg-surface">{children}</div>
     </section>
   );
 }
@@ -92,7 +92,7 @@ function LinhaResumo({
       <span className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg ${tom}`}>{icone}</span>
       <span className="flex-1">{rotulo}</span>
       {badge ? (
-        <span className="rounded-full bg-danger px-2 text-[13px] font-semibold text-on-danger">{badge}</span>
+        <span className="rounded-full bg-tile-danger px-2 text-[13px] font-semibold text-on-tile-danger">{badge}</span>
       ) : (
         valor && <span className="text-ink-muted tabular-nums">{valor}</span>
       )}
@@ -185,11 +185,11 @@ export default async function DashboardPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-            <section className="flex items-center gap-[18px] rounded-3xl bg-surface p-[18px] lg:col-span-2 lg:gap-9 lg:p-7">
+            <section className="hairline flex items-center gap-[18px] rounded-3xl bg-surface p-[18px] lg:col-span-2 lg:gap-9 lg:p-7">
               <Aneis vendas={faturamento} lucro={lucro} metaVendas={metaVendas} metaLucro={metaLucro} />
               <div className="flex min-w-0 flex-col gap-2 lg:gap-4">
                 <Meta rotulo="Vendas" valor={faturamento} meta={metaVendas} tom="text-brand-text" />
-                <Meta rotulo="Lucro" valor={lucro} meta={metaLucro} tom="text-positive" />
+                <Meta rotulo="Lucro" valor={lucro} meta={metaLucro} tom="text-tile-positive" />
                 {!metaVendas && !metaLucro && (
                   <Link href="/configuracoes" className="text-[13px] text-brand-text hover:underline">
                     Definir metas do mês
@@ -202,14 +202,14 @@ export default async function DashboardPage() {
               <LinhaResumo
                 href="/contas-a-receber"
                 icone={<IconReceipt width={17} height={17} />}
-                tom="bg-warning-tint text-warning"
+                tom="bg-tile-warning text-on-tile-warning"
                 rotulo="A receber"
                 valor={formatBRL(totalAReceber)}
               />
               <LinhaResumo
                 href="/contas-a-receber?status=atrasadas"
                 icone={<IconAlert width={17} height={17} />}
-                tom="bg-danger-tint text-danger"
+                tom="bg-tile-danger text-on-tile-danger"
                 rotulo="Atrasado"
                 badge={atrasadas.length}
                 valor={atrasadas.length ? undefined : "Nada"}
@@ -217,14 +217,14 @@ export default async function DashboardPage() {
               <LinhaResumo
                 href="/produtos?filtro=baixo"
                 icone={<IconBox width={17} height={17} />}
-                tom="bg-brand-tint text-brand-text"
+                tom="bg-brand text-on-brand"
                 rotulo="Repor estoque"
                 valor={alertasEstoque.length ? `${alertasEstoque.length} ${alertasEstoque.length === 1 ? "item" : "itens"}` : "Tudo ok"}
               />
               <LinhaResumo
                 href="/fluxo-de-caixa"
                 icone={<IconWallet width={17} height={17} />}
-                tom="bg-positive-tint text-positive"
+                tom="bg-tile-positive text-on-tile-positive"
                 rotulo="Caixa hoje"
                 valor={formatBRL(caixaHoje)}
               />

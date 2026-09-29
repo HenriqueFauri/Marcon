@@ -20,10 +20,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
-  ],
+  themeColor: "#f2f2f7",
   viewportFit: "cover",
 };
 
@@ -32,7 +29,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* aplica o tema escuro guardado antes da primeira pintura, pra não piscar */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("marcon-tema")==="dark"){document.documentElement.setAttribute("data-theme","dark");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#000000")}}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="flex min-h-full flex-col bg-canvas font-sans text-ink">
         <ServiceWorkerRegistration />
         {children}

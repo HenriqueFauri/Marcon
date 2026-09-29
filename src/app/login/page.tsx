@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { traduzirErroAuth } from "@/lib/auth-erros";
 import { Field, btnPrimary, inputClass } from "@/components/ui";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Modo = "signin" | "signup" | "reset";
 
@@ -285,7 +286,10 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
+    <div className="relative flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle variante="icone" />
+      </div>
       <Suspense>
         <LoginForm />
       </Suspense>
