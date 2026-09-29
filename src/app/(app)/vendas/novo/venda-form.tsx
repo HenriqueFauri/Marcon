@@ -40,6 +40,22 @@ function somarMeses(dataISO: string, meses: number) {
   return `${alvo.getFullYear()}-${String(alvo.getMonth() + 1).padStart(2, "0")}-${String(alvo.getDate()).padStart(2, "0")}`;
 }
 
+// Linha de formulário no estilo iOS: rótulo à esquerda, valor à direita.
+function Linha({ rotulo, children, extra }: { rotulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
+  return (
+    <div className="border-t border-line first:border-t-0">
+      <label className="flex items-center justify-between gap-4 py-3">
+        <span className="shrink-0 text-[17px] text-ink">{rotulo}</span>
+        <span className="min-w-0 flex-1">{children}</span>
+      </label>
+      {extra && <div className="pb-3">{extra}</div>}
+    </div>
+  );
+}
+
+const valorLinha =
+  "w-full min-w-0 cursor-pointer bg-transparent text-right text-[17px] text-ink-muted outline-none placeholder:text-ink-muted focus:text-ink";
+
 // Campo "escolha da lista ou digite": select com os cadastrados + texto livre.
 function SelectOuTexto({
   label,
@@ -61,31 +77,33 @@ function SelectOuTexto({
   vazio: string;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Field label={label}>
-        {opcoes.length > 0 ? (
-          <select value={id} onChange={(e) => setId(e.target.value)} className={inputClass}>
-            <option value="">{vazio}</option>
-            {opcoes.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.nome}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={placeholder} className={inputClass} />
-        )}
-      </Field>
-      {opcoes.length > 0 && !id && (
-        <input
-          aria-label={`${label} (digitar)`}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          placeholder={placeholder}
-          className={inputClass}
-        />
+    <Linha
+      rotulo={label}
+      extra={
+        opcoes.length > 0 && !id ? (
+          <input
+            aria-label={`${label} (digitar)`}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder={placeholder}
+            className={inputClass}
+          />
+        ) : null
+      }
+    >
+      {opcoes.length > 0 ? (
+        <select value={id} onChange={(e) => setId(e.target.value)} className={`${valorLinha} [direction:rtl]`}>
+          <option value="">{vazio}</option>
+          {opcoes.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.nome}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={placeholder} className={valorLinha} />
       )}
-    </div>
+    </Linha>
   );
 }
 
@@ -388,7 +406,7 @@ export function VendaForm({
           </button>
         </Card>
 
-        <Card title="Cliente">
+        <Card title="Cliente" className="!py-2 sm:!py-2">
           <SelectOuTexto
             label="Cliente"
             opcoes={clientes}
@@ -453,6 +471,7 @@ export function VendaForm({
               </div>
             )}
 
+            <div className="-mb-3">
             <SelectOuTexto
               label="Forma de pagamento"
               opcoes={formas}
@@ -474,21 +493,20 @@ export function VendaForm({
               placeholder="Instagram, WhatsApp, loja..."
               vazio="Digitar"
             />
-
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Desconto (R$)">
-                <input
-                  inputMode="decimal"
-                  value={desconto}
-                  onChange={(e) => setDesconto(e.target.value)}
-                  placeholder="0,00"
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Data da venda">
-                <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} className={inputClass} />
-              </Field>
+            <Linha rotulo="Desconto (R$)">
+              <input
+                inputMode="decimal"
+                value={desconto}
+                onChange={(e) => setDesconto(e.target.value)}
+                placeholder="0,00"
+                className={valorLinha}
+              />
+            </Linha>
+            <Linha rotulo="Data da venda">
+              <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} className={valorLinha} />
+            </Linha>
             </div>
+
           </div>
         </Card>
 
@@ -536,9 +554,15 @@ export function VendaForm({
             </p>
           )}
 
-          <button type="submit" disabled={isPending || linhas.length === 0} className={`${btnPrimary} mt-4 w-full py-3`}>
-            {isPending ? "Registrando..." : `Registrar venda${linhas.length ? ` · ${formatBRL(total)}` : ""}`}
-          </button>
+          <div className="fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 lg:static lg:mt-4 lg:bg-none lg:p-0">
+            <button
+              type="submit"
+              disabled={isPending || linhas.length === 0}
+              className={`${btnPrimary} h-[54px] w-full !text-[17px] shadow-lg shadow-brand/30 lg:h-auto lg:py-3 lg:shadow-sm`}
+            >
+              {isPending ? "Registrando..." : `Registrar venda${linhas.length ? ` · ${formatBRL(total)}` : ""}`}
+            </button>
+          </div>
         </Card>
       </div>
     </form>
