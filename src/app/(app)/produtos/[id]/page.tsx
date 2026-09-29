@@ -139,9 +139,23 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
 
         <Card
           title="Anúncios por canal"
-          description="Título e descrição podem variar por canal (Shopee, Mercado Livre, Instagram...)."
+          description="Gere uma sugestão de título e descrição por canal, ajuste e copie junto com as fotos para publicar."
         >
-          <AnunciosSection produtoId={p.id} canais={canais} anuncios={anuncios} nomeProduto={p.nome} descricaoProduto={p.descricao} />
+          <AnunciosSection
+            produtoId={p.id}
+            canais={canais}
+            anuncios={anuncios}
+            fotos={fotosComUrl}
+            dados={{
+              nome: p.nome,
+              marca: p.marca,
+              descricao: p.descricao,
+              categoria: p.categorias?.nome ?? null,
+              precoVarejo: Number(p.preco_varejo),
+              unidade: p.unidade_medida,
+              variacoes,
+            }}
+          />
         </Card>
 
         <section>
