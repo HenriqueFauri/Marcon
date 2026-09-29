@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 // Configurado sob demanda: se as chaves VAPID não estiverem no ambiente, as
@@ -25,10 +26,11 @@ function configurar() {
   return configurado;
 }
 
-export async function enviarNotificacao(ownerId: string, title: string, body: string, url = "/") {
+// `cliente` permite enviar fora de uma requisição (ex.: rotina agendada), sem cookies.
+export async function enviarNotificacao(ownerId: string, title: string, body: string, url = "/", cliente?: SupabaseClient) {
   if (!configurar()) return;
 
-  const supabase = await createClient();
+  const supabase = cliente ?? (await createClient());
   const { data: subs } = await supabase
     .from("push_subscriptions")
     .select("id, endpoint, p256dh, auth")
