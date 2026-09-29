@@ -72,17 +72,21 @@ function Aneis({ vendas, lucro, metaVendas, metaLucro }: { vendas: number; lucro
   return (
     <svg viewBox="0 0 100 100" width="104" height="104" role="img" aria-label={rotulo} className="shrink-0 lg:h-[200px] lg:w-[200px]">
       <circle cx="50" cy="50" r="42" fill="none" strokeWidth="13" className="stroke-brand-tint" />
-      <circle
-        cx="50" cy="50" r="42" fill="none" strokeWidth="13" strokeLinecap="round"
-        strokeDasharray={`${pv * C_EXTERNO} ${C_EXTERNO}`}
-        transform="rotate(-90 50 50)" className="stroke-brand"
-      />
+      {pv > 0 && (
+        <circle
+          cx="50" cy="50" r="42" fill="none" strokeWidth="13" strokeLinecap="round"
+          strokeDasharray={`${Math.max(pv * C_EXTERNO, 0.01)} ${C_EXTERNO}`}
+          transform="rotate(-90 50 50)" className="stroke-brand"
+        />
+      )}
       <circle cx="50" cy="50" r="25" fill="none" strokeWidth="13" className="stroke-ring-track" />
-      <circle
-        cx="50" cy="50" r="25" fill="none" strokeWidth="13" strokeLinecap="round"
-        strokeDasharray={`${pl * C_INTERNO} ${C_INTERNO}`}
-        transform="rotate(-90 50 50)" className="stroke-tile-positive"
-      />
+      {pl > 0 && (
+        <circle
+          cx="50" cy="50" r="25" fill="none" strokeWidth="13" strokeLinecap="round"
+          strokeDasharray={`${Math.max(pl * C_INTERNO, 0.01)} ${C_INTERNO}`}
+          transform="rotate(-90 50 50)" className="stroke-tile-positive"
+        />
+      )}
     </svg>
   );
 }
