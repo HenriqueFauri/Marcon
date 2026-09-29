@@ -3,15 +3,41 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export async function atualizarNomeNegocio(formData: FormData) {
+export async function atualizarPerfil(formData: FormData) {
   const supabase = await createClient();
+  const nome = String(formData.get("nome") ?? "").trim();
   const nomeNegocio = String(formData.get("nome_negocio") ?? "").trim();
-  if (!nomeNegocio) throw new Error("nome é obrigatório");
+  if (!nome) throw new Error("seu nome é obrigatório");
+  if (!nomeNegocio) throw new Error("nome do negócio é obrigatório");
 
-  const { error } = await supabase.auth.updateUser({ data: { nome_negocio: nomeNegocio } });
+  const { error } = await supabase.auth.updateUser({ data: { nome, nome_negocio: nomeNegocio } });
   if (error) throw error;
 
   revalidatePath("/", "layout");
+}
+
+export async function atualizarEmpresa(formData: FormData) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({
+    data: {
+      empresa_telefone: String(formData.get("empresa_telefone") ?? "").trim() || null,
+      empresa_email: String(formData.get("empresa_email") ?? "").trim() || null,
+      empresa_endereco: String(formData.get("empresa_endereco") ?? "").trim() || null,
+      empresa_documento: String(formData.get("empresa_documento") ?? "").trim() || null,
+    },
+  });
+  if (error) throw error;
+
+  revalidatePath("/configuracoes");
+}
+
+export async function atualizarLogoEmpresa(path: string | null) {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ data: { empresa_logo_path: path } });
+  if (error) throw error;
+
+  revalidatePath("/configuracoes");
 }
 
 export async function criarCanal(formData: FormData) {

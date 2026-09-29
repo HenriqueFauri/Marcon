@@ -24,8 +24,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     redirect("/login");
   }
 
-  const nomeNegocio =
-    (user.user_metadata?.nome_negocio as string | undefined) ??
+  const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Minha loja";
+  const nome =
+    (user.user_metadata?.nome as string | undefined) ??
     (user.user_metadata?.full_name as string | undefined) ??
     (user.user_metadata?.name as string | undefined) ??
     user.email;
@@ -35,7 +36,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <aside className="flex w-56 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900 px-3 py-4">
         <div className="mb-6 px-2">
           <p className="text-sm font-semibold text-white">{nomeNegocio}</p>
-          <p className="text-xs text-neutral-500">{user.email}</p>
+          <p className="text-xs text-neutral-500">{nome}</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
           {NAV.map((item) => (

@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nome, setNome] = useState("");
   const [nomeNegocio, setNomeNegocio] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -37,7 +38,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { nome_negocio: nomeNegocio } },
+        options: { data: { nome, nome_negocio: nomeNegocio } },
       });
       if (error) {
         setError(error.message);
@@ -69,17 +70,30 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {mode === "signup" && (
-            <div>
-              <label className="mb-1 block text-sm text-neutral-300">Nome do negócio</label>
-              <input
-                type="text"
-                required
-                value={nomeNegocio}
-                onChange={(e) => setNomeNegocio(e.target.value)}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
-                placeholder="Loja da Yasmin"
-              />
-            </div>
+            <>
+              <div>
+                <label className="mb-1 block text-sm text-neutral-300">Seu nome</label>
+                <input
+                  type="text"
+                  required
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                  placeholder="Yasmin Souza"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-neutral-300">Nome do negócio</label>
+                <input
+                  type="text"
+                  required
+                  value={nomeNegocio}
+                  onChange={(e) => setNomeNegocio(e.target.value)}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
+                  placeholder="Loja da Yasmin"
+                />
+              </div>
+            </>
           )}
           <div>
             <label className="mb-1 block text-sm text-neutral-300">E-mail</label>
