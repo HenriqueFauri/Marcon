@@ -31,9 +31,19 @@
   --color-on-danger: var(--on-danger);
   --color-info: var(--info);
   --color-info-tint: var(--info-tint);
+  --color-tile-warning: var(--tile-warning);
+  --color-on-tile-warning: var(--on-tile-warning);
+  --color-tile-danger: var(--tile-danger);
+  --color-on-tile-danger: var(--on-tile-danger);
+  --color-tile-positive: var(--tile-positive);
+  --color-on-tile-positive: var(--on-tile-positive);
+  --color-ring-track: var(--ring-track);
+  --color-tab-active: var(--tab-active);
+  --color-tab-ink: var(--tab-ink);
+  --color-panel: var(--panel);
 }
 
-/* Claro: branco e cinza-gelo da Apple, terracota como marca. */
+/* Claro (padrão): branco e cinza-gelo da Apple, terracota como marca. */
 :root {
   color-scheme: light;
   --canvas: #f2f2f7;
@@ -61,38 +71,57 @@
   --info: #0a66d6;
   --info-tint: #e1edfd;
   --glass: rgba(255, 255, 255, 0.72);
+  --tile-warning: #a56a14;
+  --on-tile-warning: #ffffff;
+  --tile-danger: #b8332a;
+  --on-tile-danger: #fff6ee;
+  --tile-positive: #2a7f57;
+  --on-tile-positive: #ffffff;
+  --ring-track: #dcebdf;
+  --tab-active: #f7e0cf;
+  --tab-ink: #6e6e73;
+  --panel: #f5f5f7;
 }
 
-/* Escuro: preto puro, superfícies em cinza-grafite. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --canvas: #000000;
-    --surface: #1c1c1e;
-    --fill: #2c2c2e;
-    --fill-strong: #3a3a3c;
-    --line: #38383a;
-    --line-strong: #636366;
-    --ink: #f5f5f7;
-    --ink-2: #d1d1d6;
-    --ink-muted: #98989d;
-    --ink-faint: #636366;
-    --brand: #d45f30;
-    --brand-hover: #e06b39;
-    --brand-text: #e8763f;
-    --brand-tint: #3a2216;
-    --on-brand: #1c0a02;
-    --positive: #5bb98a;
-    --positive-tint: #16301f;
-    --warning: #e0a23c;
-    --warning-tint: #3a2c12;
-    --danger: #ef6b61;
-    --danger-tint: #3d1a18;
-    --on-danger: #1a0606;
-    --info: #4aa3ff;
-    --info-tint: #0d2640;
-    --glass: rgba(44, 44, 46, 0.72);
-  }
+/* Escuro (opcional): preto puro, superfícies em cinza-grafite. É ligado pelo
+   botão de tema, que grava data-theme="dark" no <html>. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #000000;
+  --surface: #1c1c1e;
+  --fill: #2c2c2e;
+  --fill-strong: #3a3a3c;
+  --line: #38383a;
+  --line-strong: #636366;
+  --ink: #f5f5f7;
+  --ink-2: #d1d1d6;
+  --ink-muted: #98989d;
+  --ink-faint: #636366;
+  --brand: #d45f30;
+  --brand-hover: #e06b39;
+  --brand-text: #e8763f;
+  --brand-tint: #3a2216;
+  --on-brand: #1c0a02;
+  --positive: #5bb98a;
+  --positive-tint: #16301f;
+  --warning: #e0a23c;
+  --warning-tint: #3a2c12;
+  --danger: #ef6b61;
+  --danger-tint: #3d1a18;
+  --on-danger: #1a0606;
+  --info: #4aa3ff;
+  --info-tint: #0d2640;
+  --glass: rgba(44, 44, 46, 0.72);
+  --tile-warning: #e0a23c;
+  --on-tile-warning: #1c0a02;
+  --tile-danger: #e5564b;
+  --on-tile-danger: #1a0606;
+  --tile-positive: #5bb98a;
+  --on-tile-positive: #0c1f15;
+  --ring-track: #1d3327;
+  --tab-active: rgba(212, 95, 48, 0.16);
+  --tab-ink: #ebebf5;
+  --panel: #1c1c1e;
 }
 
 body {
@@ -111,6 +140,11 @@ body {
 }
 
 /* Barras de vidro (abas do celular, cabeçalho). */
+/* Fio de 0,5px em volta dos cards, como nas telas do canvas. */
+.hairline {
+  box-shadow: inset 0 0 0 0.5px var(--line);
+}
+
 .glass {
   background: var(--glass);
   -webkit-backdrop-filter: blur(24px) saturate(180%);

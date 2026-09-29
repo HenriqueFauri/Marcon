@@ -130,7 +130,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
       </div>
 
       {!tipo && topCategorias.length > 0 && (
-        <div className="mb-6 rounded-3xl bg-surface p-5">
+        <div className="hairline mb-6 rounded-3xl bg-surface p-5">
           <h2 className="mb-3 text-sm font-semibold text-ink">Para onde foi o dinheiro</h2>
           <ul className="space-y-2">
             {topCategorias.map(([cat, valor]) => (
