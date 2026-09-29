@@ -228,6 +228,21 @@ export function VendaForm({
 
   return (
     <form onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
+      <div className="flex flex-col items-center gap-0.5 pb-1 pt-2 lg:hidden" aria-live="polite">
+        <span className="text-[15px] text-ink-muted">
+          Total · {linhas.length} {linhas.length === 1 ? "item" : "itens"}
+        </span>
+        <span className="text-[44px] font-bold leading-[1.05] tracking-tight tabular-nums text-ink">{formatBRL(total)}</span>
+        {linhas.length > 0 && (
+          <span
+            className={`mt-1.5 rounded-full px-3 py-1 text-[13px] font-semibold ${
+              lucro >= 0 ? "bg-positive-tint text-positive" : "bg-danger-tint text-danger"
+            }`}
+          >
+            {lucro >= 0 ? "Lucro de" : "Prejuízo de"} {formatBRL(Math.abs(lucro))}
+          </span>
+        )}
+      </div>
       <div className="flex flex-col gap-4 lg:col-span-3">
         <Card
           title="Produtos"

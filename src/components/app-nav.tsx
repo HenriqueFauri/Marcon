@@ -7,7 +7,7 @@ import {
   IconBox,
   IconCart,
   IconHome,
-  IconMenu,
+  IconPlus,
   IconReceipt,
   IconSettings,
   IconTruck,
@@ -35,7 +35,14 @@ const NAV: NavItem[] = [
 ];
 
 // atalhos da barra inferior no celular; o resto fica no menu
-const NAV_MOBILE = ["/", "/vendas", "/produtos", "/contas-a-receber"];
+const NAV_MOBILE = ["/", "/vendas", "/produtos", "/clientes"];
+
+// no desktop o menu se divide em grupos, como na barra lateral do Mac
+const GRUPOS: { titulo: string | null; hrefs: string[] }[] = [
+  { titulo: "Loja", hrefs: ["/", "/vendas", "/produtos", "/fornecedores"] },
+  { titulo: "Dinheiro", hrefs: ["/contas-a-receber", "/fluxo-de-caixa", "/clientes"] },
+  { titulo: null, hrefs: ["/configuracoes"] },
+];
 
 function ativo(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
@@ -55,29 +62,36 @@ function Marca({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
   );
 }
 
-function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function ItemNav({ item, pathname, onNavigate }: { item: NavItem; pathname: string; onNavigate?: () => void }) {
+  const isAtivo = ativo(pathname, item.href);
+  const Icone = item.icon;
   return (
-    <nav className="flex flex-col gap-0.5" aria-label="Menu principal">
-      {NAV.map((item) => {
-        const isAtivo = ativo(pathname, item.href);
-        const Icone = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={isAtivo ? "page" : undefined}
-            className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[15px] transition ${
-              isAtivo
-                ? "bg-brand-tint font-medium text-brand-text"
-                : "text-ink-2 hover:bg-fill hover:text-ink"
-            }`}
-          >
-            <Icone />
-            {item.label}
-          </Link>
-        );
-      })}
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={isAtivo ? "page" : undefined}
+      className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[15px] transition ${
+        isAtivo ? "bg-brand-tint font-medium text-brand-text" : "text-ink-2 hover:bg-fill hover:text-ink"
+      }`}
+    >
+      <Icone className={isAtivo ? "" : "text-brand-text"} />
+      {item.label}
+    </Link>
+  );
+}
+
+function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const porHref = new Map(NAV.map((i) => [i.href, i]));
+  return (
+    <nav className="flex flex-col gap-4" aria-label="Menu principal">
+      {GRUPOS.map((g, idx) => (
+        <div key={idx} className="flex flex-col gap-0.5">
+          {g.titulo && <p className="px-3 pb-1 text-xs font-semibold text-ink-muted">{g.titulo}</p>}
+          {g.hrefs.map((h) => (
+            <ItemNav key={h} item={porHref.get(h)!} pathname={pathname} onNavigate={onNavigate} />
+          ))}
+        </div>
+      ))}
     </nav>
   );
 }
@@ -110,17 +124,22 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
   }, [aberto]);
 
   const atalhos = NAV.filter((i) => NAV_MOBILE.includes(i.href));
-  const menuAtivo = !atalhos.some((i) => ativo(pathname, i.href));
 
   return (
     <>
-      <header className="glass sticky top-0 z-30 flex items-center justify-between border-b border-line/60 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
-        <Marca nomeNegocio={nomeNegocio} nome={nome} />
+      <header className="sticky top-0 z-30 flex items-center justify-end px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+        <button
+          onClick={() => setAberto(true)}
+          aria-label="Abrir menu"
+          className="glass flex h-11 w-11 items-center justify-center rounded-full text-[15px] font-semibold text-ink-2 shadow-sm ring-1 ring-line/60"
+        >
+          {(nome || nomeNegocio).trim().charAt(0).toUpperCase() || "M"}
+        </button>
       </header>
 
       <nav
         aria-label="Atalhos"
-        className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 grid grid-cols-5 rounded-full p-1 shadow-lg shadow-black/15 ring-1 ring-line/60 lg:hidden"
+        className="glass fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-4 right-[5.25rem] z-40 grid grid-cols-4 items-center rounded-full p-1 shadow-lg shadow-black/15 ring-1 ring-line/60 lg:hidden"
       >
         {atalhos.map((item) => {
           const isAtivo = ativo(pathname, item.href);
@@ -131,24 +150,25 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
               href={item.href}
               aria-current={isAtivo ? "page" : undefined}
               className={`flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-medium ${
-                isAtivo ? "bg-fill text-brand-text" : "text-ink-2"
+                isAtivo ? "bg-fill font-semibold text-brand-text" : "text-ink-2"
               }`}
             >
-              <Icone width={20} height={20} />
-              <span className="max-w-full truncate px-1">
-                {item.href === "/contas-a-receber" ? "A receber" : item.label}
-              </span>
+              <Icone width={22} height={22} />
+              <span className="max-w-full truncate px-1">{item.label}</span>
             </Link>
           );
         })}
-        <button
-          onClick={() => setAberto(true)}
-          className={`flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-medium ${menuAtivo ? "bg-fill text-brand-text" : "text-ink-2"}`}
-        >
-          <IconMenu width={20} height={20} />
-          Menu
-        </button>
       </nav>
+
+      {!pathname.startsWith("/vendas/novo") && (
+        <Link
+          href="/vendas/novo"
+          aria-label="Nova venda"
+          className="bg-brand-fill fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-40 flex h-[60px] w-[60px] items-center justify-center rounded-full text-on-brand shadow-lg shadow-brand/35 transition active:scale-95 lg:hidden"
+        >
+          <IconPlus width={26} height={26} strokeWidth={2.4} />
+        </Link>
+      )}
 
       <dialog
         ref={ref}
