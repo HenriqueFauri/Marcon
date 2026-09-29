@@ -5,30 +5,29 @@ import {
   NIVEIS,
   eventoAtivo,
   lerPreferencias,
-  renderizar,
-  textoDoEvento,
-  valoresDaCobranca,
-  valoresDaMeta,
-  valoresDaVenda,
-  valoresDoNivel,
+  linhaDaCobranca,
+  linhaDaMeta,
+  linhaDaVenda,
+  linhaDoNivel,
+  montarNotificacao,
   type DadosVendaNotificacao,
   type Evento,
   type ParcelaParaCobrar,
-  type PreferenciaNotificacao,
-} from "@/lib/notificacao-modelos";
+  type Preferencias,
+} from "@/lib/notificacoes";
 
 async function enviarEvento(
   ownerId: string,
-  pref: PreferenciaNotificacao,
+  pref: Preferencias,
   evento: Evento,
-  valores: Record<string, string>,
+  semente: string | number,
+  linhaDeDados: string,
   url: string,
   cliente?: SupabaseClient,
 ) {
   if (!eventoAtivo(pref, evento)) return;
-  const { titulo, corpo } = textoDoEvento(pref, evento);
-  const r = renderizar(titulo, corpo, valores);
-  await enviarNotificacao(ownerId, r.titulo, r.corpo, url, cliente);
+  const { titulo, corpo } = montarNotificacao(evento, semente, linhaDeDados);
+  await enviarNotificacao(ownerId, titulo, corpo, url, cliente);
 }
 
 interface VendaRegistrada extends DadosVendaNotificacao {
@@ -41,7 +40,7 @@ interface VendaRegistrada extends DadosVendaNotificacao {
 export async function avisarVenda(supabase: SupabaseClient, user: User, venda: VendaRegistrada) {
   const pref = lerPreferencias(user.user_metadata);
   const url = `/vendas/${venda.vendaId}`;
-  await enviarEvento(user.id, pref, "venda", valoresDaVenda(venda), url);
+  await enviarEvento(user.id, pref, "venda", venda.vendaId, linhaDaVenda(venda, pref.dados.venda), url);
 
   // só vendas do mês corrente contam para meta e níveis
   const mes = mesAtual();
@@ -64,28 +63,16 @@ export async function avisarVenda(supabase: SupabaseClient, user: User, venda: V
     typeof alvo === "number" && alvo > 0 && antes < alvo && depois >= alvo;
 
   if (cruzou(faturamentoAntes, faturamento, meta.meta_vendas)) {
-    await enviarEvento(
-      user.id,
-      pref,
-      "meta",
-      valoresDaMeta({ tipo: "vendas", meta: meta.meta_vendas as number, atingido: faturamento, mes }),
-      "/",
-    );
+    await enviarEvento(user.id, pref, "meta", `${venda.vendaId}:vendas`, linhaDaMeta("vendas", faturamento), "/");
   }
   if (cruzou(lucroAntes, lucro, meta.meta_lucro)) {
-    await enviarEvento(
-      user.id,
-      pref,
-      "meta",
-      valoresDaMeta({ tipo: "lucro", meta: meta.meta_lucro as number, atingido: lucro, mes }),
-      "/",
-    );
+    await enviarEvento(user.id, pref, "meta", `${venda.vendaId}:lucro`, linhaDaMeta("lucro", lucro), "/");
   }
 
   // uma venda grande pode pular níveis: avisa só o mais alto
   const nivel = [...NIVEIS].reverse().find((n) => faturamentoAntes < n.valor && faturamento >= n.valor);
   if (nivel) {
-    await enviarEvento(user.id, pref, nivel.evento, valoresDoNivel({ nivel: nivel.valor, faturamento, mes }), "/");
+    await enviarEvento(user.id, pref, nivel.evento, venda.vendaId, linhaDoNivel(faturamento, mes), "/");
   }
 }
 
@@ -123,7 +110,9 @@ export async function enviarCobrancasDoDia(admin: SupabaseClient) {
       const { data } = await admin.auth.admin.getUserById(ownerId);
       const pref = lerPreferencias(data.user?.user_metadata);
       if (!eventoAtivo(pref, "cobranca")) continue;
-      await enviarEvento(ownerId, pref, "cobranca", valoresDaCobranca(lista), "/contas-a-receber", admin);
+      // dia após dia percorre as frases em ordem: nunca repete a de ontem
+      const dia = Math.floor(Date.parse(`${hoje}T00:00:00Z`) / 86_400_000);
+      await enviarEvento(ownerId, pref, "cobranca", dia, linhaDaCobranca(lista, pref.dados.cobranca), "/contas-a-receber", admin);
       enviados++;
     } catch {
       // um usuário com problema não pode impedir os demais
