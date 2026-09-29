@@ -3,13 +3,27 @@ import type { CanalVenda, FormaPagamento } from "@/types/domain";
 import { ListaSimples } from "./lista-simples";
 import { criarCanal, excluirCanal, criarFormaPagamento, excluirFormaPagamento } from "./actions";
 import { NotificacoesConfig } from "./notificacoes-config";
+import { PerfilForm } from "./perfil-form";
 
 export default async function ConfiguracoesPage() {
   const supabase = await createClient();
-  const [{ data: canais }, { data: formas }] = await Promise.all([
+  const [
+    {
+      data: { user },
+    },
+    { data: canais },
+    { data: formas },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
   ]);
+
+  const nomeNegocio =
+    (user?.user_metadata?.nome_negocio as string | undefined) ??
+    (user?.user_metadata?.full_name as string | undefined) ??
+    (user?.user_metadata?.name as string | undefined) ??
+    "";
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -19,6 +33,11 @@ export default async function ConfiguracoesPage() {
       </div>
 
       <div className="flex flex-col gap-6">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+          <h2 className="mb-3 text-sm font-semibold text-white">Perfil</h2>
+          <PerfilForm nomeNegocio={nomeNegocio} email={user?.email ?? ""} />
+        </div>
+
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-5">
           <h2 className="mb-3 text-sm font-semibold text-white">Canais de venda</h2>
           <ListaSimples

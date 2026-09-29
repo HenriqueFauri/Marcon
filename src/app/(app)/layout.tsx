@@ -24,7 +24,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     redirect("/login");
   }
 
-  const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) ?? user.email;
+  const nomeNegocio =
+    (user.user_metadata?.nome_negocio as string | undefined) ??
+    (user.user_metadata?.full_name as string | undefined) ??
+    (user.user_metadata?.name as string | undefined) ??
+    user.email;
 
   return (
     <div className="flex min-h-screen">

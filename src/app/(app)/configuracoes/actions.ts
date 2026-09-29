@@ -3,6 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
+export async function atualizarNomeNegocio(formData: FormData) {
+  const supabase = await createClient();
+  const nomeNegocio = String(formData.get("nome_negocio") ?? "").trim();
+  if (!nomeNegocio) throw new Error("nome é obrigatório");
+
+  const { error } = await supabase.auth.updateUser({ data: { nome_negocio: nomeNegocio } });
+  if (error) throw error;
+
+  revalidatePath("/", "layout");
+}
+
 export async function criarCanal(formData: FormData) {
   const supabase = await createClient();
   const {
