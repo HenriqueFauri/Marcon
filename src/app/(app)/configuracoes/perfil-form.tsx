@@ -4,7 +4,7 @@ import { useAction } from "@/components/use-action";
 import { Field, btnPrimary, inputClass } from "@/components/ui";
 import { atualizarPerfil } from "./actions";
 
-export function PerfilForm({ nome, nomeNegocio, email }: { nome: string; nomeNegocio: string; email: string }) {
+export function PerfilForm({ nome, email }: { nome: string; email: string }) {
   const { isPending, run } = useAction();
 
   return (
@@ -13,13 +13,10 @@ export function PerfilForm({ nome, nomeNegocio, email }: { nome: string; nomeNeg
         <Field label="Seu nome">
           <input name="nome" defaultValue={nome} required className={inputClass} autoComplete="name" />
         </Field>
-        <Field label="Nome do negócio">
-          <input name="nome_negocio" defaultValue={nomeNegocio} required className={inputClass} autoComplete="organization" />
+        <Field label="E-mail da conta">
+          <input value={email} disabled readOnly className={inputClass} />
         </Field>
       </div>
-      <Field label="E-mail da conta">
-        <input value={email} disabled readOnly className={inputClass} />
-      </Field>
       <div>
         <button type="submit" disabled={isPending} className={btnPrimary}>
           {isPending ? "Salvando..." : "Salvar"}

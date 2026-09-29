@@ -6,6 +6,7 @@ import type { ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
 import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
 import { EmptyState, btnPrimary } from "@/components/ui";
+import { MetasButton } from "./metas-button";
 import { IconAlert, IconBox, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
 
 export const metadata: Metadata = { title: "Início" };
@@ -41,7 +42,10 @@ function resumoItens(itens: { produto_nome: string; quantidade: number }[] | nul
 
 function saudacao() {
   const hora = Number(new Intl.DateTimeFormat("en-GB", { timeZone: FUSO, hour: "2-digit", hour12: false }).format(new Date()));
-  return hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  if (hora < 5) return "Boa madrugada";
+  if (hora < 12) return "Bom dia";
+  if (hora < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
 function dataPorExtenso() {
@@ -277,11 +281,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 </p>
                 <Meta rotulo="Vendas" valor={faturamento} meta={metaVendas} tom="text-brand-text" />
                 <Meta rotulo="Lucro" valor={lucro} meta={metaLucro} tom="text-tile-positive" />
-                {!metaMensalVendas && !metaMensalLucro && (
-                  <Link href="/configuracoes" className="text-[13px] text-brand-text hover:underline">
-                    Definir metas do mês
-                  </Link>
-                )}
+                <MetasButton metaVendas={metaMensalVendas} metaLucro={metaMensalLucro} />
               </div>
             </section>
 
