@@ -5,8 +5,7 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { enviarNotificacao } from "@/lib/push/send";
 import { falha, ok, type ActionResult } from "@/lib/action";
-import { hojeISO } from "@/lib/format";
-import { renderizarModelo, resolverModelo } from "@/lib/notificacao-modelos";
+import { formatBRL, hojeISO } from "@/lib/format";
 
 export interface NovaVendaInput {
   itens: { produto_id: string; variacao_id: string | null; quantidade: number; preco_unitario: number }[];
@@ -99,28 +98,14 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
     if (error) return falha(error);
 
     const total = subtotal - desconto;
-    const modelo = resolverModelo(user.user_metadata);
-    after(async () => {
-      try {
-        const { data: venda } = await supabase.from("vendas").select("custo_total").eq("id", vendaId).single();
-        const { data: itensVenda } = await supabase
-          .from("venda_itens")
-          .select("produto_nome, quantidade")
-          .eq("venda_id", vendaId);
-        const { titulo, corpo } = renderizarModelo(modelo.titulo, modelo.corpo, {
-          valor: total,
-          lucro: total - Number(venda?.custo_total ?? 0),
-          desconto,
-          cliente: clienteNome,
-          canal: canalNome,
-          formaPagamento: formaNome,
-          itens: (itensVenda ?? []).map((i) => ({ nome: i.produto_nome, quantidade: i.quantidade })),
-        });
-        await enviarNotificacao(user.id, titulo, corpo, `/vendas/${vendaId}`);
-      } catch {
-        // aviso é opcional: falhar aqui não pode afetar a venda já registrada
-      }
-    });
+    after(() =>
+      enviarNotificacao(
+        user.id,
+        "Nova venda registrada",
+        `${formatBRL(total)}${clienteNome ? " — " + clienteNome : ""}`,
+        `/vendas/${vendaId}`,
+      ).catch(() => {}),
+    );
 
     revalidarVendas();
     return { ok: true, message: "Venda registrada!", id: String(vendaId) };
