@@ -13,6 +13,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     redirect("/login");
   }
 
+  const { count: parcelasAbertas } = await supabase
+    .from("parcelas_com_status")
+    .select("id", { count: "exact", head: true })
+    .neq("status", "pago");
+  const contagens = { "/contas-a-receber": parcelasAbertas ?? 0 };
+
   const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Minha loja";
   const nome =
     (user.user_metadata?.nome as string | undefined) ??
@@ -24,9 +30,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <ToastProvider>
       <div className="flex min-h-dvh">
-        <Sidebar nomeNegocio={nomeNegocio} nome={nome} />
+        <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <MobileNav nomeNegocio={nomeNegocio} nome={nome} />
+          <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-10 lg:pt-8">
             {children}
           </main>

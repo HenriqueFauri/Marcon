@@ -8,6 +8,7 @@ import {
   IconCart,
   IconHome,
   IconPlus,
+  IconSearch,
   IconReceipt,
   IconSettings,
   IconTruck,
@@ -62,7 +63,9 @@ function Marca({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
   );
 }
 
-function ItemNav({ item, pathname, onNavigate }: { item: NavItem; pathname: string; onNavigate?: () => void }) {
+type Contagens = Record<string, number>;
+
+function ItemNav({ item, pathname, onNavigate, contagem }: { item: NavItem; pathname: string; onNavigate?: () => void; contagem?: number }) {
   const isAtivo = ativo(pathname, item.href);
   const Icone = item.icon;
   return (
@@ -75,12 +78,13 @@ function ItemNav({ item, pathname, onNavigate }: { item: NavItem; pathname: stri
       }`}
     >
       <Icone className={isAtivo ? "" : "text-brand-text"} />
-      {item.label}
+      <span className="flex-1">{item.label}</span>
+      {contagem ? <span className="text-xs tabular-nums text-ink-muted">{contagem}</span> : null}
     </Link>
   );
 }
 
-function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function ListaNav({ pathname, onNavigate, contagens }: { pathname: string; onNavigate?: () => void; contagens?: Contagens }) {
   const porHref = new Map(NAV.map((i) => [i.href, i]));
   return (
     <nav className="flex flex-col gap-4" aria-label="Menu principal">
@@ -88,7 +92,7 @@ function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
         <div key={idx} className="flex flex-col gap-0.5">
           {g.titulo && <p className="px-3 pb-1 text-xs font-semibold text-ink-muted">{g.titulo}</p>}
           {g.hrefs.map((h) => (
-            <ItemNav key={h} item={porHref.get(h)!} pathname={pathname} onNavigate={onNavigate} />
+            <ItemNav key={h} item={porHref.get(h)!} pathname={pathname} onNavigate={onNavigate} contagem={contagens?.[h]} />
           ))}
         </div>
       ))}
@@ -96,7 +100,7 @@ function ListaNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   );
 }
 
-export function Sidebar({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
+export function Sidebar({ nomeNegocio, nome, contagens }: { nomeNegocio: string; nome: string; contagens?: Contagens }) {
   const pathname = usePathname();
   return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-surface/60 px-3 py-5 lg:flex">
@@ -104,14 +108,14 @@ export function Sidebar({ nomeNegocio, nome }: { nomeNegocio: string; nome: stri
         <Marca nomeNegocio={nomeNegocio} nome={nome} />
       </div>
       <div className="flex-1 overflow-y-auto">
-        <ListaNav pathname={pathname} />
+        <ListaNav pathname={pathname} contagens={contagens} />
       </div>
       <SignOutButton />
     </aside>
   );
 }
 
-export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
+export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: string; nome: string; contagens?: Contagens }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLDialogElement>(null);
@@ -127,7 +131,14 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center justify-end px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-end gap-2.5 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+        <Link
+          href="/produtos?buscar=1"
+          aria-label="Buscar produtos"
+          className="glass flex h-11 w-11 items-center justify-center rounded-full text-ink shadow-sm ring-1 ring-line/60"
+        >
+          <IconSearch width={20} height={20} strokeWidth={2.2} />
+        </Link>
         <button
           onClick={() => setAberto(true)}
           aria-label="Abrir menu"
@@ -189,7 +200,7 @@ export function MobileNav({ nomeNegocio, nome }: { nomeNegocio: string; nome: st
               <IconX />
             </button>
           </div>
-          <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} />
+          <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} contagens={contagens} />
           <SignOutButton />
         </div>
       </dialog>

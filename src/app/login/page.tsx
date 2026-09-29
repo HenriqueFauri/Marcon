@@ -28,7 +28,7 @@ function GoogleIcon() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<Modo>("signin");
+  const [mode, setMode] = useState<Modo>(searchParams.get("modo") === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
