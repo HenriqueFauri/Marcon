@@ -1,4 +1,4 @@
-// Tipos do importador de relatórios em PDF.
+// Tipos do importador (relatórios em PDF do VendaMax e planilhas).
 
 // texto solto do PDF, com a posição na página (y cresce para cima, como no PDF)
 export interface Item {
@@ -66,9 +66,12 @@ export interface Conferencia {
   ok: boolean;
 }
 
+export type Origem = "vendamax" | "planilha";
+
 interface Base {
-  origem: "vendamax";
+  origem: Origem;
   periodo: string | null;
+  resumo?: string; // o que foi lido e o que foi pulado (planilha)
   avisos: string[];
   conferencias: Conferencia[];
 }
