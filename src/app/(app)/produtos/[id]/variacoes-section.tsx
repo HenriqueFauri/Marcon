@@ -8,15 +8,20 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { Badge, Field, btnSecondary, inputClass } from "@/components/ui";
 import { IconPlus } from "@/components/icons";
 import { criarVariacao, excluirVariacao } from "../actions";
+import { FotosSection, type FotoComUrl } from "./fotos-section";
 
 export function VariacoesSection({
   produtoId,
   variacoes,
   precoPadrao,
+  fotosPorVariacao,
+  maxFotos,
 }: {
   produtoId: string;
   variacoes: ProdutoVariacao[];
   precoPadrao: number;
+  fotosPorVariacao: Record<string, FotoComUrl[]>;
+  maxFotos?: number;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const { isPending, run } = useAction();
@@ -26,25 +31,41 @@ export function VariacoesSection({
       {variacoes.length > 0 ? (
         <ul className="mb-5 divide-y divide-line rounded-2xl border border-line">
           {variacoes.map((v) => (
-            <li key={v.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-ink">{v.nome_combinacao}</p>
-                <p className="text-xs text-ink-muted">
-                  {[
-                    v.sku && `SKU ${v.sku}`,
-                    v.custo != null && `custo ${formatBRL(v.custo)}`,
-                    `venda ${formatBRL(v.preco_venda ?? precoPadrao)}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+            <li key={v.id} className="flex flex-col gap-3 px-3 py-3 text-sm">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-ink">{v.nome_combinacao}</p>
+                  <p className="text-xs text-ink-muted">
+                    {[
+                      v.sku && `SKU ${v.sku}`,
+                      v.custo != null && `custo ${formatBRL(v.custo)}`,
+                      `venda ${formatBRL(v.preco_venda ?? precoPadrao)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                <Badge tone={v.estoque > 0 ? "positive" : "negative"}>{v.estoque} em estoque</Badge>
+                <ConfirmButton
+                  title={`Excluir a variação “${v.nome_combinacao}”?`}
+                  description={
+                    [
+                      v.estoque > 0 ? `Ela ainda tem ${v.estoque} unidade(s) em estoque, que deixarão de ser contadas.` : null,
+                      (fotosPorVariacao[v.id]?.length ?? 0) > 0 ? "As fotos dela também serão apagadas." : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
+                  ariaLabel={`Excluir variação ${v.nome_combinacao}`}
+                  onConfirm={() => excluirVariacao(v.id, produtoId)}
+                />
               </div>
-              <Badge tone={v.estoque > 0 ? "positive" : "negative"}>{v.estoque} em estoque</Badge>
-              <ConfirmButton
-                title={`Excluir a variação “${v.nome_combinacao}”?`}
-                description={v.estoque > 0 ? `Ela ainda tem ${v.estoque} unidade(s) em estoque, que deixarão de ser contadas.` : undefined}
-                ariaLabel={`Excluir variação ${v.nome_combinacao}`}
-                onConfirm={() => excluirVariacao(v.id, produtoId)}
+              <FotosSection
+                produtoId={produtoId}
+                variacaoId={v.id}
+                fotos={fotosPorVariacao[v.id] ?? []}
+                maxFotos={maxFotos}
+                compacto
               />
             </li>
           ))}
