@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
@@ -30,7 +31,17 @@ function nomeSeguro(nome: string) {
   return `${limpo || "foto"}.${ext}`;
 }
 
-export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: FotoComUrl[] }) {
+// maxFotos vem do plano (1 no grátis, 10 no pago); o banco impõe o mesmo limite
+export function FotosSection({
+  produtoId,
+  fotos,
+  maxFotos = MAX_FOTOS_POR_ITEM,
+}: {
+  produtoId: string;
+  fotos: FotoComUrl[];
+  maxFotos?: number;
+}) {
+  const limitadoPeloPlano = maxFotos < MAX_FOTOS_POR_ITEM;
   const inputRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
   const { isPending, run } = useAction();
@@ -38,9 +49,13 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const vagas = MAX_FOTOS_POR_ITEM - fotos.length;
+    const vagas = maxFotos - fotos.length;
     if (vagas <= 0) {
-      toast.error(`Este produto já tem ${MAX_FOTOS_POR_ITEM} fotos. Remova uma para adicionar outra.`);
+      toast.error(
+        limitadoPeloPlano
+          ? `No plano grátis cada produto tem ${maxFotos} foto. Assine o plano Marcon para ter até ${MAX_FOTOS_POR_ITEM}.`
+          : `Este produto já tem ${maxFotos} fotos. Remova uma para adicionar outra.`,
+      );
       return;
     }
     let lista = Array.from(files);
@@ -121,7 +136,7 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
             </button>
           </div>
         ))}
-        {fotos.length < MAX_FOTOS_POR_ITEM && (
+        {fotos.length < maxFotos && (
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
@@ -147,7 +162,17 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
       <p className="mt-3 text-xs text-ink-muted">
         {fotos.length === 0
           ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez; o Marcon reduz o tamanho sozinho."
-          : `${fotos.length} de ${MAX_FOTOS_POR_ITEM} fotos.`}
+          : `${fotos.length} de ${maxFotos} ${maxFotos === 1 ? "foto" : "fotos"}.`}
+        {limitadoPeloPlano && fotos.length >= maxFotos && (
+          <>
+            {" "}
+            No plano grátis cada produto tem {maxFotos} foto.{" "}
+            <Link href="/assinatura" className="font-medium text-brand-text underline-offset-2 hover:underline">
+              Assine o Marcon
+            </Link>{" "}
+            para ter até {MAX_FOTOS_POR_ITEM}.
+          </>
+        )}
       </p>
     </div>
   );

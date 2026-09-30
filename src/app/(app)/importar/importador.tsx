@@ -114,7 +114,34 @@ function Marcar({ marcado, onChange, rotulo, desabilitado }: { marcado: boolean;
   );
 }
 
-function BotaoImportar({ quantidade, enviando, onClick, rotulo }: { quantidade: number; enviando: boolean; onClick: () => void; rotulo: string }) {
+function BotaoImportar({
+  quantidade,
+  enviando,
+  onClick,
+  rotulo,
+  bloqueado,
+}: {
+  quantidade: number;
+  enviando: boolean;
+  onClick: () => void;
+  rotulo: string;
+  bloqueado?: boolean;
+}) {
+  // plano grátis: a prévia funciona, mas gravar vendas e caixa de outro sistema é do plano pago
+  if (bloqueado) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="rounded-2xl bg-warning-tint px-4 py-3 text-[13px] text-warning">
+          Importar vendas e extrato de caixa de outro sistema faz parte do plano Marcon. No plano grátis dá para importar os produtos.
+        </p>
+        <div>
+          <Link href="/assinatura" className={btnPrimary}>
+            Assinar o plano Marcon
+          </Link>
+        </div>
+      </div>
+    );
+  }
   return (
     <div>
       <button type="button" className={btnPrimary} disabled={enviando || quantidade === 0} onClick={onClick}>
@@ -241,7 +268,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
 // vendas
 // ---------------------------------------------------------------------------
 
-function SecaoVendas({ analise }: { analise: De<"vendas"> }) {
+function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: boolean }) {
   const toast = useToast();
   const [selecionadas, setSelecionadas] = useState(() => new Set(analise.itens.filter((v) => !v.aPrazo).map((v) => v.ref)));
   const [enviando, setEnviando] = useState(false);
@@ -327,6 +354,7 @@ function SecaoVendas({ analise }: { analise: De<"vendas"> }) {
             enviando={enviando}
             onClick={importar}
             rotulo={plural(escolhidas.length, "venda", "vendas")}
+            bloqueado={!liberado}
           />
         </>
       )}
@@ -338,7 +366,7 @@ function SecaoVendas({ analise }: { analise: De<"vendas"> }) {
 // extrato de caixa
 // ---------------------------------------------------------------------------
 
-function SecaoCaixa({ analise }: { analise: De<"caixa"> }) {
+function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boolean }) {
   const toast = useToast();
   const [selecionados, setSelecionados] = useState(() => new Set(analise.itens.map((l) => l.ref)));
   const [enviando, setEnviando] = useState(false);
@@ -405,6 +433,7 @@ function SecaoCaixa({ analise }: { analise: De<"caixa"> }) {
             enviando={enviando}
             onClick={importar}
             rotulo={plural(escolhidos.length, "lançamento", "lançamentos")}
+            bloqueado={!liberado}
           />
         </>
       )}
@@ -416,7 +445,7 @@ function SecaoCaixa({ analise }: { analise: De<"caixa"> }) {
 // tela
 // ---------------------------------------------------------------------------
 
-export function Importador() {
+export function Importador({ historicoLiberado = true }: { historicoLiberado?: boolean }) {
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [lendo, setLendo] = useState(false);
@@ -502,8 +531,8 @@ export function Importador() {
       )}
 
       {carregado.produtos && <SecaoProdutos key={carregado.produtos.chave} analise={carregado.produtos.analise} />}
-      {carregado.vendas && <SecaoVendas key={carregado.vendas.chave} analise={carregado.vendas.analise} />}
-      {carregado.caixa && <SecaoCaixa key={carregado.caixa.chave} analise={carregado.caixa.analise} />}
+      {carregado.vendas && <SecaoVendas key={carregado.vendas.chave} analise={carregado.vendas.analise} liberado={historicoLiberado} />}
+      {carregado.caixa && <SecaoCaixa key={carregado.caixa.chave} analise={carregado.caixa.analise} liberado={historicoLiberado} />}
     </div>
   );
 }

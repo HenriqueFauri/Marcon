@@ -46,7 +46,23 @@ O lembrete de cobrança precisa de um agendador: `vercel.json` já chama `GET /a
 
 ## Assinatura (Asaas)
 
-O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. A tela fica em `/assinatura`, com o estado do plano sempre à vista no menu ("Seu plano"). Há um plano pago só, o Marcon (R$ 19,90 por mês, só cartão), e o plano grátis que sobra depois do teste; ambos são definidos em `src/lib/planos.ts`. Ao assinar, o pagamento abre em outra aba, na página do Asaas, onde o usuário digita o cartão; nenhum dado de cartão passa pelo Marcon, e a tela atualiza sozinha quando o webhook confirma. **Os limites do plano grátis ainda não são aplicados**: hoje o app só mostra o estado e não bloqueia nada.
+O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. A tela fica em `/assinatura`, com o estado do plano sempre à vista no menu ("Seu plano"). Há um plano pago só, o Marcon (R$ 15,90 por mês, só cartão), e o plano grátis que sobra depois do teste; os textos e o preço ficam em `src/lib/planos.ts`. Ao assinar, o pagamento abre em outra aba, na página do Asaas, onde o usuário digita o cartão; nenhum dado de cartão passa pelo Marcon, e a tela atualiza sozinha quando o webhook confirma.
+
+### Limites do plano
+
+| | Teste (14 dias) e Marcon | Grátis |
+| --- | --- | --- |
+| Vendas por mês | sem limite | 30 |
+| Produtos | sem limite | 50 |
+| Fotos por produto e por variação | 10 | 1 |
+| Importar vendas e extrato de caixa | sim | não (só produtos) |
+
+Os limites são **impostos pelo banco** (migration `0013`: gatilhos `BEFORE INSERT` em `vendas`, `produtos`, `produto_fotos` e `lancamentos_caixa`), então quem chama a API direto também passa por eles. A função `limites_do_plano` é a fonte única; o app lê o uso em `uso_do_plano()` (`src/lib/uso.ts`) só para explicar e antecipar (faixa quando faltam 5, bloqueio explicado no limite, barras em `/assinatura`). Se a migration ainda não foi aplicada, as telas seguem funcionando sem os avisos.
+
+- **Nada é apagado nem escondido:** os gatilhos só barram registros novos. Quem cai no grátis com 80 produtos continua vendo os 80.
+- **Vendas contam pelo mês em que foram registradas** (fuso de Brasília), não pela data digitada, para não dar para burlar datando para trás. Cancelar uma venda não devolve a cota.
+- **Plano pago** = assinatura `ativa` ou `atrasada` (o Asaas ainda tenta cobrar); `pendente` e `cancelada` voltam ao grátis. O **teste** vale por 14 dias desde a criação da conta.
+- Ao mudar um limite, mude em `limites_do_plano` (SQL) e nos textos de `planos.ts`.
 
 Para testar no sandbox:
 

@@ -18,6 +18,7 @@ import { IconPencil } from "@/components/icons";
 import { ProdutoAcoes } from "./produto-acoes";
 import { VariacoesSection } from "./variacoes-section";
 import { FotosSection } from "./fotos-section";
+import { lerUso } from "@/lib/uso";
 import { AnunciosSection } from "./anuncios-section";
 import { ExcluirProdutoButton } from "./excluir-produto-button";
 
@@ -42,6 +43,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
     { data: canaisData },
     { data: anunciosData },
     { data: vendidosData },
+    uso,
   ] = await Promise.all([
     supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", id).maybeSingle(),
     supabase
@@ -57,6 +59,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("produto_anuncios").select("*").eq("produto_id", id),
     supabase.from("venda_itens").select("quantidade, preco_unitario, custo_unitario, vendas!inner(status)").eq("produto_id", id).neq("vendas.status", "cancelada"),
+    lerUso(supabase),
   ]);
 
   if (!produto) notFound();
@@ -140,7 +143,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         )}
 
         <Card title="Fotos">
-          <FotosSection produtoId={p.id} fotos={fotosComUrl} />
+          <FotosSection produtoId={p.id} fotos={fotosComUrl} maxFotos={uso?.limites.fotosPorItem} />
         </Card>
 
         <Card
