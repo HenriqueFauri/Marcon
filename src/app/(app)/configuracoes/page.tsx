@@ -15,7 +15,8 @@ import { DIAS_DE_TESTE, fimDoTeste, testeEmAndamento } from "@/lib/planos";
 
 export const metadata: Metadata = { title: "Configurações" };
 
-export default async function ConfiguracoesPage() {
+export default async function ConfiguracoesPage({ searchParams }: PageProps<"/configuracoes">) {
+  const sp = await searchParams;
   const supabase = await createClient();
   const [
     {
@@ -74,6 +75,7 @@ export default async function ConfiguracoesPage() {
             emTeste={testeEmAndamento(fimTeste)}
             diasDeTeste={DIAS_DE_TESTE}
             cobrancaDisponivel={asaasConfigurado()}
+            voltouDoPagamento={sp.assinatura === "ok"}
           />
         </Card>
 

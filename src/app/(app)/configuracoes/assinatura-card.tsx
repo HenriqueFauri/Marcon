@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge, Field, btnPrimary, inputClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
 import { useToast } from "@/components/toaster";
@@ -20,19 +21,35 @@ export function AssinaturaCard({
   emTeste,
   diasDeTeste,
   cobrancaDisponivel,
+  voltouDoPagamento,
 }: {
   assinatura: AssinaturaAtual | null;
   fimDoTeste: string;
   emTeste: boolean;
   diasDeTeste: number;
   cobrancaDisponivel: boolean;
+  voltouDoPagamento: boolean;
 }) {
   const toast = useToast();
+  const router = useRouter();
   const [plano, setPlano] = useState<PlanoId>("loja");
   const [documento, setDocumento] = useState("");
   const [enviando, setEnviando] = useState(false);
 
   const ativa = assinatura?.status === "ativa" || assinatura?.status === "atrasada";
+  // o pagamento já foi feito, mas a confirmação chega por webhook alguns segundos depois
+  const aguardando = voltouDoPagamento && assinatura?.status === "pendente";
+
+  useEffect(() => {
+    if (!aguardando) return;
+    let tentativas = 0;
+    const timer = setInterval(() => {
+      tentativas += 1;
+      router.refresh();
+      if (tentativas >= 10) clearInterval(timer);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [aguardando, router]);
   const nomePlano = assinatura && assinatura.plano in PLANOS ? PLANOS[assinatura.plano as PlanoId].nome : "";
 
   async function assinar() {
@@ -95,7 +112,9 @@ export function AssinaturaCard({
         ) : (
           <Badge tone="warning">Teste de {diasDeTeste} dias encerrado</Badge>
         )}
-        {assinatura?.status === "pendente" && <Badge tone="warning">Pagamento pendente</Badge>}
+        {assinatura?.status === "pendente" && (
+          <Badge tone="warning">{aguardando ? "Confirmando pagamento..." : "Pagamento pendente"}</Badge>
+        )}
       </div>
 
       {!cobrancaDisponivel ? (
