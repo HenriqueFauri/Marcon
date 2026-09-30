@@ -6,6 +6,7 @@ import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
 import { mensagemDeErro } from "@/lib/action";
 import { IconPlus, IconX } from "@/components/icons";
+import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { excluirFoto, registrarFoto } from "../actions";
 
 interface FotoComUrl {
@@ -14,7 +15,7 @@ interface FotoComUrl {
   url: string | null;
 }
 
-const TAMANHO_MAX = 8 * 1024 * 1024;
+const FORMATOS_ACEITOS = ["image/jpeg", "image/png", "image/webp"];
 
 // nomes com espaço/acento quebram a chave no storage
 function nomeSeguro(nome: string) {
@@ -37,13 +38,23 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const lista = Array.from(files);
-    const grandes = lista.filter((f) => f.size > TAMANHO_MAX);
-    if (grandes.length) toast.error(`${grandes.length} foto(s) acima de 8 MB foram ignoradas.`);
-    const validas = lista.filter((f) => f.size <= TAMANHO_MAX);
+    const vagas = MAX_FOTOS_POR_ITEM - fotos.length;
+    if (vagas <= 0) {
+      toast.error(`Este produto já tem ${MAX_FOTOS_POR_ITEM} fotos. Remova uma para adicionar outra.`);
+      return;
+    }
+    let lista = Array.from(files);
+    if (lista.length > vagas) {
+      toast.error(`Só cabem mais ${vagas} foto(s). ${lista.length - vagas} ficou de fora.`);
+      lista = lista.slice(0, vagas);
+    }
+    const grandes = lista.filter((f) => f.size > TAMANHO_ORIGINAL_MAX);
+    if (grandes.length) toast.error(`${grandes.length} foto(s) acima de 30 MB foram ignoradas.`);
+    const validas = lista.filter((f) => f.size <= TAMANHO_ORIGINAL_MAX);
     if (!validas.length) return;
 
     setEnviando({ atual: 0, total: validas.length });
+    let enviadas = 0;
     try {
       const supabase = createClient();
       const {
@@ -51,17 +62,32 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
       } = await supabase.auth.getUser();
       if (!user) throw new Error("não autenticado");
 
-      for (const [i, file] of validas.entries()) {
+      for (const [i, original] of validas.entries()) {
         setEnviando({ atual: i + 1, total: validas.length });
-        const path = `${user.id}/${produtoId}/${Date.now()}-${nomeSeguro(file.name)}`;
-        const { error: uploadError } = await supabase.storage.from("produto-fotos").upload(path, file, {
-          contentType: file.type || undefined,
+        // reduz no navegador antes de enviar: menos espaço e envio mais rápido no celular
+        const arquivo = await comprimirImagem(original);
+        if (!FORMATOS_ACEITOS.includes(arquivo.type)) {
+          toast.error(`"${original.name}" está num formato que não dá para enviar. Use JPEG, PNG ou WebP.`);
+          continue;
+        }
+        if (arquivo.size > TAMANHO_ENVIO_MAX) {
+          toast.error(`"${original.name}" continua grande demais mesmo reduzida. Tente outra foto.`);
+          continue;
+        }
+        const path = `${user.id}/${produtoId}/${Date.now()}-${nomeSeguro(arquivo.name)}`;
+        const { error: uploadError } = await supabase.storage.from("produto-fotos").upload(path, arquivo, {
+          contentType: arquivo.type,
         });
         if (uploadError) throw uploadError;
-        const r = await registrarFoto(produtoId, path, fotos.length + i);
-        if (!r.ok) throw new Error(r.error);
+        const r = await registrarFoto(produtoId, path, fotos.length + enviadas);
+        if (!r.ok) {
+          // não deixa o arquivo órfão no armazenamento (ex.: o banco recusou por limite)
+          await supabase.storage.from("produto-fotos").remove([path]);
+          throw new Error(r.error);
+        }
+        enviadas += 1;
       }
-      toast.success(validas.length > 1 ? `${validas.length} fotos adicionadas.` : "Foto adicionada.");
+      if (enviadas > 0) toast.success(enviadas > 1 ? `${enviadas} fotos adicionadas.` : "Foto adicionada.");
     } catch (e) {
       toast.error(mensagemDeErro(e, "Erro ao enviar a foto."));
     } finally {
@@ -95,15 +121,17 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
             </button>
           </div>
         ))}
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={!!enviando}
-          className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
-        >
-          <IconPlus />
-          {enviando ? `${enviando.atual}/${enviando.total}...` : "Adicionar"}
-        </button>
+        {fotos.length < MAX_FOTOS_POR_ITEM && (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={!!enviando}
+            className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
+          >
+            <IconPlus />
+            {enviando ? `${enviando.atual}/${enviando.total}...` : "Adicionar"}
+          </button>
+        )}
       </div>
 
       <input
@@ -116,9 +144,11 @@ export function FotosSection({ produtoId, fotos }: { produtoId: string; fotos: F
         tabIndex={-1}
         aria-hidden="true"
       />
-      {fotos.length === 0 && !enviando && (
-        <p className="mt-3 text-xs text-ink-muted">A primeira foto vira a capa. Dá pra enviar várias de uma vez.</p>
-      )}
+      <p className="mt-3 text-xs text-ink-muted">
+        {fotos.length === 0
+          ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez; o Marcon reduz o tamanho sozinho."
+          : `${fotos.length} de ${MAX_FOTOS_POR_ITEM} fotos.`}
+      </p>
     </div>
   );
 }
