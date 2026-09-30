@@ -59,6 +59,9 @@ export function criarAssinatura(dados: {
   descricao: string;
   ownerId: string;
   primeiroVencimento: string;
+  // para onde o Asaas manda o cliente depois de pagar; precisa ser do mesmo
+  // domínio cadastrado nos dados comerciais da conta do Asaas
+  retornoUrl?: string;
 }) {
   return chamar<{ id: string }>("/subscriptions", {
     method: "POST",
@@ -70,6 +73,7 @@ export function criarAssinatura(dados: {
       cycle: "MONTHLY",
       description: dados.descricao,
       externalReference: dados.ownerId,
+      ...(dados.retornoUrl ? { callback: { successUrl: dados.retornoUrl, autoRedirect: true } } : {}),
     },
   });
 }

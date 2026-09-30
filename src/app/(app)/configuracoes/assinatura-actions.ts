@@ -6,8 +6,19 @@ import { falha, ok, type ActionResult } from "@/lib/action";
 import { asaasConfigurado, cancelarAssinatura as cancelarNoAsaas, criarAssinatura, criarCliente, linkDePagamento } from "@/lib/asaas";
 import { ehPlano, PLANOS } from "@/lib/planos";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 export type ResultadoAssinar = { ok: true; url: string } | { ok: false; error: string };
+
+// endereço do próprio app, para o Asaas devolver o cliente à tela de assinatura
+async function urlDeRetorno() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return undefined;
+  const local = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  const protocolo = h.get("x-forwarded-proto") ?? (local ? "http" : "https");
+  return `${protocolo}://${host}/configuracoes?assinatura=ok`;
+}
 
 function hojeEmBrasilia() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
@@ -56,13 +67,19 @@ export async function assinarPlano(plano: string, documento: string): Promise<Re
       (await criarCliente({ nome, email: user.email ?? "", cpfCnpj, ownerId: user.id })).id;
 
     const dadosPlano = PLANOS[plano];
-    const assinatura = await criarAssinatura({
+    const dadosAssinatura = {
       clienteId,
       valor: dadosPlano.valor,
       descricao: `Marcon — plano ${dadosPlano.nome}`,
       ownerId: user.id,
       primeiroVencimento: hojeEmBrasilia(),
-    });
+    };
+    const retornoUrl = await urlDeRetorno();
+    // o Asaas recusa o retorno se o domínio não bater com o cadastrado na conta;
+    // nesse caso cria sem redirecionamento em vez de impedir a assinatura
+    const assinatura = retornoUrl
+      ? await criarAssinatura({ ...dadosAssinatura, retornoUrl }).catch(() => criarAssinatura(dadosAssinatura))
+      : await criarAssinatura(dadosAssinatura);
 
     const { error } = await admin.from("assinaturas").upsert(
       {
