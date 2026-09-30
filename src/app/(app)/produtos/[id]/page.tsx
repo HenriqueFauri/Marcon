@@ -81,7 +81,20 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
   const { data: assinadas } = fotos.length
     ? await supabase.storage.from("produto-fotos").createSignedUrls(fotos.map((f) => f.path), 3600)
     : { data: [] };
-  const fotosComUrl = fotos.map((foto, i) => ({ id: foto.id, path: foto.path, url: assinadas?.[i]?.signedUrl ?? null }));
+  const fotosComUrl = fotos.map((foto, i) => ({
+    id: foto.id,
+    path: foto.path,
+    url: assinadas?.[i]?.signedUrl ?? null,
+    variacaoId: foto.variacao_id,
+  }));
+  // fotos gerais do produto e, à parte, as de cada variação
+  const fotosGerais = fotosComUrl.filter((f) => !f.variacaoId);
+  const fotosPorVariacao: Record<string, typeof fotosComUrl> = {};
+  for (const f of fotosComUrl) {
+    if (f.variacaoId) (fotosPorVariacao[f.variacaoId] ??= []).push(f);
+  }
+  // o anúncio usa todas: as do produto primeiro, depois as das variações
+  const fotosParaAnuncio = [...fotosGerais, ...fotosComUrl.filter((f) => f.variacaoId)];
 
   const precisaVariacao = p.tem_variacoes && variacoes.length === 0;
 
@@ -138,12 +151,21 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
       <div className="flex flex-col gap-6">
         {p.tem_variacoes && (
           <Card title="Variações" description="Cada variação tem estoque, custo e preço próprios.">
-            <VariacoesSection produtoId={p.id} variacoes={variacoes} precoPadrao={Number(p.preco_varejo)} />
+            <VariacoesSection
+              produtoId={p.id}
+              variacoes={variacoes}
+              precoPadrao={Number(p.preco_varejo)}
+              fotosPorVariacao={fotosPorVariacao}
+              maxFotos={uso?.limites.fotosPorItem}
+            />
           </Card>
         )}
 
-        <Card title="Fotos">
-          <FotosSection produtoId={p.id} fotos={fotosComUrl} maxFotos={uso?.limites.fotosPorItem} />
+        <Card
+          title="Fotos"
+          description={p.tem_variacoes ? "Fotos gerais do produto. Cada variação tem as suas, na seção Variações." : undefined}
+        >
+          <FotosSection produtoId={p.id} fotos={fotosGerais} maxFotos={uso?.limites.fotosPorItem} />
         </Card>
 
         <Card
@@ -154,7 +176,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
             produtoId={p.id}
             canais={canais}
             anuncios={anuncios}
-            fotos={fotosComUrl}
+            fotos={fotosParaAnuncio}
             dados={{
               nome: p.nome,
               marca: p.marca,
