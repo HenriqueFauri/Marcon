@@ -46,7 +46,7 @@ O lembrete de cobrança precisa de um agendador: `vercel.json` já chama `GET /a
 
 ## Assinatura (Asaas)
 
-O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. Em Configurações > Assinatura o usuário escolhe o plano (definidos em `src/lib/planos.ts`) e vai para a página de pagamento do Asaas, onde digita o cartão; nenhum dado de cartão passa pelo Marcon. O app ainda não bloqueia nada por plano, só mostra o estado.
+O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. A tela fica em `/assinatura`, com o estado do plano sempre à vista no menu ("Seu plano"). Há um plano pago só, o Marcon (R$ 19,90 por mês, só cartão), e o plano grátis que sobra depois do teste; ambos são definidos em `src/lib/planos.ts`. Ao assinar, o pagamento abre em outra aba, na página do Asaas, onde o usuário digita o cartão; nenhum dado de cartão passa pelo Marcon, e a tela atualiza sozinha quando o webhook confirma. **Os limites do plano grátis ainda não são aplicados**: hoje o app só mostra o estado e não bloqueia nada.
 
 Para testar no sandbox:
 

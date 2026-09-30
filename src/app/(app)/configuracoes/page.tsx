@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { CanalVenda, FormaPagamento } from "@/types/domain";
 import { Card, PageHeader } from "@/components/ui";
@@ -9,14 +10,10 @@ import { NotificacoesPreferencias } from "./notificacoes-preferencias";
 import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
-import { AssinaturaCard, type AssinaturaAtual } from "./assinatura-card";
-import { asaasConfigurado } from "@/lib/asaas";
-import { DIAS_DE_TESTE, fimDoTeste, testeEmAndamento } from "@/lib/planos";
 
 export const metadata: Metadata = { title: "Configurações" };
 
-export default async function ConfiguracoesPage({ searchParams }: PageProps<"/configuracoes">) {
-  const sp = await searchParams;
+export default async function ConfiguracoesPage() {
   const supabase = await createClient();
   const [
     {
@@ -24,21 +21,11 @@ export default async function ConfiguracoesPage({ searchParams }: PageProps<"/co
     },
     { data: canais },
     { data: formas },
-    { data: assinaturaRow },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
-    supabase.from("assinaturas").select("plano, status, proximo_vencimento").maybeSingle(),
   ]);
-  const fimTeste = fimDoTeste(user?.created_at ?? new Date());
-  const assinatura: AssinaturaAtual | null = assinaturaRow
-    ? {
-        plano: assinaturaRow.plano,
-        status: assinaturaRow.status,
-        proximoVencimento: assinaturaRow.proximo_vencimento,
-      }
-    : null;
 
   const meta = user?.user_metadata ?? {};
   const nome = (meta.nome as string | undefined) ?? (meta.full_name as string | undefined) ?? (meta.name as string | undefined) ?? "";
@@ -68,15 +55,10 @@ export default async function ConfiguracoesPage({ searchParams }: PageProps<"/co
           />
         </Card>
 
-        <Card title="Assinatura" description="Seu plano do Marcon. A cobrança é feita pelo Asaas.">
-          <AssinaturaCard
-            assinatura={assinatura}
-            fimDoTeste={fimTeste.toISOString()}
-            emTeste={testeEmAndamento(fimTeste)}
-            diasDeTeste={DIAS_DE_TESTE}
-            cobrancaDisponivel={asaasConfigurado()}
-            voltouDoPagamento={sp.assinatura === "ok"}
-          />
+        <Card title="Assinatura" description="Seu plano, o teste grátis e a cobrança.">
+          <Link href="/assinatura" className="text-[14px] font-medium text-brand-text underline-offset-2 hover:underline">
+            Ver meu plano
+          </Link>
         </Card>
 
         <Card title="Canais de venda" description="Onde você vende. Aparecem na venda e nos anúncios por canal.">

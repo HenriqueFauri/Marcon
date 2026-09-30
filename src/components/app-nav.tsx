@@ -16,6 +16,7 @@ import {
   IconWallet,
   IconX,
 } from "./icons";
+import { Badge } from "./ui";
 import { SignOutButton } from "./sign-out-button";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -66,6 +67,29 @@ function Marca({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
 
 type Contagens = Record<string, number>;
 
+export interface PlanoNav {
+  texto: string;
+  tom: "neutral" | "positive" | "warning" | "info";
+}
+
+// estado da assinatura sempre à vista: avisa o fim do teste sem invadir as telas de trabalho
+function PlanoLink({ plano, pathname, onNavigate }: { plano: PlanoNav; pathname: string; onNavigate?: () => void }) {
+  const isAtivo = pathname === "/assinatura";
+  return (
+    <Link
+      href="/assinatura"
+      onClick={onNavigate}
+      aria-current={isAtivo ? "page" : undefined}
+      className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-[13px] transition ${
+        isAtivo ? "border-brand bg-brand-tint" : "border-line hover:bg-fill"
+      }`}
+    >
+      <span className="text-ink-muted">Seu plano</span>
+      <Badge tone={plano.tom}>{plano.texto}</Badge>
+    </Link>
+  );
+}
+
 function ItemNav({ item, pathname, onNavigate, contagem }: { item: NavItem; pathname: string; onNavigate?: () => void; contagem?: number }) {
   const isAtivo = ativo(pathname, item.href);
   const Icone = item.icon;
@@ -101,7 +125,17 @@ function ListaNav({ pathname, onNavigate, contagens }: { pathname: string; onNav
   );
 }
 
-export function Sidebar({ nomeNegocio, nome, contagens }: { nomeNegocio: string; nome: string; contagens?: Contagens }) {
+export function Sidebar({
+  nomeNegocio,
+  nome,
+  contagens,
+  plano,
+}: {
+  nomeNegocio: string;
+  nome: string;
+  contagens?: Contagens;
+  plano: PlanoNav;
+}) {
   const pathname = usePathname();
   return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-surface/60 px-3 py-5 lg:flex">
@@ -111,6 +145,9 @@ export function Sidebar({ nomeNegocio, nome, contagens }: { nomeNegocio: string;
       <div className="flex-1 overflow-y-auto">
         <ListaNav pathname={pathname} contagens={contagens} />
       </div>
+      <div className="mt-3">
+        <PlanoLink plano={plano} pathname={pathname} />
+      </div>
       <div className="mt-3 px-1">
         <ThemeToggle />
       </div>
@@ -119,7 +156,17 @@ export function Sidebar({ nomeNegocio, nome, contagens }: { nomeNegocio: string;
   );
 }
 
-export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: string; nome: string; contagens?: Contagens }) {
+export function MobileNav({
+  nomeNegocio,
+  nome,
+  contagens,
+  plano,
+}: {
+  nomeNegocio: string;
+  nome: string;
+  contagens?: Contagens;
+  plano: PlanoNav;
+}) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLDialogElement>(null);
@@ -207,6 +254,7 @@ export function MobileNav({ nomeNegocio, nome, contagens }: { nomeNegocio: strin
             </button>
           </div>
           <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} contagens={contagens} />
+          <PlanoLink plano={plano} pathname={pathname} onNavigate={() => setAberto(false)} />
           <ThemeToggle />
           <SignOutButton />
         </div>

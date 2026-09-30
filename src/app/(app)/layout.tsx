@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
 import { ToastProvider } from "@/components/toaster";
+import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const supabase = await createClient();
@@ -13,10 +14,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     redirect("/login");
   }
 
-  const { count: parcelasAbertas } = await supabase
-    .from("parcelas_com_status")
-    .select("id", { count: "exact", head: true })
-    .neq("status", "pago");
+  const [{ count: parcelasAbertas }, { data: assinaturaRow }] = await Promise.all([
+    supabase.from("parcelas_com_status").select("id", { count: "exact", head: true }).neq("status", "pago"),
+    supabase.from("assinaturas").select("plano, status, proximo_vencimento").maybeSingle(),
+  ]);
+  const plano = rotuloDaSituacao(situacaoDaAssinatura(assinaturaRow, user.created_at));
   const contagens = { "/contas-a-receber": parcelasAbertas ?? 0 };
 
   const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Minha loja";
@@ -30,9 +32,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <ToastProvider>
       <div className="flex min-h-dvh">
-        <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} />
+        <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} />
+          <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-10 lg:pt-8">
             {children}
           </main>
