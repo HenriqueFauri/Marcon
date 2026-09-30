@@ -266,8 +266,11 @@ export async function criarVariacao(formData: FormData): Promise<ActionResult> {
 export async function excluirVariacao(id: string, produtoId: string): Promise<ActionResult> {
   try {
     const supabase = await createClient();
+    // as linhas de foto somem junto com a variação (cascade), mas os arquivos ficariam órfãos no armazenamento
+    const { data: fotos } = await supabase.from("produto_fotos").select("path").eq("variacao_id", id);
     const { error } = await supabase.from("produto_variacoes").delete().eq("id", id);
     if (error) return falha(error);
+    if (fotos?.length) await supabase.storage.from("produto-fotos").remove(fotos.map((f) => f.path as string));
 
     revalidarProduto(produtoId);
     return ok("Variação excluída.");
@@ -290,7 +293,13 @@ export async function excluirFoto(id: string, path: string, produtoId: string): 
   }
 }
 
-export async function registrarFoto(produtoId: string, path: string, ordem: number): Promise<ActionResult> {
+// variacaoId: foto de uma variação; sem ele, é foto do produto. O banco confere que a variação é do produto.
+export async function registrarFoto(
+  produtoId: string,
+  path: string,
+  ordem: number,
+  variacaoId: string | null = null,
+): Promise<ActionResult> {
   try {
     const supabase = await createClient();
     const {
@@ -301,6 +310,7 @@ export async function registrarFoto(produtoId: string, path: string, ordem: numb
     const { error } = await supabase.from("produto_fotos").insert({
       owner_id: user.id,
       produto_id: produtoId,
+      variacao_id: variacaoId,
       path,
       ordem,
     });
@@ -336,11 +346,14 @@ export async function salvarAnuncio(formData: FormData): Promise<ActionResult> {
 export async function excluirProduto(produtoId: string, apagarHistorico: boolean): Promise<ActionResult> {
   try {
     const supabase = await createClient();
+    // as linhas de foto somem junto com o produto, mas os arquivos ficariam órfãos no armazenamento
+    const { data: fotos } = await supabase.from("produto_fotos").select("path").eq("produto_id", produtoId);
     const { error } = await supabase.rpc("excluir_produto", {
       p_produto_id: produtoId,
       p_apagar_historico: apagarHistorico,
     });
     if (error) return falha(error);
+    if (fotos?.length) await supabase.storage.from("produto-fotos").remove(fotos.map((f) => f.path as string));
 
     revalidarProduto();
     revalidatePath("/fluxo-de-caixa");

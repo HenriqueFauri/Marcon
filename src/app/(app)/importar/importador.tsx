@@ -6,8 +6,11 @@ import { Badge, Card, btnPrimary, inputClass } from "@/components/ui";
 import { IconAlert, IconCheck } from "@/components/icons";
 import { useToast } from "@/components/toaster";
 import { formatBRL, formatData } from "@/lib/format";
-import type { Analise, Conferencia } from "@/lib/importacao/tipos";
-import { importarLancamentos, importarProdutos, importarVendas } from "./actions";
+import { ErroDeLeitura, type Analise, type Conferencia } from "@/lib/importacao/tipos";
+import { lerPlanilha, tipoDePlanilha, type Aba } from "@/lib/importacao/planilha/ler";
+import type { Leitura } from "@/lib/importacao/planilha/mapear";
+import { importarLancamentos, importarProdutos, importarVendas, type ResultadoImportacao } from "./actions";
+import { MapeamentoPlanilha } from "./planilha";
 
 type Tipo = Analise["tipo"];
 type De<T extends Tipo> = Extract<Analise, { tipo: T }>;
@@ -17,6 +20,27 @@ const num = (s: string) => Number(s.replace(",", ".")) || 0;
 // valor que o usuário edita: "124,68", com vírgula
 const dinheiroTexto = (n: number) => n.toFixed(2).replace(".", ",");
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+// cada chamada ao banco é uma transação; lotes menores cabem no tempo de uma função da Vercel
+const LOTE = 500;
+
+type Soma = { criados: number; ignorados: number; semProduto: number };
+
+// manda em lotes e soma; se um lote falhar, para e diz quanto já entrou (reimportar não duplica)
+async function emLotes<T>(itens: T[], enviar: (lote: T[]) => Promise<ResultadoImportacao>): Promise<{ soma: Soma; erro?: string }> {
+  const soma: Soma = { criados: 0, ignorados: 0, semProduto: 0 };
+  for (let i = 0; i < itens.length; i += LOTE) {
+    const r = await enviar(itens.slice(i, i + LOTE));
+    if (!r.ok) {
+      const antes = soma.criados ? ` Antes do erro entraram ${soma.criados}; importar de novo não duplica.` : "";
+      return { soma, erro: r.error + antes };
+    }
+    soma.criados += r.criados;
+    soma.ignorados += r.ignorados;
+    soma.semProduto += r.semProduto;
+  }
+  return { soma };
+}
 
 // ---------------------------------------------------------------------------
 // peças compartilhadas
@@ -57,6 +81,11 @@ function Avisos({ itens }: { itens: string[] }) {
       ))}
     </ul>
   );
+}
+
+function Resumo({ texto }: { texto?: string }) {
+  if (!texto) return null;
+  return <p className="rounded-2xl bg-fill px-4 py-3 text-[13px] text-ink-2">{texto}</p>;
 }
 
 function Secao({
@@ -169,7 +198,7 @@ function Campo({ rotulo, valor, onChange, decimal }: { rotulo: string; valor: st
   );
 }
 
-function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
+function SecaoProdutos({ analise, restantes }: { analise: De<"produtos">; restantes: number | null }) {
   const toast = useToast();
   const [linhas, setLinhas] = useState(() =>
     analise.itens.map((p) => ({
@@ -194,7 +223,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
   async function importar() {
     setEnviando(true);
     try {
-      const r = await importarProdutos(
+      const { soma, erro } = await emLotes(
         escolhidos.map((l) => ({
           nome: l.nome,
           categoria: l.categoria.trim() || null,
@@ -204,9 +233,14 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
           estoque: Math.trunc(num(l.estoque)),
           avisos: [],
         })),
+        importarProdutos,
       );
-      if (!r.ok) toast.error(r.error);
-      else setResultado(r.message ?? "Produtos importados.");
+      if (erro) toast.error(erro);
+      else
+        setResultado(
+          `${plural(soma.criados, "produto importado", "produtos importados")}.` +
+            (soma.ignorados ? ` ${plural(soma.ignorados, "já existia", "já existiam")} e foram pulados.` : ""),
+        );
     } catch {
       toast.error("Não foi possível importar. Tente de novo.");
     } finally {
@@ -216,6 +250,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
 
   return (
     <Secao numero={1} titulo={`Produtos (${analise.itens.length})`} periodo={analise.periodo}>
+      <Resumo texto={analise.resumo} />
       <Conferencias itens={analise.conferencias} />
       <Avisos itens={analise.avisos} />
       {resultado ? (
@@ -252,12 +287,29 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
               </li>
             ))}
           </ul>
-          <BotaoImportar
-            quantidade={escolhidos.length}
-            enviando={enviando}
-            onClick={importar}
-            rotulo={plural(escolhidos.length, "produto", "produtos")}
-          />
+          {restantes !== null && escolhidos.length > restantes ? (
+            // plano grátis: o banco recusaria o lote inteiro; melhor explicar antes
+            <div className="flex flex-col gap-2">
+              <p className="rounded-2xl bg-warning-tint px-4 py-3 text-[13px] text-warning">
+                {restantes === 0
+                  ? "Você já está no limite de produtos do plano grátis."
+                  : `No plano grátis cabem mais ${plural(restantes, "produto", "produtos")}.`}{" "}
+                Desmarque {plural(escolhidos.length - restantes, "produto", "produtos")} ou assine o plano Marcon para importar todos.
+              </p>
+              <div>
+                <Link href="/assinatura" className={btnPrimary}>
+                  Assinar o plano Marcon
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <BotaoImportar
+              quantidade={escolhidos.length}
+              enviando={enviando}
+              onClick={importar}
+              rotulo={plural(escolhidos.length, "produto", "produtos")}
+            />
+          )}
         </>
       )}
     </Secao>
@@ -289,9 +341,16 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
   async function importar() {
     setEnviando(true);
     try {
-      const r = await importarVendas(escolhidas);
-      if (!r.ok) toast.error(r.error);
-      else setResultado(r.message ?? "Vendas importadas.");
+      const { soma, erro } = await emLotes(escolhidas, (lote) => importarVendas(lote, analise.origem));
+      if (erro) toast.error(erro);
+      else
+        setResultado(
+          `${plural(soma.criados, "venda importada", "vendas importadas")}.` +
+            (soma.ignorados ? ` ${plural(soma.ignorados, "já estava", "já estavam")} no Marcon e foram puladas.` : "") +
+            (soma.semProduto
+              ? ` ${plural(soma.semProduto, "item ficou", "itens ficaram")} sem ligação com um produto: importe os produtos primeiro, se ainda não fez.`
+              : ""),
+        );
     } catch {
       toast.error("Não foi possível importar. Tente de novo.");
     } finally {
@@ -301,6 +360,7 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
 
   return (
     <Secao numero={2} titulo={`Vendas (${analise.itens.length})`} periodo={analise.periodo}>
+      <Resumo texto={analise.resumo} />
       <Conferencias itens={analise.conferencias} />
       <Avisos itens={analise.avisos} />
       {resultado ? (
@@ -309,7 +369,8 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
         <>
           <p className="text-[13px] text-ink-muted">
             As vendas entram como <strong className="font-medium text-ink-2">histórico</strong>: não mexem no estoque de hoje e entram no
-            caixa na data em que aconteceram. Importar o mesmo relatório de novo não duplica.
+            caixa na data em que aconteceram. Importar {analise.origem === "planilha" ? "a mesma planilha" : "o mesmo relatório"} de novo
+            não duplica.
           </p>
           <label className="flex items-center gap-2 text-[13px] text-ink-2">
             <input
@@ -386,9 +447,13 @@ function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boo
   async function importar() {
     setEnviando(true);
     try {
-      const r = await importarLancamentos(escolhidos);
-      if (!r.ok) toast.error(r.error);
-      else setResultado(r.message ?? "Lançamentos importados.");
+      const { soma, erro } = await emLotes(escolhidos, importarLancamentos);
+      if (erro) toast.error(erro);
+      else
+        setResultado(
+          `${plural(soma.criados, "lançamento importado", "lançamentos importados")}.` +
+            (soma.ignorados ? ` ${plural(soma.ignorados, "já estava", "já estavam")} no Marcon e foram pulados.` : ""),
+        );
     } catch {
       toast.error("Não foi possível importar. Tente de novo.");
     } finally {
@@ -445,40 +510,82 @@ function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boo
 // tela
 // ---------------------------------------------------------------------------
 
-export function Importador({ historicoLiberado = true }: { historicoLiberado?: boolean }) {
+const ehPdf = (f: File) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+
+export function Importador({
+  historicoLiberado = true,
+  produtosRestantes = null,
+}: {
+  historicoLiberado?: boolean;
+  produtosRestantes?: number | null;
+}) {
   const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
+  const previaRef = useRef<HTMLDivElement>(null);
   const [lendo, setLendo] = useState(false);
   const [arrastando, setArrastando] = useState(false);
   const [carregado, setCarregado] = useState<Carregado>({});
+  const [planilha, setPlanilha] = useState<{ arquivo: string; abas: Aba[]; chave: number } | null>(null);
   const contador = useRef(0);
+
+  async function lerPdf(arquivo: File) {
+    const corpo = new FormData();
+    corpo.append("arquivo", arquivo);
+    try {
+      const resposta = await fetch("/api/importar/analisar", { method: "POST", body: corpo });
+      const json = (await resposta.json().catch(() => null)) as { analise?: Analise; erro?: string } | null;
+      if (!resposta.ok || !json?.analise) {
+        toast.error(`${arquivo.name}: ${json?.erro ?? "não consegui ler este arquivo."}`);
+        return;
+      }
+      const analise = json.analise;
+      contador.current += 1;
+      // um relatório novo do mesmo tipo substitui o anterior
+      setCarregado((prev) => ({ ...prev, [analise.tipo]: { analise, chave: contador.current } }));
+    } catch {
+      toast.error(`${arquivo.name}: sem conexão. Tente de novo.`);
+    }
+  }
+
+  // a planilha é lida aqui mesmo, no navegador: não sobe para o servidor
+  async function lerArquivoDePlanilha(arquivo: File) {
+    try {
+      const abas = lerPlanilha(arquivo.name, new Uint8Array(await arquivo.arrayBuffer()));
+      if (abas.every((a) => a.linhas.length < 2)) {
+        toast.error(`${arquivo.name}: a planilha está vazia.`);
+        return;
+      }
+      contador.current += 1;
+      setPlanilha({ arquivo: arquivo.name, abas, chave: contador.current });
+    } catch (e) {
+      toast.error(`${arquivo.name}: ${e instanceof ErroDeLeitura ? e.message : "não consegui ler esta planilha."}`);
+    }
+  }
 
   async function ler(arquivos: File[]) {
     if (arquivos.length === 0) return;
     setLendo(true);
     for (const arquivo of arquivos) {
-      const corpo = new FormData();
-      corpo.append("arquivo", arquivo);
-      try {
-        const resposta = await fetch("/api/importar/analisar", { method: "POST", body: corpo });
-        const json = (await resposta.json().catch(() => null)) as { analise?: Analise; erro?: string } | null;
-        if (!resposta.ok || !json?.analise) {
-          toast.error(`${arquivo.name}: ${json?.erro ?? "não consegui ler este arquivo."}`);
-          continue;
-        }
-        const analise = json.analise;
-        contador.current += 1;
-        // um relatório novo do mesmo tipo substitui o anterior
-        setCarregado((prev) => ({ ...prev, [analise.tipo]: { analise, chave: contador.current } }));
-      } catch {
-        toast.error(`${arquivo.name}: sem conexão. Tente de novo.`);
-      }
+      if (ehPdf(arquivo)) await lerPdf(arquivo);
+      else if (tipoDePlanilha(arquivo.name)) await lerArquivoDePlanilha(arquivo);
+      else toast.error(`${arquivo.name}: envie uma planilha (Excel ou CSV) ou um relatório em PDF.`);
     }
     setLendo(false);
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  const vazio = !carregado.produtos && !carregado.vendas && !carregado.caixa;
+  function mostrarPrevia(leitura: Leitura) {
+    contador.current += 1;
+    const chave = contador.current;
+    setCarregado((prev) => ({
+      ...prev,
+      produtos: { analise: leitura.produtos, chave },
+      vendas: leitura.vendas ? { analise: leitura.vendas, chave } : prev.vendas,
+    }));
+    requestAnimationFrame(() => previaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  const vazio = !carregado.produtos && !carregado.vendas && !carregado.caixa && !planilha;
 
   return (
     <div className="flex flex-col gap-5">
@@ -491,16 +598,15 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
         onDrop={(e) => {
           e.preventDefault();
           setArrastando(false);
-          void ler(Array.from(e.dataTransfer.files).filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")));
+          void ler(Array.from(e.dataTransfer.files));
         }}
         className={`flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed px-6 py-10 text-center transition ${
           arrastando ? "border-brand bg-brand-tint" : "border-line-strong bg-surface"
         }`}
       >
-        <p className="text-[17px] font-semibold text-ink">{lendo ? "Lendo os relatórios..." : "Solte os PDFs aqui"}</p>
+        <p className="text-[17px] font-semibold text-ink">{lendo ? "Lendo os arquivos..." : "Solte seus arquivos aqui"}</p>
         <p className="max-w-md text-[14px] text-ink-muted">
-          Relatórios do VendaMax em PDF: produtos, vendas e extrato de caixa. Pode enviar os três de uma vez ou um por vez. Nada é
-          importado antes de você conferir e confirmar.
+          Uma planilha sua (Excel ou CSV) ou os relatórios em PDF do VendaMax. Nada é importado antes de você conferir e confirmar.
         </p>
         <button type="button" className={btnPrimary} disabled={lendo} onClick={() => inputRef.current?.click()}>
           Escolher arquivos
@@ -508,7 +614,7 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,.xlsx,.xlsm,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           multiple
           className="sr-only"
           tabIndex={-1}
@@ -519,20 +625,39 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
 
       {vazio && !lendo && (
         <Card title="Como funciona">
-          <ol className="flex list-decimal flex-col gap-2 pl-5 text-[14px] text-ink-2">
-            <li>No VendaMax, baixe em PDF o relatório de produtos, o de vendas e o extrato de caixa.</li>
-            <li>Envie os arquivos aqui. Eu leio as tabelas e mostro tudo numa prévia, comparando com os totais do próprio relatório.</li>
-            <li>Corrija o que quiser, desmarque o que não quer e confirme. Importe primeiro os produtos, depois as vendas.</li>
-          </ol>
-          <p className="mt-3 text-[13px] text-ink-muted">
-            Produtos com variações (cor, tamanho) entram sem elas, porque o relatório do VendaMax não as detalha.
-          </p>
+          <div className="flex flex-col gap-4 text-[14px] text-ink-2">
+            <div>
+              <p className="font-medium text-ink">Planilha (Excel, Google Planilhas, Notion)</p>
+              <p className="mt-0.5">
+                Baixe como .xlsx ou .csv e envie aqui. Você diz o que é cada coluna (data, produto, preço, custo...) e se cada linha é
+                uma venda ou um produto. Linhas vazias, com erro de fórmula ou com o cabeçalho repetido são puladas sozinhas.
+              </p>
+            </div>
+            <div>
+              <p className="font-medium text-ink">VendaMax</p>
+              <p className="mt-0.5">
+                Baixe em PDF o relatório de produtos, o de vendas e o extrato de caixa. Eu confiro tudo com os totais do próprio
+                relatório. Produtos com variações entram sem elas, porque o relatório não as detalha.
+              </p>
+            </div>
+            <p className="text-[13px] text-ink-muted">
+              Nos dois casos você vê uma prévia, corrige o que quiser e confirma. Importe primeiro os produtos, depois as vendas.
+            </p>
+          </div>
         </Card>
       )}
 
-      {carregado.produtos && <SecaoProdutos key={carregado.produtos.chave} analise={carregado.produtos.analise} />}
-      {carregado.vendas && <SecaoVendas key={carregado.vendas.chave} analise={carregado.vendas.analise} liberado={historicoLiberado} />}
-      {carregado.caixa && <SecaoCaixa key={carregado.caixa.chave} analise={carregado.caixa.analise} liberado={historicoLiberado} />}
+      {planilha && (
+        <MapeamentoPlanilha key={planilha.chave} arquivo={planilha.arquivo} abas={planilha.abas} onPrevia={mostrarPrevia} />
+      )}
+
+      <div ref={previaRef} className="flex scroll-mt-4 flex-col gap-5">
+        {carregado.produtos && (
+          <SecaoProdutos key={`produtos-${carregado.produtos.chave}`} analise={carregado.produtos.analise} restantes={produtosRestantes} />
+        )}
+        {carregado.vendas && <SecaoVendas key={`vendas-${carregado.vendas.chave}`} analise={carregado.vendas.analise} liberado={historicoLiberado} />}
+        {carregado.caixa && <SecaoCaixa key={`caixa-${carregado.caixa.chave}`} analise={carregado.caixa.analise} liberado={historicoLiberado} />}
+      </div>
     </div>
   );
 }

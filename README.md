@@ -54,7 +54,7 @@ O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O te
 | --- | --- | --- |
 | Vendas por mês | sem limite | 30 |
 | Produtos | sem limite | 50 |
-| Fotos por produto e por variação | 10 | 1 |
+| Fotos por produto e por variação | 10 | 3 |
 | Importar vendas e extrato de caixa | sim | não (só produtos) |
 
 Os limites são **impostos pelo banco** (migration `0013`: gatilhos `BEFORE INSERT` em `vendas`, `produtos`, `produto_fotos` e `lancamentos_caixa`), então quem chama a API direto também passa por eles. A função `limites_do_plano` é a fonte única; o app lê o uso em `uso_do_plano()` (`src/lib/uso.ts`) só para explicar e antecipar (faixa quando faltam 5, bloqueio explicado no limite, barras em `/assinatura`). Se a migration ainda não foi aplicada, as telas seguem funcionando sem os avisos.
@@ -62,6 +62,7 @@ Os limites são **impostos pelo banco** (migration `0013`: gatilhos `BEFORE INSE
 - **Nada é apagado nem escondido:** os gatilhos só barram registros novos. Quem cai no grátis com 80 produtos continua vendo os 80.
 - **Vendas contam pelo mês em que foram registradas** (fuso de Brasília), não pela data digitada, para não dar para burlar datando para trás. Cancelar uma venda não devolve a cota.
 - **Plano pago** = assinatura `ativa` ou `atrasada` (o Asaas ainda tenta cobrar); `pendente` e `cancelada` voltam ao grátis. O **teste** vale por 14 dias desde a criação da conta.
+- **Fotos por variação:** cada variação tem a sua tira de fotos na seção Variações, com cota própria (a do produto não é dividida com elas). O banco confere que a variação da foto é do mesmo produto (migration `0014`). Ao excluir uma variação ou um produto, os arquivos das fotos também são apagados do armazenamento; sem isso ficariam órfãos. O anúncio usa todas as fotos: as do produto primeiro, depois as das variações.
 - Ao mudar um limite, mude em `limites_do_plano` (SQL) e nos textos de `planos.ts`.
 
 Para testar no sandbox:
@@ -72,9 +73,25 @@ Para testar no sandbox:
 
 O webhook confere o token, ignora eventos repetidos (o Asaas entrega "pelo menos uma vez") e não reativa uma assinatura já cancelada por causa de um evento atrasado.
 
-## Importar dados (PDF do VendaMax)
+## Importar dados
 
-Em `/importar` o usuário solta os relatórios em PDF do VendaMax (produtos, vendas e extrato de caixa; o VendaMax não exporta planilha). O PDF tem texto de verdade, então a leitura é por regras, sem IA: `src/lib/importacao` extrai o texto com a posição de cada trecho (`unpdf`), agrupa por colunas e monta os registros. Cada relatório é conferido com os totais que o próprio PDF informa (contagem, total vendido, créditos e débitos, saldo corrente) e o usuário vê a divergência antes de importar.
+Em `/importar` o usuário solta uma planilha (Excel ou CSV) ou os relatórios em PDF do VendaMax. Os dois caminhos terminam na mesma prévia editável e nas mesmas funções do banco. A tela manda em lotes de 500 e soma o resultado; reimportar não duplica, então dá para repetir se um lote falhar.
+
+**Plano:** no grátis, entram só produtos, até o limite de 50 (a tela avisa antes de passar). Vendas e extrato de caixa ficam na prévia, mas o botão de importar leva à assinatura; o banco recusa do mesmo jeito (`importado_ref` preenchido, migration `0013`).
+
+### Planilha (Excel e CSV)
+
+A leitura roda no navegador (`src/lib/importacao/planilha`), sem biblioteca de planilha: o `.xlsx` é um zip de XMLs (`fflate` descompacta) e o CSV aceita `;` ou `,`, UTF-8 ou Windows-1252. Formatos antigos (`.xls`, `.ods`) pedem para salvar como `.xlsx` ou CSV.
+
+- O usuário diz se **cada linha é uma venda ou um produto** e o que é cada coluna. O Marcon adivinha pelos títulos (`CAMPOS` em `mapear.ts`, com sinônimos como "Atualização" para data e "Venda" para preço).
+- **Pula sozinho:** linhas vazias, com erro de fórmula (`#DIV/0!`) e o cabeçalho repetido no meio da planilha. A tela lista quais linhas foram puladas e por quê.
+- **Vendas:** sem quantidade, cada linha vale 1; com "número da venda", linhas iguais viram uma venda com vários itens. Os produtos são criados a partir das vendas (custo e preço da mais recente, estoque zerado). Sem custo, a venda entra com custo zero e aviso.
+- **Nomes parecidos** ("Torneira" e "Torneira Banheiro") são apontados; o usuário junta escrevendo o mesmo nome nos dois, antes de gerar a prévia.
+- **Não duplica:** a referência de cada venda é montada com data, nome original, valores e a ordem entre linhas idênticas, com o prefixo `planilha:` (migration `0015`). Acrescentar linhas no fim da planilha e importar de novo traz só as novas.
+
+### PDF do VendaMax
+
+O usuário solta os relatórios em PDF do VendaMax (produtos, vendas e extrato de caixa; o VendaMax não exporta planilha). O PDF tem texto de verdade, então a leitura é por regras, sem IA: `src/lib/importacao` extrai o texto com a posição de cada trecho (`unpdf`), agrupa por colunas e monta os registros. Cada relatório é conferido com os totais que o próprio PDF informa (contagem, total vendido, créditos e débitos, saldo corrente) e o usuário vê a divergência antes de importar.
 
 Fluxo em duas etapas: `POST /api/importar/analisar` só lê e devolve uma prévia; a gravação é feita por três funções SQL (`importar_produtos`, `importar_vendas`, `importar_lancamentos`, migration `0012`), todas tudo ou nada.
 

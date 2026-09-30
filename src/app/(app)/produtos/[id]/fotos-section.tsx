@@ -10,7 +10,7 @@ import { IconPlus, IconX } from "@/components/icons";
 import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { excluirFoto, registrarFoto } from "../actions";
 
-interface FotoComUrl {
+export interface FotoComUrl {
   id: string;
   path: string;
   url: string | null;
@@ -31,21 +31,29 @@ function nomeSeguro(nome: string) {
   return `${limpo || "foto"}.${ext}`;
 }
 
-// maxFotos vem do plano (1 no grátis, 10 no pago); o banco impõe o mesmo limite
+const fotosTexto = (n: number) => `${n} ${n === 1 ? "foto" : "fotos"}`;
+
+// Fotos de um produto, ou de UMA variação dele (variacaoId). Cada variação tem a sua cota.
+// maxFotos vem do plano (3 no grátis, 10 no pago); o banco impõe o mesmo limite.
 export function FotosSection({
   produtoId,
   fotos,
   maxFotos = MAX_FOTOS_POR_ITEM,
+  variacaoId = null,
+  compacto = false,
 }: {
   produtoId: string;
   fotos: FotoComUrl[];
   maxFotos?: number;
+  variacaoId?: string | null;
+  compacto?: boolean;
 }) {
   const limitadoPeloPlano = maxFotos < MAX_FOTOS_POR_ITEM;
   const inputRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
   const { isPending, run } = useAction();
   const toast = useToast();
+  const alvo = variacaoId ? "variação" : "produto";
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -53,8 +61,8 @@ export function FotosSection({
     if (vagas <= 0) {
       toast.error(
         limitadoPeloPlano
-          ? `No plano grátis cada produto tem ${maxFotos} foto. Assine o plano Marcon para ter até ${MAX_FOTOS_POR_ITEM}.`
-          : `Este produto já tem ${maxFotos} fotos. Remova uma para adicionar outra.`,
+          ? `No plano grátis cada produto e cada variação têm ${fotosTexto(maxFotos)}. Assine o plano Marcon para ter até ${MAX_FOTOS_POR_ITEM}.`
+          : `${variacaoId ? "Esta variação" : "Este produto"} já tem ${fotosTexto(maxFotos)}. Remova uma para adicionar outra.`,
       );
       return;
     }
@@ -89,12 +97,13 @@ export function FotosSection({
           toast.error(`"${original.name}" continua grande demais mesmo reduzida. Tente outra foto.`);
           continue;
         }
-        const path = `${user.id}/${produtoId}/${Date.now()}-${nomeSeguro(arquivo.name)}`;
+        // a primeira pasta é do dono (a regra de acesso do armazenamento); a da variação fica dentro da do produto
+        const path = `${user.id}/${produtoId}/${variacaoId ? `${variacaoId}/` : ""}${Date.now()}-${nomeSeguro(arquivo.name)}`;
         const { error: uploadError } = await supabase.storage.from("produto-fotos").upload(path, arquivo, {
           contentType: arquivo.type,
         });
         if (uploadError) throw uploadError;
-        const r = await registrarFoto(produtoId, path, fotos.length + enviadas);
+        const r = await registrarFoto(produtoId, path, fotos.length + enviadas, variacaoId);
         if (!r.ok) {
           // não deixa o arquivo órfão no armazenamento (ex.: o banco recusou por limite)
           await supabase.storage.from("produto-fotos").remove([path]);
@@ -113,16 +122,19 @@ export function FotosSection({
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+      <div className={compacto ? "grid grid-cols-4 gap-2 sm:grid-cols-6" : "grid grid-cols-3 gap-3 sm:grid-cols-5"}>
         {fotos.map((foto, i) => (
-          <div key={foto.id} className="group relative aspect-square overflow-hidden rounded-2xl border border-line bg-fill">
+          <div
+            key={foto.id}
+            className={`group relative aspect-square overflow-hidden border border-line bg-fill ${compacto ? "rounded-xl" : "rounded-2xl"}`}
+          >
             {foto.url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={foto.url} alt={`Foto ${i + 1} do produto`} className="h-full w-full object-cover" loading="lazy" />
+              <img src={foto.url} alt={`Foto ${i + 1} da ${alvo === "variação" ? "variação" : "do produto"}`} className="h-full w-full object-cover" loading="lazy" />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">sem preview</div>
             )}
-            {i === 0 && (
+            {i === 0 && !variacaoId && (
               <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">Capa</span>
             )}
             <button
@@ -130,9 +142,9 @@ export function FotosSection({
               disabled={isPending}
               onClick={() => run(() => excluirFoto(foto.id, foto.path, produtoId))}
               aria-label={`Remover foto ${i + 1}`}
-              className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-danger disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+              className={`absolute right-1 top-1 flex items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-danger disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 ${compacto ? "h-6 w-6" : "h-7 w-7"}`}
             >
-              <IconX width={14} height={14} />
+              <IconX width={compacto ? 12 : 14} height={compacto ? 12 : 14} />
             </button>
           </div>
         ))}
@@ -141,10 +153,11 @@ export function FotosSection({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={!!enviando}
-            className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
+            aria-label={variacaoId ? "Adicionar foto da variação" : "Adicionar foto do produto"}
+            className={`flex aspect-square flex-col items-center justify-center gap-1 border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50 ${compacto ? "rounded-xl" : "rounded-lg"}`}
           >
             <IconPlus />
-            {enviando ? `${enviando.atual}/${enviando.total}...` : "Adicionar"}
+            {enviando ? `${enviando.atual}/${enviando.total}...` : compacto ? "Foto" : "Adicionar"}
           </button>
         )}
       </div>
@@ -159,14 +172,15 @@ export function FotosSection({
         tabIndex={-1}
         aria-hidden="true"
       />
-      <p className="mt-3 text-xs text-ink-muted">
+      <p className={`text-xs text-ink-muted ${compacto ? "mt-2" : "mt-3"}`}>
         {fotos.length === 0
-          ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez; o Marcon reduz o tamanho sozinho."
+          ? compacto
+            ? "Sem fotos ainda."
+            : "A primeira foto vira a capa. Dá pra enviar várias de uma vez; o Marcon reduz o tamanho sozinho."
           : `${fotos.length} de ${maxFotos} ${maxFotos === 1 ? "foto" : "fotos"}.`}
         {limitadoPeloPlano && fotos.length >= maxFotos && (
           <>
             {" "}
-            No plano grátis cada produto tem {maxFotos} foto.{" "}
             <Link href="/assinatura" className="font-medium text-brand-text underline-offset-2 hover:underline">
               Assine o Marcon
             </Link>{" "}
