@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Field, btnPrimary, inputClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -35,10 +35,13 @@ export function AssinaturaCard({
   const [plano, setPlano] = useState<PlanoId>("loja");
   const [documento, setDocumento] = useState("");
   const [enviando, setEnviando] = useState(false);
+  // o pagamento abre em outra aba; aqui esperamos o webhook confirmar
+  const [esperandoPagamento, setEsperandoPagamento] = useState(false);
+  const avisou = useRef(false);
 
   const ativa = assinatura?.status === "ativa" || assinatura?.status === "atrasada";
-  // o pagamento já foi feito, mas a confirmação chega por webhook alguns segundos depois
-  const aguardando = voltouDoPagamento && assinatura?.status === "pendente";
+  // a confirmação chega por webhook alguns segundos depois de pagar
+  const aguardando = !ativa && (esperandoPagamento || (voltouDoPagamento && assinatura?.status === "pendente"));
 
   useEffect(() => {
     if (!aguardando) return;
@@ -46,23 +49,39 @@ export function AssinaturaCard({
     const timer = setInterval(() => {
       tentativas += 1;
       router.refresh();
-      if (tentativas >= 10) clearInterval(timer);
+      if (tentativas >= 100) clearInterval(timer); // 5 minutos
     }, 3000);
     return () => clearInterval(timer);
   }, [aguardando, router]);
+
+  useEffect(() => {
+    if (ativa && esperandoPagamento && !avisou.current) {
+      avisou.current = true;
+      toast.success("Pagamento confirmado. Sua assinatura está ativa!");
+    }
+  }, [ativa, esperandoPagamento, toast]);
+
   const nomePlano = assinatura && assinatura.plano in PLANOS ? PLANOS[assinatura.plano as PlanoId].nome : "";
 
   async function assinar() {
     setEnviando(true);
+    // abre a aba já no clique, senão o navegador bloqueia o pop-up depois da espera
+    const janela = window.open("", "_blank");
+    if (janela) janela.opener = null;
     try {
       const r = await assinarPlano(plano, documento);
       if (!r.ok) {
+        janela?.close();
         toast.error(r.error);
         return;
       }
+      avisou.current = false;
+      setEsperandoPagamento(true);
       // a página de pagamento é do Asaas: o cartão nunca passa pelo Marcon
-      window.location.href = r.url;
+      if (janela) janela.location.href = r.url;
+      else window.location.href = r.url;
     } catch {
+      janela?.close();
       toast.error("Não foi possível iniciar a assinatura. Tente de novo.");
     } finally {
       setEnviando(false);
@@ -91,6 +110,7 @@ export function AssinaturaCard({
             description="Nenhuma nova cobrança será feita. Seus dados continuam guardados."
             confirmLabel="Cancelar assinatura"
             onConfirm={cancelarPlano}
+            onDone={() => setEsperandoPagamento(false)}
             className="text-[13px] font-medium text-danger underline-offset-2 hover:underline"
           >
             Cancelar assinatura
@@ -112,10 +132,18 @@ export function AssinaturaCard({
         ) : (
           <Badge tone="warning">Teste de {diasDeTeste} dias encerrado</Badge>
         )}
-        {assinatura?.status === "pendente" && (
-          <Badge tone="warning">{aguardando ? "Confirmando pagamento..." : "Pagamento pendente"}</Badge>
+        {aguardando ? (
+          <Badge tone="warning">Aguardando confirmação...</Badge>
+        ) : (
+          assinatura?.status === "pendente" && <Badge tone="warning">Pagamento pendente</Badge>
         )}
       </div>
+
+      {aguardando && (
+        <p className="text-[13px] text-ink-muted">
+          Conclua o pagamento na aba do Asaas. Assim que ele confirmar, esta tela atualiza sozinha.
+        </p>
+      )}
 
       {!cobrancaDisponivel ? (
         <p className="text-[13px] text-ink-muted">A assinatura ainda não está aberta. Fique de olho, ela chega em breve.</p>
