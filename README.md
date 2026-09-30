@@ -56,6 +56,17 @@ Para testar no sandbox:
 
 O webhook confere o token, ignora eventos repetidos (o Asaas entrega "pelo menos uma vez") e não reativa uma assinatura já cancelada por causa de um evento atrasado.
 
+## Importar dados (PDF do VendaMax)
+
+Em `/importar` o usuário solta os relatórios em PDF do VendaMax (produtos, vendas e extrato de caixa; o VendaMax não exporta planilha). O PDF tem texto de verdade, então a leitura é por regras, sem IA: `src/lib/importacao` extrai o texto com a posição de cada trecho (`unpdf`), agrupa por colunas e monta os registros. Cada relatório é conferido com os totais que o próprio PDF informa (contagem, total vendido, créditos e débitos, saldo corrente) e o usuário vê a divergência antes de importar.
+
+Fluxo em duas etapas: `POST /api/importar/analisar` só lê e devolve uma prévia; a gravação é feita por três funções SQL (`importar_produtos`, `importar_vendas`, `importar_lancamentos`, migration `0012`), todas tudo ou nada.
+
+- **Não duplica:** produto de mesmo nome é pulado; vendas e lançamentos guardam a referência de origem (`importado_ref`, índice único por dono).
+- **Vendas entram como histórico:** não mexem no estoque (o de hoje vem do relatório de produtos) e geram a entrada no caixa na data da venda.
+- **Do extrato entram só compras de estoque e despesas.** As linhas "Venda:" são ignoradas, porque as vendas vêm do relatório de vendas e dobrariam o caixa. Compra de estoque não afeta o lucro do mês.
+- **Limitações do relatório do VendaMax:** produto com variações vem só como faixa de custo (entra sem as variações, com a média); venda a prazo não traz as parcelas (não entra por padrão).
+
 ## Banco de dados
 
 As migrations ficam em `supabase/migrations` e são aplicadas em ordem pelo `scripts/run-migrations.mjs`, que registra o que já rodou em `public.schema_migrations`.

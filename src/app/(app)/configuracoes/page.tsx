@@ -61,6 +61,12 @@ export default async function ConfiguracoesPage() {
           </Link>
         </Card>
 
+        <Card title="Importar dados" description="Trouxe seus produtos, vendas e caixa de outro sistema? Traga tudo de uma vez.">
+          <Link href="/importar" className="text-[14px] font-medium text-brand-text underline-offset-2 hover:underline">
+            Importar de PDF
+          </Link>
+        </Card>
+
         <Card title="Canais de venda" description="Onde você vende. Aparecem na venda e nos anúncios por canal.">
           <ListaSimples
             itens={(canais ?? []) as CanalVenda[]}
