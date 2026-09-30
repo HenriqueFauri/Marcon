@@ -1,25 +1,42 @@
-// Planos do Marcon. Preços e nomes ainda são uma proposta (ver o doc de
-// posicionamento): mudar aqui vale para a tela de assinatura e para a cobrança.
+// Planos do Marcon. Por enquanto há um plano pago só; um plano maior entra quando
+// existir algo a mais para entregar nele (vitrine pública, equipe).
 export const PLANOS = {
-  loja: { nome: "Loja", valor: 19.9, resumo: "Tudo liberado, sem limite de produtos." },
-  loja_pro: { nome: "Loja Pro", valor: 39.9, resumo: "Para quem quer mais recursos conforme eles chegarem." },
+  marcon: {
+    nome: "Marcon",
+    valor: 19.9,
+    resumo: "Tudo liberado, sem limite.",
+    inclui: [
+      "Vendas e produtos ilimitados",
+      "Anúncios por canal (Instagram, Mercado Livre, Shopee...)",
+      "Lembrete diário de cobrança do fiado",
+      "Metas do mês e avisos de faturamento",
+    ],
+  },
 } as const;
 
 export type PlanoId = keyof typeof PLANOS;
+
+export const PLANO_PADRAO: PlanoId = "marcon";
+
+// o que sobra depois do teste, para quem não assina
+export const PLANO_GRATIS = {
+  nome: "Grátis",
+  limites: { vendasPorMes: 30, produtos: 50 },
+  inclui: [
+    "Até 30 vendas por mês",
+    "Até 50 produtos",
+    "Estoque, fiado e fluxo de caixa",
+    "Aviso no celular a cada venda",
+  ],
+} as const;
 
 export function ehPlano(valor: unknown): valor is PlanoId {
   return typeof valor === "string" && valor in PLANOS;
 }
 
+// assinaturas antigas guardam ids de planos que deixaram de existir
+export function nomeDoPlano(id: string | null | undefined) {
+  return id && ehPlano(id) ? PLANOS[id].nome : PLANOS[PLANO_PADRAO].nome;
+}
+
 export const DIAS_DE_TESTE = 14;
-
-export function testeEmAndamento(fim: Date) {
-  return fim.getTime() > Date.now();
-}
-
-// o teste corre a partir da criação da conta; sem assinatura, não há nada a guardar
-export function fimDoTeste(criadoEm: string | Date) {
-  const fim = new Date(criadoEm);
-  fim.setDate(fim.getDate() + DIAS_DE_TESTE);
-  return fim;
-}

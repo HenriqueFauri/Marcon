@@ -84,6 +84,17 @@ export async function linkDePagamento(assinaturaId: string) {
   return lista.data[0]?.invoiceUrl ?? null;
 }
 
+// cobrança vencida (ou a próxima a vencer) da assinatura, para o cliente pagar de novo
+export async function linkDaCobrancaEmAberto(assinaturaId: string) {
+  for (const status of ["OVERDUE", "PENDING"]) {
+    const lista = await chamar<{ data: { invoiceUrl?: string }[] }>(
+      `/subscriptions/${assinaturaId}/payments?status=${status}&limit=1`,
+    );
+    if (lista.data[0]?.invoiceUrl) return lista.data[0].invoiceUrl;
+  }
+  return null;
+}
+
 export function cancelarAssinatura(assinaturaId: string) {
   return chamar<{ deleted: boolean }>(`/subscriptions/${assinaturaId}`, { method: "DELETE" });
 }
