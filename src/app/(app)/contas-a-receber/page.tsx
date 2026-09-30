@@ -76,7 +76,7 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
 
   return (
     <div>
-      <PageHeader title="Contas a receber" description="Parcelas de vendas a prazo e fiado." />
+      <PageHeader title="Contas a receber" description="Parcelas das vendas a prazo e parceladas." />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total em aberto" value={formatBRL(soma(abertas))} tone="warning" hint={`${abertas.length} parcela(s)`} />
@@ -114,7 +114,7 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
           title={parcelas.length === 0 ? "Nenhuma conta a receber" : "Nada por aqui"}
           description={
             parcelas.length === 0
-              ? "Quando você fizer uma venda a prazo ou fiado, as parcelas aparecem aqui."
+              ? "Quando você fizer uma venda a prazo ou parcelada, as parcelas aparecem aqui."
               : "Nenhuma parcela neste filtro."
           }
         />

@@ -104,7 +104,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-xs text-ink-muted">Tipo</dt>
-            <dd className="text-ink">{venda.tipo_pagamento === "a_prazo" ? "A prazo / fiado" : "À vista"}</dd>
+            <dd className="text-ink">{venda.tipo_pagamento === "a_prazo" ? "A prazo / parcelado" : "À vista"}</dd>
           </div>
           <div>
             <dt className="text-xs text-ink-muted">Forma</dt>
