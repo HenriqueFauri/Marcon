@@ -3,8 +3,13 @@ const CACHE_NAME = "marcon-v3";
 // Só arquivos estáticos (JS/CSS com hash e ícones) vão pro cache. Páginas e
 // dados não são guardados: são privados de cada conta e mudam o tempo todo —
 // a versão anterior guardava tudo, inclusive telas de outra sessão e dados velhos.
+// Em desenvolvimento (localhost) os arquivos de /_next/static/ NÃO têm hash no nome e mudam a cada
+// edição; guardá-los mostraria código velho. Em produção o hash muda junto com o conteúdo.
+const EM_DESENVOLVIMENTO = ["localhost", "127.0.0.1"].includes(self.location.hostname);
+
 function ehEstatico(url) {
   return (
+    !EM_DESENVOLVIMENTO &&
     url.origin === self.location.origin &&
     (url.pathname.startsWith("/_next/static/") || /\.(?:svg|png|jpg|jpeg|webp|ico|woff2?)$/.test(url.pathname))
   );

@@ -8,12 +8,15 @@ import { useAction } from "@/components/use-action";
 import { Card, Field, btnPrimary, inputClass } from "@/components/ui";
 import { IconBox, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { registrarVenda } from "../actions";
+import { ListaProdutos, agruparVendaveis } from "./produto-seletor";
 
 export interface Vendavel {
   chave: string;
   produto_id: string;
   variacao_id: string | null;
-  nome: string;
+  nome: string; // "Produto — Variação", usado em avisos e leitores de tela
+  produto_nome: string;
+  rotulo: string | null; // nome da variação, ex.: "Azul / M"
   detalhe: string;
   preco_varejo: number;
   preco_atacado: number | null;
@@ -126,9 +129,9 @@ export function VendaForm({
   const { isPending, run } = useAction();
 
   // vindo de "Vender este produto": com uma opção só, já entra no carrinho; com
-  // variações, a busca abre filtrada pelo nome pra escolher qual
+  // variações, a busca abre filtrada e o seletor já vem aberto pra escolher qual
   const iniciais = produtoInicial ? vendaveis.filter((v) => v.produto_id === produtoInicial) : [];
-  const [busca, setBusca] = useState(iniciais.length > 1 ? iniciais[0].nome.split(" — ")[0] : "");
+  const [busca, setBusca] = useState(iniciais.length > 1 ? iniciais[0].produto_nome : "");
   const [tabela, setTabela] = useState<"varejo" | "atacado">("varejo");
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>(() =>
     iniciais.length === 1 ? [{ chave: iniciais[0].chave, quantidade: 1, preco: iniciais[0].preco_varejo.toFixed(2) }] : [],
@@ -149,13 +152,15 @@ export function VendaForm({
   const porChave = useMemo(() => new Map(vendaveis.map((v) => [v.chave, v])), [vendaveis]);
   const temAtacado = vendaveis.some((v) => v.preco_atacado != null);
 
-  const resultados = useMemo(() => {
+  const todosGrupos = useMemo(() => agruparVendaveis(vendaveis), [vendaveis]);
+  // a busca filtra produtos: achou "Areia" numa variação, o produto aparece com todas as opções
+  const grupos = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     const lista = termo
-      ? vendaveis.filter((v) => `${v.nome} ${v.detalhe}`.toLowerCase().includes(termo))
-      : vendaveis;
+      ? todosGrupos.filter((g) => g.itens.some((v) => `${v.nome} ${v.detalhe}`.toLowerCase().includes(termo)))
+      : todosGrupos;
     return lista.slice(0, 50);
-  }, [busca, vendaveis]);
+  }, [busca, todosGrupos]);
 
   const linhas = carrinho
     .map((item) => ({ item, produto: porChave.get(item.chave)! }))
@@ -302,36 +307,13 @@ export function VendaForm({
             />
           </div>
 
-          <ul className="max-h-72 divide-y divide-line overflow-y-auto rounded-2xl border border-line">
-            {resultados.length === 0 && <li className="px-3 py-6 text-center text-sm text-ink-muted">Nada encontrado.</li>}
-            {resultados.map((v) => {
-              const qtd = noCarrinho.get(v.chave) ?? 0;
-              const esgotado = qtd >= v.estoque;
-              return (
-                <li key={v.chave}>
-                  <button
-                    type="button"
-                    onClick={() => adicionar(v)}
-                    disabled={esgotado}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-fill disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-ink">{v.nome}</span>
-                      <span className="block truncate text-xs text-ink-muted">
-                        {v.estoque - qtd} disponível{v.detalhe ? ` · ${v.detalhe}` : ""}
-                      </span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="tabular-nums text-ink-2">{formatBRL(precoPadrao(v))}</span>
-                      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-tint text-brand-text">
-                        {qtd > 0 ? <span className="text-xs font-semibold">{qtd}</span> : <IconPlus width={16} height={16} />}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <ListaProdutos
+            grupos={grupos}
+            noCarrinho={noCarrinho}
+            precoPadrao={precoPadrao}
+            onAdicionar={adicionar}
+            abertoInicial={iniciais.length > 1 ? produtoInicial : null}
+          />
         </Card>
 
         <Card title={`Carrinho${linhas.length ? ` (${linhas.length})` : ""}`}>
@@ -345,7 +327,12 @@ export function VendaForm({
                     <IconBox width={22} height={22} strokeWidth={1.9} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[17px] text-ink">{produto.nome}</p>
+                    <p className="truncate text-[17px] text-ink">{produto.produto_nome}</p>
+                    {produto.rotulo && (
+                      <p className="mt-0.5 inline-block max-w-full truncate rounded-full bg-fill px-2.5 py-0.5 text-xs font-medium text-ink-2">
+                        {produto.rotulo}
+                      </p>
+                    )}
                     <label className="flex items-center gap-1 text-[15px] text-ink-muted">
                       R$
                       <input

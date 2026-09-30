@@ -16,7 +16,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
   const [{ data: produtosData }, { data: variacoesData }, { data: clientesData }, { data: canaisData }, { data: formasData }] =
     await Promise.all([
       supabase.from("produtos_com_estoque").select("*").neq("status", "inativo").gt("estoque_total", 0).order("nome"),
-      supabase.from("produto_variacoes").select("*").gt("estoque", 0).order("nome_combinacao"),
+      // sem filtro de estoque: variação esgotada aparece em cinza no seletor, em vez de sumir
+      supabase.from("produto_variacoes").select("*").order("nome_combinacao"),
       supabase.from("clientes").select("*").order("nome"),
       supabase.from("canais_venda").select("*").order("nome"),
       supabase.from("formas_pagamento").select("*").order("nome"),
@@ -34,6 +35,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
           produto_id: p.id,
           variacao_id: null,
           nome: p.nome,
+          produto_nome: p.nome,
+          rotulo: null,
           detalhe: [p.marca, p.sku].filter(Boolean).join(" · "),
           preco_varejo: Number(p.preco_varejo),
           preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
@@ -49,6 +52,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         produto_id: p.id,
         variacao_id: v.id,
         nome: `${p.nome} — ${v.nome_combinacao}`,
+        produto_nome: p.nome,
+        rotulo: v.nome_combinacao,
         detalhe: [p.marca, v.sku].filter(Boolean).join(" · "),
         preco_varejo: Number(v.preco_venda ?? p.preco_varejo),
         preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
