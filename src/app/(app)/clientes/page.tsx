@@ -64,7 +64,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
 
   const clientes = (data ?? []) as Cliente[];
 
-  // saldo em aberto (fiado/parcelado) por cliente
+  // saldo em aberto (a prazo/parcelado) por cliente
   const emAberto = new Map<string, { valor: number; atrasado: boolean }>();
   for (const p of (abertasData ?? []) as unknown as {
     valor: number;
@@ -83,7 +83,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
     <div>
       <PageHeader
         title="Clientes"
-        description="Cadastre clientes para vincular às vendas e controlar o fiado."
+        description="Cadastre clientes para vincular às vendas e saber quanto cada um ainda deve."
         action={novo}
       />
 

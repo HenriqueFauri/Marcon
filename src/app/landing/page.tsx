@@ -16,7 +16,7 @@ import {
 
 export const metadata: Metadata = {
   title: { absolute: "Marcon — a loja inteira na palma da mão" },
-  description: "Vendas, estoque, fiado e caixa. Tudo se atualiza sozinho, a cada venda.",
+  description: "Vendas, estoque, parcelado e caixa. Tudo se atualiza sozinho, a cada venda.",
 };
 
 const NUMEROS = [
@@ -28,7 +28,7 @@ const NUMEROS = [
 const SECOES = [
   { id: "vendas", rotulo: "Vendas" },
   { id: "estoque", rotulo: "Estoque" },
-  { id: "fiado", rotulo: "Fiado" },
+  { id: "a-prazo", rotulo: "A prazo" },
   { id: "caixa", rotulo: "Caixa" },
 ];
 
@@ -75,8 +75,8 @@ const PERGUNTAS = [
     r: "Foi feito pra quem vende produto: loja de roupa, cosméticos, papelaria, doceria, revenda. Se você vende e precisa saber o que entrou, o que saiu e quem está devendo, serve.",
   },
   {
-    p: "Posso vender fiado e parcelado?",
-    r: "Pode. Na hora da venda você escolhe à vista, fiado ou parcelado. As parcelas vão sozinhas pra Contas a receber e você marca como pago quando o cliente acertar.",
+    p: "Posso vender a prazo e parcelado?",
+    r: "Pode. Na hora da venda você escolhe à vista, a prazo ou parcelado. As parcelas vão sozinhas pra Contas a receber e você marca como pago quando o cliente acertar.",
   },
   {
     p: "Meus dados ficam seguros?",
@@ -220,7 +220,7 @@ function TelaVendas() {
       <div className="grid grid-cols-3 gap-1 rounded-full bg-fill p-1 text-center text-[13px] font-medium">
         <span className="rounded-full bg-surface py-1.5 shadow-sm">Pix</span>
         <span className="py-1.5 text-ink-muted">Cartão</span>
-        <span className="py-1.5 text-ink-muted">Fiado</span>
+        <span className="py-1.5 text-ink-muted">A prazo</span>
       </div>
       <div className="flex items-center justify-between px-3 pt-1">
         <span className="text-[15px] text-ink-muted">Total</span>
@@ -276,7 +276,7 @@ function TelaEstoque() {
   );
 }
 
-function TelaFiado() {
+function TelaAPrazo() {
   return (
     <Tela titulo="Contas a receber">
       <div className="hairline rounded-3xl bg-surface px-4 py-4">
@@ -297,7 +297,7 @@ function TelaFiado() {
           icone={<IconWhatsapp width={16} height={16} />}
           tom="bg-warning-tint text-warning"
           titulo="Marcos Lima"
-          sub="Fiado · vence amanhã"
+          sub="A prazo · vence amanhã"
           valor="R$ 86,00"
         />
         <Linha
@@ -387,7 +387,7 @@ export default function LandingPage() {
             Na palma da mão.
           </h1>
           <p className="mt-4 max-w-[640px] text-xl font-medium leading-[1.35] tracking-[-0.015em] text-ink-muted sm:text-2xl">
-            Vendas, estoque, fiado e caixa. Tudo se atualiza sozinho, a cada venda.
+            Vendas, estoque, parcelado e caixa. Tudo se atualiza sozinho, a cada venda.
           </p>
           <div className="mt-8 flex items-center gap-3.5">
             <Link
@@ -427,7 +427,7 @@ export default function LandingPage() {
           }
           texto="Escolha os produtos, a forma de pagamento e pronto. O estoque baixa, o caixa sobe e o lucro da venda aparece na hora."
           pontos={[
-            "Pix, dinheiro, cartão, fiado ou parcelado",
+            "Pix, dinheiro, cartão, a prazo ou parcelado",
             "Busca rápida por nome, cor ou tamanho",
             "Desconto e cliente opcionais, sem travar a venda",
           ]}
@@ -457,8 +457,8 @@ export default function LandingPage() {
         </Recurso>
 
         <Recurso
-          id="fiado"
-          rotulo="Fiado"
+          id="a-prazo"
+          rotulo="A prazo"
           fundo="bg-panel"
           titulo={
             <>
@@ -467,14 +467,14 @@ export default function LandingPage() {
               sem o caderninho.
             </>
           }
-          texto="Venda fiado ou parcelado e deixe o Marcon lembrar. Você vê quem deve, quanto e desde quando, e cobra pelo WhatsApp num toque."
+          texto="Venda a prazo ou parcelado e deixe o Marcon lembrar. Você vê quem deve, quanto e desde quando, e cobra pelo WhatsApp num toque."
           pontos={[
             "Parcelas com vencimento, criadas na hora da venda",
             "Atrasados em destaque, com contador no Início",
             "Marcou como pago, entrou no caixa",
           ]}
         >
-          <TelaFiado />
+          <TelaAPrazo />
         </Recurso>
 
         <Recurso

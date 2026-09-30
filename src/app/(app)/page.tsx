@@ -223,7 +223,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
   const semNada = produtos.length === 0 && todasVendas.length === 0;
 
-  const pagamentoDe = (v: Venda) => (v.tipo_pagamento === "a_prazo" ? "Fiado" : v.forma_pagamento ?? "À vista");
+  const pagamentoDe = (v: Venda) => (v.tipo_pagamento === "a_prazo" ? "A prazo" : v.forma_pagamento ?? "À vista");
 
   return (
     <div className="flex flex-col gap-5">

@@ -8,7 +8,7 @@ export const PLANOS = {
     inclui: [
       "Vendas e produtos ilimitados",
       "Anúncios por canal (Instagram, Mercado Livre, Shopee...)",
-      "Lembrete diário de cobrança do fiado",
+      "Lembrete diário de cobrança das vendas a prazo",
       "Metas do mês e avisos de faturamento",
     ],
   },
@@ -25,7 +25,7 @@ export const PLANO_GRATIS = {
   inclui: [
     "Até 30 vendas por mês",
     "Até 50 produtos",
-    "Estoque, fiado e fluxo de caixa",
+    "Estoque, vendas a prazo e fluxo de caixa",
     "Aviso no celular a cada venda",
   ],
 } as const;

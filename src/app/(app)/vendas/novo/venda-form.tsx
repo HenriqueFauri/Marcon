@@ -434,7 +434,7 @@ export function VendaForm({
               {(
                 [
                   ["a_vista", "À vista"],
-                  ["a_prazo", "A prazo / fiado"],
+                  ["a_prazo", "A prazo / parcelado"],
                 ] as const
               ).map(([valor, rotulo]) => (
                 <label
