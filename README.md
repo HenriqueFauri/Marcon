@@ -23,6 +23,13 @@ SUPABASE_SERVICE_ROLE_KEY=...
 CRON_SECRET=...                   # qualquer texto longo e aleatório
 ```
 
+```
+# opcional — assinatura do Marcon cobrada pelo Asaas (sem elas a tela de assinatura fica fechada)
+ASAAS_API_KEY=...                 # chave do Asaas; só no servidor
+ASAAS_ENV=sandbox                 # "producao" só quando for cobrar de verdade
+ASAAS_WEBHOOK_TOKEN=...           # texto longo e aleatório, o mesmo cadastrado no webhook do Asaas
+```
+
 ```bash
 npm install
 node scripts/run-migrations.mjs   # aplica o que falta em supabase/migrations
@@ -36,6 +43,18 @@ Os avisos são descontraídos e **mudam de frase a cada vez** (venda, meta batid
 Os avisos de venda, meta e marco saem na hora, ao registrar a venda; meta e marco são avisados uma vez, quando o mês cruza o valor. A frase da venda é sorteada pelo id da venda e a de cobrança percorre a lista dia após dia, então nunca repete a de ontem.
 
 O lembrete de cobrança precisa de um agendador: `vercel.json` já chama `GET /api/cron/cobrancas` todo dia às 11h UTC (8h em Brasília). A rota exige `Authorization: Bearer $CRON_SECRET` (a Vercel envia sozinha quando `CRON_SECRET` está definido). Em outra hospedagem, agende essa mesma chamada.
+
+## Assinatura (Asaas)
+
+O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. Em Configurações > Assinatura o usuário escolhe o plano (definidos em `src/lib/planos.ts`) e vai para a página de pagamento do Asaas, onde digita o cartão; nenhum dado de cartão passa pelo Marcon. O app ainda não bloqueia nada por plano, só mostra o estado.
+
+Para testar no sandbox:
+
+1. Crie a chave de API no sandbox do Asaas e defina `ASAAS_API_KEY`, `ASAAS_ENV=sandbox` e `ASAAS_WEBHOOK_TOKEN`. `SUPABASE_SERVICE_ROLE_KEY` também é necessária.
+2. Em Integrações > Webhooks do Asaas, cadastre `https://SEU-DOMINIO/api/asaas/webhook` com o mesmo token e os eventos `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED`, `PAYMENT_OVERDUE`, `SUBSCRIPTION_DELETED` e `SUBSCRIPTION_INACTIVATED`. Para testar localmente, exponha o `localhost` com um túnel (ngrok, Cloudflare Tunnel).
+3. Rode as migrations (`0010_assinaturas.sql`) e assine em Configurações.
+
+O webhook confere o token, ignora eventos repetidos (o Asaas entrega "pelo menos uma vez") e não reativa uma assinatura já cancelada por causa de um evento atrasado.
 
 ## Banco de dados
 

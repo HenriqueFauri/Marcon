@@ -9,6 +9,9 @@ import { NotificacoesPreferencias } from "./notificacoes-preferencias";
 import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
+import { AssinaturaCard, type AssinaturaAtual } from "./assinatura-card";
+import { asaasConfigurado } from "@/lib/asaas";
+import { DIAS_DE_TESTE, fimDoTeste, testeEmAndamento } from "@/lib/planos";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -20,11 +23,21 @@ export default async function ConfiguracoesPage() {
     },
     { data: canais },
     { data: formas },
+    { data: assinaturaRow },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
+    supabase.from("assinaturas").select("plano, status, proximo_vencimento").maybeSingle(),
   ]);
+  const fimTeste = fimDoTeste(user?.created_at ?? new Date());
+  const assinatura: AssinaturaAtual | null = assinaturaRow
+    ? {
+        plano: assinaturaRow.plano,
+        status: assinaturaRow.status,
+        proximoVencimento: assinaturaRow.proximo_vencimento,
+      }
+    : null;
 
   const meta = user?.user_metadata ?? {};
   const nome = (meta.nome as string | undefined) ?? (meta.full_name as string | undefined) ?? (meta.name as string | undefined) ?? "";
@@ -51,6 +64,16 @@ export default async function ConfiguracoesPage() {
             endereco={(meta.empresa_endereco as string | undefined) ?? ""}
             documento={(meta.empresa_documento as string | undefined) ?? ""}
             logoUrl={logoSignedUrl?.signedUrl ?? null}
+          />
+        </Card>
+
+        <Card title="Assinatura" description="Seu plano do Marcon. A cobrança é feita pelo Asaas.">
+          <AssinaturaCard
+            assinatura={assinatura}
+            fimDoTeste={fimTeste.toISOString()}
+            emTeste={testeEmAndamento(fimTeste)}
+            diasDeTeste={DIAS_DE_TESTE}
+            cobrancaDisponivel={asaasConfigurado()}
           />
         </Card>
 
