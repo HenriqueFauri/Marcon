@@ -10,10 +10,10 @@ export const PLANOS = {
     valor: 15.9,
     resumo: "Tudo liberado, sem limite.",
     inclui: [
+      "Tudo do plano grátis",
       "Vendas e produtos ilimitados",
       "Até 10 fotos por produto e por variação",
       "Importar vendas e caixa de outro sistema",
-      "Tudo do plano grátis",
     ],
   },
 } as const;
