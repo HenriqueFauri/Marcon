@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <ToastProvider>
-      <div className="flex min-h-dvh">
+      <div data-clarity-mask="true" className="flex min-h-dvh">
         <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
         <div className="flex min-w-0 flex-1 flex-col">
           <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
