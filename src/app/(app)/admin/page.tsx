@@ -172,15 +172,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                   {u.last_sign_in_at ? formatDataCurta(u.last_sign_in_at.slice(0, 10)) : "Nunca"}
                 </td>
                 <td className={`${tdClass} text-right`}>
-                  {!eAdmin && (
-                    <AcoesConta
-                      id={u.id}
-                      email={u.email ?? ""}
-                      bloqueada={bloqueada(u)}
-                      cortesia={situacao.tipo === "cortesia"}
-                      pagante={situacao.tipo === "ativa" || situacao.tipo === "atrasada"}
-                    />
-                  )}
+                  <AcoesConta
+                    id={u.id}
+                    email={u.email ?? ""}
+                    bloqueada={bloqueada(u)}
+                    cortesia={situacao.tipo === "cortesia"}
+                    pagante={situacao.tipo === "ativa" || situacao.tipo === "atrasada"}
+                    podeBloquear={!eAdmin}
+                  />
                 </td>
               </tr>
             ))}

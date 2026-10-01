@@ -13,12 +13,14 @@ export function AcoesConta({
   bloqueada,
   cortesia,
   pagante,
+  podeBloquear,
 }: {
   id: string;
   email: string;
   bloqueada: boolean;
   cortesia: boolean;
   pagante: boolean;
+  podeBloquear: boolean;
 }) {
   const router = useRouter();
   const { isPending, run } = useAction();
@@ -35,7 +37,7 @@ export function AcoesConta({
           {cortesia ? "Tirar cortesia" : "Dar cortesia"}
         </button>
       )}
-      {bloqueada ? (
+      {!podeBloquear ? null : bloqueada ? (
         <button
           type="button"
           className={link}

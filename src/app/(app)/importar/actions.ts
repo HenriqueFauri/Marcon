@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, type ActionResult } from "@/lib/action";
-import { limiteDeProdutos } from "@/lib/limites";
 import type { LancamentoLido, ProdutoLido, VendaLida } from "@/lib/importacao/tipos";
 
 // Grava o que o usuário conferiu na prévia. As funções do banco fazem tudo ou nada,
@@ -59,15 +58,6 @@ export async function importarProdutos(produtos: ProdutoLido[]): Promise<ActionR
       }))
       .filter((p) => p.nome);
     if (itens.length === 0) return { ok: false, error: "Nenhum produto com nome." };
-
-    // conta todos, inclusive os que serão pulados por já existirem: é só uma trava de segurança
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
-    const limite = await limiteDeProdutos(supabase, user, itens.length);
-    if (limite) return { ok: false, error: `${limite} Desmarque alguns produtos na prévia ou assine para importar todos.` };
 
     const r = await chamar("importar_produtos", "p_itens", itens);
     if ("erro" in r) return falha(r.erro);

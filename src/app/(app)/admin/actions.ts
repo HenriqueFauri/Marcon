@@ -10,7 +10,7 @@ import { PLANO_PADRAO } from "@/lib/planos";
 
 // Toda ação confere de novo se quem chama é admin: server actions são rotas
 // públicas, esconder o botão não basta.
-async function contextoAdmin(alvoId: string) {
+async function contextoAdmin(alvoId: string, opcoes: { permitirAdmin?: boolean } = {}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,8 +22,8 @@ async function contextoAdmin(alvoId: string) {
 
   const { data, error } = await admin.auth.admin.getUserById(alvoId);
   if (error || !data.user) throw new Error("Conta não encontrada.");
-  // o admin não mexe na própria conta nem na de outro admin por aqui
-  if (data.user.id === user!.id || ehAdmin(data.user)) throw new Error("Contas de admin não podem ser alteradas por aqui.");
+  // bloquear a própria conta ou a de outro admin não é permitido; a cortesia é, porque o banco não conhece ADMIN_EMAILS
+  if (!opcoes.permitirAdmin && (data.user.id === user!.id || ehAdmin(data.user))) throw new Error("Contas de admin não podem ser bloqueadas.");
 
   return { admin, alvo: data.user };
 }
@@ -43,7 +43,7 @@ export async function bloquearConta(id: string, bloquear: boolean): Promise<Acti
 
 export async function definirCortesia(id: string, liberar: boolean): Promise<ActionResult> {
   try {
-    const { admin } = await contextoAdmin(id);
+    const { admin } = await contextoAdmin(id, { permitirAdmin: true });
     const { data: atual, error: erroLeitura } = await admin
       .from("assinaturas")
       .select("status, asaas_subscription_id")

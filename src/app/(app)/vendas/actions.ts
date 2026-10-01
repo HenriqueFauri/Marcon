@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 import { avisarVenda } from "@/lib/push/eventos";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { hojeISO } from "@/lib/format";
-import { limiteDeVendas } from "@/lib/limites";
 
 export interface NovaVendaInput {
   itens: { produto_id: string; variacao_id: string | null; quantidade: number; preco_unitario: number }[];
@@ -79,9 +78,6 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
 
     const hoje = hojeISO();
     const data = input.data && DATA_RE.test(input.data) ? input.data : hoje;
-
-    const limite = await limiteDeVendas(supabase, user, data);
-    if (limite) return { ok: false, error: limite };
     const vencimento =
       input.primeiroVencimento && DATA_RE.test(input.primeiroVencimento) ? input.primeiroVencimento : data;
 

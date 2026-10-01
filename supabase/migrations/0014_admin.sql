@@ -28,3 +28,19 @@ $$;
 
 revoke all on function admin_uso_por_conta() from public, anon, authenticated;
 grant execute on function admin_uso_por_conta() to service_role;
+
+-- Cortesia conta como plano pago nos limites (migration 0013).
+create or replace function plano_do_usuario(p_owner uuid) returns text
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select case
+    when exists (select 1 from assinaturas where owner_id = p_owner and status in ('ativa', 'atrasada', 'cortesia')) then 'pago'
+    when coalesce((select created_at from auth.users where id = p_owner), '-infinity'::timestamptz) + interval '14 days' > now() then 'teste'
+    else 'gratis'
+  end;
+$$;
+
+revoke execute on function plano_do_usuario(uuid) from public, anon, authenticated;

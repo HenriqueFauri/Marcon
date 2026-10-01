@@ -5,6 +5,8 @@ import type { CanalVenda, Cliente, FormaPagamento, ProdutoComEstoque, ProdutoVar
 import { EmptyState, PageHeader, btnPrimary } from "@/components/ui";
 import { hojeISO } from "@/lib/format";
 import { IconX } from "@/components/icons";
+import { AvisoDeLimite, LimiteAtingido } from "@/components/limite-do-plano";
+import { AVISAR_QUANDO_FALTAREM, lerUso, restante } from "@/lib/uso";
 import { VendaForm, type Vendavel } from "./venda-form";
 
 export const metadata: Metadata = { title: "Nova venda" };
@@ -22,6 +24,10 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
       supabase.from("canais_venda").select("*").order("nome"),
       supabase.from("formas_pagamento").select("*").order("nome"),
     ]);
+
+  // plano grátis: 30 vendas por mês. O banco barra; aqui só se explica antes de o erro aparecer
+  const uso = await lerUso(supabase);
+  const vendasRestantes = uso ? restante(uso.vendasMes, uso.limites.vendasMes) : null;
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
   const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
@@ -79,7 +85,12 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         <PageHeader title="Nova venda" back={{ href: "/vendas", label: "Vendas" }} />
       </div>
 
-      {vendaveis.length === 0 ? (
+      {uso && vendasRestantes === 0 ? (
+        <LimiteAtingido
+          titulo="Você chegou ao limite de vendas do mês"
+          texto={`O plano grátis tem ${uso.limites.vendasMes} vendas por mês e você já registrou ${uso.vendasMes}. Assine o plano Marcon para vender sem limite, ou espere o mês virar.`}
+        />
+      ) : vendaveis.length === 0 ? (
         <EmptyState
           title="Nenhum produto com estoque"
           description="Cadastre um produto ou registre uma entrada de estoque para poder vender."
@@ -90,14 +101,23 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
           }
         />
       ) : (
-        <VendaForm
-          vendaveis={vendaveis}
-          clientes={(clientesData ?? []) as Cliente[]}
-          canais={(canaisData ?? []) as CanalVenda[]}
-          formas={(formasData ?? []) as FormaPagamento[]}
-          hoje={hojeISO()}
-          produtoInicial={produtoInicial}
-        />
+        <>
+          {vendasRestantes !== null && vendasRestantes <= AVISAR_QUANDO_FALTAREM && (
+            <AvisoDeLimite>
+              {vendasRestantes === 1
+                ? "Falta 1 venda este mês no plano grátis."
+                : `Faltam ${vendasRestantes} vendas este mês no plano grátis.`}
+            </AvisoDeLimite>
+          )}
+          <VendaForm
+            vendaveis={vendaveis}
+            clientes={(clientesData ?? []) as Cliente[]}
+            canais={(canaisData ?? []) as CanalVenda[]}
+            formas={(formasData ?? []) as FormaPagamento[]}
+            hoje={hojeISO()}
+            produtoInicial={produtoInicial}
+          />
+        </>
       )}
     </div>
   );

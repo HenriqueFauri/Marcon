@@ -10,9 +10,58 @@ import { formatarDocumento, documentoValido } from "@/lib/documento";
 import { formatBRL, formatData } from "@/lib/format";
 import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
 import type { Situacao } from "@/lib/assinatura";
+import type { Uso } from "@/lib/uso";
 import { assinarPlano, cancelarPlano, regularizarPagamento, type ResultadoAssinar } from "./actions";
 
 const PLANO = PLANOS.marcon;
+
+function Barra({ rotulo, usado, limite }: { rotulo: string; usado: number; limite: number }) {
+  const cheio = usado >= limite;
+  const quase = usado >= limite * 0.8;
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[14px]">
+        <span className="text-ink-2">{rotulo}</span>
+        <span className={`tabular-nums font-medium ${cheio ? "text-danger" : quase ? "text-warning" : "text-ink"}`}>
+          {usado} de {limite}
+        </span>
+      </div>
+      <div
+        className="h-2 overflow-hidden rounded-full bg-fill"
+        role="progressbar"
+        aria-label={rotulo}
+        aria-valuemin={0}
+        aria-valuemax={limite}
+        aria-valuenow={Math.min(usado, limite)}
+      >
+        <div
+          className={`h-full rounded-full ${cheio ? "bg-danger" : quase ? "bg-warning" : "bg-brand-fill"}`}
+          style={{ width: `${Math.min((usado / limite) * 100, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// consumo em relação ao plano grátis: no teste ainda não há limite, mas já mostra o que vai valer depois
+function UsoCard({ uso }: { uso: Uso }) {
+  const emTeste = uso.plano === "teste";
+  const limiteVendas = uso.limites.vendasMes ?? PLANO_GRATIS.limites.vendasPorMes;
+  const limiteProdutos = uso.limites.produtos ?? PLANO_GRATIS.limites.produtos;
+  return (
+    <Card title="Seu uso" description={emTeste ? "No teste não há limite. Depois dele, vale o do plano grátis." : "Limites do plano grátis."}>
+      <div className="flex flex-col gap-4">
+        <Barra rotulo="Vendas este mês" usado={uso.vendasMes} limite={limiteVendas} />
+        <Barra rotulo="Produtos cadastrados" usado={uso.produtos} limite={limiteProdutos} />
+        {!emTeste && (
+          <p className="text-[13px] text-ink-muted">
+            Chegou no limite? Nada é apagado nem escondido: você continua vendo tudo, só não cria novos até assinar ou o mês virar (vendas).
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 function Lista({ itens }: { itens: readonly string[] }) {
   return (
@@ -46,10 +95,12 @@ export function AssinaturaPainel({
   situacao,
   cobrancaDisponivel,
   voltouDoPagamento,
+  uso,
 }: {
   situacao: Situacao;
   cobrancaDisponivel: boolean;
   voltouDoPagamento: boolean;
+  uso: Uso | null;
 }) {
   const toast = useToast();
   const router = useRouter();
@@ -226,6 +277,8 @@ export function AssinaturaPainel({
   return (
     <div className="flex flex-col gap-5">
       {situacaoCard}
+
+      {uso && uso.plano !== "pago" && <UsoCard uso={uso} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <section className="hairline flex flex-col gap-4 rounded-3xl bg-surface p-5 sm:p-6">
