@@ -8,7 +8,7 @@ import { falha, ok, type ActionResult } from "@/lib/action";
 export async function salvarVersaoAnuncio(dados: {
   id: string | null;
   produtoId: string;
-  canalId: string;
+  canalId: string | null;
   variacaoId: string | null;
   titulo: string;
   descricao: string;

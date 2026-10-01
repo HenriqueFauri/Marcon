@@ -284,6 +284,8 @@ export async function excluirFoto(id: string, path: string, produtoId: string): 
     await supabase.storage.from("produto-fotos").remove([path]);
 
     revalidatePath(`/produtos/${produtoId}`);
+    revalidatePath(`/anuncios/${produtoId}`);
+    revalidatePath("/anuncios");
     return ok("Foto removida.");
   } catch (e) {
     return falha(e);
@@ -307,6 +309,8 @@ export async function registrarFoto(produtoId: string, path: string, ordem: numb
     if (error) return falha(error);
 
     revalidatePath(`/produtos/${produtoId}`);
+    revalidatePath(`/anuncios/${produtoId}`);
+    revalidatePath("/anuncios");
     revalidatePath("/produtos");
     return ok();
   } catch (e) {

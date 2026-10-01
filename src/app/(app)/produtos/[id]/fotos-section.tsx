@@ -7,6 +7,8 @@ import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
 import { mensagemDeErro } from "@/lib/action";
 import { IconPlus, IconX } from "@/components/icons";
+import { btnSecondary } from "@/components/ui";
+import { baixarBlob, buscarImagem, nomeArquivo, paraPng } from "@/lib/foto-arquivo";
 import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { excluirFoto, registrarFoto } from "../actions";
 
@@ -32,20 +34,71 @@ function nomeSeguro(nome: string) {
 }
 
 // maxFotos vem do plano (1 no grátis, 10 no pago); o banco impõe o mesmo limite
+// com `nomeProduto`, cada foto ganha Copiar/Baixar (usado na página de anúncios)
 export function FotosSection({
   produtoId,
   fotos,
   maxFotos = MAX_FOTOS_POR_ITEM,
+  nomeProduto,
 }: {
   produtoId: string;
   fotos: FotoComUrl[];
   maxFotos?: number;
+  nomeProduto?: string;
 }) {
+  const [preparando, setPreparando] = useState(false);
   const limitadoPeloPlano = maxFotos < MAX_FOTOS_POR_ITEM;
   const inputRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
   const { isPending, run } = useAction();
   const toast = useToast();
+
+  async function copiarImagem(url: string) {
+    try {
+      // a Promise vai direto no ClipboardItem: o Safari exige isso para não perder o clique
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": buscarImagem(url).then(paraPng) })]);
+      toast.success("Foto copiada. É só colar no anúncio.");
+    } catch {
+      toast.error("Seu navegador não copiou a imagem. Use o botão Baixar.");
+    }
+  }
+
+  async function baixarUma(url: string, i: number) {
+    try {
+      const blob = await buscarImagem(url);
+      baixarBlob(blob, nomeArquivo(nomeProduto ?? "foto", i, blob.type));
+    } catch {
+      toast.error("Não foi possível baixar a foto.");
+    }
+  }
+
+  // no celular abre o compartilhamento (Facebook, WhatsApp...); no desktop baixa os arquivos
+  async function levarTodas() {
+    setPreparando(true);
+    try {
+      const arquivos = await Promise.all(
+        fotos
+          .filter((f): f is FotoComUrl & { url: string } => !!f.url)
+          .map(async (f, i) => {
+            const blob = await buscarImagem(f.url);
+            return new File([blob], nomeArquivo(nomeProduto ?? "foto", i, blob.type), { type: blob.type });
+          }),
+      );
+      if (navigator.canShare?.({ files: arquivos })) {
+        await navigator.share({ files: arquivos });
+        return;
+      }
+      for (const arquivo of arquivos) {
+        baixarBlob(arquivo, arquivo.name);
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      toast.success(`${arquivos.length} foto(s) baixada(s).`);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") toast.error("Não foi possível preparar as fotos.");
+    } finally {
+      setPreparando(false);
+    }
+  }
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -115,7 +168,8 @@ export function FotosSection({
     <div>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
         {fotos.map((foto, i) => (
-          <div key={foto.id} className="group relative aspect-square overflow-hidden rounded-2xl border border-line bg-fill">
+          <div key={foto.id} className="flex flex-col gap-1.5">
+          <div className="group relative aspect-square overflow-hidden rounded-2xl border border-line bg-fill">
             {foto.url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={foto.url} alt={`Foto ${i + 1} do produto`} className="h-full w-full object-cover" loading="lazy" />
@@ -134,6 +188,17 @@ export function FotosSection({
             >
               <IconX width={14} height={14} />
             </button>
+          </div>
+          {nomeProduto && foto.url && (
+            <div className="grid grid-cols-2 gap-1.5">
+              <button type="button" onClick={() => copiarImagem(foto.url!)} className={`${btnSecondary} px-2 py-1.5 text-xs`}>
+                Copiar
+              </button>
+              <button type="button" onClick={() => baixarUma(foto.url!, i)} className={`${btnSecondary} px-2 py-1.5 text-xs`}>
+                Baixar
+              </button>
+            </div>
+          )}
           </div>
         ))}
         {fotos.length < maxFotos && (
@@ -159,6 +224,11 @@ export function FotosSection({
         tabIndex={-1}
         aria-hidden="true"
       />
+      {nomeProduto && fotos.length > 1 && (
+        <button type="button" onClick={levarTodas} disabled={preparando} className={`${btnSecondary} mt-3 px-4 py-1.5 text-sm`}>
+          {preparando ? "Preparando..." : "Baixar todas"}
+        </button>
+      )}
       <p className="mt-3 text-xs text-ink-muted">
         {fotos.length === 0
           ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez; o Marcon reduz o tamanho sozinho."
