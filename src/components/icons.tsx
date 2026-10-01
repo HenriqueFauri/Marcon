@@ -29,6 +29,12 @@ export const IconHome = (p: P) => (
     <path d="M10 21v-6h4v6" />
   </Icon>
 );
+export const IconShield = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.4 7.5 9.5 4.3-1.1 7.5-4.9 7.5-9.5V6L12 3Z" />
+    <path d="m9 12 2 2 4-4" />
+  </Icon>
+);
 export const IconBox = (p: P) => (
   <Icon {...p}>
     <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" />

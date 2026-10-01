@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
 import { ToastProvider } from "@/components/toaster";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
+import { ehAdmin } from "@/lib/admin";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const supabase = await createClient();
@@ -20,6 +21,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   ]);
   const plano = rotuloDaSituacao(situacaoDaAssinatura(assinaturaRow, user.created_at));
   const contagens = { "/contas-a-receber": parcelasAbertas ?? 0 };
+  const admin = ehAdmin(user);
 
   const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Minha loja";
   const nome =
@@ -32,9 +34,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <ToastProvider>
       <div className="flex min-h-dvh">
-        <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} />
+        <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} />
+          <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-10 lg:pt-8">
             {children}
           </main>

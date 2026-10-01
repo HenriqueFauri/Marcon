@@ -11,6 +11,7 @@ import {
   IconSearch,
   IconReceipt,
   IconSettings,
+  IconShield,
   IconTruck,
   IconUsers,
   IconWallet,
@@ -35,6 +36,8 @@ const NAV: NavItem[] = [
   { href: "/clientes", label: "Clientes", icon: IconUsers },
   { href: "/fornecedores", label: "Fornecedores", icon: IconTruck },
   { href: "/configuracoes", label: "Configurações", icon: IconSettings },
+  // só aparece para admin (ADMIN_EMAILS)
+  { href: "/admin", label: "Administração", icon: IconShield },
 ];
 
 // atalhos da barra inferior no celular; o resto fica no menu
@@ -109,14 +112,24 @@ function ItemNav({ item, pathname, onNavigate, contagem }: { item: NavItem; path
   );
 }
 
-function ListaNav({ pathname, onNavigate, contagens }: { pathname: string; onNavigate?: () => void; contagens?: Contagens }) {
+function ListaNav({
+  pathname,
+  onNavigate,
+  contagens,
+  admin,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+  contagens?: Contagens;
+  admin?: boolean;
+}) {
   const porHref = new Map(NAV.map((i) => [i.href, i]));
   return (
     <nav className="flex flex-col gap-4" aria-label="Menu principal">
       {GRUPOS.map((g, idx) => (
         <div key={idx} className="flex flex-col gap-0.5">
           {g.titulo && <p className="px-3 pb-1 text-xs font-semibold text-ink-muted">{g.titulo}</p>}
-          {g.hrefs.map((h) => (
+          {(g.titulo === null && admin ? [...g.hrefs, "/admin"] : g.hrefs).map((h) => (
             <ItemNav key={h} item={porHref.get(h)!} pathname={pathname} onNavigate={onNavigate} contagem={contagens?.[h]} />
           ))}
         </div>
@@ -130,11 +143,13 @@ export function Sidebar({
   nome,
   contagens,
   plano,
+  admin,
 }: {
   nomeNegocio: string;
   nome: string;
   contagens?: Contagens;
   plano: PlanoNav;
+  admin?: boolean;
 }) {
   const pathname = usePathname();
   return (
@@ -143,7 +158,7 @@ export function Sidebar({
         <Marca nomeNegocio={nomeNegocio} nome={nome} />
       </div>
       <div className="flex-1 overflow-y-auto">
-        <ListaNav pathname={pathname} contagens={contagens} />
+        <ListaNav pathname={pathname} contagens={contagens} admin={admin} />
       </div>
       <div className="mt-3">
         <PlanoLink plano={plano} pathname={pathname} />
@@ -161,11 +176,13 @@ export function MobileNav({
   nome,
   contagens,
   plano,
+  admin,
 }: {
   nomeNegocio: string;
   nome: string;
   contagens?: Contagens;
   plano: PlanoNav;
+  admin?: boolean;
 }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
@@ -253,7 +270,7 @@ export function MobileNav({
               <IconX />
             </button>
           </div>
-          <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} contagens={contagens} />
+          <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} contagens={contagens} admin={admin} />
           <PlanoLink plano={plano} pathname={pathname} onNavigate={() => setAberto(false)} />
           <ThemeToggle />
           <SignOutButton />

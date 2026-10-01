@@ -28,6 +28,9 @@ CRON_SECRET=...                   # qualquer texto longo e aleatório
 ASAAS_API_KEY=...                 # chave do Asaas; só no servidor
 ASAAS_ENV=sandbox                 # "producao" só quando for cobrar de verdade
 ASAAS_WEBHOOK_TOKEN=...           # texto longo e aleatório, o mesmo cadastrado no webhook do Asaas
+
+# opcional — quem vê a tela /admin (e-mails separados por vírgula; exige SUPABASE_SERVICE_ROLE_KEY)
+ADMIN_EMAILS=voce@exemplo.com
 ```
 
 ```bash
@@ -61,7 +64,7 @@ Os limites são **impostos pelo banco** (migration `0013`: gatilhos `BEFORE INSE
 
 - **Nada é apagado nem escondido:** os gatilhos só barram registros novos. Quem cai no grátis com 80 produtos continua vendo os 80.
 - **Vendas contam pelo mês em que foram registradas** (fuso de Brasília), não pela data digitada, para não dar para burlar datando para trás. Cancelar uma venda não devolve a cota.
-- **Plano pago** = assinatura `ativa` ou `atrasada` (o Asaas ainda tenta cobrar); `pendente` e `cancelada` voltam ao grátis. O **teste** vale por 14 dias desde a criação da conta.
+- **Plano pago** = assinatura `ativa`, `atrasada` (o Asaas ainda tenta cobrar) ou `cortesia` (liberada pelo admin); `pendente` e `cancelada` voltam ao grátis. O **teste** vale por 14 dias desde a criação da conta.
 - Ao mudar um limite, mude em `limites_do_plano` (SQL) e nos textos de `planos.ts`.
 
 Para testar no sandbox:
@@ -71,6 +74,17 @@ Para testar no sandbox:
 3. Rode as migrations (`0010_assinaturas.sql`) e assine em Configurações.
 
 O webhook confere o token, ignora eventos repetidos (o Asaas entrega "pelo menos uma vez") e não reativa uma assinatura já cancelada por causa de um evento atrasado.
+
+## Administração
+
+A conta de admin é uma conta normal, com o próprio negócio: ela só ganha o item "Administração" no menu. Quem é admin vem de `ADMIN_EMAILS` no servidor (e-mail confirmado), nunca dos metadados do usuário, que o próprio usuário edita. Para quem não é admin, `/admin` responde 404, e cada server action confere de novo.
+
+Em `/admin` aparecem todas as contas, com plano, produtos, vendas do mês e último acesso (função `admin_uso_por_conta`, migration `0014`, que só a chave de serviço executa). Ações:
+
+- **Bloquear / desbloquear:** usa o bloqueio do Supabase Auth. A pessoa não entra, e nada é apagado.
+- **Dar / tirar cortesia:** grava a assinatura com status `cortesia`: plano Marcon liberado, sem Asaas. Não vale para quem já paga.
+
+Contas de admin não podem ser bloqueadas pela tela, nem a própria. A cortesia vale para qualquer conta, inclusive a sua (o banco não conhece `ADMIN_EMAILS`, então sem ela a conta de admin cairia nos limites do grátis depois do teste).
 
 ## Importar dados (PDF do VendaMax)
 

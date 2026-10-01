@@ -113,7 +113,9 @@ export function AssinaturaPainel({
 
   const { tipo } = situacao;
   const ativa = tipo === "ativa";
-  const aguardando = !ativa && (esperandoPagamento || (voltouDoPagamento && tipo === "pendente"));
+  // cortesia: plano liberado pelo admin, sem cobrança
+  const liberada = ativa || tipo === "cortesia";
+  const aguardando = !liberada && (esperandoPagamento || (voltouDoPagamento && tipo === "pendente"));
 
   useEffect(() => {
     if (!aguardando) return;
@@ -169,7 +171,17 @@ export function AssinaturaPainel({
 
   // ---- bloco de situação, no topo ----
   let situacaoCard: ReactNode;
-  if (ativa) {
+  if (tipo === "cortesia") {
+    situacaoCard = (
+      <Card>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[17px] font-semibold text-ink">Plano {PLANO.nome}</p>
+          <Badge tone="positive">Cortesia</Badge>
+        </div>
+        <p className="mt-1 text-[14px] text-ink-2">Tudo liberado, sem cobrança. Nenhum cartão foi cadastrado.</p>
+      </Card>
+    );
+  } else if (ativa) {
     situacaoCard = (
       <Card>
         <div className="flex flex-wrap items-center gap-2">
@@ -260,7 +272,7 @@ export function AssinaturaPainel({
   }
 
   // depois do clique em "Assinar" o painel ainda não sabe que virou pendente
-  const esperandoAntesDoServidor = esperandoPagamento && tipo !== "pendente" && tipo !== "atrasada" && !ativa;
+  const esperandoAntesDoServidor = esperandoPagamento && tipo !== "pendente" && tipo !== "atrasada" && !liberada;
 
   return (
     <div className="flex flex-col gap-5">
@@ -284,7 +296,7 @@ export function AssinaturaPainel({
         <section className="flex flex-col gap-4 rounded-3xl border border-brand bg-brand-tint p-5 sm:p-6">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-[17px] font-semibold tracking-tight text-ink">{PLANO.nome}</h2>
-            {ativa && <Badge tone="positive">Seu plano</Badge>}
+            {liberada && <Badge tone="positive">Seu plano</Badge>}
           </div>
           <p className="text-[26px] font-semibold tracking-tight text-ink">
             {formatBRL(PLANO.valor)}
@@ -292,7 +304,7 @@ export function AssinaturaPainel({
           </p>
           <Lista itens={PLANO.inclui} />
 
-          {!ativa && tipo !== "atrasada" && (
+          {!liberada && tipo !== "atrasada" && (
             <div className="mt-auto flex flex-col gap-3 border-t border-line pt-4">
               {!cobrancaDisponivel ? (
                 <p className="text-[13px] text-ink-muted">A assinatura ainda não está aberta. Ela chega em breve.</p>

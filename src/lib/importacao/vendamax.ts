@@ -23,7 +23,7 @@ export function lerRelatorio(paginas: Pagina[]): Analise {
   const tudo = paginas.flatMap((p) => p.map(textoDaLinha)).join(" ");
   if (!/vendamax/i.test(tudo)) {
     throw new ErroDeLeitura(
-      "Este PDF não parece ser um relatório do VendaMax. Por enquanto só leio os dele: produtos, vendas e extrato de caixa.",
+      "Não reconheci o formato deste PDF. Envie o relatório de produtos, o de vendas ou o extrato de caixa gerados pelo sistema anterior.",
     );
   }
   if (/Relat[óo]rio de Produtos/i.test(cabecalho)) return lerProdutos(paginas);

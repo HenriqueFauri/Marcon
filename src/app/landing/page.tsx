@@ -13,6 +13,8 @@ import {
   IconWallet,
   IconWhatsapp,
 } from "@/components/icons";
+import { formatBRL } from "@/lib/format";
+import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
 
 export const metadata: Metadata = {
   title: { absolute: "Marcon — a loja inteira na palma da mão" },
@@ -30,6 +32,7 @@ const SECOES = [
   { id: "estoque", rotulo: "Estoque" },
   { id: "a-prazo", rotulo: "A prazo" },
   { id: "caixa", rotulo: "Caixa" },
+  { id: "planos", rotulo: "Planos" },
 ];
 
 const EXTRAS: { icone: ReactNode; titulo: string; texto: string }[] = [
@@ -66,6 +69,14 @@ const EXTRAS: { icone: ReactNode; titulo: string; texto: string }[] = [
 ];
 
 const PERGUNTAS = [
+  {
+    p: "Quanto custa?",
+    r: `Os primeiros ${DIAS_DE_TESTE} dias são grátis, com tudo liberado e sem cartão. Depois, o plano Marcon sai por ${formatBRL(PLANOS.marcon.valor)} por mês, sem fidelidade. Se não quiser assinar, sua conta continua no plano grátis, com limite de vendas e produtos.`,
+  },
+  {
+    p: "Já uso outro sistema. Tenho que começar do zero?",
+    r: "Não. Baixe em PDF os relatórios de produtos, vendas e caixa do sistema antigo e envie no Marcon. Você confere tudo numa prévia antes de importar.",
+  },
   {
     p: "Precisa instalar alguma coisa?",
     r: "Não. O Marcon abre no navegador do celular ou do computador. Se quiser, é só adicionar à tela de início: ele vira um app, com ícone e notificações.",
@@ -163,6 +174,22 @@ function Recurso({
         </div>
       </div>
     </section>
+  );
+}
+
+function PlanoItens({ itens }: { itens: readonly string[] }) {
+  return (
+    // flex-1 empurra o botão para o pé do cartão, alinhando os dois planos
+    <ul className="mt-6 flex flex-1 flex-col gap-2.5">
+      {itens.map((item) => (
+        <li key={item} className="flex items-start gap-2.5 text-[15px] text-ink-2">
+          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-tint text-brand-text">
+            <IconCheck width={12} height={12} strokeWidth={2.6} />
+          </span>
+          {item}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -548,7 +575,61 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section aria-labelledby="perguntas-titulo" className="bg-panel px-5 py-20 sm:py-28">
+        <section id="planos" aria-labelledby="planos-titulo" className="scroll-mt-11 bg-panel px-5 py-20 sm:py-28">
+          <div className="mx-auto max-w-[880px]">
+            <p className="text-center text-[17px] font-semibold text-brand-text">Planos</p>
+            <h2
+              id="planos-titulo"
+              className="mx-auto mt-2 max-w-[640px] text-center text-[34px] font-bold leading-[1.06] tracking-[-0.035em] sm:text-5xl"
+            >
+              Comece grátis.
+              <br />
+              Assine se fizer sentido.
+            </h2>
+            <p className="mx-auto mt-4 max-w-[560px] text-center text-[17px] leading-[1.47] text-ink-muted sm:text-[19px]">
+              {DIAS_DE_TESTE} dias com tudo liberado, sem cartão. Depois você escolhe.
+            </p>
+
+            <div className="mt-12 grid gap-4 sm:grid-cols-2">
+              <div className="hairline flex flex-col rounded-3xl bg-surface p-6 sm:p-8">
+                <h3 className="text-[19px] font-semibold tracking-tight">{PLANO_GRATIS.nome}</h3>
+                <p className="mt-1 text-[15px] text-ink-muted">Para quem está começando.</p>
+                <p className="mt-5 text-[40px] font-bold tracking-[-0.04em] tabular-nums">
+                  R$ 0<span className="text-[15px] font-medium tracking-normal text-ink-muted"> /mês</span>
+                </p>
+                <PlanoItens itens={PLANO_GRATIS.inclui} />
+                <Link
+                  href="/login?modo=signup"
+                  className="mt-8 inline-flex items-center justify-center rounded-full bg-fill px-6 py-3 text-[17px] font-medium text-ink transition hover:bg-fill-strong active:scale-[0.98]"
+                >
+                  Criar conta
+                </Link>
+              </div>
+
+              <div className="relative flex flex-col rounded-3xl border border-brand bg-surface p-6 shadow-[0_30px_60px_-30px_rgba(212,95,48,0.45)] sm:p-8">
+                <span className="absolute -top-3 left-6 rounded-full bg-brand-fill px-3 py-1 text-[12px] font-semibold text-on-brand sm:left-8">
+                  {DIAS_DE_TESTE} dias grátis
+                </span>
+                <h3 className="text-[19px] font-semibold tracking-tight">{PLANOS.marcon.nome}</h3>
+                <p className="mt-1 text-[15px] text-ink-muted">{PLANOS.marcon.resumo}</p>
+                <p className="mt-5 text-[40px] font-bold tracking-[-0.04em] tabular-nums">
+                  {formatBRL(PLANOS.marcon.valor)}
+                  <span className="text-[15px] font-medium tracking-normal text-ink-muted"> /mês</span>
+                </p>
+                <PlanoItens itens={["Tudo do plano grátis", ...PLANOS.marcon.inclui]} />
+                <Link
+                  href="/login?modo=signup"
+                  className="bg-brand-fill mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"
+                >
+                  Começar teste grátis
+                </Link>
+                <p className="mt-3 text-center text-[13px] text-ink-muted">Sem fidelidade. Cancele quando quiser.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="perguntas-titulo" className="px-5 py-20 sm:py-28">
           <div className="mx-auto max-w-[720px]">
             <h2
               id="perguntas-titulo"
@@ -556,7 +637,7 @@ export default function LandingPage() {
             >
               Perguntas frequentes
             </h2>
-            <div className="hairline mt-10 overflow-hidden rounded-3xl bg-surface">
+            <div className="hairline mt-10 overflow-hidden rounded-3xl bg-panel">
               {PERGUNTAS.map((q) => (
                 <details key={q.p} className="group border-t border-line first:border-t-0">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[17px] font-medium [&::-webkit-details-marker]:hidden">
@@ -575,7 +656,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section aria-labelledby="cta-titulo" className="px-5 py-24 text-center sm:py-32">
+        <section aria-labelledby="cta-titulo" className="bg-panel px-5 py-24 text-center sm:py-32">
           <h2
             id="cta-titulo"
             className="mx-auto max-w-[800px] text-[40px] font-bold leading-[1.04] tracking-[-0.045em] sm:text-6xl"
@@ -615,6 +696,12 @@ export default function LandingPage() {
             ))}
             <Link href="/login" className="hover:text-ink">
               Entrar
+            </Link>
+            <Link href="/termos" className="hover:text-ink">
+              Termos
+            </Link>
+            <Link href="/privacidade" className="hover:text-ink">
+              Privacidade
             </Link>
           </nav>
         </div>

@@ -54,6 +54,9 @@ export async function assinarPlano(documento: string): Promise<ResultadoAssinar>
     if (atual?.status === "ativa" || atual?.status === "atrasada") {
       return { ok: false, error: "Você já tem uma assinatura. Cancele a atual para trocar de plano." };
     }
+    if (atual?.status === "cortesia") {
+      return { ok: false, error: "Sua conta já tem o plano Marcon liberado, sem cobrança." };
+    }
 
     // assinatura ainda não paga: reaproveita o mesmo link em vez de criar outra cobrança
     if (atual?.status === "pendente" && atual.asaas_subscription_id && atual.plano === plano) {

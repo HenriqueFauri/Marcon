@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -240,6 +241,19 @@ function LoginForm() {
           <button type="submit" disabled={loading} className={`${btnPrimary} mt-1 py-2.5`}>
             {loading ? "Aguarde..." : mode === "reset" ? "Enviar link" : TITULOS[mode]}
           </button>
+          {mode === "signup" && (
+            <p className="text-center text-xs text-ink-muted">
+              Ao criar a conta, você aceita os{" "}
+              <Link href="/termos" target="_blank" className="underline">
+                Termos de uso
+              </Link>{" "}
+              e a{" "}
+              <Link href="/privacidade" target="_blank" className="underline">
+                Política de privacidade
+              </Link>
+              .
+            </p>
+          )}
         </form>
 
         {mode !== "reset" && (
