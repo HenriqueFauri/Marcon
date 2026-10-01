@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
-import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes } from "@/lib/format";
+import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes, somarDias } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
 import { Badge, EmptyState, btnPrimary } from "@/components/ui";
 import { MetasButton } from "./metas-button";
@@ -21,12 +21,6 @@ const PERIODOS: { valor: Periodo; rotulo: string }[] = [
   { valor: "semana", rotulo: "Semana" },
   { valor: "mes", rotulo: "Mês" },
 ];
-
-function somarDias(iso: string, dias: number) {
-  const d = new Date(`${iso}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dias);
-  return d.toISOString().slice(0, 10);
-}
 
 function diasNoMes(mes: string) {
   const [a, m] = mes.split("-").map(Number);
@@ -165,6 +159,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     { data: vendasData },
     { data: parcelasData },
     { data: caixaData },
+    { data: saldoData },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("produtos_com_estoque").select("*").neq("status", "inativo"),
@@ -180,7 +175,9 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       .select("*, vendas(cliente_nome, cliente_id)")
       .neq("status", "pago")
       .order("vencimento"),
-    supabase.from("lancamentos_caixa").select("tipo, valor, data").gte("data", hoje),
+    supabase.from("lancamentos_caixa").select("tipo, valor, data").gte("data", hoje).eq("afeta_caixa", true),
+    // saldo somado no banco: somar no app cortava em 1000 lançamentos
+    supabase.rpc("saldo_caixa", { p_ate: hoje }),
   ]);
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
@@ -197,9 +194,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const faturamento = vendasPeriodo.reduce((s, v) => s + Number(v.valor_total), 0);
   const lucro = vendasPeriodo.reduce((s, v) => s + Number(v.valor_total) - Number(v.custo_total), 0);
 
-  const caixaHoje = (caixaData ?? [])
+  // dinheiro em caixa = saldo acumulado até hoje (não só o movimento do dia)
+  const movimentoHoje = (caixaData ?? [])
     .filter((l) => l.data === hoje)
     .reduce((s, l) => s + (l.tipo === "entrada" ? Number(l.valor) : -Number(l.valor)), 0);
+  const caixaHoje = Number(saldoData ?? 0);
+  const textoMovimentoHoje = `${movimentoHoje >= 0 ? "+" : "−"} ${formatBRL(Math.abs(movimentoHoje))} hoje`;
 
   const totalAReceber = parcelas.reduce((s, p) => s + Number(p.valor), 0);
   const atrasadas = parcelas.filter((p) => p.status_efetivo === "atrasado");
@@ -317,7 +317,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 href="/fluxo-de-caixa"
                 icone={<IconWallet width={17} height={17} />}
                 tom="bg-tile-positive text-on-tile-positive"
-                rotulo="Caixa hoje"
+                rotulo="Dinheiro em caixa"
                 valor={formatBRL(caixaHoje)}
               />
             </Grupo>
@@ -345,7 +345,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 valor={vencemNaSemana.length ? formatBRL(valorVencemNaSemana) : undefined}
               />
               <p className="mt-auto pt-3 text-xs text-ink-muted">
-                Caixa hoje: <strong className="font-semibold text-ink">{formatBRL(caixaHoje)}</strong>
+                Dinheiro em caixa: <strong className="font-semibold text-ink">{formatBRL(caixaHoje)}</strong> ({textoMovimentoHoje})
               </p>
             </section>
           </div>

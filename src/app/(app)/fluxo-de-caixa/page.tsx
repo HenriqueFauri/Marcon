@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { LancamentoCaixa } from "@/types/domain";
-import { formatBRL, formatData, hojeISO, intervaloDoMes, mesAtual, mesValido } from "@/lib/format";
+import { formatBRL, formatData, hojeISO, intervaloDoMes, mesAtual, mesValido, somarDias } from "@/lib/format";
 import { MonthPicker } from "@/components/month-picker";
 import { ConfirmButton } from "@/components/confirm-button";
 import {
@@ -45,13 +45,15 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
     .order("created_at", { ascending: false });
   if (tipo) query = query.eq("tipo", tipo);
 
-  const [{ data, error }, { data: anterioresData }] = await Promise.all([
-    query,
-    // saldo acumulado até o início do mês, pra mostrar o saldo real do caixa
-    supabase.from("lancamentos_caixa").select("tipo, valor").lt("data", inicio),
-  ]);
-
   const hoje = hojeISO();
+  // saldo real: até hoje (lançamento com data futura ainda não está no caixa) ou
+  // até o fim do mês consultado; somado no banco pra não cortar em 1000 linhas
+  const ultimoDia = somarDias(fimExclusivo, -1);
+  const [{ data, error }, { data: saldoFinalData }, { data: saldoAnteriorData }] = await Promise.all([
+    query,
+    supabase.rpc("saldo_caixa", { p_ate: ultimoDia < hoje ? ultimoDia : hoje }),
+    supabase.rpc("saldo_caixa", { p_ate: somarDias(inicio, -1) }),
+  ]);
 
   if (error) {
     return (
@@ -69,10 +71,8 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
   const entradas = soma("entrada");
   const saidas = soma("saida");
   const resultado = entradas - saidas;
-  const saldoAnterior = (anterioresData ?? []).reduce(
-    (s, l) => s + (l.tipo === "entrada" ? Number(l.valor) : -Number(l.valor)),
-    0,
-  );
+  const saldoAnterior = Number(saldoAnteriorData ?? 0);
+  const saldoEmCaixa = Number(saldoFinalData ?? 0);
 
   // gastos por categoria no mês
   const porCategoria = new Map<string, number>();
@@ -123,8 +123,8 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
         <StatCard label="Resultado do mês" value={formatBRL(resultado)} tone={resultado >= 0 ? "positive" : "negative"} />
         <StatCard
           label="Saldo em caixa"
-          value={formatBRL(saldoAnterior + resultado)}
-          tone={saldoAnterior + resultado >= 0 ? "neutral" : "negative"}
+          value={formatBRL(saldoEmCaixa)}
+          tone={saldoEmCaixa >= 0 ? "neutral" : "negative"}
           hint={`${formatBRL(saldoAnterior)} vindo do mês anterior`}
         />
       </div>

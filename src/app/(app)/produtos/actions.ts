@@ -314,25 +314,6 @@ export async function registrarFoto(produtoId: string, path: string, ordem: numb
   }
 }
 
-export async function salvarAnuncio(formData: FormData): Promise<ActionResult> {
-  try {
-    const produtoId = texto(formData, "produto_id");
-    const supabase = await createClient();
-    const { error } = await supabase.rpc("salvar_anuncio_produto", {
-      p_produto_id: produtoId,
-      p_canal_id: texto(formData, "canal_id"),
-      p_titulo: textoOuNull(formData, "titulo"),
-      p_descricao: textoOuNull(formData, "descricao"),
-    });
-    if (error) return falha(error);
-
-    revalidatePath(`/produtos/${produtoId}`);
-    return ok("Anúncio salvo.");
-  } catch (e) {
-    return falha(e);
-  }
-}
-
 export async function excluirProduto(produtoId: string, apagarHistorico: boolean): Promise<ActionResult> {
   try {
     const supabase = await createClient();

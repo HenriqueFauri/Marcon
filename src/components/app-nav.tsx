@@ -7,6 +7,7 @@ import {
   IconBox,
   IconCart,
   IconHome,
+  IconMegaphone,
   IconPlus,
   IconSearch,
   IconReceipt,
@@ -31,6 +32,7 @@ const NAV: NavItem[] = [
   { href: "/", label: "Início", icon: IconHome },
   { href: "/vendas", label: "Vendas", icon: IconCart },
   { href: "/produtos", label: "Produtos", icon: IconBox },
+  { href: "/anuncios", label: "Anúncios", icon: IconMegaphone },
   { href: "/contas-a-receber", label: "Contas a receber", icon: IconReceipt },
   { href: "/fluxo-de-caixa", label: "Fluxo de caixa", icon: IconWallet },
   { href: "/clientes", label: "Clientes", icon: IconUsers },
@@ -45,7 +47,7 @@ const NAV_MOBILE = ["/", "/vendas", "/produtos", "/clientes"];
 
 // no desktop o menu se divide em grupos, como na barra lateral do Mac
 const GRUPOS: { titulo: string | null; hrefs: string[] }[] = [
-  { titulo: "Loja", hrefs: ["/", "/vendas", "/produtos", "/fornecedores"] },
+  { titulo: "Loja", hrefs: ["/", "/vendas", "/produtos", "/anuncios", "/fornecedores"] },
   { titulo: "Dinheiro", hrefs: ["/contas-a-receber", "/fluxo-de-caixa", "/clientes"] },
   { titulo: null, hrefs: ["/configuracoes"] },
 ];
