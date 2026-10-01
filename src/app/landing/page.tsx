@@ -616,7 +616,7 @@ export default function LandingPage() {
                   {formatBRL(PLANOS.marcon.valor)}
                   <span className="text-[15px] font-medium tracking-normal text-ink-muted"> /mês</span>
                 </p>
-                <PlanoItens itens={["Tudo do plano grátis", ...PLANOS.marcon.inclui]} />
+                <PlanoItens itens={PLANOS.marcon.inclui} />
                 <Link
                   href="/login?modo=signup"
                   className="bg-brand-fill mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"
