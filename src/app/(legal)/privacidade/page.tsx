@@ -51,6 +51,7 @@ export default function PrivacidadePage() {
         <ul className="flex list-disc flex-col gap-1.5 pl-5">
           <li>Supabase: banco de dados, login e armazenamento de fotos.</li>
           <li>Vercel: hospedagem do aplicativo.</li>
+          <li>Google (Analytics) e Microsoft (Clarity): métricas de uso do site e do aplicativo.</li>
           <li>Asaas: cobrança da assinatura.</li>
         </ul>
         <p>Esses serviços podem processar dados em servidores fora do Brasil. Também compartilhamos dados se a lei ou uma ordem judicial exigir.</p>
@@ -74,7 +75,10 @@ export default function PrivacidadePage() {
 
       <Secao titulo="7. Cookies">
         <p>
-          Usamos apenas cookies necessários para manter você conectado e lembrar o tema claro ou escuro. Não usamos cookies de
+          Usamos cookies necessários para manter você conectado e lembrar o tema claro ou escuro. Também usamos o Google Analytics
+          e o Microsoft Clarity para entender como o Marcon é usado (páginas visitadas, cliques, tempo de uso) e melhorar o produto.
+          No aplicativo logado, o Clarity não registra o conteúdo da tela, como nomes, valores e telefones. Você pode bloquear esses
+          cookies nas configurações do navegador. Não usamos cookies de
           publicidade.
         </p>
       </Secao>

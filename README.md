@@ -29,6 +29,10 @@ ASAAS_API_KEY=...                 # chave do Asaas; só no servidor
 ASAAS_ENV=sandbox                 # "producao" só quando for cobrar de verdade
 ASAAS_WEBHOOK_TOKEN=...           # texto longo e aleatório, o mesmo cadastrado no webhook do Asaas
 
+# opcional — métricas (só carregam se definidos)
+NEXT_PUBLIC_GA_ID=...             # Google Analytics 4, formato G-XXXXXXXXXX
+NEXT_PUBLIC_CLARITY_ID=...        # id do projeto no Microsoft Clarity
+
 # opcional — quem vê a tela /admin (e-mails separados por vírgula; exige SUPABASE_SERVICE_ROLE_KEY)
 ADMIN_EMAILS=voce@exemplo.com
 ```
