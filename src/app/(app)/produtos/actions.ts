@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, numero, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 import { hojeISO } from "@/lib/format";
+import { limiteDeProdutos } from "@/lib/limites";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -77,6 +78,9 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const limite = await limiteDeProdutos(supabase, user);
+    if (limite) return { ok: false, error: limite };
 
     const temVariacoes = formData.get("tem_variacoes") === "true";
     const estoqueInicial = temVariacoes ? 0 : Math.trunc(numero(formData, "estoque_inicial") ?? 0);

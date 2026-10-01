@@ -28,6 +28,9 @@ CRON_SECRET=...                   # qualquer texto longo e aleatório
 ASAAS_API_KEY=...                 # chave do Asaas; só no servidor
 ASAAS_ENV=sandbox                 # "producao" só quando for cobrar de verdade
 ASAAS_WEBHOOK_TOKEN=...           # texto longo e aleatório, o mesmo cadastrado no webhook do Asaas
+
+# opcional — quem vê a tela /admin (e-mails separados por vírgula; exige SUPABASE_SERVICE_ROLE_KEY)
+ADMIN_EMAILS=voce@exemplo.com
 ```
 
 ```bash
@@ -46,7 +49,7 @@ O lembrete de cobrança precisa de um agendador: `vercel.json` já chama `GET /a
 
 ## Assinatura (Asaas)
 
-O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. A tela fica em `/assinatura`, com o estado do plano sempre à vista no menu ("Seu plano"). Há um plano pago só, o Marcon (R$ 19,90 por mês, só cartão), e o plano grátis que sobra depois do teste; ambos são definidos em `src/lib/planos.ts`. Ao assinar, o pagamento abre em outra aba, na página do Asaas, onde o usuário digita o cartão; nenhum dado de cartão passa pelo Marcon, e a tela atualiza sozinha quando o webhook confirma. **Os limites do plano grátis ainda não são aplicados**: hoje o app só mostra o estado e não bloqueia nada.
+O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. A tela fica em `/assinatura`, com o estado do plano sempre à vista no menu ("Seu plano"). Há um plano pago só, o Marcon (R$ 19,90 por mês, só cartão), e o plano grátis que sobra depois do teste; ambos são definidos em `src/lib/planos.ts`. Ao assinar, o pagamento abre em outra aba, na página do Asaas, onde o usuário digita o cartão; nenhum dado de cartão passa pelo Marcon, e a tela atualiza sozinha quando o webhook confirma. Os limites do plano grátis (`src/lib/limites.ts`) valem só depois do teste, para quem não assina: criar produto, registrar venda e importar produtos conferem a contagem e recusam com aviso. Teste, plano Marcon, cortesia e admin não têm limite. Vendas importadas (histórico) não contam.
 
 Para testar no sandbox:
 
@@ -55,6 +58,17 @@ Para testar no sandbox:
 3. Rode as migrations (`0010_assinaturas.sql`) e assine em Configurações.
 
 O webhook confere o token, ignora eventos repetidos (o Asaas entrega "pelo menos uma vez") e não reativa uma assinatura já cancelada por causa de um evento atrasado.
+
+## Administração
+
+A conta de admin é uma conta normal, com o próprio negócio: ela só ganha o item "Administração" no menu. Quem é admin vem de `ADMIN_EMAILS` no servidor (e-mail confirmado), nunca dos metadados do usuário, que o próprio usuário edita. Para quem não é admin, `/admin` responde 404, e cada server action confere de novo.
+
+Em `/admin` aparecem todas as contas, com plano, produtos, vendas do mês e último acesso (função `admin_uso_por_conta`, migration `0013`, que só a chave de serviço executa). Ações:
+
+- **Bloquear / desbloquear:** usa o bloqueio do Supabase Auth. A pessoa não entra, e nada é apagado.
+- **Dar / tirar cortesia:** grava a assinatura com status `cortesia`: plano Marcon liberado, sem Asaas. Não vale para quem já paga.
+
+Contas de admin não podem ser alteradas pela tela, nem a própria.
 
 ## Importar dados (PDF do VendaMax)
 

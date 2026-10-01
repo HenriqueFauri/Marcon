@@ -470,8 +470,8 @@ export function Importador() {
       >
         <p className="text-[17px] font-semibold text-ink">{lendo ? "Lendo os relatórios..." : "Solte os PDFs aqui"}</p>
         <p className="max-w-md text-[14px] text-ink-muted">
-          Relatórios do VendaMax em PDF: produtos, vendas e extrato de caixa. Pode enviar os três de uma vez ou um por vez. Nada é
-          importado antes de você conferir e confirmar.
+          Relatórios em PDF do sistema que você usava: produtos, vendas e extrato de caixa. Pode enviar os três de uma vez ou um
+          por vez. Nada é importado antes de você conferir e confirmar.
         </p>
         <button type="button" className={btnPrimary} disabled={lendo} onClick={() => inputRef.current?.click()}>
           Escolher arquivos
@@ -491,12 +491,12 @@ export function Importador() {
       {vazio && !lendo && (
         <Card title="Como funciona">
           <ol className="flex list-decimal flex-col gap-2 pl-5 text-[14px] text-ink-2">
-            <li>No VendaMax, baixe em PDF o relatório de produtos, o de vendas e o extrato de caixa.</li>
+            <li>No sistema que você usava, baixe em PDF o relatório de produtos, o de vendas e o extrato de caixa.</li>
             <li>Envie os arquivos aqui. Eu leio as tabelas e mostro tudo numa prévia, comparando com os totais do próprio relatório.</li>
             <li>Corrija o que quiser, desmarque o que não quer e confirme. Importe primeiro os produtos, depois as vendas.</li>
           </ol>
           <p className="mt-3 text-[13px] text-ink-muted">
-            Produtos com variações (cor, tamanho) entram sem elas, porque o relatório do VendaMax não as detalha.
+            Se o relatório não detalhar as variações (cor, tamanho), o produto entra sem elas e você completa depois.
           </p>
         </Card>
       )}

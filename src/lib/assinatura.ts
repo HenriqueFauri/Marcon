@@ -2,7 +2,7 @@ import { DIAS_DE_TESTE } from "@/lib/planos";
 
 // Onde o usuário está no ciclo de assinatura. O teste corre a partir da criação
 // da conta e não exige linha na tabela assinaturas.
-export type TipoSituacao = "teste" | "gratis" | "pendente" | "ativa" | "atrasada";
+export type TipoSituacao = "teste" | "gratis" | "pendente" | "ativa" | "atrasada" | "cortesia";
 
 export interface Situacao {
   tipo: TipoSituacao;
@@ -14,7 +14,7 @@ export interface Situacao {
 
 interface LinhaAssinatura {
   plano: string;
-  status: "pendente" | "ativa" | "atrasada" | "cancelada";
+  status: "pendente" | "ativa" | "atrasada" | "cancelada" | "cortesia";
   proximo_vencimento: string | null;
 }
 
@@ -33,6 +33,7 @@ export function situacaoDaAssinatura(linha: LinhaAssinatura | null, contaCriadaE
   };
 
   if (linha?.status === "ativa") return { ...base, tipo: "ativa" };
+  if (linha?.status === "cortesia") return { ...base, tipo: "cortesia" };
   if (linha?.status === "atrasada") return { ...base, tipo: "atrasada" };
   if (linha?.status === "pendente") return { ...base, tipo: "pendente" };
   // sem linha, ou assinatura cancelada: volta ao teste enquanto ele durar, depois ao grátis
@@ -56,5 +57,7 @@ export function rotuloDaSituacao(s: Situacao) {
       return { texto: "Plano Marcon", tom: "positive" as const };
     case "atrasada":
       return { texto: "Pagamento atrasado", tom: "warning" as const };
+    case "cortesia":
+      return { texto: "Plano Marcon", tom: "positive" as const };
   }
 }
