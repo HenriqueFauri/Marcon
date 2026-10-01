@@ -59,7 +59,13 @@ function Linha({ rotulo, children, extra }: { rotulo: string; children: React.Re
 const valorLinha =
   "w-full min-w-0 cursor-pointer bg-transparent text-right text-[17px] text-ink-muted outline-none placeholder:text-ink-muted focus:text-ink";
 
+// o que aparece na lista enquanto a pessoa ainda não cadastrou os próprios (Configurações)
+const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
+const CANAIS_SUGERIDOS = ["Loja física", "WhatsApp", "Instagram", "Shopee", "Mercado Livre"];
+
 // Campo "escolha da lista ou digite": select com os cadastrados + texto livre.
+// Com `sugestoes`, vira sempre uma lista de escolha: os cadastrados, depois as sugestões
+// que ainda não estão cadastradas e "Outro" (aí sim aparece o campo de texto).
 function SelectOuTexto({
   label,
   opcoes,
@@ -69,6 +75,7 @@ function SelectOuTexto({
   setTexto,
   placeholder,
   vazio,
+  sugestoes,
 }: {
   label: string;
   opcoes: { id: string; nome: string }[];
@@ -78,7 +85,69 @@ function SelectOuTexto({
   setTexto: (v: string) => void;
   placeholder: string;
   vazio: string;
+  sugestoes?: string[];
 }) {
+  const [outro, setOutro] = useState(false);
+
+  if (sugestoes) {
+    const cadastrados = new Set(opcoes.map((o) => o.nome.trim().toLowerCase()));
+    const extras = sugestoes.filter((n) => !cadastrados.has(n.toLowerCase()));
+    // texto que não é sugestão também cai em "Outro"
+    const digitando = !id && (outro || (texto !== "" && !extras.includes(texto)));
+    const valor = id || (digitando ? "__outro" : texto ? `sug:${texto}` : "");
+    return (
+      <Linha
+        rotulo={label}
+        extra={
+          digitando ? (
+            <input
+              aria-label={`${label} (digitar)`}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              placeholder={placeholder}
+              autoFocus={outro}
+              className={inputClass}
+            />
+          ) : null
+        }
+      >
+        <select
+          value={valor}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "__outro") {
+              setId("");
+              setTexto("");
+              setOutro(true);
+            } else if (v.startsWith("sug:")) {
+              setId("");
+              setOutro(false);
+              setTexto(v.slice(4));
+            } else {
+              setOutro(false);
+              setTexto("");
+              setId(v);
+            }
+          }}
+          className={`${valorLinha} [direction:rtl]`}
+        >
+          <option value="">{vazio}</option>
+          {opcoes.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.nome}
+            </option>
+          ))}
+          {extras.map((n) => (
+            <option key={n} value={`sug:${n}`}>
+              {n}
+            </option>
+          ))}
+          <option value="__outro">Outro (digitar)</option>
+        </select>
+      </Linha>
+    );
+  }
+
   return (
     <Linha
       rotulo={label}
@@ -473,8 +542,9 @@ export function VendaForm({
               setId={setFormaId}
               texto={formaNome}
               setTexto={setFormaNome}
-              placeholder="PIX, dinheiro, cartão..."
-              vazio="Digitar"
+              placeholder="Como o cliente pagou"
+              vazio="Escolher"
+              sugestoes={FORMAS_SUGERIDAS}
             />
 
             <SelectOuTexto
@@ -484,8 +554,9 @@ export function VendaForm({
               setId={setCanalId}
               texto={canalNome}
               setTexto={setCanalNome}
-              placeholder="Instagram, WhatsApp, loja..."
-              vazio="Digitar"
+              placeholder="Onde você vendeu"
+              vazio="Escolher"
+              sugestoes={CANAIS_SUGERIDOS}
             />
             <Linha rotulo="Desconto (R$)">
               <input
