@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 // Contato que aparece nos documentos. Troque aqui se mudar.
-export const CONTATO_EMAIL = "rickfaurialves@gmail.com";
+export const CONTATO_EMAIL = "usemarcon@gmail.com";
 export const ATUALIZADO_EM = "30 de setembro de 2026";
 
 export function Documento({ titulo, children }: { titulo: string; children: ReactNode }) {
