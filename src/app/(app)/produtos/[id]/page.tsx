@@ -3,10 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type {
-  CanalVenda,
   Fornecedor,
   MovimentoEstoque,
-  ProdutoAnuncio,
   ProdutoComEstoque,
   ProdutoFoto,
   ProdutoVariacao,
@@ -14,12 +12,11 @@ import type {
 import { formatBRL, formatData, hojeISO } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
 import { Badge, Card, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
-import { IconPencil } from "@/components/icons";
+import { IconMegaphone, IconPencil } from "@/components/icons";
 import { ProdutoAcoes } from "./produto-acoes";
 import { VariacoesSection } from "./variacoes-section";
 import { FotosSection } from "./fotos-section";
 import { lerUso } from "@/lib/uso";
-import { AnunciosSection } from "./anuncios-section";
 import { ExcluirProdutoButton } from "./excluir-produto-button";
 
 // o título da aba mostra o nome do produto
@@ -40,8 +37,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
     { data: variacoesData },
     { data: fotosData },
     { data: fornecedoresData },
-    { data: canaisData },
-    { data: anunciosData },
     { data: vendidosData },
     uso,
   ] = await Promise.all([
@@ -56,8 +51,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
     supabase.from("produto_variacoes").select("*").eq("produto_id", id).order("nome_combinacao"),
     supabase.from("produto_fotos").select("*").eq("produto_id", id).order("ordem").order("created_at"),
     supabase.from("fornecedores").select("*").order("nome"),
-    supabase.from("canais_venda").select("*").order("nome"),
-    supabase.from("produto_anuncios").select("*").eq("produto_id", id),
     supabase.from("venda_itens").select("quantidade, preco_unitario, custo_unitario, vendas!inner(status)").eq("produto_id", id).neq("vendas.status", "cancelada"),
     lerUso(supabase),
   ]);
@@ -69,8 +62,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
   const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
   const fotos = (fotosData ?? []) as ProdutoFoto[];
   const fornecedores = (fornecedoresData ?? []) as Fornecedor[];
-  const canais = (canaisData ?? []) as CanalVenda[];
-  const anuncios = (anunciosData ?? []) as ProdutoAnuncio[];
   const vendidos = (vendidosData ?? []) as { quantidade: number; preco_unitario: number; custo_unitario: number }[];
 
   const unidadesVendidas = vendidos.reduce((s, v) => s + v.quantidade, 0);
@@ -107,6 +98,9 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
               hoje={hojeISO()}
               precisaVariacao={precisaVariacao}
             />
+            <Link href={`/anuncios/${p.id}`} className={btnSecondary}>
+              <IconMegaphone width={16} height={16} /> Anúncios
+            </Link>
             <Link href={`/produtos/${p.id}/editar`} className={btnSecondary}>
               <IconPencil width={16} height={16} /> Editar
             </Link>
@@ -146,26 +140,16 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
           <FotosSection produtoId={p.id} fotos={fotosComUrl} maxFotos={uso?.limites.fotosPorItem} />
         </Card>
 
-        <Card
-          title="Anúncios por canal"
-          description="Gere uma sugestão de título e descrição por canal, ajuste e copie junto com as fotos para publicar."
+        <Link
+          href={`/anuncios/${p.id}`}
+          className="hairline flex items-center justify-between gap-3 rounded-3xl bg-surface p-5 transition hover:bg-fill/50"
         >
-          <AnunciosSection
-            produtoId={p.id}
-            canais={canais}
-            anuncios={anuncios}
-            fotos={fotosComUrl}
-            dados={{
-              nome: p.nome,
-              marca: p.marca,
-              descricao: p.descricao,
-              categoria: p.categorias?.nome ?? null,
-              precoVarejo: Number(p.preco_varejo),
-              unidade: p.unidade_medida,
-              variacoes,
-            }}
-          />
-        </Card>
+          <span>
+            <span className="block text-[17px] font-semibold tracking-tight text-ink">Anúncios</span>
+            <span className="block text-sm text-ink-muted">Títulos, descrições e fotos para copiar e publicar nos marketplaces.</span>
+          </span>
+          <span aria-hidden="true" className="text-lg text-ink-faint">›</span>
+        </Link>
 
         <section>
           <h2 className="mb-3 text-sm font-semibold text-ink">Histórico de estoque</h2>

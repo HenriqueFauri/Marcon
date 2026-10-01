@@ -59,3 +59,9 @@ export function linkWhatsApp(telefone: string | null | undefined, mensagem?: str
   const texto = mensagem ? `?text=${encodeURIComponent(mensagem)}` : "";
   return `https://wa.me/${digitos}${texto}`;
 }
+
+export function somarDias(iso: string, dias: number) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}

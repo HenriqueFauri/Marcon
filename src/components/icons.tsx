@@ -138,6 +138,12 @@ export const IconLogout = (p: P) => (
     <path d="M10 8l-4 4 4 4M6 12h10" />
   </Icon>
 );
+export const IconMegaphone = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 10v4a1 1 0 0 0 1 1h3l8 4V5L7 9H4a1 1 0 0 0-1 1Z" />
+    <path d="M18.5 9a4 4 0 0 1 0 6" />
+  </Icon>
+);
 export const IconAlert = (p: P) => (
   <Icon {...p}>
     <path d="M12 3 2 20h20L12 3Z" />

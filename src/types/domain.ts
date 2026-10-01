@@ -70,8 +70,10 @@ export interface ProdutoAnuncio {
   id: string;
   produto_id: string;
   canal_id: string;
+  variacao_id: string | null;
   titulo: string | null;
   descricao: string | null;
+  created_at: string;
   updated_at: string;
 }
 
