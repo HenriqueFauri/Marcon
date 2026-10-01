@@ -53,7 +53,7 @@ export function FotosSection({
     if (vagas <= 0) {
       toast.error(
         limitadoPeloPlano
-          ? `No plano grátis cada produto tem ${maxFotos} foto. Assine o plano Marcon para ter até ${MAX_FOTOS_POR_ITEM}.`
+          ? `No plano grátis cada produto tem até ${maxFotos} fotos. Assine o plano Marcon para ter até ${MAX_FOTOS_POR_ITEM}.`
           : `Este produto já tem ${maxFotos} fotos. Remova uma para adicionar outra.`,
       );
       return;
@@ -166,7 +166,7 @@ export function FotosSection({
         {limitadoPeloPlano && fotos.length >= maxFotos && (
           <>
             {" "}
-            No plano grátis cada produto tem {maxFotos} foto.{" "}
+            No plano grátis cada produto tem até {maxFotos} fotos.{" "}
             <Link href="/assinatura" className="font-medium text-brand-text underline-offset-2 hover:underline">
               Assine o Marcon
             </Link>{" "}

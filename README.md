@@ -57,7 +57,7 @@ O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O te
 | --- | --- | --- |
 | Vendas por mês | sem limite | 30 |
 | Produtos | sem limite | 50 |
-| Fotos por produto e por variação | 10 | 1 |
+| Fotos por produto e por variação | 10 | 3 |
 | Importar vendas e extrato de caixa | sim | não (só produtos) |
 
 Os limites são **impostos pelo banco** (migration `0013`: gatilhos `BEFORE INSERT` em `vendas`, `produtos`, `produto_fotos` e `lancamentos_caixa`), então quem chama a API direto também passa por eles. A função `limites_do_plano` é a fonte única; o app lê o uso em `uso_do_plano()` (`src/lib/uso.ts`) só para explicar e antecipar (faixa quando faltam 5, bloqueio explicado no limite, barras em `/assinatura`). Se a migration ainda não foi aplicada, as telas seguem funcionando sem os avisos.

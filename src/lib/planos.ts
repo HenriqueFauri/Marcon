@@ -25,10 +25,10 @@ export const PLANO_PADRAO: PlanoId = "marcon";
 // o que sobra depois do teste, para quem não assina
 export const PLANO_GRATIS = {
   nome: "Grátis",
-  limites: { vendasPorMes: 30, produtos: 50, fotosPorProduto: 1 },
+  limites: { vendasPorMes: 30, produtos: 50, fotosPorProduto: 3 },
   inclui: [
     "Até 30 vendas por mês",
-    "Até 50 produtos, com 1 foto cada",
+    "Até 50 produtos, com 3 fotos cada",
     "Estoque, vendas a prazo e fluxo de caixa",
     "Anúncios por canal e lembrete de cobrança",
     "Importar seus produtos de outro sistema",
