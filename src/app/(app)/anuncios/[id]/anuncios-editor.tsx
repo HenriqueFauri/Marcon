@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { CanalVenda, ProdutoAnuncio, ProdutoVariacao } from "@/types/domain";
 import { gerarAnuncio, limitesDoCanal } from "@/lib/anuncio";
@@ -9,8 +9,8 @@ import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Card, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
-import { IconPlus } from "@/components/icons";
-import { excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
+import { IconPlus, IconSparkles } from "@/components/icons";
+import { escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
 
 interface FotoAnuncio {
   id: string;
@@ -27,6 +27,37 @@ function useCopiar() {
       toast.error("Não foi possível copiar.");
     }
   };
+}
+
+// Chama a IA e avisa quanto sobrou da cota. Devolve null se deu erro (o aviso já saiu).
+function useEscreverComIA() {
+  const toast = useToast();
+  const [escrevendo, startTransition] = useTransition();
+
+  function escrever(
+    dados: Parameters<typeof escreverAnuncioIA>[0],
+    usar: (texto: { titulo: string; descricao: string }) => void,
+  ) {
+    startTransition(async () => {
+      try {
+        const r = await escreverAnuncioIA(dados);
+        if (!r.ok) {
+          toast.error(r.error);
+          return;
+        }
+        usar(r);
+        toast.success(
+          r.restantes === null
+            ? "Anúncio escrito. Revise antes de usar."
+            : `Anúncio escrito. Revise antes de usar. Restam ${r.restantes} escrita(s) com IA este mês.`,
+        );
+      } catch {
+        toast.error("A IA não conseguiu escrever agora. Tente de novo.");
+      }
+    });
+  }
+
+  return { escrevendo, escrever };
 }
 
 function contador(atual: number, max: number | null) {
@@ -172,6 +203,7 @@ function VersaoCard({
   versao,
   variacoes,
   dados,
+  ia,
 }: {
   numero: number;
   produtoId: string;
@@ -179,8 +211,10 @@ function VersaoCard({
   versao: ProdutoAnuncio;
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
+  ia: { disponivel: boolean; dica: string };
 }) {
   const { isPending, run } = useAction();
+  const { escrevendo, escrever } = useEscreverComIA();
   const copiar = useCopiar();
   const [titulo, setTitulo] = useState(versao.titulo ?? "");
   const [descricao, setDescricao] = useState(versao.descricao ?? "");
@@ -198,6 +232,13 @@ function VersaoCard({
     setEstilo((e) => e + 1);
     setTitulo(sugestao.titulo);
     setDescricao(sugestao.descricao);
+  }
+
+  function reescreverComIA() {
+    escrever({ produtoId, canalId: canal.id, variacaoId: variacaoId || null, dica: ia.dica }, (texto) => {
+      setTitulo(texto.titulo);
+      setDescricao(texto.descricao);
+    });
   }
 
   function salvar() {
@@ -231,6 +272,16 @@ function VersaoCard({
           )}
         </div>
         <div className="flex items-center gap-1">
+          {ia.disponivel && (
+            <button
+              type="button"
+              onClick={reescreverComIA}
+              disabled={escrevendo}
+              className={`${btnSecondary} px-3 py-1 text-xs`}
+            >
+              <IconSparkles width={14} height={14} /> {escrevendo ? "Escrevendo..." : "Escrever com IA"}
+            </button>
+          )}
           <button type="button" onClick={reescrever} className={`${btnGhost} px-3 py-1 text-xs`}>
             Outra sugestão
           </button>
@@ -327,6 +378,7 @@ export function AnunciosEditor({
   fotos,
   variacoes,
   dados,
+  iaDisponivel,
 }: {
   produtoId: string;
   nomeProduto: string;
@@ -335,8 +387,11 @@ export function AnunciosEditor({
   fotos: FotoAnuncio[];
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
+  iaDisponivel: boolean;
 }) {
   const { isPending, run } = useAction();
+  const { escrevendo, escrever } = useEscreverComIA();
+  const [dica, setDica] = useState("");
   const [canalId, setCanalId] = useState(canais[0]?.id ?? "");
   const canal = canais.find((c) => c.id === canalId) ?? canais[0];
 
@@ -370,6 +425,14 @@ export function AnunciosEditor({
         titulo: sugestao.titulo,
         descricao: sugestao.descricao,
       }),
+    );
+  }
+
+  function novaComIA() {
+    escrever({ produtoId, canalId: canal.id, variacaoId: null, dica }, (texto) =>
+      run(() =>
+        salvarVersaoAnuncio({ id: null, produtoId, canalId: canal.id, variacaoId: null, ...texto }),
+      ),
     );
   }
 
@@ -416,10 +479,40 @@ export function AnunciosEditor({
               versao={v}
               variacoes={variacoes}
               dados={dados}
+              ia={{ disponivel: iaDisponivel, dica }}
             />
           ))}
+          {iaDisponivel && (
+            <div>
+              <label htmlFor="dica-ia" className="mb-1 block text-sm font-medium text-ink-2">
+                Dica para a IA <span className="font-normal text-ink-muted">(opcional)</span>
+              </label>
+              <input
+                id="dica-ia"
+                value={dica}
+                onChange={(e) => setDica(e.target.value)}
+                maxLength={300}
+                placeholder="Ex.: novo na caixa, pronta entrega, ótimo para presente"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-ink-muted">
+                A IA usa o cadastro, as fotos e esta dica. Ela não inventa estado, garantia nem medidas: o que não estiver
+                aqui fica de fora.
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => nova(true)} disabled={isPending} className={btnPrimary}>
+            {iaDisponivel && (
+              <button type="button" onClick={novaComIA} disabled={isPending || escrevendo} className={btnPrimary}>
+                <IconSparkles width={16} height={16} /> {escrevendo ? "Escrevendo..." : "Nova versão com IA"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => nova(true)}
+              disabled={isPending}
+              className={iaDisponivel ? btnSecondary : btnPrimary}
+            >
               <IconPlus width={16} height={16} /> Nova versão com sugestão
             </button>
             <button type="button" onClick={() => nova(false)} disabled={isPending} className={btnSecondary}>

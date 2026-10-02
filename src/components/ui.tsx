@@ -43,7 +43,7 @@ export function PageHeader({
           <h1 className="text-[28px] font-bold leading-tight tracking-tight text-ink">{title}</h1>
           {description && <p className="mt-1 text-[15px] text-ink-muted">{description}</p>}
         </div>
-        {action && <div className="flex shrink-0 flex-wrap gap-2">{action}</div>}
+        {action && <div className="flex min-w-0 max-w-full flex-wrap gap-2">{action}</div>}
       </div>
     </div>
   );
@@ -164,7 +164,7 @@ export function Field({
 }) {
   // <label> envolvendo o controle associa o rótulo sem precisar de ids
   return (
-    <label className={`block ${className}`}>
+    <label className={`block min-w-0 ${className}`}>
       <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-ink-muted">{hint}</span>}

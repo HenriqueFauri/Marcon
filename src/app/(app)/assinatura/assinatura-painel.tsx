@@ -280,7 +280,7 @@ export function AssinaturaPainel({
 
       {uso && uso.plano !== "pago" && <UsoCard uso={uso} />}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <section className="hairline flex flex-col gap-4 rounded-3xl bg-surface p-5 sm:p-6">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-[17px] font-semibold tracking-tight text-ink">{PLANO_GRATIS.nome}</h2>

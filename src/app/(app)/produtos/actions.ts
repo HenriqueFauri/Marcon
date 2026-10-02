@@ -67,6 +67,48 @@ function camposProduto(formData: FormData) {
   } as const;
 }
 
+interface LinhaVariacao {
+  nome: string;
+  sku: string | null;
+  custo: number | null;
+  preco: number | null;
+  estoque: number;
+}
+
+// Lê as variações do cadastro (campos repetidos var_nome, var_estoque...). Linha sem nome é ignorada.
+function lerVariacoes(formData: FormData): (LinhaVariacao | { erro: string })[] {
+  const nomes = formData.getAll("var_nome").map((v) => String(v).trim());
+  const skus = formData.getAll("var_sku").map((v) => String(v).trim());
+  const custos = formData.getAll("var_custo").map((v) => String(v).trim().replace(",", "."));
+  const precos = formData.getAll("var_preco").map((v) => String(v).trim().replace(",", "."));
+  const estoques = formData.getAll("var_estoque").map((v) => String(v).trim().replace(",", "."));
+
+  const vistos = new Set<string>();
+  const linhas: (LinhaVariacao | { erro: string })[] = [];
+  nomes.forEach((nome, i) => {
+    if (!nome) return;
+    const chave = nome.toLowerCase();
+    if (vistos.has(chave)) {
+      linhas.push({ erro: `A variação "${nome}" aparece duas vezes.` });
+      return;
+    }
+    vistos.add(chave);
+    const custo = custos[i] ? Number(custos[i]) : null;
+    const preco = precos[i] ? Number(precos[i]) : null;
+    const estoque = estoques[i] ? Number(estoques[i]) : 0;
+    if ([custo, preco].some((v) => v !== null && (!Number.isFinite(v) || v < 0))) {
+      linhas.push({ erro: `Confira o custo e o preço da variação "${nome}".` });
+      return;
+    }
+    if (!Number.isInteger(estoque) || estoque < 0) {
+      linhas.push({ erro: `O estoque da variação "${nome}" precisa ser um número inteiro, sem negativo.` });
+      return;
+    }
+    linhas.push({ nome, sku: skus[i] || null, custo, preco, estoque });
+  });
+  return linhas;
+}
+
 export async function criarProduto(formData: FormData): Promise<ActionResult> {
   try {
     const lido = camposProduto(formData);
@@ -82,6 +124,12 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
     const estoqueInicial = temVariacoes ? 0 : Math.trunc(numero(formData, "estoque_inicial") ?? 0);
     if (Number.isNaN(estoqueInicial) || estoqueInicial < 0)
       return { ok: false, error: "O estoque inicial não pode ser negativo." };
+
+    // variações preenchidas no cadastro: uma linha por variação (campos var_*)
+    const variacoes = temVariacoes ? lerVariacoes(formData) : [];
+    for (const v of variacoes) {
+      if ("erro" in v) return { ok: false, error: v.erro };
+    }
 
     const categoriaId = await resolverCategoria(supabase, user.id, texto(formData, "categoria"));
     const { fornecedorId, fornecedorNome } = await resolverFornecedor(supabase, formData);
@@ -118,6 +166,56 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
           ok: false,
           error: `Produto criado, mas o estoque inicial não foi registrado: ${rpcError.message}`,
         };
+      }
+      revalidatePath("/fluxo-de-caixa");
+    }
+
+    const linhasVariacao = variacoes.filter((v): v is LinhaVariacao => !("erro" in v));
+    if (linhasVariacao.length > 0) {
+      const { data: criadas, error: erroVariacoes } = await supabase
+        .from("produto_variacoes")
+        .insert(
+          linhasVariacao.map((v) => ({
+            owner_id: user.id,
+            produto_id: produto.id,
+            nome_combinacao: v.nome,
+            sku: v.sku,
+            custo: v.custo,
+            preco_venda: v.preco,
+          })),
+        )
+        .select("id, nome_combinacao");
+      if (erroVariacoes) {
+        revalidarProduto(produto.id);
+        return {
+          ok: false,
+          error: `Produto criado, mas as variações não foram salvas: ${erroVariacoes.message}. Adicione-as na página do produto.`,
+        };
+      }
+
+      // estoque inicial de cada variação entra como compra, pelo custo dela (ou o do produto)
+      const idPorNome = new Map((criadas ?? []).map((c) => [c.nome_combinacao as string, c.id as string]));
+      for (const v of linhasVariacao) {
+        const variacaoId = idPorNome.get(v.nome);
+        if (!variacaoId || v.estoque <= 0) continue;
+        const { error: rpcError } = await supabase.rpc("registrar_entrada_estoque", {
+          p_produto_id: produto.id,
+          p_variacao_id: variacaoId,
+          p_quantidade: v.estoque,
+          p_valor_unitario: v.custo ?? lido.campos.custo,
+          p_data: hojeISO(),
+          p_fornecedor_nome: fornecedorNome,
+          p_observacoes: "Estoque inicial do cadastro",
+          p_fornecedor_id: fornecedorId,
+        });
+        if (rpcError) {
+          revalidarProduto(produto.id);
+          revalidatePath("/fluxo-de-caixa");
+          return {
+            ok: false,
+            error: `Produto criado, mas o estoque inicial de "${v.nome}" não foi registrado: ${rpcError.message}`,
+          };
+        }
       }
       revalidatePath("/fluxo-de-caixa");
     }
@@ -230,15 +328,24 @@ export async function registrarSaidaEstoque(formData: FormData): Promise<ActionR
   }
 }
 
+// Lê os campos de uma variação (nome, sku, custo, preço). Custo e preço em branco valem os do produto.
+function lerCamposVariacao(formData: FormData) {
+  const nomeCombinacao = texto(formData, "nome_combinacao");
+  if (!nomeCombinacao) return { erro: "Dê um nome para a variação (ex: Azul / M)." } as const;
+  const custo = numero(formData, "custo");
+  const precoVenda = numero(formData, "preco_venda");
+  if ([custo, precoVenda].some((v) => v !== null && (Number.isNaN(v) || v < 0)))
+    return { erro: "Confira o custo e o preço da variação." } as const;
+  return { nomeCombinacao, custo, precoVenda, sku: textoOuNull(formData, "sku") } as const;
+}
+
 export async function criarVariacao(formData: FormData): Promise<ActionResult> {
   try {
     const produtoId = texto(formData, "produto_id");
-    const nomeCombinacao = texto(formData, "nome_combinacao");
-    if (!nomeCombinacao) return { ok: false, error: "Dê um nome para a variação (ex: Azul / M)." };
-    const custo = numero(formData, "custo");
-    const precoVenda = numero(formData, "preco_venda");
-    if ([custo, precoVenda].some((v) => v !== null && (Number.isNaN(v) || v < 0)))
-      return { ok: false, error: "Confira o custo e o preço da variação." };
+    const lido = lerCamposVariacao(formData);
+    if ("erro" in lido) return { ok: false, error: lido.erro! };
+    const estoque = Math.trunc(numero(formData, "estoque") ?? 0);
+    if (Number.isNaN(estoque) || estoque < 0) return { ok: false, error: "O estoque inicial não pode ser negativo." };
 
     const supabase = await createClient();
     const {
@@ -246,18 +353,71 @@ export async function criarVariacao(formData: FormData): Promise<ActionResult> {
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
 
-    const { error } = await supabase.from("produto_variacoes").insert({
-      owner_id: user.id,
-      produto_id: produtoId,
-      nome_combinacao: nomeCombinacao,
-      custo,
-      preco_venda: precoVenda,
-      sku: textoOuNull(formData, "sku"),
-    });
+    const { data: produto } = await supabase.from("produtos").select("custo, fornecedor_id, fornecedor_nome").eq("id", produtoId).maybeSingle();
+    if (!produto) return { ok: false, error: "Produto não encontrado." };
+
+    const { data: criada, error } = await supabase
+      .from("produto_variacoes")
+      .insert({
+        owner_id: user.id,
+        produto_id: produtoId,
+        nome_combinacao: lido.nomeCombinacao,
+        custo: lido.custo,
+        preco_venda: lido.precoVenda,
+        sku: lido.sku,
+      })
+      .select("id")
+      .single();
     if (error) return falha(error);
+
+    // estoque inicial entra como compra (sai do caixa), pelo custo da variação ou o do produto
+    if (estoque > 0) {
+      const { error: rpcError } = await supabase.rpc("registrar_entrada_estoque", {
+        p_produto_id: produtoId,
+        p_variacao_id: criada.id,
+        p_quantidade: estoque,
+        p_valor_unitario: lido.custo ?? Number(produto.custo),
+        p_data: hojeISO(),
+        p_fornecedor_nome: produto.fornecedor_nome,
+        p_observacoes: "Estoque inicial da variação",
+        p_fornecedor_id: produto.fornecedor_id,
+      });
+      if (rpcError) {
+        revalidarProduto(produtoId);
+        return { ok: false, error: `Variação criada, mas o estoque inicial não foi registrado: ${rpcError.message}` };
+      }
+      revalidatePath("/fluxo-de-caixa");
+    }
 
     revalidarProduto(produtoId);
     return ok("Variação adicionada.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function atualizarVariacao(formData: FormData): Promise<ActionResult> {
+  try {
+    const id = texto(formData, "id");
+    const produtoId = texto(formData, "produto_id");
+    const lido = lerCamposVariacao(formData);
+    if ("erro" in lido) return { ok: false, error: lido.erro! };
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("produto_variacoes")
+      .update({
+        nome_combinacao: lido.nomeCombinacao,
+        custo: lido.custo,
+        preco_venda: lido.precoVenda,
+        sku: lido.sku,
+      })
+      .eq("id", id)
+      .eq("produto_id", produtoId);
+    if (error) return falha(error);
+
+    revalidarProduto(produtoId);
+    return ok("Variação atualizada.");
   } catch (e) {
     return falha(e);
   }

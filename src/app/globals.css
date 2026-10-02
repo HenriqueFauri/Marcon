@@ -160,3 +160,45 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+/* Celular: nada pode alargar a página. Quando um elemento passa da largura da tela,
+   o Safari encolhe tudo para caber (cartões a 60% da largura, botões cortados). */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* O Safari do iPhone dá zoom na tela ao focar um campo com letra menor que 16px e
+   não volta sozinho ao sair dele. Com 16px no celular o zoom não acontece. */
+@media (max-width: 1023px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* campos de data têm largura própria no iOS e estouram a coluna do formulário */
+input[type="date"],
+input[type="month"],
+input[type="time"] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* toque duplo em botão ou link não dá zoom (no iPhone parecia que a tela travou) */
+a,
+button,
+input,
+select,
+textarea,
+label,
+summary,
+[role="tab"] {
+  touch-action: manipulation;
+}

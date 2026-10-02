@@ -150,6 +150,8 @@ export interface Venda {
   custo_total: number;
   status: VendaStatus;
   observacoes: string | null;
+  recibo_token?: string; // migration 0017
+  outros_gastos?: number; // migration 0018
   created_at: string;
 }
 

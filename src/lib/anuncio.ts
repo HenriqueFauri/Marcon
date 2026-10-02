@@ -24,7 +24,7 @@ export function limitesDoCanal(nomeCanal: string): LimitesCanal {
   return { titulo: null, descricao: null };
 }
 
-function cortar(texto: string, max: number | null) {
+export function cortar(texto: string, max: number | null) {
   if (max === null || texto.length <= max) return texto;
   // corta em palavra inteira
   const corte = texto.slice(0, max);

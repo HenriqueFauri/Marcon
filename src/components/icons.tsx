@@ -177,3 +177,29 @@ export const IconChevronDown = (p: P) => (
     <path d="m6 9 6 6 6-6" />
   </Icon>
 );
+export const IconSparkles = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3.5 13.6 8.4 18.5 10 13.6 11.6 12 16.5 10.4 11.6 5.5 10 10.4 8.4Z" />
+    <path d="M18.5 15.5v4M16.5 17.5h4" />
+  </Icon>
+);
+export const IconLink = (p: P) => (
+  <Icon {...p}>
+    <path d="M10 13.5a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2" />
+    <path d="M14 10.5a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2" />
+  </Icon>
+);
+export const IconGrid = (p: P) => (
+  <Icon {...p}>
+    <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+  </Icon>
+);
+export const IconList = (p: P) => (
+  <Icon {...p}>
+    <path d="M9 6.5h11M9 12h11M9 17.5h11" />
+    <path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" strokeWidth={2.6} />
+  </Icon>
+);

@@ -9,11 +9,13 @@ export interface Uso {
   plano: PlanoAtual;
   vendasMes: number;
   produtos: number;
+  iaMes: number;
   limites: {
     vendasMes: number | null; // null = sem limite
     produtos: number | null;
     fotosPorItem: number;
     importaHistorico: boolean;
+    iaMes: number | null; // escritas com IA por mês
   };
 }
 
@@ -26,17 +28,26 @@ export async function lerUso(supabase: SupabaseClient): Promise<Uso | null> {
     plano: PlanoAtual;
     vendas_mes: number;
     produtos: number;
-    limites: { vendas_mes: number | null; produtos: number | null; fotos_por_item: number; importa_historico: boolean };
+    ia_mes?: number; // migration 0017
+    limites: {
+      vendas_mes: number | null;
+      produtos: number | null;
+      fotos_por_item: number;
+      importa_historico: boolean;
+      ia_mes?: number | null;
+    };
   };
   return {
     plano: d.plano,
     vendasMes: d.vendas_mes,
     produtos: d.produtos,
+    iaMes: d.ia_mes ?? 0,
     limites: {
       vendasMes: d.limites.vendas_mes,
       produtos: d.limites.produtos,
       fotosPorItem: d.limites.fotos_por_item,
       importaHistorico: d.limites.importa_historico,
+      iaMes: d.limites.ia_mes ?? null,
     },
   };
 }

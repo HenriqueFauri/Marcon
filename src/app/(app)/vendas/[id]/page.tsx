@@ -5,6 +5,7 @@ import type { Parcela, Venda, VendaItem } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { Badge, Card, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { CancelarVendaButton } from "./cancelar-venda-button";
+import { ReciboCard } from "./recibo-card";
 import { MarcarPagoButton } from "../../contas-a-receber/marcar-pago-button";
 
 export const metadata: Metadata = { title: "Detalhe da venda" };
@@ -32,7 +33,15 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
   const parcelas = (parcelasData ?? []) as Parcela[];
   const cancelada = venda.status === "cancelada";
   const lucro = Number(venda.valor_total) - Number(venda.custo_total);
+  const outrosGastos = Number(venda.outros_gastos ?? 0);
   const subtotal = itens.reduce((s, i) => s + i.quantidade * Number(i.preco_unitario), 0);
+  const [{ data: cliente }, { data: { user } }] = await Promise.all([
+    venda.cliente_id
+      ? supabase.from("clientes").select("telefone").eq("id", venda.cliente_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.auth.getUser(),
+  ]);
+  const nomeNegocio = (user?.user_metadata?.nome_negocio as string | undefined) || null;
   const recebido = parcelas.filter((p) => p.status_efetivo === "pago").reduce((s, p) => s + Number(p.valor), 0);
 
   return (
@@ -51,7 +60,12 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard label="Total" value={formatBRL(venda.valor_total)} />
-        <StatCard label="Custo" value={formatBRL(venda.custo_total)} tone="negative" />
+        <StatCard
+          label="Custo"
+          value={formatBRL(venda.custo_total)}
+          tone="negative"
+          hint={outrosGastos > 0 ? `inclui ${formatBRL(outrosGastos)} de outros gastos` : undefined}
+        />
         <StatCard
           label="Lucro"
           value={formatBRL(lucro)}
@@ -97,6 +111,12 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
             <dt>Total</dt>
             <dd className="tabular-nums">{formatBRL(venda.valor_total)}</dd>
           </div>
+          {outrosGastos > 0 && (
+            <div className="flex justify-between text-ink-muted">
+              <dt>Outros gastos (seu custo, fora do total)</dt>
+              <dd className="tabular-nums">{formatBRL(outrosGastos)}</dd>
+            </div>
+          )}
         </dl>
       </Card>
 
@@ -116,6 +136,16 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
           </div>
         </dl>
       </Card>
+
+      {venda.recibo_token && (
+        <ReciboCard
+          vendaId={venda.id}
+          token={venda.recibo_token}
+          clienteNome={venda.cliente_nome}
+          clienteTelefone={(cliente?.telefone as string | null | undefined) ?? null}
+          nomeNegocio={nomeNegocio}
+        />
+      )}
 
       {parcelas.length > 0 && (
         <Card

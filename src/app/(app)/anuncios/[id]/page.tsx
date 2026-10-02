@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { iaDisponivel } from "@/lib/ia-anuncio";
 import type { CanalVenda, ProdutoAnuncio, ProdutoComEstoque, ProdutoFoto, ProdutoVariacao } from "@/types/domain";
 import { Badge, PageHeader, btnSecondary } from "@/components/ui";
 import { AnunciosEditor } from "./anuncios-editor";
@@ -66,6 +67,7 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
         anuncios={anuncios}
         fotos={fotosComUrl}
         variacoes={variacoes}
+        iaDisponivel={iaDisponivel()}
         dados={{
           nome: p.nome,
           marca: p.marca,
