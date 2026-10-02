@@ -202,3 +202,29 @@ summary,
 [role="tab"] {
   touch-action: manipulation;
 }
+
+/* as telas da landing são imagens do app, não o app: ficam inclinadas e flutuando
+   para ninguém tentar tocar nelas. Quem pediu menos movimento fica com elas paradas. */
+@keyframes flutuar {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -10px;
+  }
+}
+
+.flutuar {
+  animation: flutuar 8s ease-in-out infinite;
+}
+
+.flutuar-atrasado {
+  animation-delay: -3s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flutuar {
+    animation: none;
+  }
+}

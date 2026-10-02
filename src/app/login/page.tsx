@@ -175,7 +175,7 @@ function LoginForm() {
                   value={nomeNegocio}
                   onChange={(e) => setNomeNegocio(e.target.value)}
                   className={inputClass}
-                  placeholder="Loja da Yasmin"
+                  placeholder="Desapegos da Yasmin"
                 />
               </Field>
             </>
