@@ -68,7 +68,7 @@ const valorLinha =
 
 // o que aparece na lista enquanto a pessoa ainda não cadastrou os próprios (Configurações)
 const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
-const CANAIS_SUGERIDOS = ["Loja física", "WhatsApp", "Instagram", "Shopee", "Mercado Livre"];
+const CANAIS_SUGERIDOS = ["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre"];
 
 // Campo "escolha da lista ou digite": select com os cadastrados + texto livre.
 // Com `sugestoes`, vira sempre uma lista de escolha: os cadastrados, depois as sugestões

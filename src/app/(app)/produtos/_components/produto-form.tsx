@@ -249,7 +249,7 @@ export function ProdutoForm({
               rows={3}
               defaultValue={produto?.descricao ?? ""}
               className={inputClass}
-              placeholder="Detalhes para catálogo, loja ou uso interno"
+              placeholder="Estado, medidas, o que acompanha. A IA usa isso no anúncio"
             />
           </Field>
         </div>

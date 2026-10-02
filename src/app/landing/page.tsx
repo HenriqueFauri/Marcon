@@ -7,8 +7,9 @@ import {
   IconBox,
   IconCart,
   IconCheck,
+  IconMegaphone,
   IconReceipt,
-  IconTruck,
+  IconSparkles,
   IconUsers,
   IconWallet,
   IconWhatsapp,
@@ -17,58 +18,65 @@ import { formatBRL } from "@/lib/format";
 import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
 
 export const metadata: Metadata = {
-  title: { absolute: "Marcon — a loja inteira na palma da mão" },
-  description: "Vendas, estoque, parcelado e caixa. Tudo se atualiza sozinho, a cada venda.",
+  title: { absolute: "Marcon — gestão para quem vende no Marketplace" },
+  description:
+    "Anúncio pronto, venda em dois toques e o lucro de verdade. Feito para quem vende no Facebook Marketplace, na OLX e em grupos de desapego.",
 };
 
-const NUMEROS = [
-  { valor: "R$ 8.426", rotulo: "vendidos em setembro" },
-  { valor: "36,8%", rotulo: "de margem no mês" },
-  { valor: "2 toques", rotulo: "pra registrar uma venda" },
-];
-
 const SECOES = [
+  { id: "anuncios", rotulo: "Anúncios" },
   { id: "vendas", rotulo: "Vendas" },
   { id: "estoque", rotulo: "Estoque" },
-  { id: "a-prazo", rotulo: "A prazo" },
-  { id: "caixa", rotulo: "Caixa" },
+  { id: "lucro", rotulo: "Lucro" },
   { id: "planos", rotulo: "Planos" },
 ];
 
 const EXTRAS: { icone: ReactNode; titulo: string; texto: string }[] = [
   {
-    icone: <IconUsers width={20} height={20} />,
-    titulo: "Clientes",
-    texto: "Histórico de compras e o que cada um ainda deve, com o WhatsApp a um toque.",
-  },
-  {
-    icone: <IconTruck width={20} height={20} />,
-    titulo: "Fornecedores",
-    texto: "Quem fornece o quê, com contato e anotações guardados num lugar só.",
-  },
-  {
     icone: <IconBox width={20} height={20} />,
-    titulo: "Variações e fotos",
-    texto: "Tamanho, cor, sabor: cada variação com o próprio estoque e a própria foto.",
+    titulo: "Galeria de fotos",
+    texto: "Até 10 fotos por produto e por variação. Baixe ou compartilhe todas de uma vez na hora de anunciar.",
   },
   {
     icone: <IconReceipt width={20} height={20} />,
-    titulo: "Anúncios por canal",
-    texto: "Preço e link de cada produto no Instagram, no marketplace ou na loja física.",
+    titulo: "Recibo para o comprador",
+    texto: "Um link com o recibo da venda para mandar no chat do Marketplace ou no WhatsApp.",
   },
   {
     icone: <IconAlert width={20} height={20} />,
-    titulo: "Avisos no celular",
-    texto: "Notificação no celular a cada venda registrada e a cada parcela recebida.",
+    titulo: "Aviso de venda no celular",
+    texto: "Notificação a cada venda registrada, com valor, lucro e o canal onde ela saiu.",
+  },
+  {
+    icone: <IconUsers width={20} height={20} />,
+    titulo: "Compradores",
+    texto: "Quem já comprou de você, o que levou e o WhatsApp a um toque para chamar de novo.",
+  },
+  {
+    icone: <IconWhatsapp width={20} height={20} />,
+    titulo: "Parcelado, quando precisar",
+    texto: "Combinou parcelas com um comprador? Elas vão para Contas a receber e você cobra pelo WhatsApp.",
   },
   {
     icone: <IconCheck width={20} height={20} />,
-    titulo: "Metas do mês",
-    texto: "Anéis de vendas e de lucro que enchem conforme o mês anda.",
+    titulo: "Veio de outro sistema?",
+    texto: "Importe seus produtos, vendas e caixa de um relatório em PDF e confira numa prévia antes.",
   },
 ];
 
 const PERGUNTAS = [
+  {
+    p: "O Marcon é só para quem vende no Marketplace?",
+    r: "Ele foi feito para quem vende principalmente no Facebook Marketplace. Funciona também para OLX, grupos de desapego e Instagram, que são canais do mesmo jeito de vender: pelo celular, produto por produto. Se você tem uma loja com balcão e caixa, outros sistemas combinam mais.",
+  },
+  {
+    p: "Preciso publicar o anúncio de dentro do Marcon?",
+    r: "Não. O Facebook e a OLX não deixam um app publicar por você. O Marcon deixa o anúncio pronto, com título e descrição no tamanho que cada canal aceita, e as fotos reunidas. Você copia, cola e publica.",
+  },
+  {
+    p: "A IA escreve o anúncio sozinha?",
+    r: "Ela escreve o título e a descrição a partir dos dados do produto, das fotos e da dica que você der, respeitando o limite de cada canal. Você sempre revisa antes de usar. Cada plano tem uma cota mensal de anúncios escritos com IA.",
+  },
   {
     p: "Quanto custa?",
     r: `Os primeiros ${DIAS_DE_TESTE} dias são grátis, com tudo liberado e sem cartão. Depois, o plano Marcon sai por ${formatBRL(PLANOS.marcon.valor)} por mês, sem fidelidade. Se não quiser assinar, sua conta continua no plano grátis, com limite de vendas e produtos.`,
@@ -82,20 +90,12 @@ const PERGUNTAS = [
     r: "Não. O Marcon abre no navegador do celular ou do computador. Se quiser, é só adicionar à tela de início: ele vira um app, com ícone e notificações.",
   },
   {
-    p: "Funciona pra qualquer tipo de loja?",
-    r: "Foi feito pra quem vende produto: loja de roupa, cosméticos, papelaria, doceria, revenda. Se você vende e precisa saber o que entrou, o que saiu e quem está devendo, serve.",
-  },
-  {
-    p: "Posso vender a prazo e parcelado?",
-    r: "Pode. Na hora da venda você escolhe à vista, a prazo ou parcelado. As parcelas vão sozinhas pra Contas a receber e você marca como pago quando o cliente acertar.",
+    p: "E se o comprador pagar parcelado?",
+    r: "Na hora da venda você escolhe à vista, a prazo ou parcelado. As parcelas vão sozinhas para Contas a receber e você marca como pago quando o comprador acertar.",
   },
   {
     p: "Meus dados ficam seguros?",
-    r: "Cada conta só enxerga os próprios dados, com regras de acesso no próprio banco de dados. Excluir um produto ou cliente nunca apaga o histórico financeiro.",
-  },
-  {
-    p: "Dá pra usar no computador também?",
-    r: "Dá. No computador o painel mostra mais coisas de uma vez, como a tabela de vendas e o que precisa de atenção. Tudo sincroniza entre os aparelhos.",
+    r: "Cada conta só enxerga os próprios dados, com regras de acesso no próprio banco de dados. Excluir um produto ou comprador nunca apaga o histórico financeiro.",
   },
 ];
 
@@ -125,8 +125,53 @@ function Icone({ tamanho, brilho = false }: { tamanho: number; brilho?: boolean 
   );
 }
 
-// Seção de recurso: texto de um lado, uma "tela" do app do outro. Alterna o
-// lado a cada seção no desktop; no celular a tela vem sempre embaixo do texto.
+const INCLINACAO = {
+  esq: "perspective(1800px) rotateY(15deg) rotateX(4deg) rotate(-4deg)",
+  dir: "perspective(1800px) rotateY(-15deg) rotateX(4deg) rotate(4deg)",
+} as const;
+
+// As telas são imagens do app, não o app. Por isso aparecem num aparelho
+// inclinado, flutuando, sem nada que convide ao toque.
+function Aparelho({
+  lado,
+  className = "",
+  children,
+}: {
+  lado: keyof typeof INCLINACAO;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div aria-hidden="true" className={`flutuar pointer-events-none relative select-none ${className}`}>
+      <div
+        style={{ transform: INCLINACAO[lado] }}
+        className="rounded-[46px] bg-[#1d1d1f] p-[7px] shadow-[0_50px_80px_-30px_rgba(0,0,0,0.5),0_18px_30px_-18px_rgba(0,0,0,0.4),inset_0_0_0_1px_rgba(255,255,255,0.16)]"
+      >
+        <div className="overflow-hidden rounded-[39px] bg-canvas px-3 pb-5">
+          <span className="mx-auto mt-2.5 block h-[22px] w-[84px] rounded-full bg-[#1d1d1f]" />
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Cartão que "sai" do aparelho, como as notificações e os avisos do app.
+function Destaque({ className = "", children }: { className?: string; children: ReactNode }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`flutuar flutuar-atrasado pointer-events-none absolute select-none ${className}`}
+    >
+      <div className="hairline glass flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5 shadow-[0_24px_40px_-16px_rgba(0,0,0,0.35)]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Seção de recurso: texto de um lado, uma tela do app do outro. Alterna o lado a
+// cada seção no desktop; no celular o aparelho vem sempre embaixo do texto.
 function Recurso({
   id,
   rotulo,
@@ -135,6 +180,7 @@ function Recurso({
   pontos,
   invertido = false,
   fundo = "bg-surface",
+  destaque,
   children,
 }: {
   id: string;
@@ -144,11 +190,16 @@ function Recurso({
   pontos: string[];
   invertido?: boolean;
   fundo?: string;
+  destaque?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section id={id} aria-labelledby={`${id}-titulo`} className={`scroll-mt-11 px-5 py-20 sm:py-28 ${fundo}`}>
-      <div className="mx-auto grid max-w-[1024px] items-center gap-12 lg:grid-cols-2 lg:gap-20">
+    <section
+      id={id}
+      aria-labelledby={`${id}-titulo`}
+      className={`scroll-mt-11 overflow-hidden px-5 py-20 sm:py-28 ${fundo}`}
+    >
+      <div className="mx-auto grid max-w-[1024px] items-center gap-14 lg:grid-cols-2 lg:gap-20">
         <div className={invertido ? "lg:order-2" : ""}>
           <p className="text-[17px] font-semibold text-brand-text">{rotulo}</p>
           <h2
@@ -169,8 +220,9 @@ function Recurso({
             ))}
           </ul>
         </div>
-        <div aria-hidden="true" className={`mx-auto w-full max-w-[400px] ${invertido ? "lg:order-1" : ""}`}>
-          {children}
+        <div className={`relative mx-auto w-full max-w-[310px] ${invertido ? "lg:order-1" : ""}`}>
+          <Aparelho lado={invertido ? "esq" : "dir"}>{children}</Aparelho>
+          {destaque}
         </div>
       </div>
     </section>
@@ -193,11 +245,10 @@ function PlanoItens({ itens }: { itens: readonly string[] }) {
   );
 }
 
-// Moldura das "telas" de exemplo: parece um card do próprio app.
 function Tela({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <div className="rounded-[36px] bg-canvas p-3 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.25),inset_0_0_0_0.5px_var(--line)]">
-      <p className="px-3 pb-2 pt-3 text-[22px] font-bold tracking-tight">{titulo}</p>
+    <div>
+      <p className="px-2 pb-2 pt-3 text-[22px] font-bold tracking-tight">{titulo}</p>
       <div className="flex flex-col gap-3">{children}</div>
     </div>
   );
@@ -236,22 +287,70 @@ function Linha({
   );
 }
 
+function TelaAnuncio() {
+  return (
+    <Tela titulo="Anúncio">
+      <div className="grid grid-cols-3 gap-1 rounded-full bg-fill p-1 text-center text-[11px] font-medium">
+        <span className="truncate rounded-full bg-surface px-1 py-1.5 shadow-sm">Marketplace</span>
+        <span className="py-1.5 text-ink-muted">OLX</span>
+        <span className="py-1.5 text-ink-muted">Instagram</span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <span className="flex aspect-square items-center justify-center rounded-2xl bg-brand-tint text-brand-text">
+          <IconBox width={22} height={22} />
+        </span>
+        <span className="flex aspect-square items-center justify-center rounded-2xl bg-info-tint text-info">
+          <IconBox width={22} height={22} />
+        </span>
+        <span className="flex aspect-square items-center justify-center rounded-2xl bg-warning-tint text-warning">
+          <IconBox width={22} height={22} />
+        </span>
+      </div>
+      <div className="hairline rounded-2xl bg-surface px-4 py-3">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[12px] font-medium text-ink-muted">Título</span>
+          <span className="text-[12px] tabular-nums text-ink-faint">41/100</span>
+        </div>
+        <p className="mt-1 text-[15px] leading-snug">Bicicleta Caloi Aro 29 Azul 21 Marchas</p>
+      </div>
+      <div className="hairline rounded-2xl bg-surface px-4 py-3">
+        <span className="text-[12px] font-medium text-ink-muted">Descrição</span>
+        <p className="mt-1 text-[13px] leading-snug text-ink-2">
+          Bicicleta aro 29 com quadro de alumínio, 21 marchas e freio a disco.
+        </p>
+        <p className="mt-1.5 text-[13px] leading-snug text-ink-2">• Câmbio Shimano • Suspensão dianteira</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <span className="flex items-center justify-center gap-1.5 rounded-full bg-fill py-2.5 text-[14px] font-semibold">
+          <IconSparkles width={15} height={15} /> Escrever
+        </span>
+        <span className="bg-brand-fill flex items-center justify-center rounded-full py-2.5 text-[14px] font-semibold text-on-brand">
+          Copiar
+        </span>
+      </div>
+    </Tela>
+  );
+}
+
 function TelaVendas() {
   return (
     <Tela titulo="Nova venda">
       <Lista>
-        <Linha titulo="Vestido midi linho" sub="Areia · M" valor="R$ 189,90" />
-        <Linha titulo="Brinco argola dourada" sub="2 × R$ 34,90" valor="R$ 69,80" />
-        <Linha titulo="Bolsa palha" sub="Natural" valor="R$ 119,00" />
+        <Linha titulo="Bicicleta Caloi Aro 29" sub="Azul · usada" valor="R$ 890,00" />
+        <Linha titulo="Capacete infantil" sub="2 × R$ 45,00" valor="R$ 90,00" />
+      </Lista>
+      <Lista>
+        <Linha titulo="Canal" valor="Marketplace" valorTom="text-brand-text" />
+        <Linha titulo="Frete" sub="Outros gastos" valor="− R$ 25,00" valorTom="text-danger" />
       </Lista>
       <div className="grid grid-cols-3 gap-1 rounded-full bg-fill p-1 text-center text-[13px] font-medium">
         <span className="rounded-full bg-surface py-1.5 shadow-sm">Pix</span>
         <span className="py-1.5 text-ink-muted">Cartão</span>
         <span className="py-1.5 text-ink-muted">A prazo</span>
       </div>
-      <div className="flex items-center justify-between px-3 pt-1">
+      <div className="flex items-center justify-between px-2 pt-1">
         <span className="text-[15px] text-ink-muted">Total</span>
-        <span className="text-[28px] font-bold tracking-tight tabular-nums">R$ 378,70</span>
+        <span className="text-[26px] font-bold tracking-tight tabular-nums">R$ 980,00</span>
       </div>
       <span className="bg-brand-fill flex items-center justify-center rounded-full py-3 text-[17px] font-semibold text-on-brand">
         Registrar venda
@@ -265,91 +364,55 @@ function TelaEstoque() {
     <Tela titulo="Produtos">
       <div className="flex gap-2 px-1">
         <span className="rounded-xl bg-tile-danger px-3 py-2 text-[13px] font-semibold text-on-tile-danger">2 zerados</span>
-        <span className="rounded-xl bg-tile-warning px-3 py-2 text-[13px] font-semibold text-on-tile-warning">5 acabando</span>
+        <span className="rounded-xl bg-tile-warning px-3 py-2 text-[13px] font-semibold text-on-tile-warning">3 acabando</span>
       </div>
       <Lista>
         <Linha
           icone={<IconBox width={16} height={16} />}
           tom="bg-brand-tint text-brand-text"
-          titulo="Vestido midi linho"
-          sub="P 3 · M 1 · G 4"
-          valor="8 un."
+          titulo="Tênis Nike Air Max"
+          sub="38 · 40 · 42 · 43"
+          valor="9 un."
         />
         <Linha
           icone={<IconBox width={16} height={16} />}
           tom="bg-warning-tint text-warning"
-          titulo="Brinco argola dourada"
-          sub="Mínimo 5"
+          titulo="Air Fryer 4L"
+          sub="Mínimo 3"
           valor="2 un."
           valorTom="text-warning"
         />
         <Linha
           icone={<IconBox width={16} height={16} />}
           tom="bg-danger-tint text-danger"
-          titulo="Bolsa palha"
-          sub="Última venda hoje, 14:32"
+          titulo="Bicicleta Caloi Aro 29"
+          sub="Vendida hoje, 14:32"
           valor="0 un."
           valorTom="text-danger"
         />
         <Linha
           icone={<IconBox width={16} height={16} />}
           tom="bg-brand-tint text-brand-text"
-          titulo="Camisa oversized"
-          sub="Branca · Preta"
-          valor="21 un."
+          titulo="Fone Bluetooth"
+          sub="Preto · Branco"
+          valor="14 un."
         />
       </Lista>
     </Tela>
   );
 }
 
-function TelaAPrazo() {
-  return (
-    <Tela titulo="Contas a receber">
-      <div className="hairline rounded-3xl bg-surface px-4 py-4">
-        <p className="text-[13px] text-ink-muted">Total a receber</p>
-        <p className="text-[32px] font-bold tracking-tight tabular-nums">R$ 1.284,50</p>
-        <p className="mt-1 text-[13px] font-semibold text-danger">R$ 210,00 em atraso</p>
-      </div>
-      <Lista>
-        <Linha
-          icone={<IconWhatsapp width={16} height={16} />}
-          tom="bg-danger-tint text-danger"
-          titulo="Juliana Prado"
-          sub="Parcela 2/3 · venceu dia 20"
-          valor="R$ 210,00"
-          valorTom="text-danger"
-        />
-        <Linha
-          icone={<IconWhatsapp width={16} height={16} />}
-          tom="bg-warning-tint text-warning"
-          titulo="Marcos Lima"
-          sub="A prazo · vence amanhã"
-          valor="R$ 86,00"
-        />
-        <Linha
-          icone={<IconWhatsapp width={16} height={16} />}
-          tom="bg-fill text-ink-muted"
-          titulo="Ana Beatriz"
-          sub="Parcela 1/4 · vence 12/10"
-          valor="R$ 97,50"
-        />
-      </Lista>
-    </Tela>
-  );
-}
-
-function TelaCaixa() {
+function TelaLucro() {
   const barras = [38, 52, 44, 70, 58, 86, 64];
   return (
     <Tela titulo="Fluxo de caixa">
       <div className="hairline rounded-3xl bg-surface px-4 py-4">
         <div className="flex items-baseline justify-between">
-          <p className="text-[13px] text-ink-muted">Saldo de setembro</p>
-          <p className="text-[13px] font-semibold text-positive">+ R$ 1.940 de agosto</p>
+          <p className="text-[13px] text-ink-muted">Saldo do mês</p>
+          <p className="text-[12px] font-semibold text-positive">+ R$ 940 de agosto</p>
         </div>
-        <p className="text-[32px] font-bold tracking-tight tabular-nums">R$ 5.318,20</p>
-        <div className="mt-4 flex h-24 items-end gap-2">
+        <p className="text-[30px] font-bold tracking-tight tabular-nums">R$ 3.318,20</p>
+        <div className="mt-4 flex h-20 items-end gap-2">
           {barras.map((b, i) => (
             <span
               key={i}
@@ -364,16 +427,17 @@ function TelaCaixa() {
           icone={<IconCart width={16} height={16} />}
           tom="bg-positive-tint text-positive"
           titulo="Venda #214"
-          sub="Hoje, 14:32 · Pix"
-          valor="+ R$ 378,70"
+          sub="Hoje · Marketplace · Pix"
+          valor="+ R$ 980,00"
           valorTom="text-positive"
         />
         <Linha
           icone={<IconWallet width={16} height={16} />}
           tom="bg-danger-tint text-danger"
-          titulo="Aluguel"
-          sub="Hoje · Despesa fixa"
-          valor="− R$ 1.200,00"
+          titulo="Frete e embalagem"
+          sub="Hoje · Outros gastos"
+          valor="− R$ 25,00"
+          valorTom="text-danger"
         />
       </Lista>
     </Tela>
@@ -403,48 +467,83 @@ export default function LandingPage() {
       </header>
 
       <main id="topo" className="flex flex-1 flex-col">
-        <section className="relative flex flex-col items-center overflow-hidden px-5 pb-[190px] pt-16 text-center">
+        <section className="relative flex flex-col items-center overflow-hidden px-5 pt-14 text-center sm:pt-16">
           <div className="drop-shadow-[0_24px_40px_rgba(212,95,48,0.28)] drop-shadow-[0_4px_10px_rgba(0,0,0,0.12)]">
-            <Icone tamanho={148} brilho />
+            <Icone tamanho={112} brilho />
           </div>
-          <p className="mt-6 text-[19px] font-semibold tracking-tight text-brand-text">Marcon</p>
-          <h1 className="mt-[18px] max-w-[980px] text-[44px] font-bold leading-[1.02] tracking-[-0.05em] sm:text-7xl lg:text-[80px]">
-            A loja inteira.
+          <p className="mt-5 text-[17px] font-semibold tracking-tight text-brand-text">
+            Marcon · para quem vende no Marketplace
+          </p>
+          <h1 className="mt-4 max-w-[980px] text-[44px] font-bold leading-[1.02] tracking-[-0.05em] sm:text-7xl lg:text-[80px]">
+            Anunciou. Vendeu.
             <br />
-            Na palma da mão.
+            Sabe quanto lucrou.
           </h1>
-          <p className="mt-4 max-w-[640px] text-xl font-medium leading-[1.35] tracking-[-0.015em] text-ink-muted sm:text-2xl">
-            Vendas, estoque, parcelado e caixa. Tudo se atualiza sozinho, a cada venda.
+          <p className="mt-4 max-w-[660px] text-xl font-medium leading-[1.35] tracking-[-0.015em] text-ink-muted sm:text-2xl">
+            O app de quem vende no Facebook Marketplace: anúncio pronto para copiar, venda em dois toques e o lucro de
+            cada uma, sem planilha.
           </p>
           <div className="mt-8 flex items-center gap-3.5">
             <Link
-              href="/login"
-              className="inline-flex items-center rounded-full bg-ink px-6 py-3 text-[17px] font-medium text-surface transition active:scale-[0.98]"
+              href="/login?modo=signup"
+              className="bg-brand-fill inline-flex items-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"
             >
-              Entrar
+              Começar teste grátis
             </Link>
-            <Link href="/login?modo=signup" className="text-[17px] font-medium text-brand-text hover:underline">
-              Criar conta ›
+            <Link href="/login" className="text-[17px] font-medium text-brand-text hover:underline">
+              Entrar ›
             </Link>
           </div>
+          <p className="mt-4 text-[13px] text-ink-muted">
+            Serve também para OLX, grupos de desapego e Instagram. {DIAS_DE_TESTE} dias grátis, sem cartão.
+          </p>
 
-          <div
-            aria-hidden="true"
-            className="absolute -bottom-[170px] left-1/2 grid h-[300px] w-[min(900px,calc(100%-32px))] -translate-x-1/2 grid-cols-3 rounded-t-[48px] bg-panel px-4 pt-7 shadow-[inset_0_0.5px_0_var(--line)] sm:px-12"
-          >
-            {NUMEROS.map((n) => (
-              <div key={n.valor} className="flex flex-col items-center gap-1">
-                <span className="text-2xl font-bold tabular-nums tracking-[-0.04em] sm:text-[40px]">{n.valor}</span>
-                <span className="text-xs text-ink-muted sm:text-sm">{n.rotulo}</span>
-              </div>
-            ))}
+          <div className="mt-14 -mx-5 flex h-[330px] w-[calc(100%+2.5rem)] justify-center gap-5 overflow-hidden [mask-image:linear-gradient(to_bottom,black_58%,transparent)] sm:h-[440px] sm:gap-8">
+            <Aparelho lado="esq" className="mt-8 w-[290px] shrink-0 text-left">
+              <TelaAnuncio />
+            </Aparelho>
+            <Aparelho lado="dir" className="hidden w-[290px] shrink-0 text-left sm:block">
+              <TelaVendas />
+            </Aparelho>
           </div>
         </section>
 
         <Recurso
+          id="anuncios"
+          rotulo="Anúncios"
+          fundo="bg-panel"
+          titulo={
+            <>
+              Anúncio pronto.
+              <br />
+              É só copiar e colar.
+            </>
+          }
+          texto="Cadastrou o produto, o anúncio já tem por onde começar. Título e descrição no tamanho que cada canal aceita, com as fotos reunidas no mesmo lugar."
+          pontos={[
+            "Uma versão para cada canal: Marketplace, OLX, Instagram",
+            "A IA escreve o título e a descrição, você só revisa",
+            "Copie o texto e compartilhe todas as fotos de uma vez",
+          ]}
+          destaque={
+            <Destaque className="-left-2 top-48 sm:-left-24">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-tint text-brand-text">
+                <IconSparkles width={16} height={16} />
+              </span>
+              <span className="flex flex-col text-left">
+                <span className="text-[13px] font-semibold">Anúncio escrito</span>
+                <span className="text-[12px] text-ink-muted">41 de 100 caracteres</span>
+              </span>
+            </Destaque>
+          }
+        >
+          <TelaAnuncio />
+        </Recurso>
+
+        <Recurso
           id="vendas"
           rotulo="Vendas"
-          fundo="bg-panel"
+          invertido
           titulo={
             <>
               Vendeu? Anotou.
@@ -452,12 +551,23 @@ export default function LandingPage() {
               Em dois toques.
             </>
           }
-          texto="Escolha os produtos, a forma de pagamento e pronto. O estoque baixa, o caixa sobe e o lucro da venda aparece na hora."
+          texto="Escolha o produto, o canal e a forma de pagamento. O estoque baixa, o caixa sobe e o lucro da venda aparece na hora, já descontando frete e embalagem."
           pontos={[
             "Pix, dinheiro, cartão, a prazo ou parcelado",
-            "Busca rápida por nome, cor ou tamanho",
-            "Desconto e cliente opcionais, sem travar a venda",
+            "Saiba em qual canal cada venda saiu",
+            "Frete, gasolina e embalagem entram como outros gastos",
           ]}
+          destaque={
+            <Destaque className="-bottom-3 -left-2 sm:bottom-24 sm:-left-24">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-positive-tint text-positive">
+                <IconCart width={16} height={16} />
+              </span>
+              <span className="flex flex-col text-left">
+                <span className="text-[13px] font-semibold">Venda registrada</span>
+                <span className="text-[12px] text-ink-muted">R$ 980,00 · Marketplace</span>
+              </span>
+            </Destaque>
+          }
         >
           <TelaVendas />
         </Recurso>
@@ -465,48 +575,38 @@ export default function LandingPage() {
         <Recurso
           id="estoque"
           rotulo="Estoque"
-          invertido
+          fundo="bg-panel"
           titulo={
             <>
-              Saiba o que acabou
+              Saiba o que ainda
               <br />
-              antes do cliente.
+              tem para vender.
             </>
           }
-          texto="Cada venda desconta do estoque sozinha, variação por variação. Quando algo chega no mínimo, aparece em destaque no Início."
+          texto="Cada venda desconta do estoque sozinha, variação por variação. Quando algo zera, aparece em destaque no Início, para você tirar o anúncio do ar."
           pontos={[
-            "Estoque por tamanho, cor ou sabor",
+            "Estoque por tamanho, cor ou modelo",
             "Entrada de mercadoria com custo e fornecedor",
-            "Margem de cada produto calculada pra você",
+            "Margem de cada produto calculada para você",
           ]}
+          destaque={
+            <Destaque className="-bottom-3 -right-2 sm:bottom-20 sm:-right-24">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger-tint text-danger">
+                <IconAlert width={16} height={16} />
+              </span>
+              <span className="flex flex-col text-left">
+                <span className="text-[13px] font-semibold">Bicicleta Caloi zerou</span>
+                <span className="text-[12px] text-ink-muted">Tire o anúncio do ar</span>
+              </span>
+            </Destaque>
+          }
         >
           <TelaEstoque />
         </Recurso>
 
         <Recurso
-          id="a-prazo"
-          rotulo="A prazo"
-          fundo="bg-panel"
-          titulo={
-            <>
-              O caderninho,
-              <br />
-              sem o caderninho.
-            </>
-          }
-          texto="Venda a prazo ou parcelado e deixe o Marcon lembrar. Você vê quem deve, quanto e desde quando, e cobra pelo WhatsApp num toque."
-          pontos={[
-            "Parcelas com vencimento, criadas na hora da venda",
-            "Atrasados em destaque, com contador no Início",
-            "Marcou como pago, entrou no caixa",
-          ]}
-        >
-          <TelaAPrazo />
-        </Recurso>
-
-        <Recurso
-          id="caixa"
-          rotulo="Caixa"
+          id="lucro"
+          rotulo="Lucro"
           invertido
           titulo={
             <>
@@ -515,14 +615,25 @@ export default function LandingPage() {
               Quanto sobrou.
             </>
           }
-          texto="Vendas e recebimentos entram no caixa sozinhos. Lance as despesas e veja o saldo do mês, já somando o que sobrou do mês anterior."
+          texto="Vendas e recebimentos entram no caixa sozinhos. Lance o que gastou e veja o saldo do mês, já somando o que sobrou do anterior."
           pontos={[
             "Entradas e saídas mês a mês",
-            "Despesas por categoria",
-            "Lucro de verdade, descontando o custo dos produtos",
+            "Lucro de verdade, descontando custo do produto e frete",
+            "Metas do mês que enchem conforme você vende",
           ]}
+          destaque={
+            <Destaque className="-left-2 top-24 sm:-left-24">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-tint text-brand-text">
+                <IconMegaphone width={16} height={16} />
+              </span>
+              <span className="flex flex-col text-left">
+                <span className="text-[13px] font-semibold">Meta batida</span>
+                <span className="text-[12px] text-ink-muted">R$ 3.000 em vendas</span>
+              </span>
+            </Destaque>
+          }
         >
-          <TelaCaixa />
+          <TelaLucro />
         </Recurso>
 
         <section aria-labelledby="extras-titulo" className="bg-panel px-5 py-20 sm:py-28">
@@ -563,7 +674,7 @@ export default function LandingPage() {
               manda notificações.
             </p>
             <ol className="mx-auto mt-10 grid max-w-[640px] gap-3 text-left sm:grid-cols-3">
-              {["Crie sua conta", "Cadastre os produtos", "Registre a primeira venda"].map((passo, i) => (
+              {["Crie sua conta", "Cadastre o produto e as fotos", "Anuncie e registre a venda"].map((passo, i) => (
                 <li key={passo} className="hairline flex items-center gap-3 rounded-2xl bg-panel px-4 py-3.5">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-[13px] font-semibold text-surface">
                     {i + 1}
@@ -661,9 +772,9 @@ export default function LandingPage() {
             id="cta-titulo"
             className="mx-auto max-w-[800px] text-[40px] font-bold leading-[1.04] tracking-[-0.045em] sm:text-6xl"
           >
-            Sua loja merece
+            Venda no Marketplace
             <br />
-            mais que um caderno.
+            com as contas em dia.
           </h2>
           <p className="mx-auto mt-4 max-w-[520px] text-xl font-medium text-ink-muted">
             Comece hoje. Leva menos de um minuto.
@@ -686,7 +797,7 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-[1024px] flex-col items-center justify-between gap-4 sm:flex-row">
           <span className="flex items-center gap-2">
             <Icone tamanho={16} />
-            Marcon · Gestão pra quem vende
+            Marcon · Gestão para quem vende no Marketplace
           </span>
           <nav aria-label="Rodapé" className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {SECOES.map((s) => (

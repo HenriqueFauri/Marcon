@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const contagens = { "/contas-a-receber": parcelasAbertas ?? 0 };
   const admin = ehAdmin(user);
 
-  const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Minha loja";
+  const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Meu negócio";
   const nome =
     (user.user_metadata?.nome as string | undefined) ??
     (user.user_metadata?.full_name as string | undefined) ??

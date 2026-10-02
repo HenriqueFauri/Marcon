@@ -64,8 +64,8 @@ export default async function ConfiguracoesPage() {
         <Card title="Canais de venda" description="Onde você vende. Aparecem na venda e nos anúncios por canal.">
           <ListaSimples
             itens={(canais ?? []) as CanalVenda[]}
-            placeholder="Ex: Instagram, Mercado Livre..."
-            sugestoes={["Loja física", "WhatsApp", "Instagram", "Mercado Livre", "Shopee"]}
+            placeholder="Ex: Facebook Marketplace, OLX..."
+            sugestoes={["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre"]}
             onCriar={criarCanal}
             onExcluir={excluirCanal}
           />
