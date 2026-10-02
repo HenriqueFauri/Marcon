@@ -41,7 +41,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth") ||
     pathname === "/landing" ||
     pathname === "/termos" ||
-    pathname === "/privacidade";
+    pathname === "/privacidade" ||
+    pathname.startsWith("/r/"); // recibo público, aberto pelo cliente de quem vendeu
 
   if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();

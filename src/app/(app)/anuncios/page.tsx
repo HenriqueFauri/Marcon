@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { ProdutoComEstoque } from "@/types/domain";
 import { SearchInput } from "@/components/search-input";
 import { Badge, EmptyState, ErrorMessage, PageHeader } from "@/components/ui";
 import { IconBox } from "@/components/icons";
+import { VistaToggle, type Vista } from "./vista-toggle";
 
 export const metadata: Metadata = { title: "Anúncios" };
 
@@ -18,6 +20,10 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase() : "";
   const filtro = FILTROS.find((f) => f.valor === sp.filtro)?.valor ?? "";
+  // a vista vem da URL; sem ela, vale a última escolha (cookie) e, na primeira vez, a lista
+  const lembrada = (await cookies()).get("marcon-vista-anuncios")?.value;
+  const vistaParam = typeof sp.vista === "string" ? sp.vista : lembrada;
+  const vista: Vista = vistaParam === "galeria" ? "galeria" : "lista";
 
   const supabase = await createClient();
   const [{ data, error }, { data: anunciosData }, { data: fotosData }] = await Promise.all([
@@ -63,12 +69,13 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
     : { data: [] };
   const urlPorCaminho = new Map((assinadas ?? []).map((a) => [a.path, a.signedUrl]));
 
-  const filtroHref = (valor: string) => {
+  const href = (opcoes: { filtro?: string; vista?: Vista }) => {
     const qs = new URLSearchParams();
-    if (valor) qs.set("filtro", valor);
+    const f = opcoes.filtro ?? filtro;
+    if (f) qs.set("filtro", f);
     if (q) qs.set("q", q);
-    const s = qs.toString();
-    return s ? `/anuncios?${s}` : "/anuncios";
+    qs.set("vista", opcoes.vista ?? vista);
+    return `/anuncios?${qs.toString()}`;
   };
 
   return (
@@ -78,13 +85,17 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
         description="Títulos, descrições e fotos de cada produto, prontos para copiar no marketplace."
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SearchInput placeholder="Buscar produto..." />
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <SearchInput placeholder="Buscar produto..." />
+          <VistaToggle vista={vista} hrefLista={href({ vista: "lista" })} hrefGaleria={href({ vista: "galeria" })} />
+        </div>
         <div className="flex gap-1 overflow-x-auto">
           {FILTROS.map((f) => (
             <Link
               key={f.valor}
-              href={filtroHref(f.valor)}
+              href={href({ filtro: f.valor })}
+              replace
               className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${filtro === f.valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
             >
               {f.label}
@@ -100,15 +111,52 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
         />
       ) : lista.length === 0 ? (
         <EmptyState title="Nenhum produto encontrado" description="Tente outro termo de busca ou filtro." />
-      ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      ) : vista === "galeria" ? (
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {lista.map((p) => {
             const capa = capaPorProduto.get(p.id);
             const url = capa ? urlPorCaminho.get(capa) : undefined;
             const versoes = versoesPorProduto.get(p.id) ?? 0;
             const fotos = totalFotos.get(p.id) ?? 0;
             return (
-              <li key={p.id} className="hairline relative flex items-center gap-3 rounded-2xl bg-surface p-3 hover:bg-fill/50">
+              <li key={p.id} className="hairline relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface hover:bg-fill/50">
+                <div className="relative flex aspect-square items-center justify-center bg-fill text-ink-muted">
+                  {url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    <IconBox width={32} height={32} />
+                  )}
+                  <div className="absolute left-2 top-2 flex flex-wrap gap-1">
+                    {versoes > 0 && <Badge tone="positive">{versoes === 1 ? "1 versão" : `${versoes} versões`}</Badge>}
+                  </div>
+                  {fotos > 1 && (
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      {fotos} fotos
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 p-2.5">
+                  <Link href={`/anuncios/${p.id}`} className="block truncate text-sm font-medium text-ink after:absolute after:inset-0">
+                    {p.nome}
+                  </Link>
+                  <p className="truncate text-xs text-ink-muted">
+                    {[p.categorias?.nome, p.marca].filter(Boolean).join(" · ") || "Sem categoria"}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {lista.map((p) => {
+            const capa = capaPorProduto.get(p.id);
+            const url = capa ? urlPorCaminho.get(capa) : undefined;
+            const versoes = versoesPorProduto.get(p.id) ?? 0;
+            const fotos = totalFotos.get(p.id) ?? 0;
+            return (
+              <li key={p.id} className="hairline relative flex min-w-0 items-center gap-3 rounded-2xl bg-surface p-3 hover:bg-fill/50">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-fill text-ink-muted">
                   {url ? (
                     // eslint-disable-next-line @next/next/no-img-element

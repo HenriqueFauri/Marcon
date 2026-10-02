@@ -19,6 +19,7 @@ export interface NovaVendaInput {
   numeroParcelas: number;
   primeiroVencimento: string | null;
   desconto: number;
+  outrosGastos: number; // motoboy, embalagem...: custo do lojista nesta venda
   data: string | null;
 }
 
@@ -44,6 +45,8 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
     if (desconto < 0) return { ok: false, error: "O desconto não pode ser negativo." };
     const subtotal = itens.reduce((s, i) => s + i.quantidade * i.preco_unitario, 0);
     if (desconto > subtotal) return { ok: false, error: "O desconto é maior que o total da venda." };
+    const outrosGastos = Math.round((Number(input.outrosGastos) || 0) * 100) / 100;
+    if (outrosGastos < 0) return { ok: false, error: "Os outros gastos não podem ser negativos." };
 
     const aPrazo = input.tipoPagamento === "a_prazo";
     const parcelas = aPrazo ? Math.trunc(Number(input.numeroParcelas) || 1) : 1;
@@ -94,6 +97,8 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
       p_data: data,
       p_canal_id: input.canalId || null,
       p_forma_pagamento_id: input.formaPagamentoId || null,
+      // só manda quando há gasto: o banco ainda sem a migration 0018 segue registrando vendas normais
+      ...(outrosGastos > 0 ? { p_outros_gastos: outrosGastos } : {}),
     });
     if (error) return falha(error);
 
@@ -134,6 +139,19 @@ export async function cancelarVenda(vendaId: string): Promise<ActionResult> {
     revalidarVendas();
     revalidatePath(`/vendas/${vendaId}`);
     return ok("Venda cancelada. Estoque devolvido e valores estornados.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// troca o código do recibo: o link mandado antes para de abrir
+export async function novoLinkRecibo(vendaId: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("novo_link_recibo", { p_venda_id: vendaId });
+    if (error) return falha(error);
+    revalidatePath(`/vendas/${vendaId}`);
+    return ok("Link novo criado. O anterior parou de funcionar.");
   } catch (e) {
     return falha(e);
   }

@@ -30,7 +30,7 @@ export function SearchInput({ placeholder = "Buscar..." }: { placeholder?: strin
   }
 
   return (
-    <div className="relative w-full sm:max-w-xs">
+    <div className="relative min-w-0 flex-1 sm:max-w-xs sm:flex-none sm:basis-80">
       <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" width={16} height={16} />
       <input
         type="search"

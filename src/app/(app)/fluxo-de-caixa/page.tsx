@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { LancamentoCaixa } from "@/types/domain";
-import { formatBRL, formatData, hojeISO, intervaloDoMes, mesAtual, mesValido, somarDias } from "@/lib/format";
-import { MonthPicker } from "@/components/month-picker";
+import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
+import { paramsDoPeriodo, resolverPeriodo } from "@/lib/periodo";
 import { ConfirmButton } from "@/components/confirm-button";
 import {
   Badge,
@@ -18,22 +18,25 @@ import {
   theadClass,
 } from "@/components/ui";
 import { NovoLancamentoForm } from "./novo-lancamento-form";
+import { PeriodoCaixaPicker } from "./periodo-caixa";
 import { excluirLancamento } from "./actions";
 
 export const metadata: Metadata = { title: "Fluxo de caixa" };
 
 function origem(l: LancamentoCaixa) {
   if (l.parcela_id) return { label: "Parcela", tone: "positive" as const };
-  if (l.venda_id) return l.tipo === "saida" ? { label: "Estorno", tone: "negative" as const } : { label: "Venda", tone: "positive" as const };
+  if (l.venda_id) return l.tipo === "saida" || l.origem === "ajuste" ? { label: "Estorno", tone: "negative" as const } : { label: "Venda", tone: "positive" as const };
   if (l.movimento_estoque_id || l.origem === "compra") return { label: "Estoque", tone: "info" as const };
   return { label: "Manual", tone: "neutral" as const };
 }
 
 export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/fluxo-de-caixa">) {
   const sp = await searchParams;
-  const mes = mesValido(typeof sp.mes === "string" ? sp.mes : null) ?? mesAtual();
+  const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
+  const periodo = resolverPeriodo({ mes: texto(sp.mes), dias: texto(sp.dias), de: texto(sp.de), ate: texto(sp.ate) });
   const tipo = sp.tipo === "entrada" || sp.tipo === "saida" ? sp.tipo : undefined;
-  const { inicio, fimExclusivo } = intervaloDoMes(mes);
+  const { inicio, fimExclusivo } = periodo;
+  const noMes = periodo.modo === "mes";
 
   const supabase = await createClient();
   let query = supabase
@@ -47,7 +50,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
 
   const hoje = hojeISO();
   // saldo real: até hoje (lançamento com data futura ainda não está no caixa) ou
-  // até o fim do mês consultado; somado no banco pra não cortar em 1000 linhas
+  // até o fim do período consultado; somado no banco pra não cortar em 1000 linhas
   const ultimoDia = somarDias(fimExclusivo, -1);
   const [{ data, error }, { data: saldoFinalData }, { data: saldoAnteriorData }] = await Promise.all([
     query,
@@ -74,7 +77,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
   const saldoAnterior = Number(saldoAnteriorData ?? 0);
   const saldoEmCaixa = Number(saldoFinalData ?? 0);
 
-  // gastos por categoria no mês
+  // gastos por categoria no período
   const porCategoria = new Map<string, number>();
   for (const l of lancamentos) {
     if (l.tipo !== "saida") continue;
@@ -83,8 +86,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
   const topCategorias = [...porCategoria.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   const filtroHref = (t?: string) => {
-    const qs = new URLSearchParams();
-    if (mes !== mesAtual()) qs.set("mes", mes);
+    const qs = new URLSearchParams(paramsDoPeriodo(periodo));
     if (t) qs.set("tipo", t);
     const s = qs.toString();
     return s ? `/fluxo-de-caixa?${s}` : "/fluxo-de-caixa";
@@ -98,8 +100,13 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
         action={<NovoLancamentoForm hoje={hoje} categorias={categorias} />}
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <MonthPicker mes={mes} basePath="/fluxo-de-caixa" params={{ tipo }} />
+      <div className="mb-4 flex flex-col gap-3">
+        <PeriodoCaixaPicker periodo={periodo} tipo={tipo} />
+        {!noMes && (
+          <p className="text-[13px] text-ink-muted">
+            De {formatData(periodo.de)} até {formatData(periodo.ate)}
+          </p>
+        )}
         <div className="flex gap-1">
           {[
             [undefined, "Tudo"],
@@ -118,14 +125,14 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Entradas no mês" value={formatBRL(entradas)} tone="positive" />
-        <StatCard label="Saídas no mês" value={formatBRL(saidas)} tone="negative" />
-        <StatCard label="Resultado do mês" value={formatBRL(resultado)} tone={resultado >= 0 ? "positive" : "negative"} />
+        <StatCard label={noMes ? "Entradas no mês" : "Entradas no período"} value={formatBRL(entradas)} tone="positive" />
+        <StatCard label={noMes ? "Saídas no mês" : "Saídas no período"} value={formatBRL(saidas)} tone="negative" />
+        <StatCard label={noMes ? "Resultado do mês" : "Resultado do período"} value={formatBRL(resultado)} tone={resultado >= 0 ? "positive" : "negative"} />
         <StatCard
           label="Saldo em caixa"
           value={formatBRL(saldoEmCaixa)}
           tone={saldoEmCaixa >= 0 ? "neutral" : "negative"}
-          hint={`${formatBRL(saldoAnterior)} vindo do mês anterior`}
+          hint={`${formatBRL(saldoAnterior)} ${noMes ? "vindo do mês anterior" : "antes do período"}`}
         />
       </div>
 

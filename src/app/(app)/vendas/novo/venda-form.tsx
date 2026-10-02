@@ -6,7 +6,7 @@ import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { useAction } from "@/components/use-action";
 import { Card, Field, btnPrimary, inputClass } from "@/components/ui";
-import { IconBox, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { IconBox, IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { registrarVenda } from "../actions";
 import { ListaProdutos, agruparVendaveis } from "./produto-seletor";
 
@@ -30,9 +30,16 @@ interface ItemCarrinho {
   preco: string; // texto pra permitir digitar "12," sem o campo brigar com o usuário
 }
 
+// aceita "12,50", "12.50" e "1.234,50"
 function paraNumero(v: string) {
-  const n = Number(v.replace(",", "."));
+  const limpo = v.includes(",") ? v.replace(/./g, "").replace(",", ".") : v;
+  const n = Number(limpo);
   return Number.isFinite(n) ? n : 0;
+}
+
+// o preço aparece no jeito brasileiro (79,00); paraNumero lê de volta
+function emTexto(n: number) {
+  return n.toFixed(2).replace(".", ",");
 }
 
 function somarMeses(dataISO: string, meses: number) {
@@ -203,7 +210,7 @@ export function VendaForm({
   const [busca, setBusca] = useState(iniciais.length > 1 ? iniciais[0].produto_nome : "");
   const [tabela, setTabela] = useState<"varejo" | "atacado">("varejo");
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>(() =>
-    iniciais.length === 1 ? [{ chave: iniciais[0].chave, quantidade: 1, preco: iniciais[0].preco_varejo.toFixed(2) }] : [],
+    iniciais.length === 1 ? [{ chave: iniciais[0].chave, quantidade: 1, preco: emTexto(iniciais[0].preco_varejo) }] : [],
   );
   const [clienteId, setClienteId] = useState("");
   const [clienteNome, setClienteNome] = useState("");
@@ -212,6 +219,7 @@ export function VendaForm({
   const [formaId, setFormaId] = useState("");
   const [formaNome, setFormaNome] = useState("");
   const [desconto, setDesconto] = useState("");
+  const [outrosGastos, setOutrosGastos] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState<"a_vista" | "a_prazo">("a_vista");
   const [numeroParcelas, setNumeroParcelas] = useState(2);
   const [data, setData] = useState(hoje);
@@ -237,8 +245,10 @@ export function VendaForm({
   const subtotal = linhas.reduce((s, l) => s + l.item.quantidade * paraNumero(l.item.preco), 0);
   const custo = linhas.reduce((s, l) => s + l.item.quantidade * l.produto.custo, 0);
   const valorDesconto = paraNumero(desconto);
+  const valorOutros = paraNumero(outrosGastos);
   const total = subtotal - valorDesconto;
-  const lucro = total - custo;
+  // outros gastos (motoboy, embalagem...) saem do bolso do lojista: baixam o lucro, não o total do cliente
+  const lucro = total - custo - valorOutros;
   const parcelasValidas = Math.min(Math.max(Math.trunc(numeroParcelas) || 1, 1), 60);
   const valorParcela = parcelasValidas > 0 ? total / parcelasValidas : 0;
 
@@ -255,7 +265,7 @@ export function VendaForm({
           i.chave === v.chave ? { ...i, quantidade: Math.min(i.quantidade + 1, v.estoque) } : i,
         );
       }
-      return [...prev, { chave: v.chave, quantidade: 1, preco: precoPadrao(v).toFixed(2) }];
+      return [...prev, { chave: v.chave, quantidade: 1, preco: emTexto(precoPadrao(v)) }];
     });
   }
 
@@ -274,7 +284,7 @@ export function VendaForm({
         const v = porChave.get(i.chave);
         if (!v) return i;
         const preco = nova === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
-        return { ...i, preco: preco.toFixed(2) };
+        return { ...i, preco: emTexto(preco) };
       }),
     );
   }
@@ -284,6 +294,7 @@ export function VendaForm({
     if (linhas.some((l) => paraNumero(l.item.preco) < 0)) return "Há um item com preço negativo.";
     if (valorDesconto < 0) return "O desconto não pode ser negativo.";
     if (valorDesconto > subtotal) return "O desconto é maior que o total da venda.";
+    if (valorOutros < 0) return "Os outros gastos não podem ser negativos.";
     if (tipoPagamento === "a_prazo" && !clienteId && !clienteNome.trim())
       return "Informe o cliente — venda a prazo precisa saber de quem cobrar.";
     return null;
@@ -314,6 +325,7 @@ export function VendaForm({
           numeroParcelas: parcelasValidas,
           primeiroVencimento,
           desconto: valorDesconto,
+          outrosGastos: valorOutros,
           data,
         }).then((r) => {
           if (r.ok && r.id) router.push(`/vendas/${r.id}`);
@@ -402,20 +414,37 @@ export function VendaForm({
                         {produto.rotulo}
                       </p>
                     )}
-                    <label className="flex items-center gap-1 text-[15px] text-ink-muted">
-                      R$
-                      <input
-                        inputMode="decimal"
-                        value={item.preco}
-                        onChange={(e) =>
-                          setCarrinho((prev) =>
-                            prev.map((i) => (i.chave === item.chave ? { ...i, preco: e.target.value } : i)),
-                          )
-                        }
-                        aria-label={`Preço unitário de ${produto.nome}`}
-                        className="w-20 rounded-md bg-transparent px-1 tabular-nums text-ink-muted outline-none focus:bg-fill focus:text-ink"
-                      />
-                    </label>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <label
+                        className="flex w-[8.5rem] items-center gap-1.5 rounded-xl border border-line bg-fill px-2.5 py-1 text-ink-muted focus-within:border-brand focus-within:bg-surface focus-within:ring-4 focus-within:ring-brand/15"
+                        title="Toque para mudar o preço desta venda"
+                      >
+                        <span className="text-[15px]">R$</span>
+                        <input
+                          inputMode="decimal"
+                          value={item.preco}
+                          onFocus={(e) => e.currentTarget.select()}
+                          onChange={(e) =>
+                            setCarrinho((prev) =>
+                              prev.map((i) => (i.chave === item.chave ? { ...i, preco: e.target.value } : i)),
+                            )
+                          }
+                          onBlur={() =>
+                            setCarrinho((prev) =>
+                              prev.map((i) => (i.chave === item.chave ? { ...i, preco: emTexto(paraNumero(i.preco)) } : i)),
+                            )
+                          }
+                          aria-label={`Preço unitário de ${produto.nome}`}
+                          className="w-full min-w-0 bg-transparent font-semibold tabular-nums text-ink outline-none"
+                        />
+                        <IconPencil width={14} height={14} className="shrink-0 text-ink-faint" aria-hidden="true" />
+                      </label>
+                      {item.quantidade > 1 && (
+                        <span className="text-[13px] tabular-nums text-ink-muted">
+                          × {item.quantidade} = {formatBRL(item.quantidade * paraNumero(item.preco))}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center rounded-full bg-canvas">
                     <button
@@ -567,6 +596,22 @@ export function VendaForm({
                 className={valorLinha}
               />
             </Linha>
+            <Linha
+              rotulo="Outros gastos (R$)"
+              extra={
+                <p className="text-[13px] text-ink-muted">
+                  Motoboy, embalagem, taxa... Sai do seu lucro e do caixa; o total do cliente não muda.
+                </p>
+              }
+            >
+              <input
+                inputMode="decimal"
+                value={outrosGastos}
+                onChange={(e) => setOutrosGastos(e.target.value)}
+                placeholder="0,00"
+                className={valorLinha}
+              />
+            </Linha>
             <Linha rotulo="Data da venda">
               <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} className={valorLinha} />
             </Linha>
@@ -585,6 +630,12 @@ export function VendaForm({
               <div className="flex justify-between text-ink-muted">
                 <dt>Desconto</dt>
                 <dd className="tabular-nums">− {formatBRL(valorDesconto)}</dd>
+              </div>
+            )}
+            {valorOutros > 0 && (
+              <div className="flex justify-between text-ink-muted">
+                <dt>Outros gastos (seu custo)</dt>
+                <dd className="tabular-nums">{formatBRL(valorOutros)}</dd>
               </div>
             )}
             <div className="flex items-baseline justify-between pt-1">

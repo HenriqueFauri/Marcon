@@ -29,6 +29,9 @@ ASAAS_API_KEY=...                 # chave do Asaas; só no servidor
 ASAAS_ENV=sandbox                 # "producao" só quando for cobrar de verdade
 ASAAS_WEBHOOK_TOKEN=...           # texto longo e aleatório, o mesmo cadastrado no webhook do Asaas
 
+# opcional — escrita de anúncios com IA (Claude); sem ela o botão não aparece
+ANTHROPIC_API_KEY=...             # só no servidor
+
 # opcional — métricas (só carregam se definidos)
 NEXT_PUBLIC_GA_ID=...             # Google Analytics 4, formato G-XXXXXXXXXX
 NEXT_PUBLIC_CLARITY_ID=...        # id do projeto no Microsoft Clarity
@@ -51,6 +54,24 @@ Os avisos de venda, meta e marco saem na hora, ao registrar a venda; meta e marc
 
 O lembrete de cobrança precisa de um agendador: `vercel.json` já chama `GET /api/cron/cobrancas` todo dia às 11h UTC (8h em Brasília). A rota exige `Authorization: Bearer $CRON_SECRET` (a Vercel envia sozinha quando `CRON_SECRET` está definido). Em outra hospedagem, agende essa mesma chamada.
 
+## Anúncios com IA
+
+Em Anúncios, "Nova versão com IA" e "Escrever com IA" mandam ao Claude (modelo em `MODELO_IA`, `src/lib/ia-anuncio.ts`; hoje o Haiku 4.5, em teste) o cadastro do produto, a variação escolhida, até 3 fotos e uma dica opcional do vendedor. A resposta volta como título e descrição dentro do limite de caracteres do canal; nada é salvo até o usuário salvar a versão. As instruções proíbem inventar estado, garantia, medidas ou frete.
+
+Cada geração é gravada em `ia_geracoes` (com os tokens, para acompanhar o custo) **antes** de chamar a IA, e o gatilho da migration `0017` barra quem passou da cota do mês (`ia_mes` em `limites_do_plano`). Se a IA falhar, o registro é apagado e a cota volta. Sem `ANTHROPIC_API_KEY` os botões não aparecem.
+
+## Recibo
+
+Cada venda tem um código secreto (`vendas.recibo_token`). Na tela da venda, o lojista manda o link `/r/<código>` pelo WhatsApp do cliente, copia ou compartilha. A página abre sem login e mostra a empresa (dados e logo de Configurações), os itens, o total e as parcelas com a situação do dia. Os dados vêm de `recibo_publico()`, que devolve só o que o cliente deve ver (nada de custo, lucro ou observações). "Desativar este link" troca o código e o link antigo para de abrir. O logo é assinado com a chave de serviço; sem `SUPABASE_SERVICE_ROLE_KEY` o recibo sai sem logo.
+
+## Vendas: outros gastos
+
+Ao registrar uma venda, "Outros gastos" (motoboy, embalagem, taxa) é dinheiro que o lojista gasta para entregar aquela venda. Entra em `vendas.custo_total` (baixa o lucro em todas as telas), fica separado em `vendas.outros_gastos` para a tela da venda mostrar, e sai do caixa na data da venda (categoria "Outros gastos da venda"). O total do cliente não muda. Cancelar a venda desfaz tudo: devolve o que o cliente pagou e também lança de volta esse gasto no caixa (migration `0018`).
+
+## Fluxo de caixa: períodos
+
+Além do mês, aceita os últimos 30, 60, 90 e 120 dias e datas livres (até 2 anos). Tudo na URL: `?mes=AAAA-MM`, `?dias=90` ou `?de=AAAA-MM-DD&ate=AAAA-MM-DD` (`src/lib/periodo.ts`).
+
 ## Assinatura (Asaas)
 
 O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O teste grátis de 14 dias conta a partir da criação da conta e não exige cartão. A tela fica em `/assinatura`, com o estado do plano sempre à vista no menu ("Seu plano"). Há um plano pago só, o Marcon (R$ 15,90 por mês, só cartão), e o plano grátis que sobra depois do teste; os textos e o preço ficam em `src/lib/planos.ts`. Ao assinar, o pagamento abre em outra aba, na página do Asaas, onde o usuário digita o cartão; nenhum dado de cartão passa pelo Marcon, e a tela atualiza sozinha quando o webhook confirma.
@@ -63,6 +84,7 @@ O Asaas é a fonte da verdade: a tabela `assinaturas` só espelha o estado. O te
 | Produtos | sem limite | 50 |
 | Fotos por produto e por variação | 10 | 3 |
 | Importar vendas e extrato de caixa | sim | não (só produtos) |
+| Anúncios escritos com IA por mês | 100 | 10 |
 
 Os limites são **impostos pelo banco** (migration `0013`: gatilhos `BEFORE INSERT` em `vendas`, `produtos`, `produto_fotos` e `lancamentos_caixa`), então quem chama a API direto também passa por eles. A função `limites_do_plano` é a fonte única; o app lê o uso em `uso_do_plano()` (`src/lib/uso.ts`) só para explicar e antecipar (faixa quando faltam 5, bloqueio explicado no limite, barras em `/assinatura`). Se a migration ainda não foi aplicada, as telas seguem funcionando sem os avisos.
 

@@ -13,6 +13,7 @@ export const PLANOS = {
       "Tudo do plano grátis",
       "Vendas e produtos ilimitados",
       "Até 10 fotos por produto e por variação",
+      "100 anúncios escritos com IA por mês",
       "Importar vendas e caixa de outro sistema",
     ],
   },
@@ -25,12 +26,13 @@ export const PLANO_PADRAO: PlanoId = "marcon";
 // o que sobra depois do teste, para quem não assina
 export const PLANO_GRATIS = {
   nome: "Grátis",
-  limites: { vendasPorMes: 30, produtos: 50, fotosPorProduto: 3 },
+  limites: { vendasPorMes: 30, produtos: 50, fotosPorProduto: 3, iaPorMes: 10 },
   inclui: [
     "Até 30 vendas por mês",
     "Até 50 produtos, com 3 fotos cada",
     "Estoque, vendas a prazo e fluxo de caixa",
     "Anúncios por canal e lembrete de cobrança",
+    "10 anúncios escritos com IA por mês",
     "Importar seus produtos de outro sistema",
   ],
 } as const;

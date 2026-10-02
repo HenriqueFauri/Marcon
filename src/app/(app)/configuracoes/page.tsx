@@ -55,12 +55,6 @@ export default async function ConfiguracoesPage() {
           />
         </Card>
 
-        <Card title="Assinatura" description="Seu plano, o teste grátis e a cobrança.">
-          <Link href="/assinatura" className="text-[14px] font-medium text-brand-text underline-offset-2 hover:underline">
-            Ver meu plano
-          </Link>
-        </Card>
-
         <Card title="Importar dados" description="Trouxe seus produtos, vendas e caixa de outro sistema? Traga tudo de uma vez.">
           <Link href="/importar" className="text-[14px] font-medium text-brand-text underline-offset-2 hover:underline">
             Importar de PDF
