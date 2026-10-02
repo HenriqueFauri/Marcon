@@ -38,6 +38,22 @@ export async function salvarVersaoAnuncio(dados: {
   }
 }
 
+// Diz por que a chamada à IA falhou, em português. Enquanto a IA está em teste, o motivo
+// real aparece na tela (e vai inteiro para o log do servidor) para achar o problema rápido.
+function motivoDaFalhaDaIA(e: InstanceType<typeof Anthropic.APIError>) {
+  const detalhe = (e.message ?? "").replace(/s+/g, " ").slice(0, 200);
+  const sobra = "Sua cota não foi usada.";
+  if (e.status === 401) return `A chave da IA (ANTHROPIC_API_KEY) foi recusada. Confira a chave na Vercel e refaça o deploy. ${sobra}`;
+  if (e.status === 403) return `A chave da IA não tem permissão para isso (use uma chave de workspace, não de organização). ${sobra}`;
+  if (e.status === 404) return `O modelo da IA não foi encontrado. ${sobra}`;
+  if (e.status === 429) return `Muitos pedidos à IA ao mesmo tempo. Espere um pouco e tente de novo. ${sobra}`;
+  if (/credit balance|billing|saldo/i.test(detalhe)) {
+    return `A conta da Anthropic está sem saldo. Adicione créditos em console.anthropic.com > Billing. ${sobra}`;
+  }
+  if (e.status && e.status >= 500) return `A IA está fora do ar agora. Tente de novo em instantes. ${sobra}`;
+  return `A IA recusou o pedido (erro ${e.status ?? "de conexão"}): ${detalhe} ${sobra}`;
+}
+
 export type ResultadoIA =
   | { ok: true; titulo: string; descricao: string; restantes: number | null }
   | { ok: false; error: string };
@@ -102,9 +118,7 @@ export async function escreverAnuncioIA(dados: {
     } catch (e) {
       await supabase.from("ia_geracoes").delete().eq("id", registro.id);
       console.error("[ia-anuncio]", e);
-      if (e instanceof Anthropic.APIError) {
-        return { ok: false, error: "A IA está indisponível agora. Tente de novo em instantes; sua cota não foi usada." };
-      }
+      if (e instanceof Anthropic.APIError) return { ok: false, error: motivoDaFalhaDaIA(e) };
       return { ok: false, error: mensagemDeErro(e, "A IA não conseguiu escrever agora. Tente de novo; sua cota não foi usada.") };
     }
 
