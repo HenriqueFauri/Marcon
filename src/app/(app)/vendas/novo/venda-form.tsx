@@ -32,7 +32,9 @@ interface ItemCarrinho {
 
 // aceita "12,50", "12.50" e "1.234,50"
 function paraNumero(v: string) {
-  const limpo = v.includes(",") ? v.replace(/./g, "").replace(",", ".") : v;
+  const t = v.trim();
+  // sem vírgula, "1.234" é milhar (1234) e "12.5" é decimal
+  const limpo = t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : t;
   const n = Number(limpo);
   return Number.isFinite(n) ? n : 0;
 }
@@ -64,7 +66,7 @@ function Linha({ rotulo, children, extra }: { rotulo: string; children: React.Re
 }
 
 const valorLinha =
-  "w-full min-w-0 cursor-pointer bg-transparent text-right text-[17px] text-ink-muted outline-none placeholder:text-ink-muted focus:text-ink";
+  "w-full min-w-0 cursor-pointer bg-transparent text-right [text-align-last:right] text-[17px] text-ink-2 outline-none placeholder:text-ink-muted focus:text-ink";
 
 // o que aparece na lista enquanto a pessoa ainda não cadastrou os próprios (Configurações)
 const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
@@ -98,7 +100,11 @@ function SelectOuTexto({
 
   if (sugestoes) {
     const cadastrados = new Set(opcoes.map((o) => o.nome.trim().toLowerCase()));
-    const extras = sugestoes.filter((n) => !cadastrados.has(n.toLowerCase()));
+    // "Marketplace" cadastrado já cobre a sugestão "Facebook Marketplace" (e vice-versa)
+    const extras = sugestoes.filter((n) => {
+      const x = n.toLowerCase();
+      return ![...cadastrados].some((c) => c === x || c.includes(x) || x.includes(c));
+    });
     // texto que não é sugestão também cai em "Outro"
     const digitando = !id && (outro || (texto !== "" && !extras.includes(texto)));
     const valor = id || (digitando ? "__outro" : texto ? `sug:${texto}` : "");
@@ -136,7 +142,7 @@ function SelectOuTexto({
               setId(v);
             }
           }}
-          className={`${valorLinha} [direction:rtl]`}
+          className={valorLinha}
         >
           <option value="">{vazio}</option>
           {opcoes.map((o) => (
@@ -171,7 +177,7 @@ function SelectOuTexto({
       }
     >
       {opcoes.length > 0 ? (
-        <select value={id} onChange={(e) => setId(e.target.value)} className={`${valorLinha} [direction:rtl]`}>
+        <select value={id} onChange={(e) => setId(e.target.value)} className={valorLinha}>
           <option value="">{vazio}</option>
           {opcoes.map((o) => (
             <option key={o.id} value={o.id}>
@@ -183,6 +189,38 @@ function SelectOuTexto({
         <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={placeholder} className={valorLinha} />
       )}
     </Linha>
+  );
+}
+
+// deixa apagar e digitar à vontade; ao sair do campo volta a mostrar o valor já limitado ao estoque
+function CampoQuantidade({
+  valor,
+  max,
+  label,
+  onChange,
+}: {
+  valor: number;
+  max: number;
+  label: string;
+  onChange: (q: number) => void;
+}) {
+  const [texto, setTexto] = useState<string | null>(null);
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={1}
+      max={max}
+      value={texto ?? valor}
+      onChange={(e) => {
+        setTexto(e.target.value);
+        const n = Number(e.target.value);
+        if (e.target.value !== "" && n >= 1) onChange(n);
+      }}
+      onBlur={() => setTexto(null)}
+      aria-label={label}
+      className="w-8 bg-transparent text-center text-[17px] font-semibold tabular-nums text-ink outline-none"
+    />
   );
 }
 
@@ -305,6 +343,11 @@ export function VendaForm({
     const problema = validar();
     setErro(problema);
     if (problema) return;
+    if (
+      linhas.some((l) => paraNumero(l.item.preco) === 0) &&
+      !window.confirm("Há item com preço R$ 0,00. Registrar a venda assim mesmo?")
+    )
+      return;
 
     run(
       () =>
@@ -459,15 +502,11 @@ export function VendaForm({
                     >
                       {item.quantidade <= 1 ? <IconTrash width={16} height={16} /> : "−"}
                     </button>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
+                    <CampoQuantidade
+                      valor={item.quantidade}
                       max={produto.estoque}
-                      value={item.quantidade}
-                      onChange={(e) => alterarQuantidade(item.chave, Number(e.target.value))}
-                      aria-label={`Quantidade de ${produto.nome}`}
-                      className="w-8 bg-transparent text-center text-[17px] font-semibold tabular-nums text-ink outline-none"
+                      label={`Quantidade de ${produto.nome}`}
+                      onChange={(q) => alterarQuantidade(item.chave, q)}
                     />
                     <button
                       type="button"
@@ -506,8 +545,8 @@ export function VendaForm({
             setId={setClienteId}
             texto={clienteNome}
             setTexto={setClienteNome}
-            placeholder="Ou digite só o nome (sem cadastrar)"
-            vazio="Venda avulsa / digitar nome"
+            placeholder="Digite o nome do cliente (opcional)"
+            vazio="Avulso (sem cadastro)"
           />
         </Card>
       </div>
