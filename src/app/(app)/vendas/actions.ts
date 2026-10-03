@@ -134,11 +134,21 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
 export async function cancelarVenda(vendaId: string): Promise<ActionResult> {
   try {
     const supabase = await createClient();
-    const { error } = await supabase.rpc("cancelar_venda", { p_venda_id: vendaId });
+    const { data, error } = await supabase.rpc("cancelar_venda", { p_venda_id: vendaId });
     if (error) return falha(error);
     revalidarVendas();
     revalidatePath(`/vendas/${vendaId}`);
-    return ok("Venda cancelada. Estoque devolvido e valores estornados.");
+
+    // a função diz o que fez com o estoque; sem resumo (banco antigo), vale o aviso de sempre
+    const r = data as { devolvidos?: number; sem_ligacao?: number; sem_variacao?: number } | null;
+    if (!r || typeof r !== "object") return ok("Venda cancelada. Estoque devolvido e valores estornados.");
+    const devolvidos = r.devolvidos ?? 0;
+    const naoVoltaram = (r.sem_ligacao ?? 0) + (r.sem_variacao ?? 0);
+    const voltou = devolvidos ? ` ${devolvidos} ${devolvidos === 1 ? "item voltou" : "itens voltaram"} ao estoque.` : "";
+    const aviso = naoVoltaram
+      ? ` Atenção: ${naoVoltaram} ${naoVoltaram === 1 ? "item não voltou" : "itens não voltaram"} ao estoque porque ${naoVoltaram === 1 ? "não está ligado" : "não estão ligados"} a um produto ou variação. Ajuste o estoque em Produtos.`
+      : "";
+    return ok(`Venda cancelada. Valores estornados no caixa.${voltou}${aviso}`);
   } catch (e) {
     return falha(e);
   }
