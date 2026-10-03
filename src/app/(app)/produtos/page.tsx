@@ -121,7 +121,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
       {todos.length === 0 ? (
         <EmptyState
           title="Nenhum produto cadastrado"
-          description="Cadastre seus produtos com custo e preço de venda — o lucro de cada venda é calculado sozinho."
+          description="Cadastre seus produtos com custo e preço de venda. O lucro de cada venda é calculado sozinho."
           action={novo}
         />
       ) : lista.length === 0 ? (

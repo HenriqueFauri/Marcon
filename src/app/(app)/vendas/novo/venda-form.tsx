@@ -340,7 +340,7 @@ export function VendaForm({
     if (valorDesconto > subtotal) return "O desconto é maior que o total da venda.";
     if (valorOutros < 0) return "Os outros gastos não podem ser negativos.";
     if (tipoPagamento === "a_prazo" && !clienteId && !clienteNome.trim())
-      return "Informe o cliente — venda a prazo precisa saber de quem cobrar.";
+      return "Informe o cliente: venda a prazo precisa saber de quem cobrar.";
     return null;
   }
 

@@ -215,7 +215,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       {semNada ? (
         <EmptyState
           title="Vamos começar?"
-          description="Cadastre seus produtos com custo e preço. Depois é só registrar as vendas — estoque, lucro e caixa se atualizam sozinhos."
+          description="Cadastre seus produtos com custo e preço. Depois é só registrar as vendas: estoque, lucro e caixa se atualizam sozinhos."
           action={
             <Link href="/produtos/novo" className={btnPrimary}>
               Cadastrar primeiro produto

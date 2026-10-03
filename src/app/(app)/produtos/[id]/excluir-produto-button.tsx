@@ -23,7 +23,7 @@ export function ExcluirProdutoButton({ produtoId, nome }: { produtoId: string; n
         open={open}
         onClose={() => setOpen(false)}
         title={`Excluir “${nome}”?`}
-        description="O produto será apagado. As compras e lançamentos de caixa que ele já gerou são seus — escolha o que fazer com eles."
+        description="O produto será apagado. As compras e lançamentos de caixa que ele já gerou são seus. Escolha o que fazer com eles."
         size="sm"
       >
         <label className="mb-4 flex items-start gap-3 rounded-2xl border border-line p-3 text-sm text-ink-2">
