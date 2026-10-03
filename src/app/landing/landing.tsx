@@ -38,7 +38,7 @@ const PUBLICOS: Record<
     descricao:
       "Saiba se tem o produto, quanto custou, até onde dá pra negociar e quanto vai lucrar antes de fechar. O app de quem revende no Facebook Marketplace.",
     selo: "Pra quem vende no Marketplace",
-    manchete: ["“Ainda tá disponível?”", "Responde na hora."],
+    manchete: ["“Ainda tá disponível?”", "Você já sabe a resposta."],
     apoio:
       "Estoque, custo e margem de cada produto no celular. Você sabe se tem, até onde dá pra baixar o preço e quanto lucrou antes mesmo de fechar.",
     canal: "Marketplace",
