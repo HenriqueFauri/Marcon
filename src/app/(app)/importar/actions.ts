@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import type { LancamentoLido, ProdutoLido, VendaLida } from "@/lib/importacao/tipos";
+import { mensagemDeLancamentos, mensagemDeProdutos, mensagemDeVendas } from "@/lib/importacao/mensagens";
 
 // Grava o que o usuário conferiu na prévia. As funções do banco fazem tudo ou nada,
 // não duplicam (produto de mesmo nome é pulado; vendas e lançamentos têm referência
@@ -38,10 +39,6 @@ async function chamar(funcao: string, argumento: string, itens: unknown[]) {
   return { dados: data as Record<string, number> };
 }
 
-function plural(n: number, um: string, varios: string) {
-  return `${n} ${n === 1 ? um : varios}`;
-}
-
 export async function importarProdutos(produtos: ProdutoLido[]): Promise<ActionResult> {
   try {
     if (!Array.isArray(produtos) || produtos.length === 0) return { ok: false, error: "Nenhum produto selecionado." };
@@ -65,10 +62,7 @@ export async function importarProdutos(produtos: ProdutoLido[]): Promise<ActionR
     revalidatePath("/produtos");
     revalidatePath("/");
     const { criados = 0, ignorados = 0 } = r.dados;
-    return ok(
-      `${plural(criados, "produto importado", "produtos importados")}.` +
-        (ignorados ? ` ${plural(ignorados, "já existia", "já existiam")} e foram pulados.` : ""),
-    );
+    return ok(mensagemDeProdutos({ criados, ignorados }), { criados, ignorados });
   } catch (e) {
     return falha(e);
   }
@@ -115,13 +109,7 @@ export async function importarVendas(vendas: VendaLida[]): Promise<ActionResult>
     revalidatePath("/clientes");
     revalidatePath("/");
     const { criadas = 0, ignoradas = 0, itens_sem_produto = 0 } = r.dados;
-    return ok(
-      `${plural(criadas, "venda importada", "vendas importadas")}.` +
-        (ignoradas ? ` ${plural(ignoradas, "já estava", "já estavam")} no Marcon e foram puladas.` : "") +
-        (itens_sem_produto
-          ? ` ${plural(itens_sem_produto, "item ficou", "itens ficaram")} sem ligação com um produto: importe os produtos primeiro, se ainda não fez.`
-          : ""),
-    );
+    return ok(mensagemDeVendas({ criadas, ignoradas, itens_sem_produto }), { criadas, ignoradas, itens_sem_produto });
   } catch (e) {
     return falha(e);
   }
@@ -152,10 +140,7 @@ export async function importarLancamentos(lancamentos: LancamentoLido[]): Promis
     revalidatePath("/fluxo-de-caixa");
     revalidatePath("/");
     const { criados = 0, ignorados = 0 } = r.dados;
-    return ok(
-      `${plural(criados, "lançamento importado", "lançamentos importados")}.` +
-        (ignorados ? ` ${plural(ignorados, "já estava", "já estavam")} no Marcon e foram pulados.` : ""),
-    );
+    return ok(mensagemDeLancamentos({ criados, ignorados }), { criados, ignorados });
   } catch (e) {
     return falha(e);
   }
