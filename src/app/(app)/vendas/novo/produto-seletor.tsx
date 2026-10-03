@@ -210,8 +210,9 @@ export function ListaProdutos({
             <span className="min-w-0">
               <span className="block truncate text-ink">{g.nome}</span>
               <span className="block truncate text-xs text-ink-muted">
-                {g.temVariacoes
-                  ? `${g.itens.length} ${g.itens.length === 1 ? "opção" : "opções"} · ${disponivel} disponível${disponivel === 1 ? "" : "is"}`
+                {g.temVariacoes ? `${g.itens.length} ${g.itens.length === 1 ? "opção" : "opções"} · ` : ""}
+                {emCarrinho > 0
+                  ? `${emCarrinho} no carrinho · ${disponivel === 0 ? "sem mais estoque" : `${disponivel} restante${disponivel === 1 ? "" : "s"}`}`
                   : `${disponivel} disponível${disponivel === 1 ? "" : "is"}`}
                 {g.detalhe ? ` · ${g.detalhe}` : ""}
               </span>
