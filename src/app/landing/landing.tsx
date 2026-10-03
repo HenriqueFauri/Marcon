@@ -9,10 +9,7 @@ import {
   IconPlus,
   IconReceipt,
   IconSparkles,
-  IconTruck,
-  IconUsers,
   IconWallet,
-  IconWhatsapp,
 } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
 import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
@@ -71,39 +68,6 @@ const SECOES = [
   { id: "planos", rotulo: "Planos" },
 ];
 
-const EXTRAS: { icone: ReactNode; titulo: string; texto: string }[] = [
-  {
-    icone: <IconUsers width={20} height={20} />,
-    titulo: "Clientes",
-    texto: "O que cada um já comprou e o WhatsApp a um toque, pra chamar quando chegar novidade.",
-  },
-  {
-    icone: <IconReceipt width={20} height={20} />,
-    titulo: "Recibo no WhatsApp",
-    texto: "Um link com o recibo da compra pra mandar pro cliente. Passa confiança e evita discussão.",
-  },
-  {
-    icone: <IconBox width={20} height={20} />,
-    titulo: "Variações",
-    texto: "Cor, modelo, voltagem: cada variação com estoque, custo e preço próprios.",
-  },
-  {
-    icone: <IconTruck width={20} height={20} />,
-    titulo: "Fornecedores",
-    texto: "De quem você compra cada produto e por quanto, com o histórico de cada entrada.",
-  },
-  {
-    icone: <IconWhatsapp width={20} height={20} />,
-    titulo: "Parcelado, se precisar",
-    texto: "Vendeu pra pagar depois? As parcelas ficam em Contas a receber e você cobra pelo WhatsApp.",
-  },
-  {
-    icone: <IconCheck width={20} height={20} />,
-    titulo: "No computador também",
-    texto: "Abre no navegador do PC com mais coisa na tela. Tudo sincroniza com o celular.",
-  },
-];
-
 const PERGUNTAS = [
   {
     p: "Serve pra quem vende só no WhatsApp ou no Instagram?",
@@ -111,7 +75,7 @@ const PERGUNTAS = [
   },
   {
     p: "Já uso outro sistema. Tenho que começar do zero?",
-    r: "Não. Baixe em PDF os relatórios de produtos, vendas e caixa do sistema antigo e envie no Marcon. Você confere tudo numa prévia antes de importar.",
+    r: "Não. Você traz seus produtos, suas vendas e seu caixa do sistema antigo e confere tudo numa prévia antes de importar.",
   },
   {
     p: "O Marcon publica o anúncio por mim?",
@@ -795,7 +759,7 @@ export function Landing({ publico }: { publico: Publico }) {
               Não começa do zero.
             </>
           }
-          texto="Baixa os relatórios em PDF do sistema que você usa hoje e manda no Marcon. Você confere tudo numa prévia, corrige o que quiser e importa produtos, vendas e caixa de uma vez."
+          texto="Traga todo o seu histórico pro Marcon: produtos, vendas e caixa. Você confere tudo numa prévia, corrige o que quiser e só então importa."
           pontos={[
             "Produtos com custo, preço e estoque",
             "Histórico de vendas e de caixa",
@@ -838,28 +802,6 @@ export function Landing({ publico }: { publico: Publico }) {
               Vendo no Marketplace e no WhatsApp e cansei de planilha, de caderninho e de app lotado de coisa que eu não usava.
               Cada tela do Marcon foi pensada pro jeito que a gente vende: rápido, pelo celular, entre uma conversa e outra.
             </p>
-          </div>
-        </section>
-
-        <section aria-labelledby="extras-titulo" className="bg-panel px-5 py-20 sm:py-28">
-          <div className="mx-auto max-w-[1024px]">
-            <h2
-              id="extras-titulo"
-              className="mx-auto max-w-[640px] text-center text-[34px] font-bold leading-[1.06] tracking-[-0.035em] sm:text-5xl"
-            >
-              E tudo o que vem junto.
-            </h2>
-            <ul className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {EXTRAS.map((e) => (
-                <li key={e.titulo} className="hairline rounded-3xl bg-surface p-6">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-tint text-brand-text">
-                    {e.icone}
-                  </span>
-                  <h3 className="mt-4 text-[19px] font-semibold tracking-tight">{e.titulo}</h3>
-                  <p className="mt-1 text-[15px] leading-[1.47] text-ink-muted">{e.texto}</p>
-                </li>
-              ))}
-            </ul>
           </div>
         </section>
 
