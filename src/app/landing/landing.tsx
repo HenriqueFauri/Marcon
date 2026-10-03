@@ -36,21 +36,21 @@ const PUBLICOS: Record<
   marketplace: {
     titulo: "Marcon | Pra quem vende no Marketplace",
     descricao:
-      "Saiba na hora se tem o produto, quanto custou e até onde dá pra negociar. O app de quem revende no Facebook Marketplace.",
+      "Saiba se tem o produto, quanto custou, até onde dá pra negociar e quanto vai lucrar antes de fechar. O app de quem revende no Facebook Marketplace.",
     selo: "Pra quem vende no Marketplace",
-    manchete: ["“Ainda tá disponível?”", "Responde na hora."],
+    manchete: ["“Ainda tá disponível?”", "Você já sabe a resposta."],
     apoio:
-      "Estoque, custo e margem de cada produto no celular. Você sabe se tem, até onde dá pra baixar o preço e quanto lucrou quando fechar.",
+      "Estoque, custo e margem de cada produto no celular. Você sabe se tem, até onde dá pra baixar o preço e quanto lucrou antes mesmo de fechar.",
     canal: "Marketplace",
   },
   whatsapp: {
     titulo: "Marcon | Pra quem vende no WhatsApp",
     descricao:
-      "Clientes, vendas, recibo e lucro organizados pra quem vende no WhatsApp. O app de quem revende pelo celular.",
+      "Registre a venda, gere o recibo pra mandar no WhatsApp e saiba o lucro de cada uma. O app de quem revende pelo celular.",
     selo: "Pra quem vende no WhatsApp",
-    manchete: ["Seus clientes no Zap.", "Suas contas no Marcon."],
+    manchete: ["Fechou no Zap?", "Registra em segundos."],
     apoio:
-      "Quem compra de você volta e indica. O Marcon guarda o que cada cliente levou, manda o recibo no WhatsApp e mostra o lucro de cada venda.",
+      "Anota a venda, gera o recibo com link pra mandar no WhatsApp e mostra o lucro de cada uma. Sem caderninho e sem planilha.",
     canal: "WhatsApp",
   },
 };

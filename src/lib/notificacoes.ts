@@ -1,7 +1,7 @@
 import { formatBRL } from "@/lib/format";
 
 // As notificações não têm texto fixo nem escolhido pelo usuário: cada evento tem
-// várias frases descontraídas e uma delas é sorteada a cada aviso. O usuário só
+// várias frases descontraídas, em rotação embaralhada que não repete a anterior. O usuário só
 // decide o que receber e quais dados aparecem.
 
 export type Evento = "venda" | "meta" | "nivel_1k" | "nivel_5k" | "nivel_10k" | "cobranca";
@@ -53,6 +53,28 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "O caixa agradece 💰" },
     { titulo: "Cliente feliz, caixa feliz 😄" },
     { titulo: "Boa! Vendeu de novo 🔥" },
+    { titulo: "Fechou negócio 🤝" },
+    { titulo: "Mais um pra lista de entregas 📦" },
+    { titulo: "Dinheiro no bolso 😎" },
+    { titulo: "Tá vendendo, hein? 👏" },
+    { titulo: "Mais uma saiu! 🚀" },
+    { titulo: "Pix na área 📲" },
+    { titulo: "Bora embalar! 🎁" },
+    { titulo: "O estoque diminuiu e o caixa cresceu 📈" },
+    { titulo: "Negócio fechado ✅" },
+    { titulo: "Mais um cliente atendido 🙌" },
+    { titulo: "Isso aí, campeão! 🏅" },
+    { titulo: "Tá rendendo hoje 🔥" },
+    { titulo: "Venda feita, próxima! 💪" },
+    { titulo: "Alguém aí tá bombando 😏" },
+    { titulo: "Mais uma no histórico 📒" },
+    { titulo: "Dia bom pra vender 🌟" },
+    { titulo: "Entrou mais uma! 🎯" },
+    { titulo: "Quem diria, hein? Vendeu 😄" },
+    { titulo: "Missão de hoje: vender. Cumprida ✔️" },
+    { titulo: "Olha o dinheirinho entrando 🤑" },
+    { titulo: "Seguiu o fluxo: vendeu! 🌊" },
+    { titulo: "Mais um pedido pra conta 🧾" },
   ],
   meta: [
     { titulo: "Meta batida! 🎯", corpo: "Missão cumprida." },
@@ -62,6 +84,13 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "Objetivo do mês: concluído ✅" },
     { titulo: "Chegou lá! 🚀", corpo: "A meta ficou pra trás." },
     { titulo: "Era só uma meta, né? 😎" },
+    { titulo: "Meta cumprida, parabéns! 👏" },
+    { titulo: "Você passou da meta 🔥" },
+    { titulo: "Mais uma meta no currículo 📋" },
+    { titulo: "Meta alcançada, e agora? 😏" },
+    { titulo: "Deu certo! Meta batida 🙌" },
+    { titulo: "Planejou, vendeu, bateu 💪" },
+    { titulo: "Meta no papel e no bolso 💰" },
   ],
   nivel_1k: [
     { titulo: "Primeiro milhar do mês 🚀" },
@@ -70,6 +99,12 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "O mês começou bem 😎" },
     { titulo: "Mil reais e contando 🔥" },
     { titulo: "Aquecimento concluído 💪" },
+    { titulo: "Mil reais vendidos! 🎉" },
+    { titulo: "Passou de mil, bora pra mais 📈" },
+    { titulo: "Primeiro mil do mês no bolso 🤑" },
+    { titulo: "O mês já tem cara de bom 👀" },
+    { titulo: "Mil na conta, segue o jogo ⚡" },
+    { titulo: "Mil batidos, tá voando 🛫" },
   ],
   nivel_5k: [
     { titulo: "Cinco mil, sem freio 🔥" },
@@ -78,6 +113,12 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "Cinco mil batidos 🙌" },
     { titulo: "Isso já é mês bom 😎" },
     { titulo: "Subindo de nível ⭐" },
+    { titulo: "Cinco mil e o mês nem acabou 👀" },
+    { titulo: "Mês forte, hein? 5 mil vendidos 📈" },
+    { titulo: "5 mil! Respira e continua 😮‍💨" },
+    { titulo: "Meio caminho dos 10 mil 🚀" },
+    { titulo: "Faturamento de gente grande 🏆" },
+    { titulo: "Cinco mil no mês, parabéns! 🥳" },
   ],
   nivel_10k: [
     { titulo: "Dez mil! Respira e comemora 👑" },
@@ -86,6 +127,12 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "Dez mil batidos, que fase! 🚀" },
     { titulo: "Mês histórico 🥳" },
     { titulo: "Faturamento de respeito 👏" },
+    { titulo: "Dez mil! Pode comemorar 🍾" },
+    { titulo: "Isso aqui já é empresa 🏢" },
+    { titulo: "Cinco dígitos no mês 🔥" },
+    { titulo: "Mês de campeão 🥇" },
+    { titulo: "Dez mil, e agora mira nos 20 😏" },
+    { titulo: "Tá no topo do mês! 🏔️" },
   ],
   cobranca: [
     { titulo: "Hora do lembrete gentil 🔔" },
@@ -96,6 +143,14 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "Parcelas pedindo atenção ⏰" },
     { titulo: "Não esquece de cobrar 🧠" },
     { titulo: "Dinheiro seu na mão dos outros 😅" },
+    { titulo: "Tem parcela esperando você 📬" },
+    { titulo: "Que tal um oi no WhatsApp? 💬" },
+    { titulo: "Dinheiro parado, hora de buscar 🏃" },
+    { titulo: "Cobrar faz parte do negócio 🤝" },
+    { titulo: "Lembrete do dia: receber 📌" },
+    { titulo: "Uma conversa rápida resolve 😄" },
+    { titulo: "Contas a receber chamando 📞" },
+    { titulo: "Seu dinheiro quer voltar pra casa 🏠" },
   ],
 };
 
@@ -108,12 +163,44 @@ function hashTexto(texto: string) {
   return h >>> 0;
 }
 
-// Escolha estável e sem estado: texto vira hash (aleatório na prática); número
-// percorre as frases em ordem, então dois números seguidos nunca repetem.
-export function escolherVariante(evento: Evento, semente: string | number): Variante {
+// gerador determinístico (mulberry32): a mesma semente dá sempre a mesma ordem
+function sorteador(semente: number) {
+  let a = semente >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ordem das frases em cada rodada: embaralhada por usuário, por evento e por rodada
+function ordemDaRodada(tamanho: number, rodada: number, chave: string, evento: Evento) {
+  const ordem = Array.from({ length: tamanho }, (_, i) => i);
+  const sorteio = sorteador(hashTexto(`${chave}|${evento}|${rodada}`));
+  for (let i = tamanho - 1; i > 0; i--) {
+    const j = Math.floor(sorteio() * (i + 1));
+    [ordem[i], ordem[j]] = [ordem[j], ordem[i]];
+  }
+  return ordem;
+}
+
+// Escolha estável e sem repetir. A posição (quantas vezes esse aviso já saiu, por exemplo
+// o total de vendas) percorre as frases rodada a rodada: dentro de uma rodada nenhuma
+// frase se repete, a ordem muda a cada rodada e por usuário (chave), e a primeira de
+// uma rodada nunca é a última da anterior. Não guarda estado em lugar nenhum.
+export function escolherVariante(evento: Evento, posicao: number, chave = ""): Variante {
   const lista = VARIANTES[evento];
-  const indice = typeof semente === "number" ? Math.abs(Math.trunc(semente)) : hashTexto(semente);
-  return lista[indice % lista.length];
+  const n = lista.length;
+  const p = Math.max(0, Math.trunc(posicao));
+  const rodada = Math.floor(p / n);
+  const ordem = ordemDaRodada(n, rodada, chave, evento);
+  if (rodada > 0 && n > 1) {
+    const anterior = ordemDaRodada(n, rodada - 1, chave, evento);
+    if (ordem[0] === anterior[n - 1]) [ordem[0], ordem[1]] = [ordem[1], ordem[0]];
+  }
+  return lista[ordem[p % n]];
 }
 
 // ---------------------------------------------------------------------------
@@ -241,13 +328,13 @@ export function linhaDaCobranca(parcelas: ParcelaParaCobrar[], campos: Record<Ca
 // Montagem
 // ---------------------------------------------------------------------------
 
-export function montarNotificacao(evento: Evento, semente: string | number, linhaDeDados: string) {
-  const v = escolherVariante(evento, semente);
+export function montarNotificacao(evento: Evento, posicao: number, linhaDeDados: string, chave = "") {
+  const v = escolherVariante(evento, posicao, chave);
   return { titulo: v.titulo, corpo: [v.corpo, linhaDeDados].filter(Boolean).join("\n") };
 }
 
 // Exemplo com dados fictícios, respeitando o que o usuário escolheu mostrar
-export function montarExemplo(pref: Preferencias, evento: Evento, semente: string | number) {
+export function montarExemplo(pref: Preferencias, evento: Evento, posicao: number) {
   const venda: DadosVendaNotificacao = {
     valor: 189.9,
     lucro: 72.4,
@@ -270,5 +357,5 @@ export function montarExemplo(pref: Preferencias, evento: Evento, semente: strin
         : evento === "cobranca"
           ? linhaDaCobranca(parcelas, pref.dados.cobranca)
           : linhaDoNivel(NIVEIS.find((n) => n.evento === evento)!.valor + 230.5, "2026-09");
-  return montarNotificacao(evento, semente, linha);
+  return montarNotificacao(evento, posicao, linha);
 }
