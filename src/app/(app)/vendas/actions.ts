@@ -146,7 +146,7 @@ export async function cancelarVenda(vendaId: string): Promise<ActionResult> {
     const naoVoltaram = (r.sem_ligacao ?? 0) + (r.sem_variacao ?? 0);
     const voltou = devolvidos ? ` ${devolvidos} ${devolvidos === 1 ? "item voltou" : "itens voltaram"} ao estoque.` : "";
     const aviso = naoVoltaram
-      ? ` Atenção: ${naoVoltaram} ${naoVoltaram === 1 ? "item não voltou" : "itens não voltaram"} ao estoque porque ${naoVoltaram === 1 ? "não está ligado" : "não estão ligados"} a um produto ou variação. Ajuste o estoque em Produtos.`
+      ? ` Atenção: ${naoVoltaram} ${naoVoltaram === 1 ? "item não voltou" : "itens não voltaram"} ao estoque porque ${naoVoltaram === 1 ? "não está ligado" : "não estão ligados"} a um produto ou variação. Use Ajustar no produto para corrigir o estoque.`
       : "";
     return ok(`Venda cancelada. Valores estornados no caixa.${voltou}${aviso}`);
   } catch (e) {

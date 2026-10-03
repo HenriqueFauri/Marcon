@@ -92,6 +92,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
             <ProdutoAcoes
               produtoId={p.id}
               custoAtual={Number(p.custo_min)}
+              estoqueAtual={Number(p.estoque_atual)}
               variacoes={variacoes}
               fornecedores={fornecedores}
               fornecedorPadrao={p.fornecedor_id}
