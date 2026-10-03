@@ -120,7 +120,7 @@ export function gerarAnuncio(
     [base, "", ...(textoCadastro ? [textoCadastro, ""] : []), ...(marcadores.length ? [...marcadores, ""] : []),
       `Preço: ${preco}`, "Produto novo, pronto para envio.", "Chame no privado para combinar entrega ou retirada."],
     // direto: preço e disponibilidade primeiro
-    [`${base} — ${preco}`, "Pronta entrega.", "", ...(textoCadastro ? [textoCadastro, ""] : []), ...marcadores,
+    [`${base} por ${preco}`, "Pronta entrega.", "", ...(textoCadastro ? [textoCadastro, ""] : []), ...marcadores,
       ...(marcadores.length ? [""] : []), "Tem dúvida? Me chame que respondo rápido."],
     // detalhes antes do texto
     [base, "", ...(marcadores.length ? ["Detalhes do produto:", ...marcadores, ""] : []),

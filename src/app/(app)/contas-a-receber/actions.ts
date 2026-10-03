@@ -43,7 +43,7 @@ export async function marcarParcelaPaga(parcelaId: string): Promise<ActionResult
     revalidatePath("/contas-a-receber");
     revalidatePath("/fluxo-de-caixa");
     revalidatePath("/");
-    return ok(parcela ? `Recebido ${formatBRL(parcela.valor)} — lançado no caixa.` : "Parcela marcada como paga.");
+    return ok(parcela ? `Recebido ${formatBRL(parcela.valor)} e lançado no caixa.` : "Parcela marcada como paga.");
   } catch (e) {
     return falha(e);
   }

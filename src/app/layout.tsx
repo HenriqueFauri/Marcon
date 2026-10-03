@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Marcon", template: "%s · Marcon" },
-  description: "Anúncios, vendas, estoque e lucro para quem vende no Marketplace.",
+  title: { default: "Marcon", template: "Marcon | %s" },
+  description: "O app de quem revende pelo celular: estoque, custo, lucro e anúncios num lugar só.",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Marcon" },
 };
 

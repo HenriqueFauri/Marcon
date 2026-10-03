@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Marcon",
     short_name: "Marcon",
-    description: "Anúncios, vendas, estoque e lucro para quem vende no Marketplace.",
+    description: "O app de quem revende pelo celular: estoque, custo, lucro e anúncios num lugar só.",
     start_url: "/",
     display: "standalone",
     background_color: "#f2f2f7",
