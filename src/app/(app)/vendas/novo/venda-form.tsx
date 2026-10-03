@@ -41,7 +41,13 @@ function paraNumero(v: string) {
 
 // o preço aparece no jeito brasileiro (79,00); paraNumero lê de volta
 function emTexto(n: number) {
-  return n.toFixed(2).replace(".", ",");
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// campo de dinheiro: só dígitos, que entram como centavos (1 → 0,01; 12 → 0,12; 125 → 1,25)
+function mascaraDinheiro(digitado: string) {
+  const digitos = digitado.replace(/\D/g, "").replace(/^0+/, "").slice(0, 11);
+  return digitos ? emTexto(Number(digitos) / 100) : "";
 }
 
 function somarMeses(dataISO: string, meses: number) {
@@ -464,17 +470,13 @@ export function VendaForm({
                       >
                         <span className="text-[15px]">R$</span>
                         <input
-                          inputMode="decimal"
+                          inputMode="numeric"
                           value={item.preco}
-                          onFocus={(e) => e.currentTarget.select()}
                           onChange={(e) =>
                             setCarrinho((prev) =>
-                              prev.map((i) => (i.chave === item.chave ? { ...i, preco: e.target.value } : i)),
-                            )
-                          }
-                          onBlur={() =>
-                            setCarrinho((prev) =>
-                              prev.map((i) => (i.chave === item.chave ? { ...i, preco: emTexto(paraNumero(i.preco)) } : i)),
+                              prev.map((i) =>
+                                i.chave === item.chave ? { ...i, preco: mascaraDinheiro(e.target.value) || "0,00" } : i,
+                              ),
                             )
                           }
                           aria-label={`Preço unitário de ${produto.nome}`}
@@ -628,9 +630,9 @@ export function VendaForm({
             />
             <Linha rotulo="Desconto (R$)">
               <input
-                inputMode="decimal"
+                inputMode="numeric"
                 value={desconto}
-                onChange={(e) => setDesconto(e.target.value)}
+                onChange={(e) => setDesconto(mascaraDinheiro(e.target.value))}
                 placeholder="0,00"
                 className={valorLinha}
               />
@@ -644,9 +646,9 @@ export function VendaForm({
               }
             >
               <input
-                inputMode="decimal"
+                inputMode="numeric"
                 value={outrosGastos}
-                onChange={(e) => setOutrosGastos(e.target.value)}
+                onChange={(e) => setOutrosGastos(mascaraDinheiro(e.target.value))}
                 placeholder="0,00"
                 className={valorLinha}
               />
