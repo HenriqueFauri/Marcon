@@ -1,4 +1,4 @@
-// Tipos do importador de relatórios em PDF.
+// Tipos do importador (relatórios em PDF e planilhas).
 
 // texto solto do PDF, com a posição na página (y cresce para cima, como no PDF)
 export interface Item {
@@ -67,7 +67,7 @@ export interface Conferencia {
 }
 
 interface Base {
-  origem: "vendamax";
+  origem: "vendamax" | "planilha";
   periodo: string | null;
   avisos: string[];
   conferencias: Conferencia[];

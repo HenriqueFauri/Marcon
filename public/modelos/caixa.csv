@@ -1,0 +1,4 @@
+﻿Data;Descrição;Valor;Tipo;Categoria
+01/10/2026;Frete e embalagem;25,00;Saída;Frete
+01/10/2026;Compra de estoque;350,00;Saída;Estoque
+02/10/2026;Reembolso do fornecedor;60,00;Entrada;Outros

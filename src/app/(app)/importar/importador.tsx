@@ -13,6 +13,13 @@ type Tipo = Analise["tipo"];
 type De<T extends Tipo> = Extract<Analise, { tipo: T }>;
 type Carregado = { [T in Tipo]?: { analise: De<T>; chave: number } };
 
+const EXTENSOES = /\.(xlsx|xls|csv|tsv|txt|pdf)$/i;
+const MODELOS = [
+  { arquivo: "produtos.csv", rotulo: "produtos" },
+  { arquivo: "vendas.csv", rotulo: "vendas" },
+  { arquivo: "caixa.csv", rotulo: "caixa" },
+];
+
 const num = (s: string) => Number(s.replace(",", ".")) || 0;
 // valor que o usuário edita: "124,68", com vírgula
 const dinheiroTexto = (n: number) => n.toFixed(2).replace(".", ",");
@@ -461,15 +468,17 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
       corpo.append("arquivo", arquivo);
       try {
         const resposta = await fetch("/api/importar/analisar", { method: "POST", body: corpo });
-        const json = (await resposta.json().catch(() => null)) as { analise?: Analise; erro?: string } | null;
-        if (!resposta.ok || !json?.analise) {
+        const json = (await resposta.json().catch(() => null)) as { analises?: Analise[]; erro?: string } | null;
+        if (!resposta.ok || !json?.analises?.length) {
           toast.error(`${arquivo.name}: ${json?.erro ?? "não consegui ler este arquivo."}`);
           continue;
         }
-        const analise = json.analise;
-        contador.current += 1;
-        // um relatório novo do mesmo tipo substitui o anterior
-        setCarregado((prev) => ({ ...prev, [analise.tipo]: { analise, chave: contador.current } }));
+        // uma planilha pode ter uma aba de cada tipo; um arquivo novo do mesmo tipo substitui o anterior
+        for (const analise of json.analises) {
+          contador.current += 1;
+          const chave = contador.current;
+          setCarregado((prev) => ({ ...prev, [analise.tipo]: { analise, chave } }));
+        }
       } catch {
         toast.error(`${arquivo.name}: sem conexão. Tente de novo.`);
       }
@@ -491,16 +500,16 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
         onDrop={(e) => {
           e.preventDefault();
           setArrastando(false);
-          void ler(Array.from(e.dataTransfer.files).filter((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")));
+          void ler(Array.from(e.dataTransfer.files).filter((f) => EXTENSOES.test(f.name)));
         }}
         className={`flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed px-6 py-10 text-center transition ${
           arrastando ? "border-brand bg-brand-tint" : "border-line-strong bg-surface"
         }`}
       >
-        <p className="text-[17px] font-semibold text-ink">{lendo ? "Lendo os relatórios..." : "Solte os PDFs aqui"}</p>
+        <p className="text-[17px] font-semibold text-ink">{lendo ? "Lendo os arquivos..." : "Solte seus arquivos aqui"}</p>
         <p className="max-w-md text-[14px] text-ink-muted">
-          Relatórios em PDF do sistema que você usava: produtos, vendas e extrato de caixa. Pode enviar os três de uma vez ou um
-          por vez. Nada é importado antes de você conferir e confirmar.
+          Planilhas (Excel ou CSV) ou relatórios em PDF com seus produtos, vendas e caixa. Pode enviar vários de uma vez. Nada é
+          importado antes de você conferir e confirmar.
         </p>
         <button type="button" className={btnPrimary} disabled={lendo} onClick={() => inputRef.current?.click()}>
           Escolher arquivos
@@ -508,7 +517,7 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept=".xlsx,.xls,.csv,.tsv,.txt,.pdf"
           multiple
           className="sr-only"
           tabIndex={-1}
@@ -520,12 +529,20 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
       {vazio && !lendo && (
         <Card title="Como funciona">
           <ol className="flex list-decimal flex-col gap-2 pl-5 text-[14px] text-ink-2">
-            <li>No sistema que você usava, baixe em PDF o relatório de produtos, o de vendas e o extrato de caixa.</li>
-            <li>Envie os arquivos aqui. Eu leio as tabelas e mostro tudo numa prévia, comparando com os totais do próprio relatório.</li>
+            <li>Envie sua planilha (Excel ou CSV) ou os relatórios em PDF. Pode ter produtos, vendas e caixa, cada um numa aba ou arquivo.</li>
+            <li>Eu reconheço as colunas pelos títulos e mostro tudo numa prévia. Nos relatórios em PDF, comparo também com os totais.</li>
             <li>Corrija o que quiser, desmarque o que não quer e confirme. Importe primeiro os produtos, depois as vendas.</li>
           </ol>
           <p className="mt-3 text-[13px] text-ink-muted">
-            Se o relatório não detalhar as variações (cor, tamanho), o produto entra sem elas e você completa depois.
+            A planilha precisa ter uma linha de títulos. Produtos: Nome, Custo, Preço, Estoque. Vendas: Data, Produto, Quantidade, Valor.
+            Caixa: Data, Descrição, Valor, Tipo. Sem planilha pronta? Comece por um modelo:
+          </p>
+          <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+            {MODELOS.map((m) => (
+              <a key={m.arquivo} href={`/modelos/${m.arquivo}`} download className="font-medium text-brand-text hover:underline">
+                Modelo de {m.rotulo}
+              </a>
+            ))}
           </p>
         </Card>
       )}

@@ -15,7 +15,7 @@ export default async function ImportarPage() {
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title="Importar dados"
-        description="Traga seus produtos, vendas e caixa de outro sistema. Você confere tudo antes de entrar."
+        description="Traga seus produtos, vendas e caixa de planilhas ou de outro sistema. Você confere tudo antes de entrar."
       />
       <Importador historicoLiberado={historicoLiberado} />
     </div>
