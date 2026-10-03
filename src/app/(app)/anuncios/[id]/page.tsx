@@ -11,7 +11,7 @@ export async function generateMetadata({ params }: PageProps<"/anuncios/[id]">):
   const { id } = await params;
   const supabase = await createClient();
   const { data } = await supabase.from("produtos").select("nome").eq("id", id).maybeSingle();
-  return { title: data?.nome ? `Anúncios — ${data.nome}` : "Anúncios" };
+  return { title: data?.nome ? `Anúncios de ${data.nome}` : "Anúncios" };
 }
 
 export default async function AnunciosProdutoPage({ params }: PageProps<"/anuncios/[id]">) {

@@ -81,7 +81,7 @@ export async function assinarPlano(documento: string): Promise<ResultadoAssinar>
     const dadosAssinatura = {
       clienteId,
       valor: dadosPlano.valor,
-      descricao: `Marcon — plano ${dadosPlano.nome}`,
+      descricao: `Marcon, plano ${dadosPlano.nome}`,
       ownerId: user.id,
       primeiroVencimento: hojeEmBrasilia(),
     };

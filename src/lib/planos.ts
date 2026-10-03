@@ -13,7 +13,7 @@ export const PLANOS = {
       "Tudo do plano grátis",
       "Vendas e produtos ilimitados",
       "Até 10 fotos por produto e por variação",
-      "100 anúncios escritos com IA por mês",
+      "30 anúncios escritos com IA por mês",
       "Importar vendas e caixa de outro sistema",
     ],
   },

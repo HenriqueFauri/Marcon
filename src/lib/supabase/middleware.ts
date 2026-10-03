@@ -40,6 +40,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
     pathname === "/landing" ||
+    pathname.startsWith("/para/") || // landings de cada canal (/para/marketplace...)
     pathname === "/termos" ||
     pathname === "/privacidade" ||
     pathname.startsWith("/r/"); // recibo público, aberto pelo cliente de quem vendeu
