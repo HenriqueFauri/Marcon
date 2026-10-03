@@ -24,10 +24,10 @@ const PUBLICOS: Record<
   { titulo: string; descricao: string; selo: string; manchete: [string, string]; apoio: string; canal: string }
 > = {
   geral: {
-    titulo: "Marcon | O app de quem revende pelo celular",
+    titulo: "Marcon | O app de quem vende no Marketplace e no WhatsApp",
     descricao:
-      "Estoque, custo, lucro e anúncios no celular. Pra quem vende no Marketplace, no WhatsApp e no Instagram e quer saber se está valendo a pena.",
-    selo: "Pra quem revende pelo celular",
+      "Estoque, custo, lucro e anúncios num lugar só. Pra quem vende no Marketplace, no WhatsApp e no Instagram e quer saber se está valendo a pena.",
+    selo: "Pra quem vende no Marketplace e no WhatsApp",
     manchete: ["Você vende.", "O Marcon faz as contas."],
     apoio:
       "Estoque, custo, lucro e anúncios num app só. Pra quem vende no Marketplace, no WhatsApp e no Instagram e quer saber, de verdade, se está valendo a pena.",
@@ -40,13 +40,13 @@ const PUBLICOS: Record<
     selo: "Pra quem vende no Marketplace",
     manchete: ["“Ainda tá disponível?”", "Você já sabe a resposta."],
     apoio:
-      "Estoque, custo e margem de cada produto no celular. Você sabe se tem, até onde dá pra baixar o preço e quanto lucrou antes mesmo de fechar.",
+      "Estoque, custo e margem de cada produto. Você sabe se tem, até onde dá pra baixar o preço e quanto lucrou antes mesmo de fechar.",
     canal: "Marketplace",
   },
   whatsapp: {
     titulo: "Marcon | Pra quem vende no WhatsApp",
     descricao:
-      "Registre a venda, gere o recibo pra mandar no WhatsApp e saiba o lucro de cada uma. O app de quem revende pelo celular.",
+      "Registre a venda, gere o recibo pra mandar no WhatsApp e saiba o lucro de cada uma. O app de quem vende no Marketplace e no WhatsApp.",
     selo: "Pra quem vende no WhatsApp",
     manchete: ["Fechou no Zap?", "Registra em segundos."],
     apoio:
@@ -71,7 +71,7 @@ const SECOES = [
 const PERGUNTAS = [
   {
     p: "Serve pra quem vende só no WhatsApp ou no Instagram?",
-    r: "Serve. O Marcon é pra quem vende pelo celular, seja no Marketplace, no WhatsApp, no Instagram ou na OLX. Você cadastra seus canais e vê de onde veio cada venda.",
+    r: "Serve. O Marcon é pra quem vende no Marketplace e no WhatsApp, e também serve pra quem vende no Instagram ou na OLX. Você cadastra seus canais e vê de onde veio cada venda.",
   },
   {
     p: "Já uso outro sistema. Tenho que começar do zero?",
@@ -699,7 +699,7 @@ export function Landing({ publico }: { publico: Publico }) {
               O lucro já aparece.
             </>
           }
-          texto="Registra a venda em segundos e o Marcon faz a conta: baixa o estoque, soma no caixa e mostra o lucro, já tirando frete e embalagem. E o celular avisa a cada venda."
+          texto="Registra a venda em segundos e o Marcon faz a conta: baixa o estoque, soma no caixa e mostra o lucro, já tirando frete e embalagem. E o app avisa a cada venda."
           pontos={[
             "Pix, dinheiro, cartão ou parcelado",
             "Saiba se a venda veio do Marketplace, do WhatsApp ou do Instagram",
@@ -800,7 +800,7 @@ export function Landing({ publico }: { publico: Publico }) {
             </h2>
             <p className="mx-auto mt-6 max-w-[600px] text-[17px] leading-[1.6] text-ink-2 sm:text-[19px]">
               Vendo no Marketplace e no WhatsApp e cansei de planilha, de caderninho e de app lotado de coisa que eu não usava.
-              Cada tela do Marcon foi pensada pro jeito que a gente vende: rápido, pelo celular, entre uma conversa e outra.
+              Cada tela do Marcon foi pensada pro jeito que a gente vende: rápido, entre uma conversa e outra.
             </p>
           </div>
         </section>
@@ -932,7 +932,7 @@ export function Landing({ publico }: { publico: Publico }) {
         <div className="mx-auto flex max-w-[1024px] flex-col items-center justify-between gap-4 sm:flex-row">
           <span className="flex items-center gap-2">
             <Icone tamanho={16} />
-            Marcon · O app de quem revende pelo celular
+            Marcon · O app de quem vende no Marketplace e no WhatsApp
           </span>
           <nav aria-label="Rodapé" className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {SECOES.map((s) => (

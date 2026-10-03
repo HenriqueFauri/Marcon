@@ -183,7 +183,7 @@ export default async function ReciboPage({ params }: PageProps<"/r/[token]">) {
         <Link href="/" className="font-medium text-brand-text hover:underline">
           Marcon
         </Link>
-        , gestão de vendas para quem vende pelo celular.
+        , gestão de vendas para quem vende no Marketplace e no WhatsApp.
       </p>
     </main>
   );
