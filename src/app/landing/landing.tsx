@@ -167,7 +167,7 @@ function Flutuante({ className = "", children }: { className?: string; children:
   return (
     <div
       aria-hidden="true"
-      className={`flutuar flutuar-atrasado pointer-events-none absolute z-10 w-[min(290px,88%)] select-none ${className}`}
+      className={`flutuar flutuar-atrasado pointer-events-none relative z-10 -mt-3 w-[min(290px,92%)] select-none sm:absolute sm:mt-0 ${className}`}
     >
       {children}
     </div>
@@ -649,7 +649,7 @@ export function Landing({ publico }: { publico: Publico }) {
                 <PainelMetas />
               </Tela>
             </Cena>
-            <div className="-mt-10 flex flex-col gap-2 px-2 sm:-mr-24 sm:ml-24">
+            <div className="-mt-3 flex flex-col gap-2 px-2 sm:-mt-10 sm:-mr-24 sm:ml-24">
               <Cena giro={1.5} className="flutuar-atrasado">
                 <div className="flex flex-col gap-2">
                   <Notificacao titulo="Caiu mais uma! 💸" corpo={`Fone KZ ZSN Pro +1 · R$ 129,80 · lucro R$ 64,30 · ${p.canal}`} />
@@ -678,7 +678,7 @@ export function Landing({ publico }: { publico: Publico }) {
             "Aviso quando algo está acabando",
           ]}
           flutuante={
-            <Flutuante className="-bottom-6 -right-2 sm:-right-16">
+            <Flutuante className="ml-auto sm:-bottom-6 sm:-right-16 sm:ml-0">
               <div className="hairline overflow-hidden rounded-3xl bg-surface shadow-[0_24px_40px_-18px_rgba(0,0,0,0.35)]">
                 <LinhaResumo icone={<IconBox width={15} height={15} />} tom="bg-brand text-on-brand" rotulo="Repor estoque" valor="3 itens" />
               </div>
@@ -706,7 +706,7 @@ export function Landing({ publico }: { publico: Publico }) {
             "Frete, motoboy e embalagem descontados do lucro",
           ]}
           flutuante={
-            <Flutuante className="-left-2 -top-8 sm:-left-16 sm:-top-16">
+            <Flutuante className="mr-auto sm:-left-16 sm:-top-16">
               <Notificacao titulo="Vendeu! 🎉" corpo={`Fone KZ ZSN Pro +1 · R$ 129,80 · lucro R$ 64,30 · ${p.canal}`} />
             </Flutuante>
           }
@@ -732,7 +732,7 @@ export function Landing({ publico }: { publico: Publico }) {
             "IA que escreve título e descrição a partir do cadastro",
           ]}
           flutuante={
-            <Flutuante className="-bottom-6 -right-2 sm:-right-16">
+            <Flutuante className="ml-auto sm:-bottom-6 sm:-right-16 sm:ml-0">
               <div className="hairline glass flex items-center gap-2.5 rounded-[22px] px-3.5 py-3 text-left shadow-[0_24px_40px_-18px_rgba(0,0,0,0.35)]">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-brand-text">
                   <IconSparkles width={18} height={18} />
