@@ -328,6 +328,36 @@ export async function registrarSaidaEstoque(formData: FormData): Promise<ActionR
   }
 }
 
+// Corrige a quantidade em estoque para o valor real, sem tocar no caixa nem no custo.
+export async function ajustarEstoque(formData: FormData): Promise<ActionResult> {
+  try {
+    const produtoId = texto(formData, "produto_id");
+    const variacaoId = texto(formData, "variacao_id") || null;
+    const novoEstoque = numero(formData, "novo_estoque");
+
+    if (novoEstoque === null || !Number.isInteger(novoEstoque) || novoEstoque < 0)
+      return { ok: false, error: "Informe quantas unidades você tem agora (zero ou mais)." };
+
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("ajustar_estoque", {
+      p_produto_id: produtoId,
+      p_variacao_id: variacaoId,
+      p_novo_estoque: novoEstoque,
+      p_observacoes: textoOuNull(formData, "observacoes"),
+    });
+    if (error) return falha(error);
+
+    revalidarProduto(produtoId);
+    revalidatePath("/");
+    const diferenca = Number(data ?? 0);
+    return ok(
+      `Estoque ajustado para ${novoEstoque}${diferenca ? ` (${diferenca > 0 ? "+" : "−"}${Math.abs(diferenca)})` : ""}.`,
+    );
+  } catch (e) {
+    return falha(e);
+  }
+}
+
 // Lê os campos de uma variação (nome, sku, custo, preço). Custo e preço em branco valem os do produto.
 function lerCamposVariacao(formData: FormData) {
   const nomeCombinacao = texto(formData, "nome_combinacao");

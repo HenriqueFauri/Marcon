@@ -5,17 +5,19 @@ import Link from "next/link";
 import type { Fornecedor, ProdutoVariacao } from "@/types/domain";
 import { Modal } from "@/components/modal";
 import { btnPrimary, btnSecondary } from "@/components/ui";
-import { IconCart, IconMinus, IconPlus } from "@/components/icons";
+import { IconCart, IconMinus, IconPencil, IconPlus } from "@/components/icons";
 import { EntradaEstoqueForm } from "./entrada-estoque-form";
 import { SaidaEstoqueForm } from "./saida-estoque-form";
+import { AjusteEstoqueForm } from "./ajuste-estoque-form";
 
-type Janela = "entrada" | "saida" | null;
+type Janela = "entrada" | "saida" | "ajuste" | null;
 
 // Ações do produto, um botão para cada: entrada e saída de estoque abrem em
 // janela, e "Vender" leva pra nova venda já com o produto no carrinho.
 export function ProdutoAcoes({
   produtoId,
   custoAtual,
+  estoqueAtual,
   variacoes,
   fornecedores,
   fornecedorPadrao,
@@ -24,6 +26,7 @@ export function ProdutoAcoes({
 }: {
   produtoId: string;
   custoAtual: number;
+  estoqueAtual: number;
   variacoes: ProdutoVariacao[];
   fornecedores: Fornecedor[];
   fornecedorPadrao: string | null;
@@ -51,6 +54,15 @@ export function ProdutoAcoes({
         className={btnSecondary}
       >
         <IconMinus width={16} height={16} className="text-danger" /> Saída
+      </button>
+      <button
+        type="button"
+        disabled={precisaVariacao}
+        onClick={() => setJanela("ajuste")}
+        title={precisaVariacao ? "Adicione uma variação antes de mexer no estoque." : "Corrigir a quantidade, sem mexer no caixa"}
+        className={btnSecondary}
+      >
+        <IconPencil width={16} height={16} /> Ajustar
       </button>
       <Link href={`/vendas/novo?produto=${produtoId}`} className={btnPrimary}>
         <IconCart width={16} height={16} /> Vender
@@ -81,6 +93,20 @@ export function ProdutoAcoes({
         description="Tira unidades do estoque sem ser venda."
       >
         <SaidaEstoqueForm produtoId={produtoId} variacoes={variacoes} hoje={hoje} onConcluido={() => setJanela(null)} />
+      </Modal>
+
+      <Modal
+        open={janela === "ajuste"}
+        onClose={() => setJanela(null)}
+        title="Ajustar estoque"
+        description="Diga quantas unidades você tem de verdade. O app corrige a contagem sem mexer no caixa."
+      >
+        <AjusteEstoqueForm
+          produtoId={produtoId}
+          estoqueAtual={estoqueAtual}
+          variacoes={variacoes}
+          onConcluido={() => setJanela(null)}
+        />
       </Modal>
     </>
   );
