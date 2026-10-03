@@ -6,8 +6,34 @@ import { Badge, Card, btnPrimary, inputClass } from "@/components/ui";
 import { IconAlert, IconCheck } from "@/components/icons";
 import { useToast } from "@/components/toaster";
 import { formatBRL, formatData } from "@/lib/format";
-import type { Analise, Conferencia } from "@/lib/importacao/tipos";
+import { ErroDeLeitura, type Analise, type Conferencia } from "@/lib/importacao/tipos";
+import { detectarFormato, lerPlanilha } from "@/lib/importacao/planilha";
+import { mensagemDeLancamentos, mensagemDeProdutos, mensagemDeVendas } from "@/lib/importacao/mensagens";
+import type { ActionResult } from "@/lib/action";
 import { importarLancamentos, importarProdutos, importarVendas } from "./actions";
+
+// Envia em lotes: uma planilha grande não é cortada, só demora mais. Cada lote é tudo ou nada
+// no banco e o que já entrou é pulado se a importação for repetida, então uma queda no meio
+// se resolve importando de novo.
+const LOTE = 500;
+
+async function enviarEmLotes<T>(
+  itens: T[],
+  enviar: (lote: T[]) => Promise<ActionResult>,
+  aoAvancar: (feitos: number) => void,
+): Promise<{ ok: true; soma: Record<string, number> } | { ok: false; error: string; soma: Record<string, number> }> {
+  const soma: Record<string, number> = {};
+  for (let i = 0; i < itens.length; i += LOTE) {
+    aoAvancar(i);
+    const r = await enviar(itens.slice(i, i + LOTE));
+    if (!r.ok) {
+      const jaEntrou = i > 0 ? ` As primeiras ${i} linhas já entraram: é só importar de novo, o que já entrou é pulado.` : "";
+      return { ok: false, error: r.error + jaEntrou, soma };
+    }
+    for (const [k, v] of Object.entries(r.dados ?? {})) soma[k] = (soma[k] ?? 0) + v;
+  }
+  return { ok: true, soma };
+}
 
 type Tipo = Analise["tipo"];
 type De<T extends Tipo> = Extract<Analise, { tipo: T }>;
@@ -127,12 +153,14 @@ function BotaoImportar({
   onClick,
   rotulo,
   bloqueado,
+  progresso,
 }: {
   quantidade: number;
   enviando: boolean;
   onClick: () => void;
   rotulo: string;
   bloqueado?: boolean;
+  progresso?: string;
 }) {
   // plano grátis: a prévia funciona, mas gravar vendas e caixa de outro sistema é do plano pago
   if (bloqueado) {
@@ -152,7 +180,7 @@ function BotaoImportar({
   return (
     <div>
       <button type="button" className={btnPrimary} disabled={enviando || quantidade === 0} onClick={onClick}>
-        {enviando ? "Importando..." : quantidade === 0 ? "Selecione ao menos um" : `Importar ${rotulo}`}
+        {enviando ? `Importando${progresso ? ` ${progresso}` : ""}...` : quantidade === 0 ? "Selecione ao menos um" : `Importar ${rotulo}`}
       </button>
     </div>
   );
@@ -191,6 +219,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
     })),
   );
   const [enviando, setEnviando] = useState(false);
+  const [progresso, setProgresso] = useState("");
   const [resultado, setResultado] = useState<string | null>(null);
   const escolhidos = linhas.filter((l) => l.sel);
 
@@ -201,7 +230,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
   async function importar() {
     setEnviando(true);
     try {
-      const r = await importarProdutos(
+      const r = await enviarEmLotes(
         escolhidos.map((l) => ({
           nome: l.nome,
           categoria: l.categoria.trim() || null,
@@ -211,9 +240,11 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
           estoque: Math.trunc(num(l.estoque)),
           avisos: [],
         })),
+        importarProdutos,
+        (feitos) => setProgresso(`${feitos} de ${escolhidos.length}`),
       );
       if (!r.ok) toast.error(r.error);
-      else setResultado(r.message ?? "Produtos importados.");
+      else setResultado(mensagemDeProdutos({ criados: r.soma.criados ?? 0, ignorados: r.soma.ignorados ?? 0 }));
     } catch {
       toast.error("Não foi possível importar. Tente de novo.");
     } finally {
@@ -262,6 +293,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
           <BotaoImportar
             quantidade={escolhidos.length}
             enviando={enviando}
+            progresso={progresso}
             onClick={importar}
             rotulo={plural(escolhidos.length, "produto", "produtos")}
           />
@@ -279,6 +311,7 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
   const toast = useToast();
   const [selecionadas, setSelecionadas] = useState(() => new Set(analise.itens.filter((v) => !v.aPrazo).map((v) => v.ref)));
   const [enviando, setEnviando] = useState(false);
+  const [progresso, setProgresso] = useState("");
   const [resultado, setResultado] = useState<string | null>(null);
   const escolhidas = analise.itens.filter((v) => selecionadas.has(v.ref));
   const total = escolhidas.reduce((s, v) => s + v.total, 0);
@@ -296,9 +329,17 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
   async function importar() {
     setEnviando(true);
     try {
-      const r = await importarVendas(escolhidas);
+      const r = await enviarEmLotes(escolhidas, importarVendas, (feitos) => setProgresso(`${feitos} de ${escolhidas.length}`));
       if (!r.ok) toast.error(r.error);
-      else setResultado(r.message ?? "Vendas importadas.");
+      else {
+        setResultado(
+          mensagemDeVendas({
+            criadas: r.soma.criadas ?? 0,
+            ignoradas: r.soma.ignoradas ?? 0,
+            itens_sem_produto: r.soma.itens_sem_produto ?? 0,
+          }),
+        );
+      }
     } catch {
       toast.error("Não foi possível importar. Tente de novo.");
     } finally {
@@ -359,6 +400,7 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
           <BotaoImportar
             quantidade={escolhidas.length}
             enviando={enviando}
+            progresso={progresso}
             onClick={importar}
             rotulo={plural(escolhidas.length, "venda", "vendas")}
             bloqueado={!liberado}
@@ -377,6 +419,7 @@ function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boo
   const toast = useToast();
   const [selecionados, setSelecionados] = useState(() => new Set(analise.itens.map((l) => l.ref)));
   const [enviando, setEnviando] = useState(false);
+  const [progresso, setProgresso] = useState("");
   const [resultado, setResultado] = useState<string | null>(null);
   const escolhidos = analise.itens.filter((l) => selecionados.has(l.ref));
   const total = escolhidos.reduce((s, l) => s + (l.tipo === "saida" ? l.valor : 0), 0);
@@ -393,9 +436,9 @@ function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boo
   async function importar() {
     setEnviando(true);
     try {
-      const r = await importarLancamentos(escolhidos);
+      const r = await enviarEmLotes(escolhidos, importarLancamentos, (feitos) => setProgresso(`${feitos} de ${escolhidos.length}`));
       if (!r.ok) toast.error(r.error);
-      else setResultado(r.message ?? "Lançamentos importados.");
+      else setResultado(mensagemDeLancamentos({ criados: r.soma.criados ?? 0, ignorados: r.soma.ignorados ?? 0 }));
     } catch {
       toast.error("Não foi possível importar. Tente de novo.");
     } finally {
@@ -438,6 +481,7 @@ function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boo
           <BotaoImportar
             quantidade={escolhidos.length}
             enviando={enviando}
+            progresso={progresso}
             onClick={importar}
             rotulo={plural(escolhidos.length, "lançamento", "lançamentos")}
             bloqueado={!liberado}
@@ -464,23 +508,32 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
     if (arquivos.length === 0) return;
     setLendo(true);
     for (const arquivo of arquivos) {
-      const corpo = new FormData();
-      corpo.append("arquivo", arquivo);
       try {
-        const resposta = await fetch("/api/importar/analisar", { method: "POST", body: corpo });
-        const json = (await resposta.json().catch(() => null)) as { analises?: Analise[]; erro?: string } | null;
-        if (!resposta.ok || !json?.analises?.length) {
-          toast.error(`${arquivo.name}: ${json?.erro ?? "não consegui ler este arquivo."}`);
-          continue;
+        const bytes = new Uint8Array(await arquivo.arrayBuffer());
+        let analises: Analise[];
+        if (detectarFormato(bytes) === "pdf") {
+          // PDF é lido no servidor (limite de 4 MB por arquivo)
+          const corpo = new FormData();
+          corpo.append("arquivo", arquivo);
+          const resposta = await fetch("/api/importar/analisar", { method: "POST", body: corpo });
+          const json = (await resposta.json().catch(() => null)) as { analises?: Analise[]; erro?: string } | null;
+          if (!resposta.ok || !json?.analises?.length) {
+            toast.error(`${arquivo.name}: ${json?.erro ?? "não consegui ler este arquivo."}`);
+            continue;
+          }
+          analises = json.analises;
+        } else {
+          // planilha é lida aqui no navegador: sem limite de envio, nada é cortado
+          analises = await lerPlanilha(bytes);
         }
         // uma planilha pode ter uma aba de cada tipo; um arquivo novo do mesmo tipo substitui o anterior
-        for (const analise of json.analises) {
+        for (const analise of analises) {
           contador.current += 1;
           const chave = contador.current;
           setCarregado((prev) => ({ ...prev, [analise.tipo]: { analise, chave } }));
         }
-      } catch {
-        toast.error(`${arquivo.name}: sem conexão. Tente de novo.`);
+      } catch (e) {
+        toast.error(`${arquivo.name}: ${e instanceof ErroDeLeitura ? e.message : "não consegui ler este arquivo."}`);
       }
     }
     setLendo(false);

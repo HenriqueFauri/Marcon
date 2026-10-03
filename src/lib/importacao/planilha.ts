@@ -1,9 +1,10 @@
-import readXlsx from "read-excel-file/node";
+import readXlsx from "read-excel-file/universal";
 import { ErroDeLeitura } from "./tipos";
 import type { Analise, ItemVendaLido, LancamentoLido, ProdutoLido, VendaLida } from "./tipos";
 import { arredondar } from "./valores";
 
-// Leitor de planilhas (CSV, Excel .xlsx). Cada aba vira uma prévia de produtos, vendas
+// Leitor de planilhas (CSV, Excel .xlsx). Roda no navegador (a planilha nem sai do aparelho
+// até o usuário confirmar), por isso não tem limite de tamanho de envio. Cada aba vira uma prévia de produtos, vendas
 // ou caixa, adivinhada pelos títulos das colunas. Daí em diante o fluxo é o mesmo do
 // relatório em PDF: o usuário confere, corrige e confirma antes de qualquer gravação.
 
@@ -81,7 +82,7 @@ async function lerAbas(dados: Uint8Array): Promise<{ nome: string; tabela: Tabel
   }
   if (formato === "xlsx") {
     try {
-      const abas = await readXlsx(Buffer.from(dados));
+      const abas = await readXlsx(new Blob([dados as BlobPart]));
       return abas.map((a) => ({ nome: a.sheet, tabela: a.data as Tabela }));
     } catch {
       throw new ErroDeLeitura("Não consegui abrir esta planilha. Ela pode estar protegida por senha ou corrompida.");
@@ -268,8 +269,6 @@ function descobrirTipo(titulos: string[]): { tipo: Tipo; colunas: Colunas } | nu
 // tabela -> prévia
 // ---------------------------------------------------------------------------
 
-const MAX_LINHAS = 2000;
-
 function aba(rotulo: string, tabela: Tabela) {
   const inicio = acharTitulos(tabela);
   if (inicio < 0) return null;
@@ -310,7 +309,7 @@ function produtosDe(colunas: Colunas, linhas: Tabela): Analise {
   if (colunas.custo === undefined) avisos.push('A planilha não tem uma coluna de custo (ex.: "Custo"). Sem ela, o lucro dos produtos não é calculado.');
   else if (semCusto > 0) avisos.push(`${semCusto} produtos ficaram sem custo.`);
   if (colunas.estoque === undefined) avisos.push('Sem coluna de estoque (ex.: "Estoque"): os produtos entram com 0 unidades.');
-  return { tipo: "produtos", origem: "planilha", periodo: null, avisos, conferencias: [], itens: itens.slice(0, MAX_LINHAS) };
+  return { tipo: "produtos", origem: "planilha", periodo: null, avisos, conferencias: [], itens };
 }
 
 function vendasDe(colunas: Colunas, linhas: Tabela): Analise {
@@ -405,7 +404,7 @@ function vendasDe(colunas: Colunas, linhas: Tabela): Analise {
   }
   const datas = itens.map((v) => v.data).sort();
   const periodo = datas.length ? `${datas[0].split("-").reverse().join("/")} a ${datas[datas.length - 1].split("-").reverse().join("/")}` : null;
-  return { tipo: "vendas", origem: "planilha", periodo, avisos, conferencias: [], itens: itens.slice(0, MAX_LINHAS) };
+  return { tipo: "vendas", origem: "planilha", periodo, avisos, conferencias: [], itens };
 }
 
 const ENTRADA = /^(entrada|receita|credito|recebimento|c|e|\+)$/;
@@ -481,7 +480,7 @@ function caixaDe(colunas: Colunas, linhas: Tabela): Analise {
   }
   const datas = itens.map((x) => x.data).sort();
   const periodo = datas.length ? `${datas[0].split("-").reverse().join("/")} a ${datas[datas.length - 1].split("-").reverse().join("/")}` : null;
-  return { tipo: "caixa", origem: "planilha", periodo, avisos, conferencias: [], itens: itens.slice(0, MAX_LINHAS), vendasIgnoradas };
+  return { tipo: "caixa", origem: "planilha", periodo, avisos, conferencias: [], itens, vendasIgnoradas };
 }
 
 export const AJUDA_COLUNAS =

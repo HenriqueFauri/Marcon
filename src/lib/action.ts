@@ -1,7 +1,9 @@
 // Resultado padrão das server actions. Erros esperados voltam como valor em vez
 // de exceção: em produção o Next esconde a mensagem de erros lançados, e o
 // usuário só veria "An error occurred".
-export type ActionResult = { ok: true; message?: string; id?: string } | { ok: false; error: string };
+// dados: contagens opcionais, para quem chama somar resultados de várias chamadas (importação em lotes)
+// dados: contagens opcionais, para somar o resultado de várias chamadas (importação em lotes)
+export type ActionResult = { ok: true; message?: string; id?: string; dados?: Record<string, number> } | { ok: false; error: string };
 
 const MENSAGENS: [RegExp, string][] = [
   [/duplicate key|unique constraint/i, "Já existe um registro com esse nome."],
@@ -27,8 +29,8 @@ export function mensagemDeErro(e: unknown, fallback = "Algo deu errado. Tente de
   return bruto.charAt(0).toUpperCase() + bruto.slice(1);
 }
 
-export function ok(message?: string): ActionResult {
-  return { ok: true, message };
+export function ok(message?: string, dados?: Record<string, number>): ActionResult {
+  return { ok: true, message, dados };
 }
 
 export function falha(e: unknown): ActionResult {
