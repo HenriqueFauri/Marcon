@@ -140,6 +140,7 @@ export function VariacoesSection({
   const [nome, setNome] = useState("");
   const [sku, setSku] = useState("");
   const [estoque, setEstoque] = useState("0");
+  const [jaPago, setJaPago] = useState(false);
   const [custo, setCusto] = useState("");
   const [preco, setPreco] = useState("");
   const [editando, setEditando] = useState<ProdutoVariacao | null>(null);
@@ -148,6 +149,7 @@ export function VariacoesSection({
     setNome("");
     setSku("");
     setEstoque("0");
+    setJaPago(false);
     setCusto("");
     setPreco("");
   }
@@ -251,9 +253,20 @@ export function VariacoesSection({
             {isPending ? "Salvando..." : "Adicionar variação"}
           </button>
           {qtdInicial > 0 && (
-            <span className="ml-3 text-xs text-ink-muted">
-              O estoque entra como compra e sai do caixa ({formatBRL(qtdInicial * (lerNumero(custo) ?? custoPadrao))}).
-            </span>
+            <label className="mt-3 flex cursor-pointer items-start gap-2 text-xs text-ink-muted">
+              <input
+                type="checkbox"
+                name="estoque_ja_pago"
+                value="true"
+                checked={jaPago}
+                onChange={(e) => setJaPago(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-brand"
+              />
+              <span>
+                Esse estoque já era meu, não sai do caixa.
+                {!jaPago && ` Senão, entra como compra e sai do caixa (${formatBRL(qtdInicial * (lerNumero(custo) ?? custoPadrao))}).`}
+              </span>
+            </label>
           )}
         </div>
       </form>

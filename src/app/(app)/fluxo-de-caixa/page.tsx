@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { LancamentoCaixa } from "@/types/domain";
 import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
+import { mensagemDeErro } from "@/lib/action";
 import { paramsDoPeriodo, resolverPeriodo } from "@/lib/periodo";
 import { ConfirmButton } from "@/components/confirm-button";
 import {
@@ -23,6 +24,15 @@ import { excluirLancamento } from "./actions";
 
 export const metadata: Metadata = { title: "Fluxo de caixa" };
 
+// a lista mostra os mais recentes; os totais vêm do banco (resumo_caixa) e valem para o período todo
+const LIMITE_LISTA = 300;
+
+interface ResumoCaixa {
+  entradas: number;
+  saidas: number;
+  categorias: { categoria: string; valor: number }[];
+}
+
 function origem(l: LancamentoCaixa) {
   if (l.parcela_id) return { label: "Parcela", tone: "positive" as const };
   if (l.venda_id) return l.tipo === "saida" || l.origem === "ajuste" ? { label: "Estorno", tone: "negative" as const } : { label: "Venda", tone: "positive" as const };
@@ -41,49 +51,49 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
   const supabase = await createClient();
   let query = supabase
     .from("lancamentos_caixa")
-    .select("*")
+    .select("*", { count: "exact" })
     .gte("data", inicio)
     .lt("data", fimExclusivo)
     .order("data", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(0, LIMITE_LISTA - 1);
   if (tipo) query = query.eq("tipo", tipo);
 
   const hoje = hojeISO();
   // saldo real: até hoje (lançamento com data futura ainda não está no caixa) ou
-  // até o fim do período consultado; somado no banco pra não cortar em 1000 linhas
+  // até o fim do período consultado; tudo somado no banco pra não cortar em 1000 linhas
   const ultimoDia = somarDias(fimExclusivo, -1);
-  const [{ data, error }, { data: saldoFinalData }, { data: saldoAnteriorData }] = await Promise.all([
-    query,
-    supabase.rpc("saldo_caixa", { p_ate: ultimoDia < hoje ? ultimoDia : hoje }),
-    supabase.rpc("saldo_caixa", { p_ate: somarDias(inicio, -1) }),
-  ]);
+  const [{ data, error, count }, { data: saldoFinalData }, { data: saldoAnteriorData }, { data: resumoData, error: resumoError }] =
+    await Promise.all([
+      query,
+      supabase.rpc("saldo_caixa", { p_ate: ultimoDia < hoje ? ultimoDia : hoje }),
+      supabase.rpc("saldo_caixa", { p_ate: somarDias(inicio, -1) }),
+      supabase.rpc("resumo_caixa", { p_inicio: inicio, p_fim_exclusivo: fimExclusivo }),
+    ]);
 
-  if (error) {
+  const erroCarregar = error ?? resumoError;
+  if (erroCarregar) {
     return (
       <div>
         <PageHeader title="Fluxo de caixa" />
-        <ErrorMessage>Não foi possível carregar o fluxo de caixa: {error.message}</ErrorMessage>
+        <ErrorMessage>Não foi possível carregar o fluxo de caixa: {mensagemDeErro(erroCarregar)}</ErrorMessage>
       </div>
     );
   }
 
   const lancamentos = (data ?? []) as LancamentoCaixa[];
+  const totalDeLancamentos = count ?? lancamentos.length;
   const categorias = Array.from(new Set(lancamentos.map((l) => l.categoria)));
-  const soma = (t: "entrada" | "saida") =>
-    lancamentos.filter((l) => l.tipo === t).reduce((s, l) => s + Number(l.valor), 0);
-  const entradas = soma("entrada");
-  const saidas = soma("saida");
+  // totais do período inteiro, sempre sem o filtro de tipo (o filtro só muda a lista)
+  const resumo = resumoData as ResumoCaixa;
+  const entradas = Number(resumo.entradas);
+  const saidas = Number(resumo.saidas);
   const resultado = entradas - saidas;
   const saldoAnterior = Number(saldoAnteriorData ?? 0);
   const saldoEmCaixa = Number(saldoFinalData ?? 0);
 
-  // gastos por categoria no período
-  const porCategoria = new Map<string, number>();
-  for (const l of lancamentos) {
-    if (l.tipo !== "saida") continue;
-    porCategoria.set(l.categoria, (porCategoria.get(l.categoria) ?? 0) + Number(l.valor));
-  }
-  const topCategorias = [...porCategoria.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  // maiores gastos por categoria no período
+  const topCategorias = resumo.categorias.map((c) => [c.categoria, Number(c.valor)] as const);
 
   const filtroHref = (t?: string) => {
     const qs = new URLSearchParams(paramsDoPeriodo(periodo));
@@ -127,7 +137,12 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label={noMes ? "Entradas no mês" : "Entradas no período"} value={formatBRL(entradas)} tone="positive" />
         <StatCard label={noMes ? "Saídas no mês" : "Saídas no período"} value={formatBRL(saidas)} tone="negative" />
-        <StatCard label={noMes ? "Resultado do mês" : "Resultado do período"} value={formatBRL(resultado)} tone={resultado >= 0 ? "positive" : "negative"} />
+        <StatCard
+          label={noMes ? "Resultado do mês" : "Resultado do período"}
+          value={formatBRL(resultado)}
+          tone={resultado >= 0 ? "positive" : "negative"}
+          hint="Entrou menos saiu"
+        />
         <StatCard
           label="Saldo em caixa"
           value={formatBRL(saldoEmCaixa)}
@@ -161,6 +176,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
           description="Vendas à vista, parcelas recebidas e compras de estoque entram aqui automaticamente."
         />
       ) : (
+        <>
         <Table compacta>
           <thead className={theadClass}>
             <tr>
@@ -219,6 +235,12 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
             })}
           </tbody>
         </Table>
+        {totalDeLancamentos > lancamentos.length && (
+          <p className="mt-3 px-1 text-[13px] text-ink-muted">
+            Mostrando os {lancamentos.length} mais recentes de {totalDeLancamentos}. Os totais acima contam todos. Escolha um período menor para ver o resto.
+          </p>
+        )}
+        </>
       )}
     </div>
   );
