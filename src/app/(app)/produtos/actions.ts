@@ -109,6 +109,12 @@ function lerVariacoes(formData: FormData): (LinhaVariacao | { erro: string })[] 
   return linhas;
 }
 
+// "Esse estoque já era meu": entra no estoque sem sair do caixa. O argumento só é mandado quando
+// marcado, então quem ainda não rodou a migration 0021 segue funcionando como antes.
+function argsEstoqueJaPago(formData: FormData) {
+  return formData.get("estoque_ja_pago") === "true" ? { p_afeta_caixa: false } : {};
+}
+
 export async function criarProduto(formData: FormData): Promise<ActionResult> {
   try {
     const lido = camposProduto(formData);
@@ -159,6 +165,7 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
         p_fornecedor_nome: fornecedorNome,
         p_observacoes: "Estoque inicial do cadastro",
         p_fornecedor_id: fornecedorId,
+        ...argsEstoqueJaPago(formData),
       });
       if (rpcError) {
         revalidarProduto(produto.id);
@@ -207,6 +214,7 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
           p_fornecedor_nome: fornecedorNome,
           p_observacoes: "Estoque inicial do cadastro",
           p_fornecedor_id: fornecedorId,
+          ...argsEstoqueJaPago(formData),
         });
         if (rpcError) {
           revalidarProduto(produto.id);
@@ -411,6 +419,7 @@ export async function criarVariacao(formData: FormData): Promise<ActionResult> {
         p_fornecedor_nome: produto.fornecedor_nome,
         p_observacoes: "Estoque inicial da variação",
         p_fornecedor_id: produto.fornecedor_id,
+        ...argsEstoqueJaPago(formData),
       });
       if (rpcError) {
         revalidarProduto(produtoId);

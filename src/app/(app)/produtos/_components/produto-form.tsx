@@ -194,6 +194,7 @@ export function ProdutoForm({
   const { isPending, run } = useAction();
   const [erro, setErro] = useState<string | null>(null);
   const [temVariacoes, setTemVariacoes] = useState(produto?.tem_variacoes ?? false);
+  const [estoqueJaPago, setEstoqueJaPago] = useState(false);
   const [fornecedorId, setFornecedorId] = useState(produto?.fornecedor_id ?? "");
   const [custo, setCusto] = useState(valorInicial(produto?.custo));
   const [preco, setPreco] = useState(valorInicial(produto?.preco_varejo));
@@ -323,9 +324,31 @@ export function ProdutoForm({
             </label>
           )}
 
+          {!editando && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                name="estoque_ja_pago"
+                value="true"
+                checked={estoqueJaPago}
+                onChange={(e) => setEstoqueJaPago(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-brand"
+              />
+              <span>
+                Esse estoque já era meu
+                <span className="mt-0.5 block text-xs text-ink-muted">
+                  Marque se você já tinha pago por ele antes de usar o Marcon. O estoque entra, mas nada sai do caixa agora.
+                </span>
+              </span>
+            </label>
+          )}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {!editando && (
-              <Field label="Estoque inicial" hint={temVariacoes ? "Controlado por variação." : "Entra como compra no caixa."}>
+              <Field
+                label="Estoque inicial"
+                hint={temVariacoes ? "Controlado por variação." : estoqueJaPago ? "Não sai do caixa." : "Entra como compra no caixa."}
+              >
                 <input
                   name="estoque_inicial"
                   type="number"

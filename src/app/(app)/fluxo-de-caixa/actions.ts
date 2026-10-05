@@ -52,10 +52,12 @@ export async function excluirLancamento(id: string): Promise<ActionResult> {
     // estoque) são desfeitos pela ação de origem, senão o caixa desencontra do resto
     const { data: lancamento } = await supabase
       .from("lancamentos_caixa")
-      .select("venda_id, parcela_id, movimento_estoque_id")
+      .select("venda_id, parcela_id, movimento_estoque_id, origem")
       .eq("id", id)
-      .single();
-    if (lancamento && (lancamento.venda_id || lancamento.parcela_id || lancamento.movimento_estoque_id)) {
+      .maybeSingle();
+    if (!lancamento) return { ok: false, error: "Esse lançamento não existe mais." };
+    // mesma regra da tela: só "Manual" tem botão de excluir (compra importada também é de estoque)
+    if (lancamento.venda_id || lancamento.parcela_id || lancamento.movimento_estoque_id || lancamento.origem === "compra") {
       return {
         ok: false,
         error: "Esse lançamento foi gerado automaticamente. Cancele a venda ou ajuste o estoque na origem.",
