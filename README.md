@@ -72,13 +72,12 @@ Ao registrar uma venda, "Outros gastos" (motoboy, embalagem, taxa) é dinheiro q
 
 Além do mês, aceita os últimos 30, 60, 90 e 120 dias e datas livres (até 2 anos). Tudo na URL: `?mes=AAAA-MM`, `?dias=90` ou `?de=AAAA-MM-DD&ate=AAAA-MM-DD` (`src/lib/periodo.ts`).
 
-### Regras do caixa (migration `0021`)
+### Regras do caixa (migration `0022`)
 
 - **Datas em Brasília:** o banco roda em UTC, então datas geradas no SQL usam `hoje_br()`, nunca `current_date`. Vale para o estorno de venda cancelada, o pagamento de parcela, o "atrasado" das parcelas e o recibo.
 - **Totais no banco:** entradas, saídas e as maiores saídas por categoria vêm de `resumo_caixa()` e valem para o período todo, com ou sem o filtro de tipo. A tela lista só os 300 lançamentos mais recentes, com um aviso quando há mais. O saldo continua em `saldo_caixa()`.
 - **Parcela paga uma vez só:** `pagar_parcela` trava a parcela e `lancamentos_caixa_parcela_uk` impede dois lançamentos para a mesma parcela. O índice só é criado se não houver duplicata antiga (a migration avisa).
 - **Estoque que já era seu:** no cadastro de produto e de variação, "Esse estoque já era meu" chama `registrar_entrada_estoque` com `p_afeta_caixa = false`: entra estoque e custo médio, nada sai do caixa. Sem a marca, o estoque inicial continua saindo do caixa como compra.
-- **Venda importada cancelada** não devolve estoque (a importação não baixou o estoque).
 
 ## Assinatura (Asaas)
 

@@ -140,10 +140,8 @@ export async function cancelarVenda(vendaId: string): Promise<ActionResult> {
     revalidatePath(`/vendas/${vendaId}`);
 
     // a função diz o que fez com o estoque; sem resumo (banco antigo), vale o aviso de sempre
-    const r = data as { devolvidos?: number; sem_ligacao?: number; sem_variacao?: number; importada?: boolean } | null;
+    const r = data as { devolvidos?: number; sem_ligacao?: number; sem_variacao?: number } | null;
     if (!r || typeof r !== "object") return ok("Venda cancelada. Estoque devolvido e valores estornados.");
-    // venda importada é histórico: a importação não baixou o estoque, então não há o que devolver
-    if (r.importada) return ok("Venda cancelada. Valores estornados no caixa. Era uma venda importada, então o estoque não mudou.");
     const devolvidos = r.devolvidos ?? 0;
     const naoVoltaram = (r.sem_ligacao ?? 0) + (r.sem_variacao ?? 0);
     const voltou = devolvidos ? ` ${devolvidos} ${devolvidos === 1 ? "item voltou" : "itens voltaram"} ao estoque.` : "";

@@ -9,8 +9,7 @@
 -- 3. Estoque que já era seu: registrar_entrada_estoque ganha p_afeta_caixa. Com false o
 --    estoque e o custo médio entram, mas nenhum dinheiro sai do caixa (quem começa no
 --    Marcon já pagou por esse estoque antes).
--- 4. Cancelar uma venda importada não devolve estoque: a importação não baixou o
---    estoque, então devolver criava unidades que nunca existiram.
+-- 4. cancelar_venda: igual à da 0021, só que o estorno é datado no dia de Brasília.
 -- 5. resumo_caixa: entradas, saídas e as maiores saídas por categoria somadas no banco,
 --    sem o corte de 1000 linhas do PostgREST (o saldo já era assim desde a 0016).
 
@@ -140,7 +139,8 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- cancelar_venda: estorno datado em Brasília; venda importada não devolve estoque
+-- cancelar_venda: igual à da 0021 (religa itens soltos e devolve o estoque), só que o
+-- estorno é datado no dia de Brasília
 -- ---------------------------------------------------------------------------
 create or replace function cancelar_venda(p_venda_id uuid)
 returns jsonb
@@ -152,8 +152,8 @@ declare
   v_venda vendas%rowtype;
   v_item venda_itens%rowtype;
   v_produto produtos%rowtype;
+  v_produto_id uuid;
   v_variacao_id uuid;
-  v_tamanhos integer[];
   v_recebido numeric;
   v_devolvidos integer := 0;
   v_sem_ligacao integer := 0;
@@ -169,51 +169,42 @@ begin
     raise exception 'essa venda já está cancelada';
   end if;
 
-  -- venda importada é histórico: a importação não baixou o estoque (o de hoje veio do
-  -- relatório de produtos), então não há o que devolver
-  if v_venda.importado_ref is null then
-    -- devolve o estoque, contando o que voltou e o que não deu para ligar
-    for v_item in select * from venda_itens where venda_id = p_venda_id and owner_id = auth.uid()
-    loop
-      if v_item.variacao_id is not null then
-        update produto_variacoes set estoque = estoque + v_item.quantidade
-          where id = v_item.variacao_id and owner_id = auth.uid();
-        if found then v_devolvidos := v_devolvidos + 1; else v_sem_ligacao := v_sem_ligacao + 1; end if;
-      elsif v_item.produto_id is not null then
-        select * into v_produto from produtos where id = v_item.produto_id and owner_id = auth.uid();
-        if not found then
-          v_sem_ligacao := v_sem_ligacao + 1;
-        elsif v_produto.tem_variacoes then
-          -- item sem variação num produto com variações: acha pelo nome do item,
-          -- ficando com a mais específica (a de nome mais longo) e só se não houver empate
-          select (array_agg(id order by tamanho desc))[1], array_agg(tamanho order by tamanho desc)
-            into v_variacao_id, v_tamanhos
-            from (
-              select id, length(btrim(nome_combinacao)) as tamanho
-                from produto_variacoes
-                where produto_id = v_produto.id and owner_id = auth.uid()
-                  and btrim(nome_combinacao) <> ''
-                  and position((' ' || regexp_replace(lower(btrim(nome_combinacao)), '[^[:alnum:]]+', ' ', 'g') || ' ')
-                    in (' ' || regexp_replace(lower(v_item.produto_nome), '[^[:alnum:]]+', ' ', 'g') || ' ')) > 0
-                order by tamanho desc
-                limit 2
-            ) achadas;
-          if v_variacao_id is not null and (cardinality(v_tamanhos) = 1 or v_tamanhos[1] > v_tamanhos[2]) then
-            update produto_variacoes set estoque = estoque + v_item.quantidade where id = v_variacao_id;
-            v_devolvidos := v_devolvidos + 1;
-          else
-            v_sem_variacao := v_sem_variacao + 1;
-          end if;
-        else
-          update produtos set estoque_atual = estoque_atual + v_item.quantidade, updated_at = now()
-            where id = v_item.produto_id and owner_id = auth.uid();
-          v_devolvidos := v_devolvidos + 1;
-        end if;
-      else
-        v_sem_ligacao := v_sem_ligacao + 1;
+  -- devolve o estoque, contando o que voltou e o que não deu para ligar
+  for v_item in select * from venda_itens where venda_id = p_venda_id and owner_id = auth.uid()
+  loop
+    v_produto_id := v_item.produto_id;
+    v_variacao_id := v_item.variacao_id;
+
+    -- item solto (venda importada): tenta ligar pelo nome
+    if v_produto_id is null then
+      v_produto_id := achar_produto_do_item(v_item.produto_nome);
+    end if;
+    if v_variacao_id is null and v_produto_id is not null then
+      select * into v_produto from produtos where id = v_produto_id and owner_id = auth.uid();
+      if found and v_produto.tem_variacoes then
+        v_variacao_id := achar_variacao(v_produto_id, v_item.produto_nome);
       end if;
-    end loop;
-  end if;
+    end if;
+
+    if v_variacao_id is not null then
+      update produto_variacoes set estoque = estoque + v_item.quantidade
+        where id = v_variacao_id and owner_id = auth.uid();
+      if found then v_devolvidos := v_devolvidos + 1; else v_sem_ligacao := v_sem_ligacao + 1; end if;
+    elsif v_produto_id is not null then
+      select * into v_produto from produtos where id = v_produto_id and owner_id = auth.uid();
+      if not found then
+        v_sem_ligacao := v_sem_ligacao + 1;
+      elsif v_produto.tem_variacoes then
+        v_sem_variacao := v_sem_variacao + 1;
+      else
+        update produtos set estoque_atual = estoque_atual + v_item.quantidade, updated_at = now()
+          where id = v_produto_id and owner_id = auth.uid();
+        v_devolvidos := v_devolvidos + 1;
+      end if;
+    else
+      v_sem_ligacao := v_sem_ligacao + 1;
+    end if;
+  end loop;
 
   -- estorna o que já entrou no caixa por essa venda (à vista ou parcelas pagas)
   select coalesce(sum(case when tipo = 'entrada' then valor else -valor end), 0) into v_recebido
@@ -250,11 +241,11 @@ begin
   return jsonb_build_object(
     'devolvidos', v_devolvidos,
     'sem_ligacao', v_sem_ligacao,
-    'sem_variacao', v_sem_variacao,
-    'importada', v_venda.importado_ref is not null
+    'sem_variacao', v_sem_variacao
   );
 end;
 $$;
+
 
 -- ---------------------------------------------------------------------------
 -- registrar_entrada_estoque: p_afeta_caixa (false = estoque que já era seu)
