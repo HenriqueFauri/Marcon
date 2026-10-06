@@ -72,7 +72,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
   const { data: assinadas } = fotos.length
     ? await supabase.storage.from("produto-fotos").createSignedUrls(fotos.map((f) => f.path), 3600)
     : { data: [] };
-  const fotosComUrl = fotos.map((foto, i) => ({ id: foto.id, path: foto.path, url: assinadas?.[i]?.signedUrl ?? null }));
+  const fotosComUrl = fotos.map((foto, i) => ({ id: foto.id, path: foto.path, variacao_id: foto.variacao_id, url: assinadas?.[i]?.signedUrl ?? null }));
 
   const precisaVariacao = p.tem_variacoes && variacoes.length === 0;
 
@@ -143,7 +143,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         )}
 
         <Card title="Fotos">
-          <FotosSection produtoId={p.id} fotos={fotosComUrl} maxFotos={uso?.limites.fotosPorItem} />
+          <FotosSection produtoId={p.id} fotos={fotosComUrl} variacoes={variacoes} maxFotos={uso?.limites.fotosPorItem} />
         </Card>
 
         <Link
