@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { mensagemDeErro } from "@/lib/action";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
+import { comprimirLogo } from "@/lib/imagem";
 import { formatarTelefone } from "@/lib/format";
 import { formatarDocumento } from "@/lib/documento";
 import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
@@ -35,14 +36,15 @@ export function EmpresaForm({
   const [doc, setDoc] = useState(formatarDocumento(documento));
 
   async function handleLogoUpload(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
-    if (file.size > TAMANHO_MAX) {
+    const original = files?.[0];
+    if (!original) return;
+    if (original.size > TAMANHO_MAX) {
       toast.error("O logo precisa ter no máximo 2 MB.");
       return;
     }
     setEnviando(true);
     try {
+      const file = await comprimirLogo(original);
       const supabase = createClient();
       const {
         data: { user },
