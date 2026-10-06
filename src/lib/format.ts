@@ -65,3 +65,15 @@ export function somarDias(iso: string, dias: number) {
   d.setUTCDate(d.getUTCDate() + dias);
   return d.toISOString().slice(0, 10);
 }
+
+// telefone brasileiro com máscara: (11) 99999-9999 ou (11) 9999-9999 (fixo)
+export function formatarTelefone(value: string | null | undefined) {
+  let d = somenteDigitos(value);
+  if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
+  d = d.slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  const ddd = d.slice(0, 2);
+  const resto = d.slice(2);
+  const corte = d.length > 10 ? 5 : 4;
+  return resto.length <= corte ? `(${ddd}) ${resto}` : `(${ddd}) ${resto.slice(0, corte)}-${resto.slice(corte)}`;
+}
