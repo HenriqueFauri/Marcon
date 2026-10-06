@@ -82,7 +82,7 @@ export function ReciboCard({
         <a href={`/r/${token}`} target="_blank" rel="noopener" className={btnGhost}>
           Ver recibo
         </a>
-        <a href={`/r/${token}?pdf=1`} target="_blank" rel="noopener" className={btnGhost}>
+        <a href={`/r/${token}/pdf`} download className={btnGhost}>
           Baixar PDF
         </a>
       </div>

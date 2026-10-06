@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatBRL, formatData } from "@/lib/format";
-import { Badge } from "@/components/ui";
-import { BotaoPdf } from "./botao-pdf";
+import { formatBRL, formatData, formatarTelefone } from "@/lib/format";
+import { rotuloDocumento } from "@/lib/documento";
+import { buscarRecibo, totaisDoRecibo } from "@/lib/recibo";
+import { Badge, btnSecondary } from "@/components/ui";
 
 // Recibo público de uma venda: o lojista manda o link ao cliente, que abre sem login.
 // Os dados vêm da função recibo_publico (migration 0017), que devolve só o que o
@@ -16,51 +16,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-interface Recibo {
-  empresa: {
-    nome: string | null;
-    telefone: string | null;
-    email: string | null;
-    endereco: string | null;
-    documento: string | null;
-    logo_path: string | null;
-  };
-  venda: {
-    data: string;
-    cliente_nome: string | null;
-    tipo_pagamento: "a_vista" | "a_prazo";
-    forma_pagamento: string | null;
-    valor_total: number;
-    desconto: number;
-    status: "concluida" | "cancelada";
-  };
-  itens: { nome: string; quantidade: number; preco_unitario: number }[];
-  parcelas: {
-    numero: number;
-    vencimento: string;
-    valor: number;
-    status: "pendente" | "pago" | "atrasado";
-    data_pagamento: string | null;
-  }[];
-}
-
 const STATUS_PARCELA = {
   pendente: { label: "A vencer", tone: "warning" },
   pago: { label: "Paga", tone: "positive" },
   atrasado: { label: "Atrasada", tone: "negative" },
 } as const;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export default async function ReciboPage({ params, searchParams }: PageProps<"/r/[token]">) {
+export default async function ReciboPage({ params }: PageProps<"/r/[token]">) {
   const { token } = await params;
-  const { pdf } = await searchParams;
-  if (!UUID.test(token)) notFound();
-
-  const supabase = await createClient();
-  const { data } = await supabase.rpc("recibo_publico", { p_token: token });
-  if (!data) notFound();
-  const recibo = data as Recibo;
+  const recibo = await buscarRecibo(token);
+  if (!recibo) notFound();
   const { empresa, venda, itens, parcelas } = recibo;
 
   // o bucket do logo é privado; a chave de serviço assina um link curto só para esta página
@@ -74,15 +39,14 @@ export default async function ReciboPage({ params, searchParams }: PageProps<"/r
   }
 
   const cancelada = venda.status === "cancelada";
-  const subtotal = itens.reduce((s, i) => s + i.quantidade * Number(i.preco_unitario), 0);
-  const pago = parcelas.filter((p) => p.status === "pago").reduce((s, p) => s + Number(p.valor), 0);
-  const emAberto = Number(venda.valor_total) - pago;
-  const contato = [empresa.telefone, empresa.email].filter(Boolean).join(" · ");
+  const { subtotal, emAberto } = totaisDoRecibo(recibo);
+  const documento = rotuloDocumento(empresa.documento);
+  const telefone = formatarTelefone(empresa.telefone);
 
   return (
     // o Clarity grava a tela: mascara nomes e valores do cliente de quem vendeu
     <main data-clarity-mask="true" className="mx-auto w-full max-w-md px-4 py-8 sm:py-12">
-      <article className="hairline rounded-3xl bg-surface p-5 sm:p-7 print:rounded-none print:p-0 print:shadow-none print:[box-shadow:none]">
+      <article className="hairline rounded-3xl bg-surface p-5 sm:p-7">
         <header className="flex items-start gap-3 border-b border-line pb-5">
           {logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -90,8 +54,9 @@ export default async function ReciboPage({ params, searchParams }: PageProps<"/r
           )}
           <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight text-ink">{empresa.nome || "Recibo de venda"}</h1>
-            {empresa.documento && <p className="text-xs text-ink-muted">{empresa.documento}</p>}
-            {contato && <p className="text-xs text-ink-muted">{contato}</p>}
+            {documento && <p className="text-xs text-ink-muted">{documento}</p>}
+            {telefone && <p className="text-xs text-ink-muted">Telefone {telefone}</p>}
+            {empresa.email && <p className="text-xs text-ink-muted">{empresa.email}</p>}
             {empresa.endereco && <p className="text-xs text-ink-muted">{empresa.endereco}</p>}
           </div>
         </header>
@@ -180,8 +145,10 @@ export default async function ReciboPage({ params, searchParams }: PageProps<"/r
         )}
       </article>
 
-      <div className="mt-4 flex justify-center print:hidden">
-        <BotaoPdf auto={pdf === "1"} />
+      <div className="mt-4 flex justify-center">
+        <a href={`/r/${token}/pdf`} download className={btnSecondary}>
+          Baixar PDF
+        </a>
       </div>
 
       <p className="mt-6 text-center text-xs text-ink-muted">

@@ -43,7 +43,7 @@ const NAV: NavItem[] = [
 ];
 
 // atalhos da barra inferior no celular; o resto fica no menu
-const NAV_MOBILE = ["/", "/vendas", "/produtos", "/clientes"];
+const NAV_MOBILE = ["/", "/vendas", "/produtos", "/anuncios"];
 
 // no desktop o menu se divide em grupos, como na barra lateral do Mac
 const GRUPOS: { titulo: string | null; hrefs: string[] }[] = [

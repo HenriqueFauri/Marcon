@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { mensagemDeErro } from "@/lib/action";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
+import { formatarTelefone } from "@/lib/format";
+import { formatarDocumento } from "@/lib/documento";
 import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { atualizarEmpresa, atualizarLogoEmpresa } from "./actions";
 
@@ -29,6 +31,8 @@ export function EmpresaForm({
   const { isPending, run } = useAction();
   const toast = useToast();
   const [enviando, setEnviando] = useState(false);
+  const [tel, setTel] = useState(formatarTelefone(telefone));
+  const [doc, setDoc] = useState(formatarDocumento(documento));
 
   async function handleLogoUpload(files: FileList | null) {
     const file = files?.[0];
@@ -109,7 +113,16 @@ export function EmpresaForm({
         </Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Telefone">
-            <input name="empresa_telefone" type="tel" defaultValue={telefone} placeholder="(11) 99999-9999" className={inputClass} />
+            <input
+              name="empresa_telefone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel-national"
+              value={tel}
+              onChange={(e) => setTel(formatarTelefone(e.target.value))}
+              placeholder="(11) 99999-9999"
+              className={inputClass}
+            />
           </Field>
           <Field label="E-mail de contato">
             <input name="empresa_email" type="email" defaultValue={email} placeholder="contato@empresa.com" className={inputClass} />
@@ -119,7 +132,14 @@ export function EmpresaForm({
           <textarea name="empresa_endereco" defaultValue={endereco} rows={2} placeholder="Rua, número, bairro, cidade..." className={inputClass} />
         </Field>
         <Field label="CPF / CNPJ" className="sm:max-w-xs">
-          <input name="empresa_documento" defaultValue={documento} placeholder="Opcional" className={inputClass} />
+          <input
+            name="empresa_documento"
+            inputMode="numeric"
+            value={doc}
+            onChange={(e) => setDoc(formatarDocumento(e.target.value))}
+            placeholder="000.000.000-00 ou 00.000.000/0000-00"
+            className={inputClass}
+          />
         </Field>
         <div>
           <button type="submit" disabled={isPending} className={btnPrimary}>

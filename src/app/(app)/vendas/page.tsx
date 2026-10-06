@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Venda } from "@/types/domain";
-import { formatBRL, formatData, intervaloDoMes, mesAtual, mesValido } from "@/lib/format";
-import { MonthPicker } from "@/components/month-picker";
+import { formatBRL, formatData } from "@/lib/format";
+import { resolverPeriodo } from "@/lib/periodo";
+import { PeriodoPicker } from "@/components/periodo-picker";
 import {
   Badge,
   EmptyState,
@@ -21,19 +22,25 @@ import { IconPlus } from "@/components/icons";
 
 export const metadata: Metadata = { title: "Vendas" };
 
+const LIMITE_LISTA = 300;
+const PAGINA_TOTAIS = 1000; // o PostgREST devolve no máximo 1000 linhas por consulta
+
 export default async function VendasPage({ searchParams }: PageProps<"/vendas">) {
   const sp = await searchParams;
-  const mes = mesValido(typeof sp.mes === "string" ? sp.mes : null) ?? mesAtual();
-  const { inicio, fimExclusivo } = intervaloDoMes(mes);
+  const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
+  const periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), todo: texto(sp.todo), de: texto(sp.de), ate: texto(sp.ate) });
+  const { inicio, fimExclusivo } = periodo;
+  const noMes = periodo.modo === "mes";
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("vendas")
-    .select("*")
+    .select("*", { count: "exact" })
     .gte("data", inicio)
     .lt("data", fimExclusivo)
     .order("data", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(0, LIMITE_LISTA - 1);
 
   const novaVenda = (
     <Link href="/vendas/novo" className={btnPrimary}>
@@ -51,7 +58,33 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
   }
 
   const vendas = (data ?? []) as Venda[];
-  const concluidas = vendas.filter((v) => v.status !== "cancelada");
+  const totalDeVendas = count ?? vendas.length;
+
+  // os totais cobrem o período inteiro, mesmo quando a lista mostra só as mais recentes
+  let base = vendas;
+  if (totalDeVendas > vendas.length) {
+    base = [];
+    for (let de = 0; de < totalDeVendas; de += PAGINA_TOTAIS) {
+      const { data: pagina, error: erroPagina } = await supabase
+        .from("vendas")
+        .select("valor_total, custo_total, status")
+        .gte("data", inicio)
+        .lt("data", fimExclusivo)
+        .order("data", { ascending: false })
+        .order("created_at", { ascending: false })
+        .range(de, de + PAGINA_TOTAIS - 1);
+      if (erroPagina) {
+        return (
+          <div>
+            <PageHeader title="Vendas" action={novaVenda} />
+            <ErrorMessage>Não foi possível carregar as vendas: {erroPagina.message}</ErrorMessage>
+          </div>
+        );
+      }
+      base.push(...((pagina ?? []) as Venda[]));
+    }
+  }
+  const concluidas = base.filter((v) => v.status !== "cancelada");
   const totalVendido = concluidas.reduce((s, v) => s + Number(v.valor_total), 0);
   const lucroTotal = concluidas.reduce((s, v) => s + (Number(v.valor_total) - Number(v.custo_total)), 0);
   const ticketMedio = concluidas.length ? totalVendido / concluidas.length : 0;
@@ -61,8 +94,13 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
     <div>
       <PageHeader title="Vendas" description="Registre e acompanhe suas vendas." action={novaVenda} />
 
-      <div className="mb-4">
-        <MonthPicker mes={mes} basePath="/vendas" />
+      <div className="mb-4 flex flex-col gap-3">
+        <PeriodoPicker periodo={periodo} basePath="/vendas" />
+        {!noMes && (
+          <p className="text-[13px] text-ink-muted">
+            {periodo.modo === "todo" ? "Todo o período, até hoje" : `De ${formatData(periodo.de)} até ${formatData(periodo.ate)}`}
+          </p>
+        )}
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -79,7 +117,7 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
 
       {vendas.length === 0 ? (
         <EmptyState
-          title="Nenhuma venda neste mês"
+          title={noMes ? "Nenhuma venda neste mês" : "Nenhuma venda neste período"}
           description="Quando você registrar uma venda, ela aparece aqui com o lucro calculado automaticamente."
           action={novaVenda}
         />
@@ -139,6 +177,11 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
             })}
           </tbody>
         </Table>
+      )}
+      {totalDeVendas > vendas.length && (
+        <p className="mt-3 text-center text-[13px] text-ink-muted">
+          Mostrando as {vendas.length} mais recentes de {totalDeVendas}. Os totais acima somam todas.
+        </p>
       )}
     </div>
   );

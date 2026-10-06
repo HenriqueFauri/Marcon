@@ -45,3 +45,11 @@ export function documentoValido(valor: string) {
   if (d.length === 14) return cnpjValido(d);
   return false;
 }
+
+// "CPF 000.000.000-00" ou "CNPJ 00.000.000/0000-00" pelo tamanho; outro tamanho sai como foi digitado
+export function rotuloDocumento(valor: string | null | undefined) {
+  const d = (valor ?? "").replace(/\D/g, "");
+  if (d.length === 11) return `CPF ${formatarDocumento(d)}`;
+  if (d.length === 14) return `CNPJ ${formatarDocumento(d)}`;
+  return valor?.trim() ? `Documento ${valor.trim()}` : null;
+}

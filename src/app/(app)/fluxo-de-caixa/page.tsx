@@ -19,7 +19,7 @@ import {
   theadClass,
 } from "@/components/ui";
 import { NovoLancamentoForm } from "./novo-lancamento-form";
-import { PeriodoCaixaPicker } from "./periodo-caixa";
+import { PeriodoPicker } from "@/components/periodo-picker";
 import { excluirLancamento } from "./actions";
 
 export const metadata: Metadata = { title: "Fluxo de caixa" };
@@ -43,7 +43,7 @@ function origem(l: LancamentoCaixa) {
 export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/fluxo-de-caixa">) {
   const sp = await searchParams;
   const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
-  const periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), de: texto(sp.de), ate: texto(sp.ate) });
+  const periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), todo: texto(sp.todo), de: texto(sp.de), ate: texto(sp.ate) });
   const tipo = sp.tipo === "entrada" || sp.tipo === "saida" ? sp.tipo : undefined;
   const { inicio, fimExclusivo } = periodo;
   const noMes = periodo.modo === "mes";
@@ -111,10 +111,10 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
       />
 
       <div className="mb-4 flex flex-col gap-3">
-        <PeriodoCaixaPicker periodo={periodo} tipo={tipo} />
+        <PeriodoPicker periodo={periodo} basePath="/fluxo-de-caixa" params={{ tipo }} />
         {!noMes && (
           <p className="text-[13px] text-ink-muted">
-            De {formatData(periodo.de)} até {formatData(periodo.ate)}
+            {periodo.modo === "todo" ? "Todo o período, até hoje" : <>De {formatData(periodo.de)} até {formatData(periodo.ate)}</>}
           </p>
         )}
         <div className="flex gap-1">
