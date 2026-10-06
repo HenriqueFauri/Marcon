@@ -13,6 +13,7 @@ import { excluirFoto, registrarFoto } from "../actions";
 interface FotoComUrl {
   id: string;
   path: string;
+  variacao_id: string | null;
   url: string | null;
 }
 
@@ -31,15 +32,60 @@ function nomeSeguro(nome: string) {
   return `${limpo || "foto"}.${ext}`;
 }
 
-// maxFotos vem do plano (1 no grátis, 10 no pago); o banco impõe o mesmo limite
+// Produto com variações: um bloco de fotos gerais (vale para todas) e um por variação.
+// O limite de fotos do plano conta por bloco, igual ao banco.
 export function FotosSection({
   produtoId,
   fotos,
+  variacoes = [],
   maxFotos = MAX_FOTOS_POR_ITEM,
 }: {
   produtoId: string;
   fotos: FotoComUrl[];
+  variacoes?: { id: string; nome_combinacao: string }[];
   maxFotos?: number;
+}) {
+  if (variacoes.length === 0) {
+    return <GrupoFotos produtoId={produtoId} variacaoId={null} fotos={fotos} maxFotos={maxFotos} />;
+  }
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h3 className="mb-1 text-sm font-semibold text-ink">Fotos gerais</h3>
+        <p className="mb-3 text-xs text-ink-muted">Aparecem em qualquer variação que não tenha foto própria.</p>
+        <GrupoFotos
+          produtoId={produtoId}
+          variacaoId={null}
+          fotos={fotos.filter((f) => f.variacao_id === null)}
+          maxFotos={maxFotos}
+        />
+      </div>
+      {variacoes.map((v) => (
+        <div key={v.id}>
+          <h3 className="mb-3 text-sm font-semibold text-ink">{v.nome_combinacao}</h3>
+          <GrupoFotos
+            produtoId={produtoId}
+            variacaoId={v.id}
+            fotos={fotos.filter((f) => f.variacao_id === v.id)}
+            maxFotos={maxFotos}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// maxFotos vem do plano (3 no grátis, 10 no pago); o banco impõe o mesmo limite
+function GrupoFotos({
+  produtoId,
+  variacaoId,
+  fotos,
+  maxFotos,
+}: {
+  produtoId: string;
+  variacaoId: string | null;
+  fotos: FotoComUrl[];
+  maxFotos: number;
 }) {
   const limitadoPeloPlano = maxFotos < MAX_FOTOS_POR_ITEM;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -94,7 +140,7 @@ export function FotosSection({
           contentType: arquivo.type,
         });
         if (uploadError) throw uploadError;
-        const r = await registrarFoto(produtoId, path, fotos.length + enviadas);
+        const r = await registrarFoto(produtoId, path, fotos.length + enviadas, variacaoId);
         if (!r.ok) {
           // não deixa o arquivo órfão no armazenamento (ex.: o banco recusou por limite)
           await supabase.storage.from("produto-fotos").remove([path]);

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
@@ -7,7 +8,7 @@ import { ehAdmin } from "@/lib/admin";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
 import { PLANOS } from "@/lib/planos";
-import { Badge, EmptyState, ErrorMessage, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Badge, EmptyState, ErrorMessage, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
 import { AcoesConta } from "./acoes-conta";
 
@@ -95,6 +96,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       <PageHeader
         title="Administração"
         description="Todas as contas do Marcon. Sua conta e seus dados continuam os mesmos: esta tela é só uma a mais."
+        action={
+          <Link href="/admin/indicacoes" className={btnSecondary}>
+            Saques de indicação
+          </Link>
+        }
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

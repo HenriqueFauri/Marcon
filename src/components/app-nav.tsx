@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ComponentType, type SVGProps } from "
 import {
   IconBox,
   IconCart,
+  IconGift,
   IconHome,
   IconMegaphone,
   IconPlus,
@@ -37,6 +38,7 @@ const NAV: NavItem[] = [
   { href: "/fluxo-de-caixa", label: "Fluxo de caixa", icon: IconWallet },
   { href: "/clientes", label: "Clientes", icon: IconUsers },
   { href: "/fornecedores", label: "Fornecedores", icon: IconTruck },
+  { href: "/indique", label: "Indique e ganhe", icon: IconGift },
   { href: "/configuracoes", label: "Configurações", icon: IconSettings },
   // só aparece para admin (ADMIN_EMAILS)
   { href: "/admin", label: "Administração", icon: IconShield },
@@ -49,7 +51,7 @@ const NAV_MOBILE = ["/", "/vendas", "/produtos", "/clientes"];
 const GRUPOS: { titulo: string | null; hrefs: string[] }[] = [
   { titulo: "Loja", hrefs: ["/", "/vendas", "/produtos", "/anuncios", "/fornecedores"] },
   { titulo: "Dinheiro", hrefs: ["/contas-a-receber", "/fluxo-de-caixa", "/clientes"] },
-  { titulo: null, hrefs: ["/configuracoes"] },
+  { titulo: null, hrefs: ["/indique", "/configuracoes"] },
 ];
 
 function ativo(pathname: string, href: string) {
