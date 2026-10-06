@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatBRL, formatData } from "@/lib/format";
 import { Badge } from "@/components/ui";
+import { BotaoPdf } from "./botao-pdf";
 
 // Recibo público de uma venda: o lojista manda o link ao cliente, que abre sem login.
 // Os dados vêm da função recibo_publico (migration 0017), que devolve só o que o
@@ -51,8 +52,9 @@ const STATUS_PARCELA = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default async function ReciboPage({ params }: PageProps<"/r/[token]">) {
+export default async function ReciboPage({ params, searchParams }: PageProps<"/r/[token]">) {
   const { token } = await params;
+  const { pdf } = await searchParams;
   if (!UUID.test(token)) notFound();
 
   const supabase = await createClient();
@@ -80,7 +82,7 @@ export default async function ReciboPage({ params }: PageProps<"/r/[token]">) {
   return (
     // o Clarity grava a tela: mascara nomes e valores do cliente de quem vendeu
     <main data-clarity-mask="true" className="mx-auto w-full max-w-md px-4 py-8 sm:py-12">
-      <article className="hairline rounded-3xl bg-surface p-5 sm:p-7">
+      <article className="hairline rounded-3xl bg-surface p-5 sm:p-7 print:rounded-none print:p-0 print:shadow-none print:[box-shadow:none]">
         <header className="flex items-start gap-3 border-b border-line pb-5">
           {logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -177,6 +179,10 @@ export default async function ReciboPage({ params }: PageProps<"/r/[token]">) {
           </section>
         )}
       </article>
+
+      <div className="mt-4 flex justify-center print:hidden">
+        <BotaoPdf auto={pdf === "1"} />
+      </div>
 
       <p className="mt-6 text-center text-xs text-ink-muted">
         Recibo feito com o{" "}

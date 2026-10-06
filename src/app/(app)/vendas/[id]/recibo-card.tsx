@@ -82,6 +82,9 @@ export function ReciboCard({
         <a href={`/r/${token}`} target="_blank" rel="noopener" className={btnGhost}>
           Ver recibo
         </a>
+        <a href={`/r/${token}?pdf=1`} target="_blank" rel="noopener" className={btnGhost}>
+          Baixar PDF
+        </a>
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
         <span>{whatsapp ? null : "O cliente não tem telefone cadastrado, então o recibo vai pelo compartilhar."}</span>
