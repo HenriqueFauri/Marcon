@@ -86,3 +86,39 @@ export async function definirCortesia(id: string, liberar: boolean): Promise<Act
     return falha(e);
   }
 }
+
+// Saques do "Indique e ganhe": o PIX é feito à mão, fora do app; aqui só se registra o resultado.
+async function resolverSaque(id: string, status: "pago" | "recusado"): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!ehAdmin(user)) throw new Error("Acesso restrito.");
+    const admin = createAdminClient();
+    if (!admin) throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.");
+
+    // só sai de "pedido": marcar duas vezes, ou pagar um saque recusado, não acontece
+    const { data, error } = await admin
+      .from("saques")
+      .update({ status, resolvido_em: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "pedido")
+      .select("id");
+    if (error) throw error;
+    if (!data?.length) return { ok: false, error: "Esse saque já foi resolvido." };
+
+    revalidatePath("/admin/indicacoes");
+    return ok(status === "pago" ? "Saque marcado como pago." : "Saque recusado. O valor volta para o saldo.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function marcarSaquePago(id: string) {
+  return resolverSaque(id, "pago");
+}
+
+export async function recusarSaque(id: string) {
+  return resolverSaque(id, "recusado");
+}

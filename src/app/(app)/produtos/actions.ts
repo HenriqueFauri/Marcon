@@ -489,7 +489,12 @@ export async function excluirFoto(id: string, path: string, produtoId: string): 
   }
 }
 
-export async function registrarFoto(produtoId: string, path: string, ordem: number): Promise<ActionResult> {
+export async function registrarFoto(
+  produtoId: string,
+  path: string,
+  ordem: number,
+  variacaoId: string | null = null,
+): Promise<ActionResult> {
   try {
     const supabase = await createClient();
     const {
@@ -500,6 +505,7 @@ export async function registrarFoto(produtoId: string, path: string, ordem: numb
     const { error } = await supabase.from("produto_fotos").insert({
       owner_id: user.id,
       produto_id: produtoId,
+      variacao_id: variacaoId,
       path,
       ordem,
     });

@@ -203,3 +203,11 @@ export const IconList = (p: P) => (
     <path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" strokeWidth={2.6} />
   </Icon>
 );
+export const IconGift = (p: P) => (
+  <Icon {...p}>
+    <rect x="3.5" y="8.5" width="17" height="4" rx="1" />
+    <path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5" />
+    <path d="M12 8.5v12" />
+    <path d="M12 8.5c-1.2-3.6-5-3.6-5-1.2 0 1.2 1.3 1.2 2.4 1.2H12Zm0 0c1.2-3.6 5-3.6 5-1.2 0 1.2-1.3 1.2-2.4 1.2H12Z" />
+  </Icon>
+);
