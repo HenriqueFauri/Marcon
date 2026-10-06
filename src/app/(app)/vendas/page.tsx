@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Venda } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
-import { resolverPeriodo } from "@/lib/periodo";
+import { comecarNaPrimeira, resolverPeriodo } from "@/lib/periodo";
 import { PeriodoPicker } from "@/components/periodo-picker";
 import {
   Badge,
@@ -28,11 +28,15 @@ const PAGINA_TOTAIS = 1000; // o PostgREST devolve no máximo 1000 linhas por co
 export default async function VendasPage({ searchParams }: PageProps<"/vendas">) {
   const sp = await searchParams;
   const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
-  const periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), todo: texto(sp.todo), de: texto(sp.de), ate: texto(sp.ate) });
-  const { inicio, fimExclusivo } = periodo;
+  let periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), todo: texto(sp.todo), de: texto(sp.de), ate: texto(sp.ate) });
   const noMes = periodo.modo === "mes";
 
   const supabase = await createClient();
+  if (periodo.modo === "todo") {
+    const { data: primeira } = await supabase.from("vendas").select("data").order("data", { ascending: true }).limit(1);
+    periodo = comecarNaPrimeira(periodo, primeira?.[0]?.data);
+  }
+  const { inicio, fimExclusivo } = periodo;
   const { data, error, count } = await supabase
     .from("vendas")
     .select("*", { count: "exact" })
@@ -98,7 +102,7 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
         <PeriodoPicker periodo={periodo} basePath="/vendas" />
         {!noMes && (
           <p className="text-[13px] text-ink-muted">
-            {periodo.modo === "todo" ? "Todo o período, até hoje" : `De ${formatData(periodo.de)} até ${formatData(periodo.ate)}`}
+            {periodo.modo === "todo" ? `Desde a primeira venda, ${formatData(periodo.de)}, até hoje` : `De ${formatData(periodo.de)} até ${formatData(periodo.ate)}`}
           </p>
         )}
       </div>

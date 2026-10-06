@@ -6,7 +6,7 @@ import { deslocarMes, hojeISO, intervaloDoMes, mesAtual, mesValido, somarDias } 
 
 export const OPCOES_MESES = [3, 6, 12] as const;
 const MAX_MESES = 24;
-const INICIO_TODO = "2000-01-01"; // antes de qualquer venda possível
+const INICIO_TODO = "2000-01-01"; // provisório: a página troca pela data do primeiro registro (ver comecarNaPrimeira)
 const MAX_DIAS = 731; // dois anos: mais que isso não ajuda ninguém e pesa na consulta
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -61,4 +61,11 @@ export function paramsDoPeriodo(p: PeriodoCaixa): Record<string, string> {
   if (p.modo === "todo") return { todo: "1" };
   if (p.modo === "meses") return { meses: String(p.meses) };
   return p.mes !== mesAtual() ? { mes: p.mes } : {};
+}
+
+// "Todo" vai do primeiro registro (venda ou lançamento) até hoje; sem registro, fica só hoje
+export function comecarNaPrimeira(p: PeriodoCaixa, primeira: string | null | undefined): PeriodoCaixa {
+  if (p.modo !== "todo") return p;
+  const de = primeira && primeira < p.ate ? primeira : p.ate;
+  return { ...p, de, inicio: de };
 }

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { LancamentoCaixa } from "@/types/domain";
 import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
 import { mensagemDeErro } from "@/lib/action";
-import { paramsDoPeriodo, resolverPeriodo } from "@/lib/periodo";
+import { comecarNaPrimeira, paramsDoPeriodo, resolverPeriodo } from "@/lib/periodo";
 import { ConfirmButton } from "@/components/confirm-button";
 import {
   Badge,
@@ -43,12 +43,16 @@ function origem(l: LancamentoCaixa) {
 export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/fluxo-de-caixa">) {
   const sp = await searchParams;
   const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
-  const periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), todo: texto(sp.todo), de: texto(sp.de), ate: texto(sp.ate) });
+  let periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), todo: texto(sp.todo), de: texto(sp.de), ate: texto(sp.ate) });
   const tipo = sp.tipo === "entrada" || sp.tipo === "saida" ? sp.tipo : undefined;
-  const { inicio, fimExclusivo } = periodo;
   const noMes = periodo.modo === "mes";
 
   const supabase = await createClient();
+  if (periodo.modo === "todo") {
+    const { data: primeiro } = await supabase.from("lancamentos_caixa").select("data").order("data", { ascending: true }).limit(1);
+    periodo = comecarNaPrimeira(periodo, primeiro?.[0]?.data);
+  }
+  const { inicio, fimExclusivo } = periodo;
   let query = supabase
     .from("lancamentos_caixa")
     .select("*", { count: "exact" })
@@ -114,7 +118,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
         <PeriodoPicker periodo={periodo} basePath="/fluxo-de-caixa" params={{ tipo }} />
         {!noMes && (
           <p className="text-[13px] text-ink-muted">
-            {periodo.modo === "todo" ? "Todo o período, até hoje" : <>De {formatData(periodo.de)} até {formatData(periodo.ate)}</>}
+            {periodo.modo === "todo" ? <>Desde o primeiro lançamento, {formatData(periodo.de)}, até hoje</> : <>De {formatData(periodo.de)} até {formatData(periodo.ate)}</>}
           </p>
         )}
         <div className="flex gap-1">

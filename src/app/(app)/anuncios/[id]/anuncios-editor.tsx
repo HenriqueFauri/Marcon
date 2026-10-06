@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { CanalVenda, ProdutoAnuncio, ProdutoVariacao } from "@/types/domain";
 import { gerarAnuncio, limitesDoCanal } from "@/lib/anuncio";
+import { paraJpeg } from "@/lib/imagem";
 import type { DadosAnuncio } from "@/lib/anuncio";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
@@ -102,6 +103,11 @@ async function buscarImagem(url: string) {
   return (await fetch(url)).blob();
 }
 
+// foto de anúncio sai em JPEG (WebP nem sempre é aceito por marketplaces e redes sociais)
+async function buscarParaAnuncio(url: string) {
+  return paraJpeg(await buscarImagem(url));
+}
+
 function FotosParaAnuncio({ nomeProduto, fotos }: { nomeProduto: string; fotos: FotoAnuncio[] }) {
   const toast = useToast();
   const [ocupado, setOcupado] = useState(false);
@@ -120,7 +126,7 @@ function FotosParaAnuncio({ nomeProduto, fotos }: { nomeProduto: string; fotos: 
 
   async function baixarUma(url: string, i: number) {
     try {
-      const blob = await buscarImagem(url);
+      const blob = await buscarParaAnuncio(url);
       baixarBlob(blob, nomeArquivo(nomeProduto, i, blob.type));
     } catch {
       toast.error("Não foi possível baixar a foto.");
@@ -133,7 +139,7 @@ function FotosParaAnuncio({ nomeProduto, fotos }: { nomeProduto: string; fotos: 
     try {
       const arquivos = await Promise.all(
         comUrl.map(async (f, i) => {
-          const blob = await buscarImagem(f.url);
+          const blob = await buscarParaAnuncio(f.url);
           return new File([blob], nomeArquivo(nomeProduto, i, blob.type), { type: blob.type });
         }),
       );
