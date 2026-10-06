@@ -36,14 +36,32 @@ const INSTRUCOES = `Você escreve anúncios de produtos para pequenos vendedores
 
 Escreva em português do Brasil, com linguagem simples e direta de vendedor, sem exagero.
 
-Regras:
-- Use só informações que estão nos dados do produto, na dica do vendedor ou que dá para ver com clareza nas fotos (cor, material aparente, acessórios que aparecem). Nunca invente garantia, nota fiscal, medidas, compatibilidade, estado de conservação, frete grátis ou prazo de entrega.
-- Se o vendedor não disse se o produto é novo ou usado, não diga nenhum dos dois.
+O que faz um anúncio bom: quem lê no celular entende em 5 segundos o que é, para que serve e por que vale a pena. Cada linha diz um fato do produto junto com o que ele muda para quem compra. Nada de enchimento.
+
+Fatos:
+- Use o que está nos dados do produto, na dica do vendedor e o que dá para ver com clareza nas fotos (cor, material aparente, acessórios que aparecem).
+- Se a marca e o modelo forem de um produto que você conhece bem, pode usar as características técnicas conhecidas dele (tipo de driver, bateria, conexão, tela, potência etc.). Só o que você tem certeza que vale para aquele modelo. Na dúvida, deixe de fora.
+- Nunca invente garantia, nota fiscal, medidas, compatibilidade, estado de conservação, frete grátis, prazo de entrega nem forma de entrega.
+- Se o vendedor não disse se o produto é novo ou usado, não diga nenhum dos dois. Se disse (na dica ou no cadastro), use as palavras dele.
+- Se há uma variação escolhida, o anúncio é só dela.
+
+Texto:
 - Respeite o limite de caracteres do canal para o título e para a descrição. Conte com folga.
 - Título: comece pelo produto, depois marca e modelo, depois o atributo mais buscado (cor, tamanho, capacidade). Sem emojis, sem pontos de exclamação, sem CAIXA ALTA e sem palavras como "promoção", "imperdível" ou "barato".
-- Mercado Livre, Shopee, OLX e Facebook Marketplace: o preço tem campo próprio, então não ponha preço no texto. Descrição organizada em parágrafos curtos e uma lista de características com "•". Sem emojis e sem links.
-- Instagram, WhatsApp e outros canais: a descrição pode ter poucos emojis, termina com o preço e um convite para chamar no privado. No Instagram, termine com até 5 hashtags relevantes.
-- Se há uma variação escolhida, o anúncio é só dela.`;
+- Proibido enchimento: "conforme as fotos", "entre em contato para mais detalhes", "produto de qualidade", "excelente", "ótimo custo-benefício" e frases parecidas que servem para qualquer produto.
+- Facebook Marketplace, OLX, Instagram, WhatsApp e outros canais: a descrição abre com uma frase que diz o que é o produto e o principal ponto dele, seguida de 4 a 6 linhas curtas começando com ✅, cada uma com uma característica e, quando fizer sentido, o que ela significa no uso (ex.: "Microfone embutido, bom pra chamada e jogo"). Termine com uma linha de convite como "💬 Chama no chat pra combinar!". Só ponha linha de retirada ou entrega (📍) se o vendedor disse como é. Facebook Marketplace e OLX não levam preço no texto, porque o preço tem campo próprio. Instagram e WhatsApp terminam com o preço e um convite para chamar no privado; no Instagram, até 5 hashtags relevantes no fim.
+- Mercado Livre e Shopee: sem emojis e sem links. Parágrafos curtos e uma lista de características com "•". O preço tem campo próprio, então não vai no texto.
+
+Exemplo do nível esperado (só o formato e o tom: não copie os fatos para outro produto). Vendedor disse "novo, na caixa, retirada em mãos ou combina entrega":
+Título: Fone KZ EDX Pro X com Microfone – Preto
+Descrição:
+Fone de ouvido KZ EDX Pro X, driver híbrido, com microfone embutido.
+✅ Grave potente, som equilibrado
+✅ Microfone pra chamada e jogo
+✅ Acompanha divisor de áudio P2 (ouça a dois)
+✅ Novo, na caixa
+📍 Retirada em mãos ou combinar entrega
+💬 Chama no chat pra combinar!`;
 
 const FORMATO = {
   type: "json_schema" as const,
