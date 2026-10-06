@@ -43,7 +43,7 @@ function origem(l: LancamentoCaixa) {
 export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/fluxo-de-caixa">) {
   const sp = await searchParams;
   const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
-  const periodo = resolverPeriodo({ mes: texto(sp.mes), dias: texto(sp.dias), de: texto(sp.de), ate: texto(sp.ate) });
+  const periodo = resolverPeriodo({ mes: texto(sp.mes), meses: texto(sp.meses), de: texto(sp.de), ate: texto(sp.ate) });
   const tipo = sp.tipo === "entrada" || sp.tipo === "saida" ? sp.tipo : undefined;
   const { inicio, fimExclusivo } = periodo;
   const noMes = periodo.modo === "mes";

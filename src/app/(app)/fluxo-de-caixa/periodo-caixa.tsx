@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { MonthPicker } from "@/components/month-picker";
 import { btnSecondary, inputClass } from "@/components/ui";
-import { OPCOES_DIAS, type PeriodoCaixa } from "@/lib/periodo";
+import { OPCOES_MESES, type PeriodoCaixa } from "@/lib/periodo";
 
 const BASE = "/fluxo-de-caixa";
 
@@ -12,10 +12,10 @@ function href(params: Record<string, string | undefined>) {
   return s ? `${BASE}?${s}` : BASE;
 }
 
-// Escolha do período: mês (com setas), últimos 30/60/90/120 dias ou datas livres.
+// Escolha do período: mês (com setas), últimos 3/6/12 meses ou datas livres.
 export function PeriodoCaixaPicker({ periodo, tipo }: { periodo: PeriodoCaixa; tipo?: string }) {
   const chip = (ativo: boolean) =>
-    `whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] transition ${
+    `whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] transition ${
       ativo ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"
     }`;
 
@@ -25,9 +25,9 @@ export function PeriodoCaixaPicker({ periodo, tipo }: { periodo: PeriodoCaixa; t
         <Link href={href({ tipo })} className={chip(periodo.modo === "mes")}>
           Mês
         </Link>
-        {OPCOES_DIAS.map((d) => (
-          <Link key={d} href={href({ dias: String(d), tipo })} className={chip(periodo.modo === "dias" && periodo.dias === d)}>
-            {d} dias
+        {OPCOES_MESES.map((m) => (
+          <Link key={m} href={href({ meses: String(m), tipo })} className={chip(periodo.modo === "meses" && periodo.meses === m)}>
+            {m} meses
           </Link>
         ))}
       </div>
@@ -36,7 +36,7 @@ export function PeriodoCaixaPicker({ periodo, tipo }: { periodo: PeriodoCaixa; t
 
       <details open={periodo.modo === "intervalo"} className="group">
         <summary
-          className={`inline-flex cursor-pointer list-none items-center rounded-full px-3.5 py-1.5 text-[13px] font-medium transition marker:hidden [&::-webkit-details-marker]:hidden ${
+          className={`inline-flex cursor-pointer list-none items-center rounded-full px-3.5 py-2 text-[13px] font-medium transition marker:hidden [&::-webkit-details-marker]:hidden ${
             periodo.modo === "intervalo" ? "bg-surface text-ink shadow-sm" : "bg-fill text-ink-2 hover:text-ink"
           }`}
         >
