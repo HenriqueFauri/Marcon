@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { traduzirErroAuth } from "@/lib/auth-erros";
 import { Field, btnPrimary, inputClass } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { vincularIndicacaoDoCadastro } from "./actions";
 
 type Modo = "signin" | "signup" | "reset";
 
@@ -96,6 +97,7 @@ function LoginForm() {
           setPassword("");
           return;
         }
+        await vincularIndicacaoDoCadastro();
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;

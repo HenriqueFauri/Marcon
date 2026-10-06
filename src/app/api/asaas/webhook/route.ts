@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { registrarComissao } from "@/lib/indicacao-servidor";
 
 // Webhook do Asaas: mantém a tabela assinaturas igual ao que o Asaas diz.
 // Cadastre no painel do Asaas (Integrações > Webhooks) com o mesmo token de
@@ -8,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 interface EventoAsaas {
   id?: string;
   event?: string;
-  payment?: { subscription?: string; dueDate?: string };
+  payment?: { id?: string; value?: number; subscription?: string; dueDate?: string };
   subscription?: { id?: string };
 }
 
@@ -56,9 +57,12 @@ export async function POST(request: Request) {
     if (assinaturaId) {
       const { data: linha } = await admin
         .from("assinaturas")
-        .select("status")
+        .select("owner_id, status")
         .eq("asaas_subscription_id", assinaturaId)
         .maybeSingle();
+
+      // comissão de quem indicou esta conta (ou estorno dela)
+      if (linha) await registrarComissao(admin, linha.owner_id, tipo, evento.payment);
 
       // assinatura cancelada não volta por um evento atrasado
       if (linha && linha.status !== "cancelada") {
