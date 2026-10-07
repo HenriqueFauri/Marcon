@@ -411,8 +411,22 @@ export function ProdutoForm({
                 />
               )}
             </div>
+            <label className="flex items-start gap-3 rounded-xl bg-fill/60 px-4 py-3">
+              <input
+                type="checkbox"
+                name="na_vitrine"
+                defaultChecked={produto?.na_vitrine ?? false}
+                className="mt-0.5 h-4 w-4 accent-brand"
+              />
+              <span className="text-sm">
+                <span className="font-medium text-ink">Mostrar na vitrine</span>
+                <span className="mt-0.5 block text-xs text-ink-muted">
+                  Aparece na sua loja online (Configurações). Custo e quantidade em estoque nunca aparecem.
+                </span>
+              </span>
+            </label>
             {editando && (
-              <Field label="Situação" hint="Produtos inativos não aparecem na tela de venda.">
+              <Field label="Situação"hint="Produtos inativos não aparecem na tela de venda.">
                 <select name="status" defaultValue={produto.status} className={inputClass}>
                   <option value="ativo">Ativo</option>
                   <option value="inativo">Inativo</option>
