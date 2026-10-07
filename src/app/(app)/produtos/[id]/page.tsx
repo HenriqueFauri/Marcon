@@ -6,7 +6,6 @@ import type {
   Fornecedor,
   MovimentoEstoque,
   ProdutoComEstoque,
-  ProdutoFoto,
   ProdutoVariacao,
 } from "@/types/domain";
 import { formatBRL, formatData, hojeISO } from "@/lib/format";
@@ -15,8 +14,6 @@ import { Badge, Card, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdC
 import { IconMegaphone, IconPencil } from "@/components/icons";
 import { ProdutoAcoes } from "./produto-acoes";
 import { VariacoesSection } from "./variacoes-section";
-import { FotosSection } from "./fotos-section";
-import { lerUso } from "@/lib/uso";
 import { ExcluirProdutoButton } from "./excluir-produto-button";
 
 // o título da aba mostra o nome do produto
@@ -35,10 +32,8 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
     { data: produto },
     { data: movimentos },
     { data: variacoesData },
-    { data: fotosData },
     { data: fornecedoresData },
     { data: vendidosData },
-    uso,
   ] = await Promise.all([
     supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", id).maybeSingle(),
     supabase
@@ -49,10 +44,8 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
       .order("created_at", { ascending: false })
       .limit(50),
     supabase.from("produto_variacoes").select("*").eq("produto_id", id).order("nome_combinacao"),
-    supabase.from("produto_fotos").select("*").eq("produto_id", id).order("ordem").order("created_at"),
     supabase.from("fornecedores").select("*").order("nome"),
     supabase.from("venda_itens").select("quantidade, preco_unitario, custo_unitario, vendas!inner(status)").eq("produto_id", id).neq("vendas.status", "cancelada"),
-    lerUso(supabase),
   ]);
 
   if (!produto) notFound();
@@ -60,7 +53,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
   const p = produto as ProdutoComEstoque;
   const historico = (movimentos ?? []) as MovimentoEstoque[];
   const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
-  const fotos = (fotosData ?? []) as ProdutoFoto[];
   const fornecedores = (fornecedoresData ?? []) as Fornecedor[];
   const vendidos = (vendidosData ?? []) as { quantidade: number; preco_unitario: number; custo_unitario: number }[];
 
@@ -69,10 +61,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
   const margem = Number(p.preco_varejo) > 0 ? ((Number(p.preco_varejo) - Number(p.custo_min)) / Number(p.preco_varejo)) * 100 : null;
   const situacao = situacaoEstoque(p);
 
-  const { data: assinadas } = fotos.length
-    ? await supabase.storage.from("produto-fotos").createSignedUrls(fotos.map((f) => f.path), 3600)
-    : { data: [] };
-  const fotosComUrl = fotos.map((foto, i) => ({ id: foto.id, path: foto.path, variacao_id: foto.variacao_id, url: assinadas?.[i]?.signedUrl ?? null }));
 
   const precisaVariacao = p.tem_variacoes && variacoes.length === 0;
 
@@ -142,9 +130,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
           </Card>
         )}
 
-        <Card title="Fotos">
-          <FotosSection produtoId={p.id} fotos={fotosComUrl} variacoes={variacoes} maxFotos={uso?.limites.fotosPorItem} />
-        </Card>
 
         <Link
           href={`/anuncios/${p.id}`}
@@ -152,7 +137,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         >
           <span>
             <span className="block text-[17px] font-semibold tracking-tight text-ink">Anúncios</span>
-            <span className="block text-sm text-ink-muted">Títulos, descrições e fotos para copiar e publicar nos marketplaces.</span>
+            <span className="block text-sm text-ink-muted">Fotos, títulos e descrições para publicar nos marketplaces.</span>
           </span>
           <span aria-hidden="true" className="text-lg text-ink-faint">›</span>
         </Link>

@@ -481,8 +481,8 @@ export async function excluirFoto(id: string, path: string, produtoId: string): 
     const { error } = await supabase.from("produto_fotos").delete().eq("id", id);
     if (error) return falha(error);
     await supabase.storage.from("produto-fotos").remove([path]);
-
-    revalidatePath(`/produtos/${produtoId}`);
+    revalidatePath(`/anuncios/${produtoId}`);
+    revalidatePath("/anuncios");
     return ok("Foto removida.");
   } catch (e) {
     return falha(e);
@@ -511,8 +511,8 @@ export async function registrarFoto(
     });
     if (error) return falha(error);
 
-    revalidatePath(`/produtos/${produtoId}`);
-    revalidatePath("/produtos");
+    revalidatePath(`/anuncios/${produtoId}`);
+    revalidatePath("/anuncios");
     return ok();
   } catch (e) {
     return falha(e);
