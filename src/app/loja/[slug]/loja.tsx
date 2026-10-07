@@ -6,6 +6,9 @@ import { formatBRL } from "@/lib/format";
 import {
   TOKENS_ESCUROS,
   corDoTexto,
+  descontoDoCupom,
+  rotuloDoCupom,
+  type Cupom,
   linkDoWhatsapp,
   mensagemDoPedido,
   totalDoPedido,
@@ -14,6 +17,7 @@ import {
   type VitrineProduto,
   type VitrineVariacao,
 } from "@/lib/vitrine";
+import { registrarEvento, validarCupom } from "./actions";
 
 // o carrinho guarda só a chave e a quantidade: nome, preço e foto vêm sempre da loja atual,
 // então preço mudado vale na hora e item que sumiu ou esgotou sai sozinho
@@ -63,6 +67,14 @@ function lerItensSalvos(bruto: unknown): ItemSalvo[] {
   );
 }
 
+function primeiraVezNaSessao(chave: string) {
+  try {
+    if (sessionStorage.getItem(chave)) return false;
+    sessionStorage.setItem(chave, "1");
+  } catch {}
+  return true;
+}
+
 export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   const { loja, produtos } = vitrine;
   const chaveStorage = `marcon-loja-${slug}`;
@@ -77,6 +89,10 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   const [modo, setModo] = useState<"entrega" | "retirada">(loja.entrega === "retirada" ? "retirada" : "entrega");
   const [endereco, setEndereco] = useState("");
   const [pagamento, setPagamento] = useState("");
+  const [cupom, setCupom] = useState<Cupom | null>(null);
+  const [codigoCupom, setCodigoCupom] = useState("");
+  const [erroCupom, setErroCupom] = useState<string | null>(null);
+  const [validandoCupom, setValidandoCupom] = useState(false);
   const timerAviso = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const porId = useMemo(() => new Map(produtos.map((p) => [p.id, p])), [produtos]);
@@ -87,10 +103,14 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- lê o storage só no navegador
       setItens(lerItensSalvos(JSON.parse(localStorage.getItem(chaveStorage) ?? "[]")));
     } catch {}
+    if (primeiraVezNaSessao(`marcon-visita-${slug}`)) void registrarEvento(slug, "visita");
     const id = new URLSearchParams(window.location.search).get("p");
     const produto = id ? porId.get(id) : undefined;
-    if (produto) setAberto(produto);
-  }, [chaveStorage, porId]);
+    if (produto) {
+      setAberto(produto);
+      if (primeiraVezNaSessao(`marcon-produto-${produto.id}`)) void registrarEvento(slug, "produto", produto.id);
+    }
+  }, [chaveStorage, porId, slug]);
   useEffect(() => {
     try {
       localStorage.setItem(chaveStorage, JSON.stringify(itens));
@@ -100,11 +120,12 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   // o endereço reflete o produto aberto, para dar para copiar e mandar o link
   const abrir = useCallback((p: VitrineProduto | null) => {
     setAberto(p);
+    if (p && primeiraVezNaSessao(`marcon-produto-${p.id}`)) void registrarEvento(slug, "produto", p.id);
     const url = new URL(window.location.href);
     if (p) url.searchParams.set("p", p.id);
     else url.searchParams.delete("p");
     window.history.replaceState(null, "", url);
-  }, []);
+  }, [slug]);
 
   function avisar(texto: string) {
     setAviso(texto);
@@ -158,7 +179,9 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   const subtotal = totalDoPedido(linhas);
   const modoFinal = loja.entrega === "ambos" ? modo : loja.entrega;
   const frete = modoFinal === "entrega" ? loja.frete_fixo : null;
-  const total = subtotal + (frete ?? 0);
+  const desconto = cupom ? descontoDoCupom(cupom, subtotal) : 0;
+  const faltaParaCupom = cupom?.minimo && subtotal < Number(cupom.minimo) ? Number(cupom.minimo) - subtotal : 0;
+  const total = subtotal - desconto + (frete ?? 0);
   const faltaEndereco = modoFinal === "entrega" && !endereco.trim();
   const linkDuvida = linkDoWhatsapp(loja.whatsapp, "Olá! Vi sua loja e tenho uma dúvida.");
 
@@ -171,6 +194,24 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
     );
     abrir(null);
     avisar("Adicionado ao pedido");
+  }
+
+  async function aplicarCupom() {
+    const codigo = codigoCupom.trim().toUpperCase();
+    if (!codigo) return;
+    setValidandoCupom(true);
+    setErroCupom(null);
+    try {
+      const achado = await validarCupom(slug, codigo);
+      if (achado) {
+        setCupom(achado);
+        setCodigoCupom("");
+      } else setErroCupom("Cupom inválido ou vencido.");
+    } catch {
+      setErroCupom("Não consegui conferir o cupom. Tente de novo.");
+    } finally {
+      setValidandoCupom(false);
+    }
   }
 
   function mudarQuantidade(chave: string, delta: number) {
@@ -477,11 +518,61 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                 </select>
               )}
             </div>
+            <div className="mt-3">
+              {cupom ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-[var(--loja)] px-3.5 py-2.5 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{cupom.codigo}</p>
+                    <p className="text-xs text-ink-muted">
+                      {faltaParaCupom > 0
+                        ? `Faltam ${formatBRL(faltaParaCupom)} para o cupom valer`
+                        : rotuloDoCupom(cupom)}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setCupom(null)} className="shrink-0 text-xs font-medium text-ink-muted hover:text-ink">
+                    Remover
+                  </button>
+                </div>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void aplicarCupom();
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    value={codigoCupom}
+                    onChange={(e) => setCodigoCupom(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                    placeholder="Cupom de desconto"
+                    aria-label="Cupom de desconto"
+                    maxLength={20}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    className={campo}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!codigoCupom || validandoCupom}
+                    className="shrink-0 rounded-xl bg-fill px-4 text-sm font-semibold transition hover:bg-fill-strong disabled:opacity-50"
+                  >
+                    {validandoCupom ? "..." : "Aplicar"}
+                  </button>
+                </form>
+              )}
+              {erroCupom && <p className="mt-1.5 text-xs text-danger">{erroCupom}</p>}
+            </div>
             <dl className="mt-4 space-y-1 border-t border-line pt-3 text-sm">
               <div className="flex justify-between text-ink-muted">
                 <dt>Subtotal</dt>
                 <dd className="tabular-nums">{formatBRL(subtotal)}</dd>
               </div>
+              {desconto > 0 && (
+                <div className="flex justify-between text-positive">
+                  <dt>Desconto</dt>
+                  <dd className="tabular-nums">−{formatBRL(desconto)}</dd>
+                </div>
+              )}
               {modoFinal === "entrega" && (
                 <div className="flex justify-between text-ink-muted">
                   <dt>Frete</dt>
@@ -507,8 +598,10 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                     endereco: endereco.trim(),
                     pagamento,
                     frete: loja.frete_fixo,
+                    cupom: cupom && desconto > 0 ? { codigo: cupom.codigo, desconto } : null,
                   }),
                 )}
+                onClick={() => void registrarEvento(slug, "pedido")}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`${botao} mt-4 w-full gap-2`}

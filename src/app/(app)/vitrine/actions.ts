@@ -12,6 +12,7 @@ import {
   BOAS_VINDAS_MAX,
   COR_PADRAO,
   COR_REGEX,
+  CUPOM_REGEX,
   ENTREGAS,
   INSTAGRAM_REGEX,
   SLUG_REGEX,
@@ -187,6 +188,66 @@ export async function definirDestaque(id: string, valor: boolean): Promise<Actio
     if (error) return falha(error);
     revalidatePath("/vitrine");
     return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function criarCupom(formData: FormData): Promise<ActionResult> {
+  try {
+    const codigo = texto(formData, "codigo").toUpperCase();
+    const tipo = texto(formData, "tipo") === "valor" ? "valor" : "percentual";
+    const valor = numero(formData, "valor");
+    const minimo = numero(formData, "minimo");
+    const validade = texto(formData, "validade") || null;
+
+    if (!CUPOM_REGEX.test(codigo)) return { ok: false, error: "O código tem de 3 a 20 letras e números, sem espaço." };
+    if (valor === null || Number.isNaN(valor) || valor <= 0) return { ok: false, error: "Informe o valor do desconto." };
+    if (tipo === "percentual" && valor > 90) return { ok: false, error: "O desconto percentual vai até 90%." };
+    if (minimo !== null && (Number.isNaN(minimo) || minimo <= 0)) return { ok: false, error: "Confira o pedido mínimo." };
+    if (validade && !/^\d{4}-\d{2}-\d{2}$/.test(validade)) return { ok: false, error: "Confira a validade." };
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { error } = await supabase
+      .from("vitrine_cupons")
+      .insert({ owner_id: user.id, codigo, tipo, valor, minimo, validade });
+    if (error) {
+      if (/duplicate key|unique constraint/i.test(error.message)) return { ok: false, error: "Você já tem um cupom com esse código." };
+      return falha(error);
+    }
+    revalidatePath("/vitrine");
+    return ok(`Cupom ${codigo} criado.`);
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function alternarCupom(id: string, ativo: boolean): Promise<ActionResult> {
+  try {
+    if (!UUID.test(id)) return { ok: false, error: "Cupom inválido." };
+    const supabase = await createClient();
+    const { error } = await supabase.from("vitrine_cupons").update({ ativo: ativo === true }).eq("id", id);
+    if (error) return falha(error);
+    revalidatePath("/vitrine");
+    return ok(ativo ? "Cupom ligado." : "Cupom desligado.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function excluirCupom(id: string): Promise<ActionResult> {
+  try {
+    if (!UUID.test(id)) return { ok: false, error: "Cupom inválido." };
+    const supabase = await createClient();
+    const { error } = await supabase.from("vitrine_cupons").delete().eq("id", id);
+    if (error) return falha(error);
+    revalidatePath("/vitrine");
+    return ok("Cupom excluído.");
   } catch (e) {
     return falha(e);
   }
