@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { formatBRL } from "@/lib/format";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
+import { coresDaLoja } from "@/lib/vitrine";
 import { buscarVitrine } from "@/lib/vitrine-servidor";
 import { VITRINE_EXEMPLO } from "./exemplo";
 import { Loja } from "./loja";
@@ -44,7 +45,7 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/loj
 export async function generateViewport({ params }: PageProps<"/loja/[slug]">): Promise<Viewport> {
   const { slug } = await params;
   const vitrine = await carregar(slug);
-  return { themeColor: vitrine?.loja.tema === "escuro" ? "#000000" : "#f2f2f7" };
+  return { themeColor: vitrine ? coresDaLoja(vitrine.loja).fundo : "#f2f2f7" };
 }
 
 export default async function LojaPage({ params }: PageProps<"/loja/[slug]">) {

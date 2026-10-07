@@ -8,16 +8,15 @@ import {
   BANNER_SUBTITULO_MAX,
   BANNER_TITULO_MAX,
   BOAS_VINDAS_MAX,
-  PALETAS,
-  type Tema,
+  type CoresDaLoja,
 } from "@/lib/vitrine";
 import { Field, btnPrimary, inputClass } from "@/components/ui";
-import { Grupo, Interruptor, Segmentado } from "../campos";
+import { Grupo, Interruptor } from "../campos";
+import { EscolhaDeCores } from "./escolha-de-cores";
 import { salvarPersonalizacao } from "../actions";
 
 export interface PersonalizacaoVitrine {
-  cor: string;
-  tema: Tema;
+  cores: CoresDaLoja;
   boasVindas: string;
   anuncio: string;
   instagram: string;
@@ -38,60 +37,13 @@ export function PersonalizacaoForm({
   bannerImagens: ReactNode;
 }) {
   const { isPending, run } = useAction();
-  const [cor, setCor] = useState(config.cor);
-  const [tema, setTema] = useState<Tema>(config.tema);
+  const [cores, setCores] = useState(config.cores);
   const [boasVindas, setBoasVindas] = useState(config.boasVindas);
   const [anuncio, setAnuncio] = useState(config.anuncio);
-  const paletaAtiva = PALETAS.find((p) => p.cor.toLowerCase() === cor.toLowerCase() && p.tema === tema);
 
   return (
     <form action={(formData) => run(() => salvarPersonalizacao(formData))} className="flex flex-col gap-7">
-      <Grupo titulo="Cores" rodape={paletaAtiva ? `Paleta ${paletaAtiva.nome}.` : "Cor escolhida por você."}>
-        <div className="flex flex-wrap items-center gap-3" role="radiogroup" aria-label="Paletas prontas">
-          {PALETAS.map((p) => {
-            const ativa = p === paletaAtiva;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                role="radio"
-                aria-checked={ativa}
-                aria-label={p.nome}
-                title={p.nome}
-                onClick={() => {
-                  setCor(p.cor);
-                  setTema(p.tema);
-                }}
-                className={`relative h-10 w-10 rounded-full transition ${ativa ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : "hover:scale-105"}`}
-                style={{
-                  background: p.tema === "escuro" ? `linear-gradient(135deg, ${p.cor} 50%, #1c1c1e 50%)` : p.cor,
-                }}
-              />
-            );
-          })}
-          {/* cor livre: o seletor do sistema dentro de um círculo do mesmo tamanho */}
-          <label
-            title="Outra cor"
-            className={`relative h-10 w-10 cursor-pointer overflow-hidden rounded-full border border-line ${
-              paletaAtiva ? "" : "ring-2 ring-ink ring-offset-2 ring-offset-surface"
-            }`}
-            style={{ background: paletaAtiva ? "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)" : cor }}
-          >
-            <span className="sr-only">Outra cor</span>
-            <input name="cor" type="color" value={cor} onChange={(e) => setCor(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-          </label>
-        </div>
-        <Segmentado
-          name="tema"
-          rotulo="Fundo da loja"
-          valor={tema}
-          onMudar={setTema}
-          opcoes={[
-            { valor: "claro", label: "Fundo claro" },
-            { valor: "escuro", label: "Fundo escuro" },
-          ]}
-        />
-      </Grupo>
+      <EscolhaDeCores cores={cores} onMudar={setCores} />
 
       <Grupo titulo="Topo da loja">
         <Field label="Frase de boas-vindas" hint={`Embaixo do nome da loja. ${boasVindas.length}/${BOAS_VINDAS_MAX}`}>

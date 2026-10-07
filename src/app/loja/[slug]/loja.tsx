@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { Modal } from "@/components/modal";
 import { formatBRL } from "@/lib/format";
 import {
-  TOKENS_ESCUROS,
-  corDoTexto,
+  coresDaLoja,
+  fundoEscuro,
+  tokensDaLoja,
   descontoDoCupom,
   rotuloDoCupom,
   type Cupom,
@@ -126,6 +127,16 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
     } catch {}
   }, [itens, chaveStorage]);
 
+  // ao puxar a página além do fim (iPhone), aparece o fundo do body: pinta com o fundo da loja
+  const fundo = coresDaLoja(loja).fundo;
+  useEffect(() => {
+    const antes = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = fundo;
+    return () => {
+      document.body.style.backgroundColor = antes;
+    };
+  }, [fundo]);
+
   // o endereço reflete o produto aberto, para dar para copiar e mandar o link
   const abrir = useCallback((p: VitrineProduto | null) => {
     setAberto(p);
@@ -233,23 +244,18 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
     );
   }
 
-  const escuro = loja.tema === "escuro";
-  const estilo = {
-    ...(escuro ? TOKENS_ESCUROS : {}),
-    colorScheme: escuro ? "dark" : "light",
-    "--loja": loja.cor,
-    "--loja-texto": corDoTexto(loja.cor),
-  } as CSSProperties;
+  const cores = coresDaLoja(loja);
+  const estilo = { ...tokensDaLoja(cores), colorScheme: fundoEscuro(cores.fundo) ? "dark" : "light" } as CSSProperties;
   const campo =
     "w-full rounded-xl border border-transparent bg-fill px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-muted focus:border-[var(--loja)] focus:bg-surface";
   const botao =
-    "inline-flex items-center justify-center rounded-full bg-[var(--loja)] px-5 py-3 text-[15px] font-semibold text-[var(--loja-texto)] shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex items-center justify-center rounded-full bg-[var(--loja-botao)] px-5 py-3 text-[15px] font-semibold text-[var(--loja-botao-texto)] shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
   const nomeLoja = loja.nome ?? "Loja";
 
   return (
     <div style={estilo} className="min-h-dvh bg-canvas text-ink">
       {loja.anuncio && (
-        <p className="bg-[var(--loja)] px-4 py-2 text-center text-[13px] font-medium text-[var(--loja-texto)]">{loja.anuncio}</p>
+        <p className="bg-[var(--loja-faixa)] px-4 py-2 text-center text-[13px] font-medium text-[var(--loja-faixa-texto)]">{loja.anuncio}</p>
       )}
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { coresDaLoja } from "@/lib/vitrine";
 import { Card, btnPrimary } from "@/components/ui";
 import { BannerImagens } from "../banner-imagens";
 import { PersonalizacaoForm } from "./personalizacao-form";
@@ -42,8 +43,7 @@ export default async function VitrinePersonalizarPage() {
     <div className="flex flex-col gap-4">
         <PersonalizacaoForm
           config={{
-            cor: vitrine.cor,
-            tema: vitrine.tema,
+            cores: coresDaLoja(vitrine),
             boasVindas: vitrine.boas_vindas ?? "",
             anuncio: vitrine.anuncio ?? "",
             instagram: vitrine.instagram ?? "",
