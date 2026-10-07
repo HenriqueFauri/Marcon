@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
 import { hojeISO } from "@/lib/format";
 import { btnPrimary } from "@/components/ui";
-import { IconBox, IconGift, IconSettings, IconSparkles } from "@/components/icons";
+import { IconBox, IconPalette, IconSettings, IconTicket } from "@/components/icons";
 import { Grupo, LinhaLink } from "./campos";
 import { LinkDaLoja } from "./link-da-loja";
 
@@ -115,17 +115,6 @@ export default async function VitrineVisaoGeralPage() {
         )}
       </Grupo>
 
-      {vitrine?.ativa && (
-        <Grupo titulo="Como o link aparece no Zap" semPadding rodape="Link de um produto mostra a foto e o preço dele.">
-          {/* eslint-disable-next-line @next/next/no-img-element -- a mesma imagem que o WhatsApp baixa */}
-          <img src={`/loja/${vitrine.slug}/imagem`} alt="Prévia do link da loja" className="aspect-[1200/630] w-full bg-fill object-cover" />
-          <div className="px-4 py-3">
-            <p className="truncate text-[15px] font-semibold text-ink">{(meta.nome_negocio as string | undefined) || "Sua loja"}</p>
-            <p className="truncate text-[13px] text-ink-muted">{base.replace(/^https?:\/\//, "")}</p>
-          </div>
-        </Grupo>
-      )}
-
       {pendentes.length > 0 && (
         <Grupo
           titulo={
@@ -169,7 +158,7 @@ export default async function VitrineVisaoGeralPage() {
           />
           <LinhaLink
             href="/vitrine/personalizar"
-            icone={<IconSparkles className={tile} />}
+            icone={<IconPalette className={tile} />}
             tom="bg-tile-warning text-on-tile-warning"
             rotulo="Personalizar"
           />
@@ -181,7 +170,7 @@ export default async function VitrineVisaoGeralPage() {
           />
           <LinhaLink
             href="/vitrine/cupons"
-            icone={<IconGift className={tile} />}
+            icone={<IconTicket className={tile} />}
             tom="bg-tile-positive text-on-tile-positive"
             rotulo="Cupons"
             detalhe={(cuponsAtivos ?? 0) === 0 ? "Nenhum" : `${cuponsAtivos} ${cuponsAtivos === 1 ? "ativo" : "ativos"}`}
