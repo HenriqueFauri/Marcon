@@ -151,7 +151,7 @@ export interface DadosDoPedido {
 export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dados: DadosDoPedido) {
   const linhas = itens.map(
     (i) =>
-      `• ${i.quantidade}x ${i.nome}${i.variacao ? ` (${i.variacao})` : ""} - ${formatBRL(i.preco * i.quantidade)}`,
+      `• ${i.quantidade}x ${i.nome}${i.variacao ? ` (${i.variacao})` : ""}: ${formatBRL(i.preco * i.quantidade)}`,
   );
   const frete = dados.entrega === "entrega" ? dados.frete : null;
   const total = totalDoPedido(itens) + (frete ?? 0);
@@ -180,5 +180,5 @@ export function corDoTexto(hex: string) {
     const s = c / 255;
     return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
   });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#111111" : "#ffffff";
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? "#111111" : "#ffffff";
 }
