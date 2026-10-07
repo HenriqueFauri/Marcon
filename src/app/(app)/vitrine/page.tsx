@@ -3,13 +3,32 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
 import { lerUso } from "@/lib/uso";
+import { hojeISO } from "@/lib/format";
 import { Badge, Card, PageHeader, btnPrimary } from "@/components/ui";
 import { BannerImagens } from "./banner-imagens";
+import { Cupons, type CupomDaLista } from "./cupons";
 import { LinkDaLoja } from "./link-da-loja";
 import { ProdutosDaVitrine, type ProdutoDaLista } from "./produtos-da-vitrine";
 import { VitrineForm } from "./vitrine-form";
 
 export const metadata: Metadata = { title: "Vitrine" };
+
+const DIAS_METRICAS = 30;
+
+function diasAtras(dia: string, dias: number) {
+  const d = new Date(`${dia}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function Numero({ valor, rotulo }: { valor: string | number; rotulo: string }) {
+  return (
+    <div className="rounded-2xl bg-fill/60 px-3 py-3 text-center">
+      <p className="text-xl font-semibold tabular-nums text-ink">{valor}</p>
+      <p className="text-xs text-ink-muted">{rotulo}</p>
+    </div>
+  );
+}
 
 interface Passo {
   feito: boolean;
@@ -20,6 +39,8 @@ interface Passo {
 
 export default async function VitrinePage() {
   const supabase = await createClient();
+  const hoje = hojeISO();
+  const desde = diasAtras(hoje, DIAS_METRICAS - 1);
   const [
     {
       data: { user },
@@ -29,6 +50,9 @@ export default async function VitrinePage() {
     { data: estoquesData },
     { data: fotosData },
     { count: formasPagamento },
+    { data: cuponsData },
+    { data: metricasData },
+    { data: metricasProdutoData },
     uso,
     base,
   ] = await Promise.all([
@@ -39,6 +63,9 @@ export default async function VitrinePage() {
     supabase.from("produtos_com_estoque").select("id, estoque_total").eq("status", "ativo"),
     supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
     supabase.from("formas_pagamento").select("id", { count: "exact", head: true }),
+    supabase.from("vitrine_cupons").select("id, codigo, tipo, valor, minimo, validade, ativo").order("created_at", { ascending: false }),
+    supabase.from("vitrine_metricas").select("visitas, pedidos").gte("dia", desde),
+    supabase.from("vitrine_metricas_produto").select("produto_id, aberturas").gte("dia", desde),
     lerUso(supabase),
     enderecoDoApp(),
   ]);
@@ -97,6 +124,17 @@ export default async function VitrinePage() {
     };
   });
   const marcados = produtos.filter((p) => p.naVitrine);
+
+  const visitas = (metricasData ?? []).reduce((s, m) => s + Number(m.visitas), 0);
+  const pedidos = (metricasData ?? []).reduce((s, m) => s + Number(m.pedidos), 0);
+  const aberturas = new Map<string, number>();
+  for (const m of metricasProdutoData ?? []) aberturas.set(m.produto_id, (aberturas.get(m.produto_id) ?? 0) + Number(m.aberturas));
+  const nomePorId = new Map(produtos.map((p) => [p.id, p.nome]));
+  const maisVistos = [...aberturas.entries()]
+    .filter(([id]) => nomePorId.has(id))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const cupons = (cuponsData ?? []).map((c) => ({ ...c, valor: Number(c.valor), minimo: c.minimo === null ? null : Number(c.minimo) })) as CupomDaLista[];
 
   const paths = (vitrine?.banner_paths as string[] | undefined) ?? [];
   const { data: bannerAssinado } =
@@ -195,8 +233,42 @@ export default async function VitrinePage() {
           )}
         </Card>
 
+        {vitrine && (
+          <Card title="Desempenho" description={`Últimos ${DIAS_METRICAS} dias. Pedido enviado é quem tocou em "Enviar pedido pelo WhatsApp".`}>
+            <div className="grid grid-cols-3 gap-2">
+              <Numero valor={visitas} rotulo="visitas" />
+              <Numero valor={pedidos} rotulo="pedidos enviados" />
+              <Numero valor={visitas > 0 ? `${Math.round((pedidos / visitas) * 100)}%` : "0%"} rotulo="viraram pedido" />
+            </div>
+            {maisVistos.length > 0 ? (
+              <div className="mt-4">
+                <p className="mb-1.5 text-[13px] font-semibold text-ink">Produtos mais vistos</p>
+                <ol className="divide-y divide-line text-sm">
+                  {maisVistos.map(([id, n], i) => (
+                    <li key={id} className="flex items-center justify-between gap-3 py-2">
+                      <Link href={`/produtos/${id}`} className="min-w-0 truncate text-ink hover:underline">
+                        <span className="mr-2 tabular-nums text-ink-muted">{i + 1}.</span>
+                        {nomePorId.get(id)}
+                      </Link>
+                      <span className="shrink-0 text-xs tabular-nums text-ink-muted">
+                        {n} {n === 1 ? "vez" : "vezes"}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-ink-muted">Divulgue o link: os números aparecem aqui conforme os clientes visitam.</p>
+            )}
+          </Card>
+        )}
+
         <Card title="Produtos na vitrine" description="Escolha o que aparece na loja. Custo e quantidade em estoque nunca aparecem.">
           <ProdutosDaVitrine produtos={produtos} linkDaLoja={vitrine?.ativa ? link : null} />
+        </Card>
+
+        <Card title="Cupons de desconto" description="Crie um código para divulgar. O cliente digita no pedido e o desconto vai junto na mensagem.">
+          <Cupons cupons={cupons} hoje={hoje} />
         </Card>
 
         <Card title="Aparência e pedidos">

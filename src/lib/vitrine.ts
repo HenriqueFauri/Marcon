@@ -146,6 +146,33 @@ export interface DadosDoPedido {
   endereco: string;
   pagamento: string;
   frete: number | null; // só vale na entrega
+  cupom: CupomAplicado | null;
+}
+
+// Cupom de desconto (migration 0028). O desconto vale sobre os produtos, nunca sobre o frete.
+export const CUPOM_REGEX = /^[A-Z0-9]{3,20}$/;
+
+export interface Cupom {
+  codigo: string;
+  tipo: "percentual" | "valor";
+  valor: number;
+  minimo: number | null;
+}
+
+export interface CupomAplicado {
+  codigo: string;
+  desconto: number;
+}
+
+// quanto o cupom tira deste subtotal; 0 se o pedido não chega no mínimo
+export function descontoDoCupom(cupom: Cupom, subtotal: number) {
+  if (cupom.minimo !== null && subtotal < Number(cupom.minimo)) return 0;
+  const bruto = cupom.tipo === "percentual" ? (subtotal * Number(cupom.valor)) / 100 : Number(cupom.valor);
+  return Math.round(Math.min(bruto, subtotal) * 100) / 100;
+}
+
+export function rotuloDoCupom(cupom: Pick<Cupom, "tipo" | "valor">) {
+  return cupom.tipo === "percentual" ? `${Number(cupom.valor).toLocaleString("pt-BR")}% de desconto` : `${formatBRL(cupom.valor)} de desconto`;
 }
 
 export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dados: DadosDoPedido) {
@@ -154,12 +181,14 @@ export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dad
       `• ${i.quantidade}x ${i.nome}${i.variacao ? ` (${i.variacao})` : ""}: ${formatBRL(i.preco * i.quantidade)}`,
   );
   const frete = dados.entrega === "entrega" ? dados.frete : null;
-  const total = totalDoPedido(itens) + (frete ?? 0);
+  const desconto = dados.cupom?.desconto ?? 0;
+  const total = totalDoPedido(itens) - desconto + (frete ?? 0);
   return [
     `Olá${loja ? `, ${loja}` : ""}! Quero fazer um pedido:`,
     "",
     ...linhas,
     "",
+    ...(desconto > 0 && dados.cupom ? [`Desconto do cupom ${dados.cupom.codigo}: ${formatBRL(desconto)}`] : []),
     ...(frete ? [`Frete: ${formatBRL(frete)}`] : []),
     `Total: ${formatBRL(total)}`,
     "",
