@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { Modal } from "@/components/modal";
+import { IconChevronLeft, IconChevronRight, IconX } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
 import {
   coresDaLoja,
@@ -303,7 +304,7 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
 
       {vitrine.banner && <BannerDaLoja key={vitrine.banner.urls.join()} banner={vitrine.banner} />}
 
-      <main className="mx-auto max-w-3xl px-4 pb-36 pt-4">
+      <main className="mx-auto max-w-3xl px-4 pb-36 pt-2">
         {produtos.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-fill text-2xl" aria-hidden="true">
@@ -317,7 +318,8 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
           </div>
         ) : (
           <>
-            <div id="produtos" className="scroll-mt-4">
+            {/* busca e categorias ficam no topo ao rolar, para quem tem muitos produtos */}
+            <div id="produtos" className="sticky top-0 z-10 -mx-4 scroll-mt-0 bg-canvas/90 px-4 pb-2 pt-2 backdrop-blur-xl">
               <input
                 type="search"
                 value={busca}
@@ -326,9 +328,11 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
                 aria-label="Buscar produto"
                 className={campo}
               />
-            </div>
             {categorias.length > 0 && (
-              <div className={`-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 ${SEM_BARRA}`}>
+              // o degradê na direita mostra que tem mais categorias para o lado
+              <div
+                className={`-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pr-10 [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] ${SEM_BARRA}`}
+              >
                 {[null, ...categorias].map((c) => {
                   const ativo = categoria === c;
                   return (
@@ -347,9 +351,10 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
                 })}
               </div>
             )}
+            </div>
 
             {destaques.length > 0 && (
-              <section className="mt-6" aria-label="Destaques">
+              <section className="mt-4" aria-label="Destaques">
                 <h2 className="mb-2.5 text-[15px] font-semibold">Destaques</h2>
                 <ul className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 ${SEM_BARRA}`}>
                   {destaques.map((p) => (
@@ -470,7 +475,7 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
         )
       )}
 
-      <Modal open={!!aberto} onClose={() => abrir(null)} title={aberto?.nome ?? ""} description={aberto?.marca ?? undefined}>
+      <Modal folha open={!!aberto} onClose={() => abrir(null)} title={aberto?.nome ?? ""} description={aberto?.marca ?? undefined}>
         {aberto && (
           <DetalheDoProduto
             key={aberto.id}
@@ -482,7 +487,7 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
         )}
       </Modal>
 
-      <Modal open={verCarrinho} onClose={() => setVerCarrinho(false)} title="Seu pedido">
+      <Modal folha open={verCarrinho} onClose={() => setVerCarrinho(false)} title="Seu pedido">
         {linhas.length === 0 ? (
           <p className="py-6 text-center text-sm text-ink-muted">Seu pedido está vazio.</p>
         ) : (
@@ -657,6 +662,21 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
               </a>
             )}
             <p className="mt-2 text-center text-xs text-ink-muted">O pagamento e a entrega você combina direto com a loja.</p>
+            <div className="mt-5 flex items-center justify-between border-t border-line pt-3 text-[13px]">
+              <a href={linkDuvida} target="_blank" rel="noopener noreferrer" className="font-medium text-ink-2 hover:underline">
+                Ficou com dúvida? Chame a loja
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setItens([]);
+                  setVerCarrinho(false);
+                }}
+                className="font-medium text-danger hover:underline"
+              >
+                Esvaziar pedido
+              </button>
+            </div>
           </>
         )}
       </Modal>
@@ -692,8 +712,72 @@ function indiceDoScroll(el: HTMLElement) {
   return Math.round(el.scrollLeft / Math.max(el.clientWidth, 1));
 }
 
+// setas de passar foto, só onde tem mouse (no toque, arrasta com o dedo)
+function Setas({ alvo, total, atual }: { alvo: RefObject<HTMLDivElement | null>; total: number; atual: number }) {
+  if (total < 2) return null;
+  const rolar = (direcao: number) => alvo.current?.scrollBy({ left: direcao * alvo.current.clientWidth, behavior: "smooth" });
+  const base =
+    "absolute top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 [@media(hover:hover)]:flex";
+  return (
+    <>
+      {atual > 0 && (
+        <button type="button" aria-label="Foto anterior" onClick={() => rolar(-1)} className={`${base} left-2`}>
+          <IconChevronLeft width={20} height={20} />
+        </button>
+      )}
+      {atual < total - 1 && (
+        <button type="button" aria-label="Próxima foto" onClick={() => rolar(1)} className={`${base} right-2`}>
+          <IconChevronRight width={20} height={20} />
+        </button>
+      )}
+    </>
+  );
+}
+
+// foto em tela cheia sobre fundo preto (outro <dialog>, por cima da janela do produto); no celular dá para
+// ampliar com dois dedos. Toque em qualquer lugar ou Esc fecha.
+function FotoAmpliada({ url, alt, onFechar }: { url: string | null; alt: string; onFechar: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (url && !d.open) d.showModal();
+    if (!url && d.open) d.close();
+  }, [url]);
+  return (
+    <dialog
+      ref={ref}
+      // o React propaga close e click pela árvore: sem parar aqui, fecharia também a janela do produto
+      onClose={(e) => {
+        e.stopPropagation();
+        onFechar();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onFechar();
+      }}
+      className="m-0 h-dvh max-h-none w-screen max-w-none bg-black p-0 backdrop:bg-black"
+    >
+      {url && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={alt} className="h-full w-full object-contain" />
+          <button
+            type="button"
+            aria-label="Fechar foto"
+            className="absolute right-4 top-[max(env(safe-area-inset-top),1rem)] flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
+          >
+            <IconX />
+          </button>
+        </>
+      )}
+    </dialog>
+  );
+}
+
 function BannerDaLoja({ banner }: { banner: NonNullable<Vitrine["banner"]> }) {
   const [indice, setIndice] = useState(0);
+  const carrossel = useRef<HTMLDivElement>(null);
   const temTexto = !!(banner.titulo || banner.subtitulo || banner.botao);
   if (banner.urls.length === 0 && !temTexto) return null;
   return (
@@ -701,7 +785,9 @@ function BannerDaLoja({ banner }: { banner: NonNullable<Vitrine["banner"]> }) {
       <div className="overflow-hidden rounded-3xl bg-[var(--loja)] text-[var(--loja-texto)]">
         {banner.urls.length > 0 && (
           <div className="relative">
+            <Setas alvo={carrossel} total={banner.urls.length} atual={indice} />
             <div
+              ref={carrossel}
               className={`flex snap-x snap-mandatory overflow-x-auto ${SEM_BARRA}`}
               onScroll={(e) => setIndice(indiceDoScroll(e.currentTarget))}
             >
@@ -832,6 +918,8 @@ function DetalheDoProduto({
   const indisponivel = comVariacoes ? !variacao || variacao.esgotado : produto.esgotado;
   const ultimas = variacao ? variacao.ultimas : comVariacoes ? null : produto.ultimas;
 
+  const [ampliada, setAmpliada] = useState<string | null>(null);
+
   function escolher(id: string) {
     setVariacaoId(id);
     setFoto(0);
@@ -856,24 +944,31 @@ function DetalheDoProduto({
     <div>
       {fotos.length > 0 ? (
         <div className="mb-4">
-          <div
-            ref={galeria}
-            className={`-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 ${SEM_BARRA}`}
-            onScroll={(e) => setFoto(indiceDoScroll(e.currentTarget))}
-          >
-            {fotos.map((f) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={f.url}
-                src={f.url}
-                alt={produto.nome}
-                className="aspect-square w-full shrink-0 snap-center rounded-2xl bg-fill object-cover"
-              />
-            ))}
+          <div className="relative">
+            <Setas alvo={galeria} total={fotos.length} atual={foto} />
+            <div
+              ref={galeria}
+              className={`-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 ${SEM_BARRA}`}
+              onScroll={(e) => setFoto(indiceDoScroll(e.currentTarget))}
+            >
+              {fotos.map((f) => (
+                <button
+                  key={f.url}
+                  type="button"
+                  onClick={() => setAmpliada(f.url)}
+                  aria-label="Ver foto em tela cheia"
+                  className="w-full shrink-0 snap-center cursor-zoom-in"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={f.url} alt={produto.nome} className="aspect-square w-full rounded-2xl bg-fill object-cover" />
+                </button>
+              ))}
+            </div>
           </div>
           <div className="mt-2">
             <Pontos total={fotos.length} atual={foto} />
           </div>
+          <FotoAmpliada url={ampliada} alt={produto.nome} onFechar={() => setAmpliada(null)} />
         </div>
       ) : (
         <div className="mb-4 aspect-[4/3] rounded-2xl bg-fill">

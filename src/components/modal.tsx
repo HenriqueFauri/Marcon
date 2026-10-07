@@ -11,6 +11,7 @@ export function Modal({
   description,
   children,
   size = "md",
+  folha = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -18,6 +19,8 @@ export function Modal({
   description?: ReactNode;
   children: ReactNode;
   size?: "sm" | "md" | "lg";
+  // no celular, sobe de baixo com a largura toda (como as folhas do iPhone)
+  folha?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -37,10 +40,15 @@ export function Modal({
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className={`m-auto max-h-[92dvh] w-[calc(100%-2rem)] ${largura} overflow-y-auto rounded-[28px] bg-surface p-0 text-ink shadow-2xl shadow-black/30 backdrop:bg-black/40 backdrop:backdrop-blur-sm`}
+      className={`m-auto max-h-[92dvh] w-[calc(100%-2rem)] ${largura} overflow-y-auto rounded-[28px] bg-surface p-0 text-ink shadow-2xl shadow-black/30 backdrop:bg-black/40 backdrop:backdrop-blur-sm ${
+        folha
+          ? "folha max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)]"
+          : ""
+      }`}
     >
       {open && (
         <div className="p-5">
+          {folha && <div aria-hidden="true" className="mx-auto -mt-2 mb-3 h-[5px] w-9 rounded-full bg-fill-strong sm:hidden" />}
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-ink">{title}</h2>
