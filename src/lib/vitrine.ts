@@ -42,6 +42,13 @@ export const TOKENS_ESCUROS = {
   "--ink": "#f5f5f7",
   "--ink-2": "#d1d1d6",
   "--ink-muted": "#98989d",
+  "--ink-faint": "#636366",
+  "--line-strong": "#636366",
+  "--positive": "#5bb98a",
+  "--warning": "#e0a23c",
+  "--danger": "#ef6b61",
+  "--tile-warning": "#e0a23c",
+  "--on-tile-warning": "#1c0a02",
 } as const;
 
 

@@ -741,7 +741,7 @@ function CartaoDoProduto({ produto: p, onAbrir }: { produto: VitrineProduto; onA
           <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-semibold text-white">Esgotado</span>
         )}
         {ultimas !== null && (
-          <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-black">
+          <span className="absolute left-2 top-2 rounded-full bg-tile-warning px-2.5 py-1 text-[11px] font-semibold text-on-tile-warning">
             {ultimas === 1 ? "Última unidade" : `Últimas ${ultimas}`}
           </span>
         )}
@@ -850,7 +850,7 @@ function DetalheDoProduto({
       <div className="flex items-start justify-between gap-3">
         <div>
           {ultimas !== null && ultimas !== undefined && !produto.esgotado && (
-            <p className="mb-1 text-xs font-semibold text-amber-600">
+            <p className="mb-1 text-xs font-semibold text-warning">
               {ultimas === 1 ? "Última unidade!" : `Últimas ${ultimas} unidades!`}
             </p>
           )}

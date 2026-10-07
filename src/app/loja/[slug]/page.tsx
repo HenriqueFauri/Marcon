@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import { formatBRL } from "@/lib/format";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
@@ -38,6 +38,13 @@ export async function generateMetadata({ params, searchParams }: PageProps<"/loj
     openGraph: { title: titulo, description: descricao, images: [imagem], type: "website", locale: "pt_BR" },
     twitter: { card: "summary_large_image", title: titulo, description: descricao, images: [imagem] },
   };
+}
+
+// a barra do navegador acompanha o fundo da loja, não o tema do app
+export async function generateViewport({ params }: PageProps<"/loja/[slug]">): Promise<Viewport> {
+  const { slug } = await params;
+  const vitrine = await carregar(slug);
+  return { themeColor: vitrine?.loja.tema === "escuro" ? "#000000" : "#f2f2f7" };
 }
 
 export default async function LojaPage({ params }: PageProps<"/loja/[slug]">) {

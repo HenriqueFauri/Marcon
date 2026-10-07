@@ -33,10 +33,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <head>
-        {/* aplica o tema escuro guardado antes da primeira pintura, pra não piscar */}
+        {/* aplica o tema escuro guardado antes da primeira pintura, pra não piscar.
+            A loja pública (/loja/) tem tema próprio, escolhido pelo vendedor: o do app não vale lá. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem("marcon-tema")==="dark"){document.documentElement.setAttribute("data-theme","dark");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#000000")}}catch(e){}`,
+            __html: `try{if(localStorage.getItem("marcon-tema")==="dark"&&location.pathname.indexOf("/loja/")!==0){document.documentElement.setAttribute("data-theme","dark");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#000000")}}catch(e){}`,
           }}
         />
       </head>
