@@ -282,6 +282,7 @@ export interface DadosDoPedido {
   pagamento: string;
   frete: number | null; // só vale na entrega
   cupom: CupomAplicado | null;
+  codigo?: string; // código do pedido gravado (vitrine_pedidos), para o vendedor achar no app
 }
 
 // Cupom de desconto (migration 0028). O desconto vale sobre os produtos, nunca sobre o frete.
@@ -319,7 +320,7 @@ export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dad
   const desconto = dados.cupom?.desconto ?? 0;
   const total = totalDoPedido(itens) - desconto + (frete ?? 0);
   return [
-    `Olá${loja ? `, ${loja}` : ""}! Quero fazer um pedido:`,
+    `Olá${loja ? `, ${loja}` : ""}! Quero fazer um pedido${dados.codigo ? ` (#${dados.codigo})` : ""}:`,
     "",
     ...linhas,
     "",
@@ -331,6 +332,14 @@ export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dad
     dados.entrega === "entrega" ? `Entrega em: ${dados.endereco}` : "Retirada no local",
     ...(dados.pagamento ? [`Pagamento: ${dados.pagamento}`] : []),
   ].join("\n");
+}
+
+// código curto do pedido, sem letras que se confundem (0/O, 1/I/L)
+const LETRAS_DO_CODIGO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export function gerarCodigoDoPedido() {
+  const n = new Uint32Array(5);
+  crypto.getRandomValues(n);
+  return Array.from(n, (x) => LETRAS_DO_CODIGO[x % LETRAS_DO_CODIGO.length]).join("");
 }
 
 export function linkDoWhatsapp(whatsapp: string, mensagem: string) {
@@ -367,4 +376,38 @@ export function aplicarPrevia(vitrine: Vitrine, d: DadosDaPrevia): Vitrine {
     },
     banner: d.banner,
   };
+}
+
+// Pedido recebido pela loja (tabela vitrine_pedidos, migration 0037)
+export type StatusDoPedido = "novo" | "vendido" | "descartado";
+
+export interface ItemDoPedidoRecebido {
+  produto_id: string;
+  variacao_id: string | null;
+  nome: string;
+  variacao: string | null;
+  preco: number;
+  quantidade: number;
+}
+
+export interface PedidoRecebido {
+  id: string;
+  codigo: string;
+  itens: ItemDoPedidoRecebido[];
+  subtotal: number;
+  desconto: number;
+  cupom: string | null;
+  frete: number | null;
+  total: number;
+  cliente_nome: string | null;
+  entrega: "entrega" | "retirada";
+  endereco: string | null;
+  pagamento: string | null;
+  status: StatusDoPedido;
+  venda_id: string | null;
+  created_at: string;
+}
+
+export function quantidadeDeItens(p: Pick<PedidoRecebido, "itens">) {
+  return p.itens.reduce((s, i) => s + Number(i.quantidade), 0);
 }

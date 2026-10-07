@@ -287,3 +287,25 @@ export async function excluirCupom(id: string): Promise<ActionResult> {
     return falha(e);
   }
 }
+
+// Pedidos recebidos (migration 0037): descartar (o cliente desistiu) ou voltar para "novo".
+// "vendido" só vem de registrarVenda, que guarda junto o id da venda.
+export async function mudarStatusDoPedido(id: string, status: "novo" | "descartado"): Promise<ActionResult> {
+  try {
+    if (status !== "novo" && status !== "descartado") return { ok: false, error: "Status inválido." };
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("vitrine_pedidos")
+      .update({ status })
+      .eq("id", id)
+      .neq("status", "vendido")
+      .select("id")
+      .maybeSingle();
+    if (error) return falha(error);
+    if (!data) return { ok: false, error: "Não achei esse pedido, ou ele já virou venda." };
+    revalidatePath("/vitrine", "layout");
+    return ok(status === "descartado" ? "Pedido descartado." : "Pedido de volta para os novos.");
+  } catch (e) {
+    return falha(e);
+  }
+}

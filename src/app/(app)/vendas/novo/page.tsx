@@ -7,14 +7,20 @@ import { hojeISO } from "@/lib/format";
 import { IconX } from "@/components/icons";
 import { AvisoDeLimite, LimiteAtingido } from "@/components/limite-do-plano";
 import { AVISAR_QUANDO_FALTAREM, lerUso, restante } from "@/lib/uso";
-import { VendaForm, type Vendavel } from "./venda-form";
+import type { PedidoRecebido } from "@/lib/vitrine";
+import { VendaForm, type PedidoParaVenda, type Vendavel } from "./venda-form";
 
 export const metadata: Metadata = { title: "Nova venda" };
 
 export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas/novo">) {
   const sp = await searchParams;
   const produtoInicial = typeof sp.produto === "string" ? sp.produto : null;
+  const pedidoId = typeof sp.pedido === "string" ? sp.pedido : null;
   const supabase = await createClient();
+  // vindo de um pedido da vitrine (Registrar venda): a venda abre preenchida
+  const { data: pedidoData } = pedidoId
+    ? await supabase.from("vitrine_pedidos").select("*").eq("id", pedidoId).eq("status", "novo").maybeSingle()
+    : { data: null };
   const [{ data: produtosData }, { data: variacoesData }, { data: clientesData }, { data: canaisData }, { data: formasData }] =
     await Promise.all([
       supabase.from("produtos_com_estoque").select("*").neq("status", "inativo").gt("estoque_total", 0).order("nome"),
@@ -68,6 +74,27 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
       }));
   });
 
+  const pedidoRecebido = pedidoData as PedidoRecebido | null;
+  const chaves = new Set(vendaveis.map((v) => v.chave));
+  const pedido: PedidoParaVenda | null = pedidoRecebido
+    ? {
+        id: pedidoRecebido.id,
+        codigo: pedidoRecebido.codigo,
+        itens: pedidoRecebido.itens.map((i) => ({
+          chave: i.variacao_id ? `${i.produto_id}:${i.variacao_id}` : i.produto_id,
+          quantidade: Number(i.quantidade),
+          preco: Number(i.preco),
+        })),
+        desconto: Number(pedidoRecebido.desconto),
+        clienteNome: pedidoRecebido.cliente_nome,
+        pagamento: pedidoRecebido.pagamento,
+        // itens que acabaram no estoque depois do pedido não dá para vender
+        semEstoque: pedidoRecebido.itens
+          .filter((i) => !chaves.has(i.variacao_id ? `${i.produto_id}:${i.variacao_id}` : i.produto_id))
+          .map((i) => (i.variacao ? `${i.nome} (${i.variacao})` : i.nome)),
+      }
+    : null;
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between lg:hidden">
@@ -116,6 +143,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
             formas={(formasData ?? []) as FormaPagamento[]}
             hoje={hojeISO()}
             produtoInicial={produtoInicial}
+            pedido={pedido}
           />
         </>
       )}

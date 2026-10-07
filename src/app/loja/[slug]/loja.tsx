@@ -22,8 +22,9 @@ import {
   PREVIA_DADOS,
   PREVIA_PRONTA,
   aplicarPrevia,
+  gerarCodigoDoPedido,
 } from "@/lib/vitrine";
-import { registrarEvento, validarCupom } from "./actions";
+import { registrarEvento, registrarPedido, validarCupom } from "./actions";
 
 // o carrinho guarda só a chave e a quantidade: nome, preço e foto vêm sempre da loja atual,
 // então preço mudado vale na hora e item que sumiu ou esgotou sai sozinho
@@ -219,6 +220,14 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
     return [...ordenados.filter((p) => !p.esgotado), ...ordenados.filter((p) => p.esgotado)];
   }, [produtos, busca, categoria, ordem]);
   const destaques = !busca.trim() && !categoria ? produtos.filter((p) => p.destaque && !p.esgotado) : [];
+
+  // código do pedido: um por conteúdo do carrinho (mudou o carrinho, é outro pedido)
+  const assinatura = linhas.map((l) => `${l.chave}x${l.quantidade}`).join("|");
+  const [codigo, setCodigo] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- código aleatório só no navegador
+    setCodigo(gerarCodigoDoPedido());
+  }, [assinatura]);
 
   const quantidadeTotal = linhas.reduce((s, i) => s + i.quantidade, 0);
   const subtotal = totalDoPedido(linhas);
@@ -647,11 +656,24 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
                     pagamento,
                     frete: loja.frete_fixo,
                     cupom: cupom && desconto > 0 ? { codigo: cupom.codigo, desconto } : null,
+                    codigo,
                   }),
                 )}
                 onClick={() => {
-                  const pedido = linhas.map((l) => `${l.chave}x${l.quantidade}`).join("|");
-                  if (contarSeNovo(`marcon-pedido-${slug}`, `${hojeLocal()}:${pedido}`)) void registrarEvento(slug, "pedido");
+                  // cada código grava uma vez: tocar de novo em Enviar com o mesmo pedido não duplica
+                  if (!codigo || !contarSeNovo(`marcon-pedido-${slug}`, codigo)) return;
+                  void registrarPedido(slug, {
+                    codigo,
+                    itens: linhas.map((l) => {
+                      const [produtoId, variacaoId] = l.chave.split(":");
+                      return { produtoId, variacaoId: variacaoId || null, quantidade: l.quantidade };
+                    }),
+                    clienteNome: nome.trim(),
+                    entrega: modoFinal,
+                    endereco: endereco.trim(),
+                    pagamento,
+                    cupom: cupom && desconto > 0 ? cupom.codigo : null,
+                  });
                 }}
                 target="_blank"
                 rel="noopener noreferrer"

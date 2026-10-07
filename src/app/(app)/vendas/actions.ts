@@ -21,6 +21,7 @@ export interface NovaVendaInput {
   desconto: number;
   outrosGastos: number; // motoboy, embalagem...: custo do lojista nesta venda
   data: string | null;
+  pedidoId?: string | null; // pedido da vitrine que virou esta venda
 }
 
 const DATA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -101,6 +102,16 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
       ...(outrosGastos > 0 ? { p_outros_gastos: outrosGastos } : {}),
     });
     if (error) return falha(error);
+
+    // pedido da vitrine que virou esta venda: sai dos novos e guarda o vínculo
+    if (input.pedidoId) {
+      await supabase
+        .from("vitrine_pedidos")
+        .update({ status: "vendido", venda_id: vendaId })
+        .eq("id", input.pedidoId)
+        .eq("status", "novo");
+      revalidatePath("/vitrine", "layout");
+    }
 
     const total = subtotal - desconto;
     after(async () => {

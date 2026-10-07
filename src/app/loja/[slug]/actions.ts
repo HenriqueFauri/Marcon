@@ -70,3 +70,52 @@ export async function registrarEvento(slug: string, tipo: string, produtoId?: st
     });
   } catch {}
 }
+
+const MAX_PEDIDOS = 10;
+const CODIGO = /^[A-Z0-9]{4,8}$/;
+
+export interface PedidoDaLoja {
+  codigo: string;
+  itens: { produtoId: string; variacaoId: string | null; quantidade: number }[];
+  clienteNome: string;
+  entrega: "entrega" | "retirada";
+  endereco: string;
+  pagamento: string;
+  cupom: string | null;
+}
+
+// Grava o pedido em vitrine_pedidos (migration 0037) e conta na métrica de pedidos. O banco refaz preço,
+// cupom, frete e total a partir dos ids; daqui só vão ids, quantidades e os dados de entrega.
+// Falha calada: o pedido segue pelo WhatsApp mesmo se a gravação não der certo.
+export async function registrarPedido(slug: string, pedido: PedidoDaLoja) {
+  try {
+    const s = String(slug).toLowerCase();
+    if (!SLUG_REGEX.test(s) || (EXEMPLO && s === "exemplo") || !CODIGO.test(pedido.codigo)) return;
+    const itens = (pedido.itens ?? []).slice(0, 50).filter(
+      (i) => UUID.test(i.produtoId) && (i.variacaoId === null || UUID.test(i.variacaoId)) && Number.isInteger(i.quantidade),
+    );
+    if (itens.length === 0) return;
+
+    const admin = createAdminClient();
+    if (!admin) return;
+    if (!(await dentroDoLimite(admin, `pedido:${await ipDoVisitante()}:${s}`, MAX_PEDIDOS))) return;
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await admin.rpc("registrar_pedido_vitrine", {
+      p_slug: s,
+      p_codigo: pedido.codigo,
+      p_itens: itens.map((i) => ({ produto_id: i.produtoId, variacao_id: i.variacaoId, quantidade: Math.min(Math.max(i.quantidade, 1), 99) })),
+      p_dados: {
+        cliente_nome: String(pedido.clienteNome ?? "").slice(0, 80),
+        entrega: pedido.entrega === "retirada" ? "retirada" : "entrega",
+        endereco: String(pedido.endereco ?? "").slice(0, 300),
+        pagamento: String(pedido.pagamento ?? "").slice(0, 60),
+        cupom: pedido.cupom && CUPOM_REGEX.test(pedido.cupom) ? pedido.cupom : null,
+      },
+      p_ignorar: user?.id ?? null,
+    });
+  } catch {}
+}
