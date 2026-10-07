@@ -1,18 +1,52 @@
 import { formatBRL } from "@/lib/format";
 
-// Vitrine pública (função vitrine_publica, migration 0025): só o que o cliente deve ver.
+// Vitrine pública (função vitrine_publica, migrations 0025 e 0026): só o que o cliente deve ver.
 // Sem imports de servidor: a tela de configuração e o carrinho também usam (a busca fica em vitrine-servidor.ts).
 
 export const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{2,39}$/;
 export const COR_PADRAO = "#0f766e";
 export const COR_REGEX = /^#[0-9a-fA-F]{6}$/;
 export const BOAS_VINDAS_MAX = 160;
+export const ANUNCIO_MAX = 120;
+export const INSTAGRAM_REGEX = /^[A-Za-z0-9._]{1,30}$/;
+
+export type Entrega = "ambos" | "entrega" | "retirada";
+export type Tema = "claro" | "escuro";
+
+export const ENTREGAS: { valor: Entrega; titulo: string; ajuda: string }[] = [
+  { valor: "ambos", titulo: "Os dois", ajuda: "O cliente escolhe no pedido." },
+  { valor: "entrega", titulo: "Só entrega", ajuda: "Retirada no local não aparece." },
+  { valor: "retirada", titulo: "Só retirada", ajuda: "Sem endereço de entrega e sem frete." },
+];
+
+// paletas prontas: preenchem a cor de destaque e o tema (o vendedor ainda pode ajustar a cor)
+export const PALETAS: { id: string; nome: string; cor: string; tema: Tema }[] = [
+  { id: "padrao", nome: "Verde", cor: COR_PADRAO, tema: "claro" },
+  { id: "oceano", nome: "Oceano", cor: "#1d4ed8", tema: "claro" },
+  { id: "sunset", nome: "Sunset", cor: "#c2410c", tema: "claro" },
+  { id: "natureza", nome: "Natureza", cor: "#15803d", tema: "claro" },
+  { id: "premium", nome: "Dark premium", cor: "#818cf8", tema: "escuro" },
+];
+
+// tokens do app trocados só dentro da loja, para o tema escuro não depender do tema do vendedor
+export const TOKENS_ESCUROS = {
+  "--canvas": "#000000",
+  "--surface": "#1c1c1e",
+  "--fill": "#2c2c2e",
+  "--fill-strong": "#3a3a3c",
+  "--line": "#38383a",
+  "--ink": "#f5f5f7",
+  "--ink-2": "#d1d1d6",
+  "--ink-muted": "#98989d",
+} as const;
+
 
 export interface VitrineVariacao {
   id: string;
   nome: string;
   preco: number;
   esgotado: boolean;
+  ultimas: number | null;
 }
 
 export interface VitrineProdutoBruto {
@@ -22,8 +56,10 @@ export interface VitrineProdutoBruto {
   descricao: string | null;
   categoria: string | null;
   preco: number;
+  destaque: boolean;
   tem_variacoes: boolean;
   esgotado: boolean;
+  ultimas: number | null;
   variacoes: VitrineVariacao[];
   fotos: { path: string; variacao_id: string | null }[];
 }
@@ -34,7 +70,14 @@ export interface VitrineBruta {
     logo_path: string | null;
     whatsapp: string;
     cor: string;
+    tema: Tema;
     boas_vindas: string | null;
+    anuncio: string | null;
+    entrega: Entrega;
+    frete_fixo: number | null;
+    instagram: string | null;
+    endereco: string | null;
+    formas_pagamento: string[];
     ref: string | null;
   };
   produtos: VitrineProdutoBruto[];
@@ -78,17 +121,32 @@ export function totalDoPedido(itens: ItemDoPedido[]) {
   return itens.reduce((soma, i) => soma + i.preco * i.quantidade, 0);
 }
 
-export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[]) {
+export interface DadosDoPedido {
+  nome: string;
+  entrega: "entrega" | "retirada";
+  endereco: string;
+  pagamento: string;
+  frete: number | null; // só vale na entrega
+}
+
+export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dados: DadosDoPedido) {
   const linhas = itens.map(
     (i) =>
       `• ${i.quantidade}x ${i.nome}${i.variacao ? ` (${i.variacao})` : ""} - ${formatBRL(i.preco * i.quantidade)}`,
   );
+  const frete = dados.entrega === "entrega" ? dados.frete : null;
+  const total = totalDoPedido(itens) + (frete ?? 0);
   return [
     `Olá${loja ? `, ${loja}` : ""}! Quero fazer um pedido:`,
     "",
     ...linhas,
     "",
-    `Total: ${formatBRL(totalDoPedido(itens))}`,
+    ...(frete ? [`Frete: ${formatBRL(frete)}`] : []),
+    `Total: ${formatBRL(total)}`,
+    "",
+    ...(dados.nome ? [`Nome: ${dados.nome}`] : []),
+    dados.entrega === "entrega" ? `Entrega em: ${dados.endereco}` : "Retirada no local",
+    ...(dados.pagamento ? [`Pagamento: ${dados.pagamento}`] : []),
   ].join("\n");
 }
 

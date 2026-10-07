@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Modal } from "@/components/modal";
 import { formatBRL } from "@/lib/format";
 import {
+  TOKENS_ESCUROS,
   corDoTexto,
   linkDoWhatsapp,
   mensagemDoPedido,
@@ -41,6 +42,10 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   const [categoria, setCategoria] = useState<string | null>(null);
   const [aberto, setAberto] = useState<VitrineProduto | null>(null);
   const [verCarrinho, setVerCarrinho] = useState(false);
+  const [nome, setNome] = useState("");
+  const [modo, setModo] = useState<"entrega" | "retirada">(loja.entrega === "retirada" ? "retirada" : "entrega");
+  const [endereco, setEndereco] = useState("");
+  const [pagamento, setPagamento] = useState("");
 
   // o carrinho sobrevive a recarregar a página; sem storage (aba privada) segue só em memória
   useEffect(() => {
@@ -70,7 +75,12 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   }, [produtos, busca, categoria]);
 
   const quantidadeTotal = carrinho.reduce((s, i) => s + i.quantidade, 0);
-  const total = totalDoPedido(carrinho);
+  const subtotal = totalDoPedido(carrinho);
+  const modoFinal = loja.entrega === "ambos" ? modo : loja.entrega;
+  const frete = modoFinal === "entrega" ? loja.frete_fixo : null;
+  const total = subtotal + (frete ?? 0);
+  const faltaEndereco = modoFinal === "entrega" && !endereco.trim();
+  const destaques = !busca.trim() && !categoria ? produtos.filter((p) => p.destaque) : [];
 
   function adicionar(p: VitrineProduto, variacaoId: string | null, quantidade: number) {
     const variacao = variacaoId ? p.variacoes.find((v) => v.id === variacaoId) : null;
@@ -96,12 +106,22 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
     );
   }
 
-  const estilo = { "--loja": loja.cor, "--loja-texto": corDoTexto(loja.cor) } as CSSProperties;
+  const estilo = {
+    ...(loja.tema === "escuro" ? TOKENS_ESCUROS : {}),
+    colorScheme: loja.tema === "escuro" ? "dark" : "light",
+    "--loja": loja.cor,
+    "--loja-texto": corDoTexto(loja.cor),
+  } as CSSProperties;
+  const campo =
+    "w-full rounded-xl border border-transparent bg-fill px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-muted focus:border-[var(--loja)] focus:bg-surface";
   const botao =
     "inline-flex items-center justify-center rounded-full bg-[var(--loja)] px-5 py-3 text-[15px] font-semibold text-[var(--loja-texto)] shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div style={estilo} className="min-h-dvh bg-canvas text-ink">
+      {loja.anuncio && (
+        <p className="bg-[var(--loja)] px-4 py-2 text-center text-sm font-medium text-[var(--loja-texto)]">{loja.anuncio}</p>
+      )}
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
           {loja.logoUrl && (
@@ -150,50 +170,52 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
               </div>
             )}
 
+            {destaques.length > 0 && (
+              <section className="mt-5" aria-label="Destaques">
+                <h2 className="mb-2 text-[15px] font-semibold">Destaques</h2>
+                <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
+                  {destaques.map((p) => (
+                    <li key={p.id} className="w-40 shrink-0 snap-start">
+                      <CartaoDoProduto produto={p} onAbrir={setAberto} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {visiveis.length === 0 ? (
               <p className="py-12 text-center text-sm text-ink-muted">Nenhum produto encontrado.</p>
             ) : (
               <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {visiveis.map((p) => {
-                  const foto = fotoDe(p);
-                  const { menor, varia } = precoInicial(p);
-                  return (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        onClick={() => setAberto(p)}
-                        className="hairline block w-full overflow-hidden rounded-2xl bg-surface text-left transition active:scale-[0.99]"
-                      >
-                        <div className="relative aspect-square bg-fill">
-                          {foto ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={foto.url} alt={p.nome} loading="lazy" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="flex h-full items-center justify-center text-xs text-ink-muted">sem foto</div>
-                          )}
-                          {p.esgotado && (
-                            <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white">
-                              Esgotado
-                            </span>
-                          )}
-                        </div>
-                        <div className="p-3">
-                          <p className="line-clamp-2 text-sm font-medium leading-snug">{p.nome}</p>
-                          <p className="mt-1 text-[15px] font-semibold tabular-nums">
-                            {varia && <span className="mr-1 text-xs font-normal text-ink-muted">a partir de</span>}
-                            {formatBRL(menor)}
-                          </p>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
+                {visiveis.map((p) => (
+                  <li key={p.id}>
+                    <CartaoDoProduto produto={p} onAbrir={setAberto} />
+                  </li>
+                ))}
               </ul>
             )}
           </>
         )}
 
-        <p className="mt-10 text-center text-xs text-ink-muted">
+        {(loja.instagram || loja.endereco) && (
+          <div className="mt-10 space-y-1 text-center text-sm text-ink-2">
+            {loja.instagram && (
+              <p>
+                <a
+                  href={`https://instagram.com/${loja.instagram}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium hover:underline"
+                >
+                  Instagram @{loja.instagram}
+                </a>
+              </p>
+            )}
+            {loja.endereco && <p className="whitespace-pre-line text-ink-muted">{loja.endereco}</p>}
+          </div>
+        )}
+
+        <p className="mt-6 text-center text-xs text-ink-muted">
           Loja feita com o{" "}
           <a href={loja.ref ? `/?ref=${loja.ref}` : "/"} className="font-medium text-brand-text hover:underline">
             Marcon
@@ -239,18 +261,92 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                 </li>
               ))}
             </ul>
-            <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
+            <div className="mt-4 flex flex-col gap-3">
+              <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Seu nome (opcional)"
+                aria-label="Seu nome"
+                className={campo}
+              />
+              {loja.entrega === "ambos" && (
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Como receber">
+                  {(["entrega", "retirada"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="radio"
+                      aria-checked={modo === m}
+                      onClick={() => setModo(m)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                        modo === m ? "border-[var(--loja)] bg-[var(--loja)] text-[var(--loja-texto)]" : "border-line bg-surface hover:bg-fill"
+                      }`}
+                    >
+                      {m === "entrega" ? "Entrega" : "Retirada"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {modoFinal === "entrega" && (
+                <textarea
+                  value={endereco}
+                  onChange={(e) => setEndereco(e.target.value)}
+                  rows={2}
+                  placeholder="Endereço de entrega"
+                  aria-label="Endereço de entrega"
+                  className={campo}
+                />
+              )}
+              {loja.formas_pagamento.length > 0 && (
+                <select value={pagamento} onChange={(e) => setPagamento(e.target.value)} aria-label="Forma de pagamento" className={campo}>
+                  <option value="">Forma de pagamento</option>
+                  {loja.formas_pagamento.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <dl className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
+              <div className="flex justify-between text-ink-muted">
+                <dt>Subtotal</dt>
+                <dd className="tabular-nums">{formatBRL(subtotal)}</dd>
+              </div>
+              {modoFinal === "entrega" && (
+                <div className="flex justify-between text-ink-muted">
+                  <dt>Frete</dt>
+                  <dd className="tabular-nums">{frete ? formatBRL(frete) : "a combinar"}</dd>
+                </div>
+              )}
+            </dl>
+            <div className="mt-1 flex items-baseline justify-between">
               <span className="text-sm text-ink-muted">Total</span>
               <span className="text-lg font-semibold tabular-nums">{formatBRL(total)}</span>
             </div>
-            <a
-              href={linkDoWhatsapp(loja.whatsapp, mensagemDoPedido(loja.nome, carrinho))}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${botao} mt-4 w-full`}
-            >
-              Enviar pedido pelo WhatsApp
-            </a>
+            {faltaEndereco ? (
+              <button type="button" disabled className={`${botao} mt-4 w-full`}>
+                Informe o endereço de entrega
+              </button>
+            ) : (
+              <a
+                href={linkDoWhatsapp(
+                  loja.whatsapp,
+                  mensagemDoPedido(loja.nome, carrinho, {
+                    nome: nome.trim(),
+                    entrega: modoFinal,
+                    endereco: endereco.trim(),
+                    pagamento,
+                    frete: loja.frete_fixo,
+                  }),
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${botao} mt-4 w-full`}
+              >
+                Enviar pedido pelo WhatsApp
+              </a>
+            )}
             <p className="mt-2 text-center text-xs text-ink-muted">
               O pagamento e a entrega você combina direto com a loja.
             </p>
@@ -258,6 +354,43 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
         )}
       </Modal>
     </div>
+  );
+}
+
+function CartaoDoProduto({ produto: p, onAbrir }: { produto: VitrineProduto; onAbrir: (p: VitrineProduto) => void }) {
+  const foto = fotoDe(p);
+  const { menor, varia } = precoInicial(p);
+  const ultimas = p.esgotado ? null : (p.ultimas ?? p.variacoes.find((v) => v.ultimas)?.ultimas ?? null);
+  return (
+    <button
+      type="button"
+      onClick={() => onAbrir(p)}
+      className="hairline block w-full overflow-hidden rounded-2xl bg-surface text-left transition active:scale-[0.99]"
+    >
+      <div className="relative aspect-square bg-fill">
+        {foto ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={foto.url} alt={p.nome} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs text-ink-muted">sem foto</div>
+        )}
+        {p.esgotado && (
+          <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white">Esgotado</span>
+        )}
+        {ultimas !== null && (
+          <span className="absolute left-2 top-2 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-black">
+            {ultimas === 1 ? "Última unidade" : `Últimas ${ultimas}`}
+          </span>
+        )}
+      </div>
+      <div className="p-3">
+        <p className="line-clamp-2 text-sm font-medium leading-snug">{p.nome}</p>
+        <p className="mt-1 text-[15px] font-semibold tabular-nums">
+          {varia && <span className="mr-1 text-xs font-normal text-ink-muted">a partir de</span>}
+          {formatBRL(menor)}
+        </p>
+      </div>
+    </button>
   );
 }
 
@@ -306,6 +439,11 @@ function DetalheDoProduto({
           ))}
         </div>
       )}
+      {!comVariacoes && produto.ultimas !== null && !produto.esgotado && (
+        <p className="mb-1 text-xs font-semibold text-amber-600">
+          {produto.ultimas === 1 ? "Última unidade!" : `Últimas ${produto.ultimas} unidades!`}
+        </p>
+      )}
       <p className="text-xl font-semibold tabular-nums">
         {varia && <span className="mr-1 text-sm font-normal text-ink-muted">a partir de</span>}
         {formatBRL(preco)}
@@ -331,6 +469,7 @@ function DetalheDoProduto({
                 >
                   {v.nome}
                   {v.esgotado && " (esgotado)"}
+                  {!v.esgotado && v.ultimas !== null && ` (últimas ${v.ultimas})`}
                 </button>
               );
             })}

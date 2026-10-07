@@ -64,6 +64,7 @@ function camposProduto(formData: FormData) {
       alerta_estoque_baixo: alerta,
       unidade_medida: UNIDADES.includes(unidade) ? unidade : "un",
       na_vitrine: formData.get("na_vitrine") === "on",
+      destaque: formData.get("destaque") === "on",
     },
   } as const;
 }

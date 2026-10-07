@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 import { enviarNotificacao } from "@/lib/push/send";
-import { BOAS_VINDAS_MAX, COR_PADRAO, COR_REGEX, SLUG_REGEX, normalizarWhatsapp } from "@/lib/vitrine";
 import {
   CAMPOS_COBRANCA,
   CAMPOS_VENDA,
@@ -187,53 +186,6 @@ export async function enviarNotificacaoTeste(): Promise<ActionResult> {
     const { titulo, corpo } = montarExemplo(lerPreferencias(user.user_metadata), evento, Math.floor(Math.random() * 1000));
     await enviarNotificacao(user.id, titulo, corpo, "/");
     return ok("Teste enviado. Olhe as notificações do aparelho.");
-  } catch (e) {
-    return falha(e);
-  }
-}
-
-export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
-  try {
-    const slug = texto(formData, "slug").toLowerCase();
-    const whatsapp = normalizarWhatsapp(texto(formData, "whatsapp"));
-    const cor = texto(formData, "cor") || COR_PADRAO;
-    const boasVindas = textoOuNull(formData, "boas_vindas");
-    const ativa = formData.get("ativa") === "on";
-
-    if (!SLUG_REGEX.test(slug))
-      return { ok: false, error: "O endereço precisa ter de 3 a 40 letras minúsculas, números ou hífen." };
-    if (!/^\d{10,15}$/.test(whatsapp)) return { ok: false, error: "Informe o WhatsApp com DDD." };
-    if (!COR_REGEX.test(cor)) return { ok: false, error: "Escolha uma cor válida." };
-    if (boasVindas && boasVindas.length > BOAS_VINDAS_MAX)
-      return { ok: false, error: `A frase de boas-vindas tem no máximo ${BOAS_VINDAS_MAX} letras.` };
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
-
-    const { error } = await supabase.from("vitrines").upsert(
-      {
-        owner_id: user.id,
-        slug,
-        whatsapp,
-        cor,
-        boas_vindas: boasVindas,
-        ativa,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "owner_id" },
-    );
-    if (error) {
-      if (/duplicate key|unique constraint/i.test(error.message))
-        return { ok: false, error: "Esse endereço já está em uso. Escolha outro." };
-      return falha(error);
-    }
-
-    revalidatePath("/configuracoes");
-    revalidatePath(`/loja/${slug}`);
-    return ok(ativa ? "Vitrine salva e no ar." : "Vitrine salva (desligada).");
   } catch (e) {
     return falha(e);
   }
