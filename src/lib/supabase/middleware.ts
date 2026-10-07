@@ -44,7 +44,8 @@ export async function updateSession(request: NextRequest) {
     pathname === "/whatsapp" ||
     pathname === "/termos" ||
     pathname === "/privacidade" ||
-    pathname.startsWith("/r/"); // recibo público, aberto pelo cliente de quem vendeu
+    pathname.startsWith("/r/") || // recibo público, aberto pelo cliente de quem vendeu
+    pathname.startsWith("/loja/"); // vitrine pública, aberta pelo cliente de quem vende
 
   if (!user && !isAuthRoute) {
     const url = request.nextUrl.clone();
