@@ -82,6 +82,10 @@ const PERGUNTAS = [
     r: "Não. O Facebook e o WhatsApp não deixam nenhum app publicar por você. O Marcon deixa fotos, título e descrição prontos, e você só copia, cola e publica.",
   },
   {
+    p: "Tem uma loja com link pra mandar pros clientes?",
+    r: "Tem, no plano Marcon: a vitrine. Você escolhe os produtos, manda um link só no status e nos grupos, e o cliente vê fotos e preços, monta o pedido e ele chega pronto no seu WhatsApp. Pagamento e entrega você combina direto com ele.",
+  },
+  {
     p: "Quanto custa?",
     r: `Os primeiros ${DIAS_DE_TESTE} dias são grátis, com tudo liberado e sem cartão. Depois, o plano Marcon sai por ${formatBRL(PLANOS.marcon.valor)} por mês, sem fidelidade. Se não quiser assinar, sua conta continua no plano grátis, com limite de vendas e produtos.`,
   },

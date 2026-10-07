@@ -1,5 +1,5 @@
 // Planos do Marcon. Por enquanto há um plano pago só; um plano maior entra quando
-// existir algo a mais para entregar nele (vitrine pública, equipe).
+// existir algo a mais para entregar nele (equipe, subdomínio da vitrine).
 //
 // Os LIMITES são impostos pelo banco (migration 0013, função limites_do_plano) e o app
 // lê o uso de lá (src/lib/uso.ts). Os números abaixo são só os textos da tela: ao mudar
@@ -12,6 +12,7 @@ export const PLANOS = {
     inclui: [
       "Tudo do plano grátis",
       "Vendas e produtos ilimitados",
+      "Vitrine com link: o cliente monta o pedido e ele chega pronto no seu WhatsApp",
       "Até 10 fotos por produto e por variação",
       "30 anúncios escritos com IA por mês",
       "Importar vendas e caixa de outro sistema",
