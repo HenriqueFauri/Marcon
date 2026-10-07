@@ -926,10 +926,11 @@ function DetalheDoProduto({
     galeria.current?.scrollTo({ left: 0 });
   }
 
+  // no computador (mouse) só copia o link; o menu de compartilhar do sistema fica para o celular
   async function compartilhar() {
     const url = window.location.href;
     try {
-      if (navigator.share) {
+      if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
         await navigator.share({ title: produto.nome, url });
         return;
       }
@@ -993,7 +994,8 @@ function DetalheDoProduto({
           onClick={compartilhar}
           className="shrink-0 rounded-full border border-line px-3 py-1.5 text-[13px] font-medium text-ink-2 transition hover:bg-fill"
         >
-          Compartilhar
+          <span className="[@media(hover:hover)]:hidden">Compartilhar</span>
+          <span className="hidden [@media(hover:hover)]:inline">Copiar link</span>
         </button>
       </div>
       {produto.descricao && <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-2">{produto.descricao}</p>}
