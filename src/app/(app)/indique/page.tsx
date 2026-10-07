@@ -8,11 +8,11 @@ import { PLANOS } from "@/lib/planos";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import {
   CARENCIA_DIAS,
-  COMISSAO_PERCENTUAL,
-  COMISSAO_POR_MES,
   SAQUE_MINIMO,
+  comissaoDe,
   linkDeIndicacao,
   mensagemDeConvite,
+  percentualDoAfiliado,
   resumoDoAfiliado,
 } from "@/lib/indicacao";
 import { enderecoDoApp, garantirAfiliado } from "@/lib/indicacao-servidor";
@@ -96,6 +96,9 @@ export default async function IndiquePage() {
   const indicacoes = (indicacoesData ?? []) as { indicado_id: string; created_at: string }[];
 
   const resumo = resumoDoAfiliado(comissoes, saques);
+  // percentual negociado com o admin, ou o padrão
+  const percentual = percentualDoAfiliado(afiliado.percentual);
+  const comissaoPorMes = comissaoDe(PLANOS.marcon.valor, percentual);
   const link = linkDeIndicacao(base, afiliado.codigo);
   const indicados = await carregarIndicados(
     indicacoes.map((i) => i.indicado_id),
@@ -118,7 +121,7 @@ export default async function IndiquePage() {
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title="Indique e ganhe"
-        description={`Cada pessoa que você indicar e assinar paga ${formatBRL(PLANOS.marcon.valor)} por mês. Você fica com ${COMISSAO_PERCENTUAL}% (${formatBRL(COMISSAO_POR_MES)}) de cada mensalidade, todo mês, enquanto ela continuar assinando.`}
+        description={`Cada pessoa que você indicar e assinar paga ${formatBRL(PLANOS.marcon.valor)} por mês. Você fica com ${percentual}% (${formatBRL(comissaoPorMes)}) de cada mensalidade, todo mês, enquanto ela continuar assinando.`}
       />
 
       <div className="flex flex-col gap-6">
@@ -228,7 +231,7 @@ export default async function IndiquePage() {
         <Card title="As regras">
           <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[15px] text-ink-2">
             <li>
-              Você ganha {COMISSAO_PERCENTUAL}% de cada mensalidade paga por quem indicou, inclusive nas renovações.
+              Você ganha {percentual}% de cada mensalidade paga por quem indicou, inclusive nas renovações.
             </li>
             <li>
               O valor vira saldo {CARENCIA_DIAS} dias depois do pagamento, porque é quando o dinheiro da mensalidade chega ao Marcon e o prazo de estorno do cartão passa.

@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CARENCIA_DIAS, CODIGO_REGEX, COMISSAO_PERCENTUAL, COOKIE_REF, comissaoDe, gerarCodigo } from "@/lib/indicacao";
+import { CARENCIA_DIAS, CODIGO_REGEX, COOKIE_REF, comissaoDe, gerarCodigo, percentualDoAfiliado } from "@/lib/indicacao";
 
 // só contas recém-criadas entram numa indicação: quem já usava o Marcon não vira indicado
 // ao abrir um link de indicação depois
@@ -35,7 +35,7 @@ export async function vincularIndicacao(user: Pick<User, "id" | "created_at">) {
 // Cada conta é afiliada desde o primeiro acesso à tela: o link nasce sem cadastro nem aprovação.
 export async function garantirAfiliado(supabase: SupabaseClient, userId: string) {
   const existente = async () =>
-    (await supabase.from("afiliados").select("codigo, chave_pix").maybeSingle()).data;
+    (await supabase.from("afiliados").select("codigo, chave_pix, percentual").maybeSingle()).data;
 
   const atual = await existente();
   if (atual) return atual;
@@ -86,6 +86,14 @@ export async function registrarComissao(admin: Admin, donoDaAssinatura: string, 
     if (erroLeitura) throw erroLeitura;
     if (!indicacao) return;
 
+    const { data: afiliado, error: erroAfiliado } = await admin
+      .from("afiliados")
+      .select("percentual")
+      .eq("owner_id", indicacao.afiliado_id)
+      .maybeSingle();
+    if (erroAfiliado) throw erroAfiliado;
+    const percentual = percentualDoAfiliado(afiliado?.percentual);
+
     const liberada = new Date(Date.now() + CARENCIA_DIAS * 24 * 60 * 60 * 1000).toISOString();
     const { error } = await admin.from("comissoes").upsert(
       {
@@ -93,8 +101,8 @@ export async function registrarComissao(admin: Admin, donoDaAssinatura: string, 
         indicado_id: donoDaAssinatura,
         asaas_payment_id: pagamento.id,
         valor_pago: valorPago,
-        percentual: COMISSAO_PERCENTUAL,
-        valor: comissaoDe(valorPago),
+        percentual,
+        valor: comissaoDe(valorPago, percentual),
         liberada_em: liberada,
       },
       { onConflict: "asaas_payment_id", ignoreDuplicates: true },

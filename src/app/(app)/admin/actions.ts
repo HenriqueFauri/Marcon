@@ -7,6 +7,7 @@ import { ehAdmin } from "@/lib/admin";
 import { cancelarAssinatura as cancelarNoAsaas } from "@/lib/asaas";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { PLANO_PADRAO } from "@/lib/planos";
+import { COMISSAO_MAXIMA, COMISSAO_PERCENTUAL } from "@/lib/indicacao";
 
 // Toda ação confere de novo se quem chama é admin: server actions são rotas
 // públicas, esconder o botão não basta.
@@ -121,4 +122,35 @@ export async function marcarSaquePago(id: string) {
 
 export async function recusarSaque(id: string) {
   return resolverSaque(id, "recusado");
+}
+
+// Percentual negociado com um afiliado (influenciador etc.). null volta para o padrão.
+// Vale para as comissões novas: as que já existem guardam o percentual com que nasceram.
+export async function definirPercentualAfiliado(afiliadoId: string, percentual: number | null): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!ehAdmin(user)) throw new Error("Acesso restrito.");
+    const admin = createAdminClient();
+    if (!admin) throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.");
+
+    if (percentual !== null) {
+      if (!Number.isFinite(percentual) || percentual < 1 || percentual > COMISSAO_MAXIMA) {
+        return { ok: false, error: `Informe um percentual de 1 a ${COMISSAO_MAXIMA}.` };
+      }
+      percentual = Math.round(percentual * 100) / 100;
+    }
+
+    const { data, error } = await admin.from("afiliados").update({ percentual }).eq("owner_id", afiliadoId).select("owner_id");
+    if (error) throw error;
+    if (!data?.length) return { ok: false, error: "Afiliado não encontrado." };
+
+    revalidatePath("/admin/indicacoes");
+    revalidatePath("/indique");
+    return ok(percentual === null ? `Voltou para o padrão (${COMISSAO_PERCENTUAL}%).` : `Comissão de ${percentual}% definida.`);
+  } catch (e) {
+    return falha(e);
+  }
 }

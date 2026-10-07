@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ehAdmin } from "@/lib/admin";
 import { formatBRL, formatData } from "@/lib/format";
-import { resumoDoAfiliado } from "@/lib/indicacao";
+import { COMISSAO_MAXIMA, COMISSAO_PERCENTUAL, resumoDoAfiliado } from "@/lib/indicacao";
 import { Badge, EmptyState, ErrorMessage, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { AcoesSaque } from "./acoes-saque";
+import { PercentualAfiliado } from "./percentual-afiliado";
 
 export const metadata: Metadata = { title: "Indicações" };
 
@@ -37,10 +38,11 @@ export default async function IndicacoesAdminPage() {
     );
   }
 
-  const [{ data: saquesData, error }, { data: comissoes }, { count: indicados }] = await Promise.all([
+  const [{ data: saquesData, error }, { data: comissoes }, { data: indicacoes }, { data: afiliadosData }] = await Promise.all([
     admin.from("saques").select("id, afiliado_id, valor, chave_pix, status, pedido_em, resolvido_em").order("pedido_em", { ascending: false }).limit(200),
-    admin.from("comissoes").select("valor, liberada_em, estornada_em"),
-    admin.from("indicacoes").select("indicado_id", { count: "exact", head: true }),
+    admin.from("comissoes").select("afiliado_id, valor, liberada_em, estornada_em"),
+    admin.from("indicacoes").select("afiliado_id"),
+    admin.from("afiliados").select("owner_id, codigo, percentual"),
   ]);
 
   if (error) {
@@ -59,8 +61,25 @@ export default async function IndicacoesAdminPage() {
   // total que o Marcon ainda deve aos afiliados, separado em "pode sacar já" e "ainda em carência"
   const resumo = resumoDoAfiliado(comissoes ?? [], saques);
 
-  // nome de cada afiliado nas duas listas
-  const ids = [...new Set([...pendentes, ...resolvidos].map((s) => s.afiliado_id))];
+  const indicados = indicacoes?.length ?? 0;
+
+  // afiliados com indicados ou percentual negociado primeiro; os que só abriram a tela ficam no fim
+  const indicadosPor = new Map<string, number>();
+  for (const i of indicacoes ?? []) indicadosPor.set(i.afiliado_id, (indicadosPor.get(i.afiliado_id) ?? 0) + 1);
+  const ganhoPor = new Map<string, number>();
+  for (const c of comissoes ?? []) {
+    if (!c.estornada_em) ganhoPor.set(c.afiliado_id, (ganhoPor.get(c.afiliado_id) ?? 0) + Number(c.valor));
+  }
+  const afiliados = [...(afiliadosData ?? [])]
+    .sort(
+      (a, b) =>
+        (indicadosPor.get(b.owner_id) ?? 0) - (indicadosPor.get(a.owner_id) ?? 0) ||
+        Number(b.percentual !== null) - Number(a.percentual !== null),
+    )
+    .slice(0, 50);
+
+  // nome de cada afiliado nas listas
+  const ids = [...new Set([...pendentes, ...resolvidos].map((s) => s.afiliado_id).concat(afiliados.map((a) => a.owner_id)))];
   const contas = await Promise.all(ids.map((id) => admin.auth.admin.getUserById(id)));
   const rotuloDe = new Map(
     ids.map((id, i) => {
@@ -87,10 +106,46 @@ export default async function IndicacoesAdminPage() {
         />
         <StatCard label="Já pode sacar" value={formatBRL(resumo.disponivel)} hint="Saldo liberado, ainda não pedido" />
         <StatCard label="Em carência" value={formatBRL(resumo.aLiberar)} hint="Ainda não liberado" />
-        <StatCard label="Indicados" value={indicados ?? 0} hint={`${formatBRL(resumo.sacado)} já pagos`} />
+        <StatCard label="Indicados" value={indicados} hint={`${formatBRL(resumo.sacado)} já pagos`} />
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold text-ink">Para pagar</h2>
+      <h2 className="mb-1 text-sm font-semibold text-ink">Afiliados e percentual</h2>
+      <p className="mb-3 text-[13px] text-ink-muted">
+        Vazio = padrão de {COMISSAO_PERCENTUAL}%. Máximo de {COMISSAO_MAXIMA}%. Vale para as próximas comissões; as que já foram geradas não mudam. O afiliado aparece aqui depois de abrir a tela Indique e ganhe uma vez.
+      </p>
+      {afiliados.length === 0 ? (
+        <EmptyState title="Nenhum afiliado ainda" />
+      ) : (
+        <Table>
+          <thead className={theadClass}>
+            <tr>
+              <th className={thClass}>Afiliado</th>
+              <th className={thClass}>Código</th>
+              <th className={`${thClass} text-right`}>Indicados</th>
+              <th className={`${thClass} text-right`}>Ganho</th>
+              <th className={`${thClass} text-right`}>Percentual</th>
+            </tr>
+          </thead>
+          <tbody className={tbodyClass}>
+            {afiliados.map((a) => (
+              <tr key={a.owner_id}>
+                <td className={tdClass}>
+                  <p className="font-medium text-ink">{rotuloDe.get(a.owner_id)?.nome}</p>
+                  <p className="text-[13px] text-ink-muted">{rotuloDe.get(a.owner_id)?.email}</p>
+                </td>
+                <td className={`${tdClass} font-mono text-[13px] text-ink-2`}>{a.codigo}</td>
+                <td className={`${tdClass} text-right tabular-nums text-ink`}>{indicadosPor.get(a.owner_id) ?? 0}</td>
+                <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(ganhoPor.get(a.owner_id) ?? 0)}</td>
+                <td className={tdClass}>
+                  <PercentualAfiliado id={a.owner_id} atual={a.percentual === null ? null : Number(a.percentual)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+
+      <h2 className="mb-3 mt-8 text-sm font-semibold text-ink">Para pagar</h2>
       {pendentes.length === 0 ? (
         <EmptyState title="Nenhum saque pendente" />
       ) : (
