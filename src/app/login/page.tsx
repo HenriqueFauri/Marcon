@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { traduzirErroAuth } from "@/lib/auth-erros";
@@ -43,6 +43,16 @@ function LoginForm() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // voltar do Google (botão voltar, aba restaurada do cache) não recarrega a página:
+  // sem isto o botão ficava preso em "Aguarde..."
+  useEffect(() => {
+    const destravar = (e: PageTransitionEvent) => {
+      if (e.persisted) setGoogleLoading(false);
+    };
+    window.addEventListener("pageshow", destravar);
+    return () => window.removeEventListener("pageshow", destravar);
+  }, []);
 
   function trocarModo(novo: Modo) {
     setMode(novo);
@@ -97,7 +107,8 @@ function LoginForm() {
           setPassword("");
           return;
         }
-        await vincularIndicacaoDoCadastro();
+        // a conta já existe; falhar aqui não pode travar a entrada
+        await vincularIndicacaoDoCadastro().catch(() => {});
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;

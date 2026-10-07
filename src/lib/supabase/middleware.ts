@@ -52,7 +52,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && request.nextUrl.pathname === "/login") {
+  // só em GET: o cadastro chama uma server action (POST em /login) já com a sessão criada,
+  // e redirecionar essa chamada quebra a resposta ("unexpected response")
+  if (user && request.method === "GET" && request.nextUrl.pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
