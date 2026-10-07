@@ -24,6 +24,7 @@ export interface Produto {
   fornecedor_nome: string | null;
   fornecedor_id: string | null;
   na_vitrine: boolean;
+  destaque: boolean;
   created_at: string;
 }
 

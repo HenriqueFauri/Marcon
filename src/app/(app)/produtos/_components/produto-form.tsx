@@ -421,8 +421,15 @@ export function ProdutoForm({
               <span className="text-sm">
                 <span className="font-medium text-ink">Mostrar na vitrine</span>
                 <span className="mt-0.5 block text-xs text-ink-muted">
-                  Aparece na sua loja online (Configurações). Custo e quantidade em estoque nunca aparecem.
+                  Aparece na sua loja online (menu Vitrine). Custo e quantidade em estoque nunca aparecem.
                 </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 rounded-xl bg-fill/60 px-4 py-3">
+              <input type="checkbox" name="destaque" defaultChecked={produto?.destaque ?? false} className="mt-0.5 h-4 w-4 accent-brand" />
+              <span className="text-sm">
+                <span className="font-medium text-ink">Destaque na vitrine</span>
+                <span className="mt-0.5 block text-xs text-ink-muted">Aparece no carrossel no topo da loja (só vale se estiver na vitrine).</span>
               </span>
             </label>
             {editando && (

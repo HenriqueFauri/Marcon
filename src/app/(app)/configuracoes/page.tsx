@@ -10,9 +10,6 @@ import { NotificacoesPreferencias } from "./notificacoes-preferencias";
 import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
-import { VitrineForm } from "./vitrine-form";
-import { lerUso } from "@/lib/uso";
-import { enderecoDoApp } from "@/lib/indicacao-servidor";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -24,18 +21,10 @@ export default async function ConfiguracoesPage() {
     },
     { data: canais },
     { data: formas },
-    { data: vitrine },
-    { count: naVitrine },
-    uso,
-    base,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
-    supabase.from("vitrines").select("slug, ativa, whatsapp, cor, boas_vindas").maybeSingle(),
-    supabase.from("produtos").select("id", { count: "exact", head: true }).eq("na_vitrine", true),
-    lerUso(supabase),
-    enderecoDoApp(),
   ]);
 
   const meta = user?.user_metadata ?? {};
@@ -63,21 +52,6 @@ export default async function ConfiguracoesPage() {
             endereco={(meta.empresa_endereco as string | undefined) ?? ""}
             documento={(meta.empresa_documento as string | undefined) ?? ""}
             logoUrl={logoSignedUrl?.signedUrl ?? null}
-          />
-        </Card>
-
-        <Card title="Vitrine online" description="Sua loja com link: o cliente escolhe os produtos e o pedido chega pronto no seu WhatsApp.">
-          <VitrineForm
-            config={
-              vitrine
-                ? { slug: vitrine.slug, ativa: vitrine.ativa, whatsapp: vitrine.whatsapp, cor: vitrine.cor, boasVindas: vitrine.boas_vindas ?? "" }
-                : null
-            }
-            nomeNegocio={nomeNegocio}
-            telefoneEmpresa={(meta.empresa_telefone as string | undefined) ?? ""}
-            base={base}
-            produtosNaVitrine={naVitrine ?? 0}
-            temPlano={uso ? uso.plano !== "gratis" : true}
           />
         </Card>
 
