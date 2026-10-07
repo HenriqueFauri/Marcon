@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Anthropic from "@anthropic-ai/sdk";
 import { falha, mensagemDeErro, ok, type ActionResult } from "@/lib/action";
 import { cortar, limitesDoCanal } from "@/lib/anuncio";
@@ -72,6 +73,14 @@ export async function escreverAnuncioIA(dados: {
   if (!iaDisponivel()) return { ok: false, error: "A escrita com IA ainda não está ligada neste servidor." };
   try {
     const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+    // o usuário não pode apagar nem editar ia_geracoes (a cota é a contagem dessas linhas): quem devolve a cota
+    // e grava os tokens é o servidor, com a chave de serviço, sempre filtrando pelo dono
+    const admin = createAdminClient();
+    if (!admin) return { ok: false, error: "A escrita com IA ainda não está ligada neste servidor." };
     const [{ data: produto }, { data: variacoesData }, { data: fotosData }, { data: canal }] = await Promise.all([
       supabase.from("produtos").select("nome, marca, descricao, preco_varejo, categorias(nome)").eq("id", dados.produtoId).maybeSingle(),
       supabase.from("produto_variacoes").select("*").eq("produto_id", dados.produtoId).order("nome_combinacao"),
@@ -117,16 +126,17 @@ export async function escreverAnuncioIA(dados: {
         perguntas: limparPerguntas(dados.perguntas),
       });
     } catch (e) {
-      await supabase.from("ia_geracoes").delete().eq("id", registro.id);
+      await admin.from("ia_geracoes").delete().eq("id", registro.id).eq("owner_id", user.id);
       console.error("[ia-anuncio]", e);
       if (e instanceof Anthropic.APIError) return { ok: false, error: motivoDaFalhaDaIA(e) };
       return { ok: false, error: mensagemDeErro(e, "A IA não conseguiu escrever agora. Tente de novo; sua cota não foi usada.") };
     }
 
-    await supabase
+    await admin
       .from("ia_geracoes")
       .update({ tokens_entrada: saida.tokensEntrada, tokens_saida: saida.tokensSaida })
-      .eq("id", registro.id);
+      .eq("id", registro.id)
+      .eq("owner_id", user.id);
 
     const limites = limitesDoCanal(canal.nome);
     const uso = await lerUso(supabase);

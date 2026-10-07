@@ -504,6 +504,11 @@ export async function registrarFoto(
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
 
+    // o arquivo sobe direto do navegador; aqui só aceita o que está na pasta do próprio usuário e deste produto
+    if (!path.startsWith(`${user.id}/${produtoId}/`) || path.includes("..")) return { ok: false, error: "Imagem inválida." };
+    const { data: produto } = await supabase.from("produtos").select("id").eq("id", produtoId).maybeSingle();
+    if (!produto) return { ok: false, error: "Produto não encontrado." };
+
     const { error } = await supabase.from("produto_fotos").insert({
       owner_id: user.id,
       produto_id: produtoId,
