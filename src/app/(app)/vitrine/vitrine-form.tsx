@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
 import { formatarTelefone } from "@/lib/format";
 import {
   ANUNCIO_MAX,
+  BANNER_BOTAO_MAX,
+  BANNER_SUBTITULO_MAX,
+  BANNER_TITULO_MAX,
   BOAS_VINDAS_MAX,
   COR_PADRAO,
   ENTREGAS,
@@ -30,6 +33,9 @@ export interface VitrineConfig {
   instagram: string;
   mostrarEndereco: boolean;
   ultimasUnidades: boolean;
+  bannerTitulo: string;
+  bannerSubtitulo: string;
+  bannerBotao: string;
 }
 
 function Interruptor({ name, padrao, titulo, ajuda }: { name: string; padrao: boolean; titulo: string; ajuda: string }) {
@@ -61,6 +67,7 @@ export function VitrineForm({
   base,
   produtosNaVitrine,
   temPlano,
+  bannerImagens,
 }: {
   config: VitrineConfig | null;
   nomeNegocio: string;
@@ -69,6 +76,7 @@ export function VitrineForm({
   base: string;
   produtosNaVitrine: number;
   temPlano: boolean;
+  bannerImagens: ReactNode;
 }) {
   const { isPending, run } = useAction();
   const toast = useToast();
@@ -199,6 +207,40 @@ export function VitrineForm({
             maxLength={ANUNCIO_MAX}
             placeholder="Ex: Frete grátis acima de R$ 150"
             className={inputClass}
+          />
+        </Field>
+      </Secao>
+
+      <Secao titulo="Banner principal">
+        <p className="-mt-2 text-xs text-ink-muted">
+          Imagem grande no topo da loja, com até 3 em carrossel. Os textos são opcionais; sem imagem, o banner usa a cor de destaque.
+        </p>
+        {bannerImagens}
+        <Field label="Título" hint={`Até ${BANNER_TITULO_MAX} letras`}>
+          <input
+            name="banner_titulo"
+            defaultValue={config?.bannerTitulo ?? ""}
+            maxLength={BANNER_TITULO_MAX}
+            placeholder="Ex: Novidades da semana"
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Subtítulo" hint={`Até ${BANNER_SUBTITULO_MAX} letras`}>
+          <input
+            name="banner_subtitulo"
+            defaultValue={config?.bannerSubtitulo ?? ""}
+            maxLength={BANNER_SUBTITULO_MAX}
+            placeholder="Ex: Até 30% off em fones e acessórios"
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Texto do botão (opcional)" hint="O botão leva o cliente aos produtos. Vazio = sem botão.">
+          <input
+            name="banner_botao"
+            defaultValue={config?.bannerBotao ?? ""}
+            maxLength={BANNER_BOTAO_MAX}
+            placeholder="Ex: Ver produtos"
+            className={`${inputClass} sm:max-w-xs`}
           />
         </Field>
       </Secao>
