@@ -210,10 +210,13 @@ export function Segmentos({
   itens,
   rotulo,
   className = "",
+  substituir = true,
 }: {
   itens: { href: string; label: ReactNode; ativo: boolean }[];
   rotulo: string;
   className?: string;
+  // filtros trocam a URL sem empilhar histórico; abas de seção empilham (o Voltar volta para a aba anterior)
+  substituir?: boolean;
 }) {
   return (
     <nav
@@ -225,7 +228,7 @@ export function Segmentos({
         <Link
           key={i.href}
           href={i.href}
-          replace
+          replace={substituir}
           aria-current={i.ativo ? "page" : undefined}
           className={`flex min-w-0 items-center justify-center gap-1 rounded-full px-2 py-2 text-[13px] transition ${
             i.ativo ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"

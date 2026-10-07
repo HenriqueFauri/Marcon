@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { NextResponse, type NextRequest } from "next/server";
 import sharp from "sharp";
 import { formatBRL } from "@/lib/format";
-import { coresDaLoja, corDoTexto, type Vitrine } from "@/lib/vitrine";
+import { coresDaLoja, corDoTexto, tokensDaLoja, type Vitrine } from "@/lib/vitrine";
 import { buscarVitrine } from "@/lib/vitrine-servidor";
 import { VITRINE_EXEMPLO } from "../exemplo";
 
@@ -54,6 +54,8 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/loja/
   if (foto && !fotoDados) return NextResponse.redirect(foto, { status: 302, headers: { "Cache-Control": "public, max-age=600" } });
 
   const cores = coresDaLoja(vitrine.loja);
+  const soLogo = !!foto && foto === vitrine.loja.logoUrl;
+  const painel = tokensDaLoja(cores)["--fill"];
   const nomeLoja = vitrine.loja.nome ?? "Loja";
   const preco = produto
     ? produto.esgotado
@@ -68,15 +70,21 @@ export async function GET(request: NextRequest, { params }: RouteContext<"/loja/
   const png = new ImageResponse(
     (
       <div style={{ display: "flex", width: "100%", height: "100%", background: cores.fundo, color: cores.texto }}>
-        {fotoDados ? (
+        {fotoDados && soLogo ? (
+          // loja ainda sem foto: o logo no meio de um painel neutro, em vez de esticado
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: ALTURA, height: ALTURA, background: painel }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- o gerador de imagem só aceita <img> */}
+            <img src={fotoDados} alt="" width={300} height={300} style={{ borderRadius: 68, objectFit: "cover" }} />
+          </div>
+        ) : fotoDados ? (
           // eslint-disable-next-line @next/next/no-img-element -- o gerador de imagem só aceita <img>
           <img src={fotoDados} alt="" width={ALTURA} height={ALTURA} style={{ objectFit: "cover" }} />
         ) : (
           <div style={{ display: "flex", width: ALTURA, height: ALTURA, background: cores.destaque }} />
         )}
         <div style={{ display: "flex", flex: 1, flexDirection: "column", justifyContent: "space-between", padding: 56 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            {logoDados ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 18, minHeight: 64 }}>
+            {soLogo ? null : logoDados ? (
               // eslint-disable-next-line @next/next/no-img-element -- o gerador de imagem só aceita <img>
               <img src={logoDados} alt="" width={64} height={64} style={{ borderRadius: 18, objectFit: "cover" }} />
             ) : (
