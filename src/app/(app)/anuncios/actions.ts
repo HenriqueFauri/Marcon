@@ -6,6 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { falha, mensagemDeErro, ok, type ActionResult } from "@/lib/action";
 import { cortar, limitesDoCanal } from "@/lib/anuncio";
 import { MODELO_IA, escreverAnuncioComIA, iaDisponivel } from "@/lib/ia-anuncio";
+import { limparPerguntas, type PerguntasIA } from "@/lib/ia-perguntas";
 import { lerUso, restante } from "@/lib/uso";
 import type { ProdutoVariacao } from "@/types/domain";
 
@@ -66,7 +67,7 @@ export async function escreverAnuncioIA(dados: {
   produtoId: string;
   canalId: string;
   variacaoId: string | null;
-  dica: string;
+  perguntas: PerguntasIA;
 }): Promise<ResultadoIA> {
   if (!iaDisponivel()) return { ok: false, error: "A escrita com IA ainda não está ligada neste servidor." };
   try {
@@ -113,7 +114,7 @@ export async function escreverAnuncioIA(dados: {
         variacoes,
         variacao,
         fotos: (assinadas ?? []).map((a) => a.signedUrl).filter((u): u is string => !!u),
-        dica: dados.dica.slice(0, 300),
+        perguntas: limparPerguntas(dados.perguntas),
       });
     } catch (e) {
       await supabase.from("ia_geracoes").delete().eq("id", registro.id);

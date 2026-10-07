@@ -10,6 +10,7 @@ import { useToast } from "@/components/toaster";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Card, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconPlus, IconSparkles } from "@/components/icons";
+import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, type PerguntasIA } from "@/lib/ia-perguntas";
 import { escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
 
 interface FotoAnuncio {
@@ -211,7 +212,7 @@ function VersaoCard({
   versao: ProdutoAnuncio;
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
-  ia: { disponivel: boolean; dica: string };
+  ia: { disponivel: boolean; perguntas: PerguntasIA };
 }) {
   const { isPending, run } = useAction();
   const { escrevendo, escrever } = useEscreverComIA();
@@ -235,7 +236,7 @@ function VersaoCard({
   }
 
   function reescreverComIA() {
-    escrever({ produtoId, canalId: canal.id, variacaoId: variacaoId || null, dica: ia.dica }, (texto) => {
+    escrever({ produtoId, canalId: canal.id, variacaoId: variacaoId || null, perguntas: ia.perguntas }, (texto) => {
       setTitulo(texto.titulo);
       setDescricao(texto.descricao);
     });
@@ -391,7 +392,7 @@ export function AnunciosEditor({
 }) {
   const { isPending, run } = useAction();
   const { escrevendo, escrever } = useEscreverComIA();
-  const [dica, setDica] = useState("");
+  const [perguntas, setPerguntas] = useState<PerguntasIA>(PERGUNTAS_VAZIAS);
   const [canalId, setCanalId] = useState(canais[0]?.id ?? "");
   const canal = canais.find((c) => c.id === canalId) ?? canais[0];
 
@@ -429,7 +430,7 @@ export function AnunciosEditor({
   }
 
   function novaComIA() {
-    escrever({ produtoId, canalId: canal.id, variacaoId: null, dica }, (texto) =>
+    escrever({ produtoId, canalId: canal.id, variacaoId: null, perguntas }, (texto) =>
       run(() =>
         salvarVersaoAnuncio({ id: null, produtoId, canalId: canal.id, variacaoId: null, ...texto }),
       ),
@@ -479,26 +480,70 @@ export function AnunciosEditor({
               versao={v}
               variacoes={variacoes}
               dados={dados}
-              ia={{ disponivel: iaDisponivel, dica }}
+              ia={{ disponivel: iaDisponivel, perguntas }}
             />
           ))}
           {iaDisponivel && (
-            <div>
-              <label htmlFor="dica-ia" className="mb-1 block text-sm font-medium text-ink-2">
-                Dica para a IA <span className="font-normal text-ink-muted">(opcional)</span>
-              </label>
-              <input
-                id="dica-ia"
-                value={dica}
-                onChange={(e) => setDica(e.target.value)}
-                maxLength={300}
-                placeholder="Ex.: novo na caixa, pronta entrega, ótimo para presente"
-                className={inputClass}
-              />
-              <p className="mt-1 text-xs text-ink-muted">
-                A IA usa o cadastro, as fotos e esta dica. Ela não inventa estado, garantia nem medidas: o que não estiver
-                aqui fica de fora.
+            <div className="rounded-2xl bg-fill p-3 sm:p-4">
+              <p className="text-sm font-semibold text-ink">Antes de escrever</p>
+              <p className="mb-3 text-xs text-ink-muted">
+                A IA usa o cadastro, as fotos e estas respostas. O que ficar em branco ela não diz: não inventa estado,
+                entrega, garantia nem medidas.
               </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">Estado do produto</span>
+                  <select
+                    value={perguntas.estado}
+                    onChange={(e) => setPerguntas((p) => ({ ...p, estado: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">Não informar</option>
+                    {ESTADOS.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">Retirada e entrega</span>
+                  <select
+                    value={perguntas.entrega}
+                    onChange={(e) => setPerguntas((p) => ({ ...p, entrega: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option value="">Não informar</option>
+                    {ENTREGAS.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block min-w-0 sm:col-span-2">
+                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">O que acompanha</span>
+                  <input
+                    value={perguntas.acompanha}
+                    onChange={(e) => setPerguntas((p) => ({ ...p, acompanha: e.target.value }))}
+                    maxLength={LIMITE_ACOMPANHA}
+                    placeholder="Ex.: caixa, cabo USB-C, divisor de áudio"
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block min-w-0 sm:col-span-2">
+                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">
+                    Mais alguma coisa? <span className="font-normal">(opcional)</span>
+                  </span>
+                  <input
+                    value={perguntas.dica}
+                    onChange={(e) => setPerguntas((p) => ({ ...p, dica: e.target.value }))}
+                    maxLength={LIMITE_DICA}
+                    placeholder="Ex.: ótimo para presente, bateria dura o dia todo"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
             </div>
           )}
           <div className="flex flex-wrap gap-2">

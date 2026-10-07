@@ -231,7 +231,7 @@ export default async function IndiquePage() {
               Você ganha {COMISSAO_PERCENTUAL}% de cada mensalidade paga por quem indicou, inclusive nas renovações.
             </li>
             <li>
-              O valor vira saldo {CARENCIA_DIAS} dias depois do pagamento, para dar tempo de um cancelamento ou estorno aparecer.
+              O valor vira saldo {CARENCIA_DIAS} dias depois do pagamento, porque é quando o dinheiro da mensalidade chega ao Marcon e o prazo de estorno do cartão passa.
             </li>
             <li>Saque a partir de {formatBRL(SAQUE_MINIMO)}, por PIX.</li>
             <li>Se o pagamento for estornado, a comissão dele é cancelada.</li>
