@@ -41,17 +41,23 @@ export async function garantirAfiliado(supabase: SupabaseClient, userId: string)
   const atual = await existente();
   if (atual) return atual;
 
+  // upsert que ignora duplicata: duas requisições ao mesmo tempo (o menu pré-carrega a tela e o
+  // clique abre de novo) não brigam pela mesma linha. Só o código repetido (23505) gera nova tentativa.
   for (let tentativa = 0; tentativa < 5; tentativa++) {
-    const { error } = await supabase.from("afiliados").insert({ owner_id: userId, codigo: gerarCodigo() });
+    const { error } = await supabase
+      .from("afiliados")
+      .upsert({ owner_id: userId, codigo: gerarCodigo() }, { onConflict: "owner_id", ignoreDuplicates: true });
     if (!error) break;
-    // 23505: ou o código já existe (tenta outro) ou outra aba criou a linha agora
     if (error.code !== "23505") throw error;
+  }
+
+  // a linha criada por outra requisição pode demorar um instante para aparecer
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
     const criada = await existente();
     if (criada) return criada;
+    await new Promise((r) => setTimeout(r, 150));
   }
-  const criada = await existente();
-  if (!criada) throw new Error("Não consegui criar seu link de indicação. Tente de novo.");
-  return criada;
+  throw new Error("Não consegui criar seu link de indicação. Tente de novo.");
 }
 
 // endereço público do app, para montar o link de indicação
