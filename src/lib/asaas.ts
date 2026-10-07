@@ -1,3 +1,5 @@
+import "server-only";
+
 // Cliente mínimo da API do Asaas (só o que a assinatura do Marcon usa).
 // Só roda no servidor: a chave de API nunca pode chegar ao navegador.
 //

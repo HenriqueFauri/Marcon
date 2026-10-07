@@ -1,3 +1,4 @@
+import "server-only";
 import { cookies, headers } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
