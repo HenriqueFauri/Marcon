@@ -1,10 +1,11 @@
 import { PLANOS } from "@/lib/planos";
 
 // Regras do "Indique e ganhe". Sem imports de servidor: o proxy e as telas também usam.
-// Mínimo do saque e carência também estão na migration 0023 (função pedir_saque): ao mudar, mude nos dois.
-export const COMISSAO_PERCENTUAL = 20;
-export const CARENCIA_DIAS = 30; // cobre o prazo de estorno do cartão
-export const SAQUE_MINIMO = 20;
+// O mínimo do saque também está na migration 0023 (função pedir_saque): ao mudar, mude nos dois.
+// A carência só vale para comissões novas: cada comissão guarda a própria data de liberação.
+export const COMISSAO_PERCENTUAL = 30;
+export const CARENCIA_DIAS = 30; // o cartão só cai na conta do Marcon por volta de 30 dias: o afiliado só é pago depois de receber
+export const SAQUE_MINIMO = 15;
 export const COOKIE_REF = "marcon_ref";
 export const DIAS_DO_COOKIE = 60;
 
