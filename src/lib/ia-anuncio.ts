@@ -1,3 +1,4 @@
+import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { formatBRL } from "@/lib/format";
 import { limitesDoCanal } from "@/lib/anuncio";

@@ -1,3 +1,4 @@
+import "server-only";
 import webpush from "web-push";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
