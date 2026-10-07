@@ -29,7 +29,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   const [{ data, error }, { data: anunciosData }, { data: fotosData }] = await Promise.all([
     supabase.from("produtos_com_estoque").select("*, categorias(nome)").neq("status", "inativo").order("nome"),
     supabase.from("produto_anuncios").select("produto_id, titulo, descricao"),
-    supabase.from("produto_fotos").select("produto_id, path").order("ordem").order("created_at"),
+    supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
   ]);
 
   if (error) {
@@ -48,11 +48,15 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
     versoesPorProduto.set(a.produto_id, (versoesPorProduto.get(a.produto_id) ?? 0) + 1);
   }
   const capaPorProduto = new Map<string, string>();
+  const capaGeral = new Map<string, string>();
   const totalFotos = new Map<string, number>();
   for (const f of fotosData ?? []) {
+    // a capa é a primeira foto geral; foto de variação só entra se o produto não tiver nenhuma geral
+    if (f.variacao_id === null && !capaGeral.has(f.produto_id)) capaGeral.set(f.produto_id, f.path);
     if (!capaPorProduto.has(f.produto_id)) capaPorProduto.set(f.produto_id, f.path);
     totalFotos.set(f.produto_id, (totalFotos.get(f.produto_id) ?? 0) + 1);
   }
+  for (const [produtoId, path] of capaGeral) capaPorProduto.set(produtoId, path);
 
   const lista = produtos.filter((p) => {
     const tem = (versoesPorProduto.get(p.id) ?? 0) > 0;
@@ -120,10 +124,11 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
             const fotos = totalFotos.get(p.id) ?? 0;
             return (
               <li key={p.id} className="hairline relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface hover:bg-fill/50">
-                <div className="relative flex aspect-square items-center justify-center bg-fill text-ink-muted">
+                {/* overflow-hidden e a foto absoluta: sem isso uma foto alta estica o quadrado e os cards ficam de tamanhos diferentes */}
+                <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-fill text-ink-muted">
                   {url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    <img src={url} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
                   ) : (
                     <IconBox width={32} height={32} />
                   )}

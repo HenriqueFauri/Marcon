@@ -13,10 +13,6 @@ import { IconPlus, IconSparkles } from "@/components/icons";
 import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, type PerguntasIA } from "@/lib/ia-perguntas";
 import { escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
 
-interface FotoAnuncio {
-  id: string;
-  url: string | null;
-}
 
 function useCopiar() {
   const toast = useToast();
@@ -65,135 +61,107 @@ function contador(atual: number, max: number | null) {
   return max === null ? `${atual} caracteres` : `${atual}/${max}`;
 }
 
-function nomeArquivo(base: string, indice: number, tipo: string) {
-  const slug =
-    base
-      .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 40) || "foto";
-  const ext = tipo.split("/")[1]?.replace("jpeg", "jpg") || "jpg";
-  return `${slug}-${indice + 1}.${ext}`;
-}
+const linkAcao = "text-[13px] font-medium text-brand-text hover:underline disabled:opacity-40 disabled:no-underline";
 
-// a área de transferência só aceita PNG de forma confiável
-async function paraPng(blob: Blob): Promise<Blob> {
-  if (blob.type === "image/png") return blob;
-  const bitmap = await createImageBitmap(blob);
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
-  return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("falha ao converter"))), "image/png"),
+// Escolha única em botões: tocar de novo na opção marcada desmarca ("não informar").
+function Escolha({
+  rotulo,
+  opcoes,
+  valor,
+  onChange,
+}: {
+  rotulo: string;
+  opcoes: readonly { id: string; curto: string }[];
+  valor: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div role="group" aria-label={rotulo}>
+      <p className="mb-1.5 text-[13px] font-medium text-ink-muted">{rotulo}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {opcoes.map((o) => {
+          const marcada = o.id === valor;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              aria-pressed={marcada}
+              onClick={() => onChange(marcada ? "" : o.id)}
+              className={`rounded-full px-3.5 py-1.5 text-sm transition ${
+                marcada ? "bg-brand-fill font-semibold text-on-brand" : "bg-surface text-ink-2 hover:bg-fill-strong"
+              }`}
+            >
+              {o.curto}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
-function baixarBlob(blob: Blob, nome: string) {
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = nome;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-}
-
-async function buscarImagem(url: string) {
-  return (await fetch(url)).blob();
-}
-
-function FotosParaAnuncio({ nomeProduto, fotos }: { nomeProduto: string; fotos: FotoAnuncio[] }) {
-  const toast = useToast();
-  const [ocupado, setOcupado] = useState(false);
-  const comUrl = fotos.filter((f): f is { id: string; url: string } => !!f.url);
-
-  async function copiarImagem(url: string) {
-    try {
-      // a Promise vai direto no ClipboardItem: o Safari exige isso para não perder o clique
-      const item = new ClipboardItem({ "image/png": buscarImagem(url).then(paraPng) });
-      await navigator.clipboard.write([item]);
-      toast.success("Foto copiada. É só colar no anúncio.");
-    } catch {
-      toast.error("Seu navegador não copiou a imagem. Use o botão Baixar.");
-    }
-  }
-
-  async function baixarUma(url: string, i: number) {
-    try {
-      const blob = await buscarImagem(url);
-      baixarBlob(blob, nomeArquivo(nomeProduto, i, blob.type));
-    } catch {
-      toast.error("Não foi possível baixar a foto.");
-    }
-  }
-
-  // no celular abre o compartilhamento (Facebook, WhatsApp...); no desktop baixa os arquivos
-  async function levarTodas() {
-    setOcupado(true);
-    try {
-      const arquivos = await Promise.all(
-        comUrl.map(async (f, i) => {
-          const blob = await buscarImagem(f.url);
-          return new File([blob], nomeArquivo(nomeProduto, i, blob.type), { type: blob.type });
-        }),
-      );
-      if (navigator.canShare?.({ files: arquivos })) {
-        await navigator.share({ files: arquivos });
-        return;
-      }
-      for (const arquivo of arquivos) {
-        baixarBlob(arquivo, arquivo.name);
-        await new Promise((r) => setTimeout(r, 250));
-      }
-      toast.success(`${arquivos.length} foto(s) baixada(s).`);
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") toast.error("Não foi possível preparar as fotos.");
-    } finally {
-      setOcupado(false);
-    }
-  }
-
+// Perguntas rápidas + botão de escrever. O que fica em branco a IA não diz.
+function GeradorIA({
+  perguntas,
+  onChange,
+  onGerar,
+  ocupado,
+  escrevendo,
+  temVersao,
+}: {
+  perguntas: PerguntasIA;
+  onChange: (p: PerguntasIA) => void;
+  onGerar: () => void;
+  ocupado: boolean;
+  escrevendo: boolean;
+  temVersao: boolean;
+}) {
+  const [maisDetalhes, setMaisDetalhes] = useState(false);
   return (
-    <Card
-      title="Fotos"
-      description="A primeira é a capa. Copie e cole direto no anúncio ou baixe."
-      action={
-        comUrl.length > 1 ? (
-          <button type="button" onClick={levarTodas} disabled={ocupado} className={`${btnSecondary} px-4 py-1.5 text-sm`}>
-            {ocupado ? "Preparando..." : "Baixar todas"}
+    <div className="mb-4 rounded-2xl bg-fill p-4">
+      <div className="flex flex-col gap-4">
+        <Escolha rotulo="Estado" opcoes={ESTADOS} valor={perguntas.estado} onChange={(estado) => onChange({ ...perguntas, estado })} />
+        <Escolha rotulo="Retirada e entrega" opcoes={ENTREGAS} valor={perguntas.entrega} onChange={(entrega) => onChange({ ...perguntas, entrega })} />
+        <div>
+          <label htmlFor="ia-acompanha" className="mb-1.5 block text-[13px] font-medium text-ink-muted">
+            O que acompanha
+          </label>
+          <input
+            id="ia-acompanha"
+            value={perguntas.acompanha}
+            onChange={(e) => onChange({ ...perguntas, acompanha: e.target.value })}
+            maxLength={LIMITE_ACOMPANHA}
+            placeholder="Caixa, cabo, divisor de áudio..."
+            className={`${inputClass} !bg-surface`}
+          />
+        </div>
+        {maisDetalhes || perguntas.dica ? (
+          <div>
+            <label htmlFor="ia-dica" className="mb-1.5 block text-[13px] font-medium text-ink-muted">
+              Mais alguma coisa
+            </label>
+            <input
+              id="ia-dica"
+              value={perguntas.dica}
+              onChange={(e) => onChange({ ...perguntas, dica: e.target.value })}
+              maxLength={LIMITE_DICA}
+              placeholder="Ótimo para presente, bateria dura o dia todo..."
+              className={`${inputClass} !bg-surface`}
+            />
+          </div>
+        ) : (
+          <button type="button" onClick={() => setMaisDetalhes(true)} className={`${linkAcao} self-start`}>
+            + Mais detalhes
           </button>
-        ) : undefined
-      }
-    >
-      {comUrl.length === 0 ? (
-        <p className="text-sm text-ink-muted">Este produto ainda não tem fotos. Adicione na página do produto.</p>
-      ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-          {comUrl.map((f, i) => (
-            <li key={f.id} className="flex flex-col gap-1.5">
-              <div className="relative aspect-square overflow-hidden rounded-xl bg-fill">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={f.url} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" />
-                {i === 0 && (
-                  <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
-                    Capa
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button type="button" onClick={() => copiarImagem(f.url)} className={`${btnSecondary} px-2 py-1.5 text-xs`}>
-                  Copiar
-                </button>
-                <button type="button" onClick={() => baixarUma(f.url, i)} className={`${btnSecondary} px-2 py-1.5 text-xs`}>
-                  Baixar
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+        )}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button type="button" onClick={onGerar} disabled={ocupado || escrevendo} className={btnPrimary}>
+          <IconSparkles width={16} height={16} /> {escrevendo ? "Escrevendo..." : temVersao ? "Escrever outra versão com IA" : "Escrever com IA"}
+        </button>
+        <span className="text-xs text-ink-muted">O que ficar em branco, a IA não diz.</span>
+      </div>
+    </div>
   );
 }
 
@@ -252,8 +220,8 @@ function VersaoCard({
   const descricaoEstourou = limites.descricao !== null && descricao.length > limites.descricao;
 
   return (
-    <div className="rounded-2xl border border-line p-3 sm:p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <div className="rounded-2xl border border-line p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-ink">Versão {numero}</span>
           {variacoes.length > 0 && (
@@ -273,19 +241,20 @@ function VersaoCard({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {ia.disponivel && (
+          {ia.disponivel ? (
             <button
               type="button"
               onClick={reescreverComIA}
               disabled={escrevendo}
-              className={`${btnSecondary} px-3 py-1 text-xs`}
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-brand-text transition hover:bg-brand-tint disabled:opacity-50"
             >
-              <IconSparkles width={14} height={14} /> {escrevendo ? "Escrevendo..." : "Escrever com IA"}
+              <IconSparkles width={14} height={14} /> {escrevendo ? "Escrevendo..." : "Reescrever com IA"}
+            </button>
+          ) : (
+            <button type="button" onClick={reescrever} className={`${btnGhost} px-3 py-1 text-xs`}>
+              Outra sugestão
             </button>
           )}
-          <button type="button" onClick={reescrever} className={`${btnGhost} px-3 py-1 text-xs`}>
-            Outra sugestão
-          </button>
           <ConfirmButton
             title="Excluir esta versão?"
             description={versao.titulo ?? "Versão sem título"}
@@ -295,23 +264,18 @@ function VersaoCard({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <div>
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <label htmlFor={`t-${versao.id}`} className="text-sm font-medium text-ink-2">
-              Título{" "}
-              <span className={`font-normal ${tituloEstourou ? "text-danger" : "text-ink-muted"}`}>
-                ({contador(titulo.length, limites.titulo)})
-              </span>
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <label htmlFor={`t-${versao.id}`} className="text-[13px] font-medium text-ink-muted">
+              Título
             </label>
-            <button
-              type="button"
-              disabled={!titulo}
-              onClick={() => copiar(titulo, "Título")}
-              className={`${btnSecondary} px-3 py-1 text-xs`}
-            >
-              Copiar título
-            </button>
+            <span className="flex items-baseline gap-3 text-xs">
+              <span className={tituloEstourou ? "text-danger" : "text-ink-muted"}>{contador(titulo.length, limites.titulo)}</span>
+              <button type="button" disabled={!titulo} onClick={() => copiar(titulo, "Título")} className={linkAcao}>
+                Copiar
+              </button>
+            </span>
           </div>
           <input
             id={`t-${versao.id}`}
@@ -324,27 +288,22 @@ function VersaoCard({
         </div>
 
         <div>
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <label htmlFor={`d-${versao.id}`} className="text-sm font-medium text-ink-2">
-              Descrição{" "}
-              <span className={`font-normal ${descricaoEstourou ? "text-danger" : "text-ink-muted"}`}>
-                ({contador(descricao.length, limites.descricao)})
-              </span>
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <label htmlFor={`d-${versao.id}`} className="text-[13px] font-medium text-ink-muted">
+              Descrição
             </label>
-            <button
-              type="button"
-              disabled={!descricao}
-              onClick={() => copiar(descricao, "Descrição")}
-              className={`${btnSecondary} px-3 py-1 text-xs`}
-            >
-              Copiar descrição
-            </button>
+            <span className="flex items-baseline gap-3 text-xs">
+              <span className={descricaoEstourou ? "text-danger" : "text-ink-muted"}>{contador(descricao.length, limites.descricao)}</span>
+              <button type="button" disabled={!descricao} onClick={() => copiar(descricao, "Descrição")} className={linkAcao}>
+                Copiar
+              </button>
+            </span>
           </div>
           <textarea
             id={`d-${versao.id}`}
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
-            rows={8}
+            rows={Math.min(16, Math.max(6, descricao.split("\n").length + 1))}
             placeholder="Descrição do anúncio"
             className={inputClass}
           />
@@ -354,18 +313,22 @@ function VersaoCard({
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           disabled={!titulo && !descricao}
           onClick={() => copiar([titulo, descricao].filter(Boolean).join("\n\n"), "Anúncio")}
-          className={`${btnGhost} px-3 py-1.5 text-sm`}
+          className={`${btnSecondary} px-4 py-1.5 text-sm`}
         >
           Copiar tudo
         </button>
-        <button type="button" onClick={salvar} disabled={isPending || !alterado} className={`${btnPrimary} px-4 py-1.5 text-sm`}>
-          {isPending ? "Salvando..." : alterado ? "Salvar alterações" : "Salvo"}
-        </button>
+        {alterado ? (
+          <button type="button" onClick={salvar} disabled={isPending} className={`${btnPrimary} px-4 py-1.5 text-sm`}>
+            {isPending ? "Salvando..." : "Salvar alterações"}
+          </button>
+        ) : (
+          <span className="text-xs text-ink-muted">Salvo</span>
+        )}
       </div>
     </div>
   );
@@ -373,19 +336,15 @@ function VersaoCard({
 
 export function AnunciosEditor({
   produtoId,
-  nomeProduto,
   canais,
   anuncios,
-  fotos,
   variacoes,
   dados,
   iaDisponivel,
 }: {
   produtoId: string;
-  nomeProduto: string;
   canais: CanalVenda[];
   anuncios: ProdutoAnuncio[];
-  fotos: FotoAnuncio[];
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
   iaDisponivel: boolean;
@@ -398,18 +357,15 @@ export function AnunciosEditor({
 
   if (!canal) {
     return (
-      <div className="flex flex-col gap-6">
-        <FotosParaAnuncio nomeProduto={nomeProduto} fotos={fotos} />
-        <Card title="Títulos e descrições">
-          <p className="text-sm text-ink-muted">
-            Cadastre canais de venda em{" "}
-            <Link href="/configuracoes" className="text-brand-text hover:underline">
-              Configurações
-            </Link>{" "}
-            para escrever um anúncio diferente para cada canal.
-          </p>
-        </Card>
-      </div>
+      <Card title="Títulos e descrições">
+        <p className="text-sm text-ink-muted">
+          Cadastre canais de venda em{" "}
+          <Link href="/configuracoes" className="text-brand-text hover:underline">
+            Configurações
+          </Link>{" "}
+          para escrever um anúncio diferente para cada canal.
+        </p>
+      </Card>
     );
   }
 
@@ -439,12 +395,7 @@ export function AnunciosEditor({
 
   return (
     <div className="flex flex-col gap-6">
-      <FotosParaAnuncio nomeProduto={nomeProduto} fotos={fotos} />
-
-      <Card
-        title="Títulos e descrições"
-        description="Crie várias versões por canal, ajuste e copie a que quiser usar. Cada versão pode ser do produto todo ou de uma variação."
-      >
+      <Card title="Títulos e descrições" description="Uma versão por canal. Ajuste, copie e publique.">
         <div className="mb-4 flex gap-1 overflow-x-auto" role="tablist" aria-label="Canais de venda">
           {canais.map((c) => {
             const qtd = anuncios.filter((a) => a.canal_id === c.id).length;
@@ -467,10 +418,18 @@ export function AnunciosEditor({
           })}
         </div>
 
+        {iaDisponivel && (
+          <GeradorIA
+            perguntas={perguntas}
+            onChange={setPerguntas}
+            onGerar={novaComIA}
+            ocupado={isPending}
+            escrevendo={escrevendo}
+            temVersao={versoes.length > 0}
+          />
+        )}
+
         <div className="flex flex-col gap-3">
-          {versoes.length === 0 && (
-            <p className="text-sm text-ink-muted">Nenhuma versão para {canal.nome} ainda. Gere uma sugestão e ajuste.</p>
-          )}
           {versoes.map((v, i) => (
             <VersaoCard
               key={v.id}
@@ -483,84 +442,21 @@ export function AnunciosEditor({
               ia={{ disponivel: iaDisponivel, perguntas }}
             />
           ))}
-          {iaDisponivel && (
-            <div className="rounded-2xl bg-fill p-3 sm:p-4">
-              <p className="text-sm font-semibold text-ink">Antes de escrever</p>
-              <p className="mb-3 text-xs text-ink-muted">
-                A IA usa o cadastro, as fotos e estas respostas. O que ficar em branco ela não diz: não inventa estado,
-                entrega, garantia nem medidas.
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">Estado do produto</span>
-                  <select
-                    value={perguntas.estado}
-                    onChange={(e) => setPerguntas((p) => ({ ...p, estado: e.target.value }))}
-                    className={inputClass}
-                  >
-                    <option value="">Não informar</option>
-                    {ESTADOS.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.rotulo}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">Retirada e entrega</span>
-                  <select
-                    value={perguntas.entrega}
-                    onChange={(e) => setPerguntas((p) => ({ ...p, entrega: e.target.value }))}
-                    className={inputClass}
-                  >
-                    <option value="">Não informar</option>
-                    {ENTREGAS.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.rotulo}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block min-w-0 sm:col-span-2">
-                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">O que acompanha</span>
-                  <input
-                    value={perguntas.acompanha}
-                    onChange={(e) => setPerguntas((p) => ({ ...p, acompanha: e.target.value }))}
-                    maxLength={LIMITE_ACOMPANHA}
-                    placeholder="Ex.: caixa, cabo USB-C, divisor de áudio"
-                    className={inputClass}
-                  />
-                </label>
-                <label className="block min-w-0 sm:col-span-2">
-                  <span className="mb-1 block text-[13px] font-medium text-ink-muted">
-                    Mais alguma coisa? <span className="font-normal">(opcional)</span>
-                  </span>
-                  <input
-                    value={perguntas.dica}
-                    onChange={(e) => setPerguntas((p) => ({ ...p, dica: e.target.value }))}
-                    maxLength={LIMITE_DICA}
-                    placeholder="Ex.: ótimo para presente, bateria dura o dia todo"
-                    className={inputClass}
-                  />
-                </label>
-              </div>
-            </div>
+          {versoes.length === 0 && !iaDisponivel && (
+            <p className="text-sm text-ink-muted">Nenhuma versão para {canal.nome} ainda. Gere uma sugestão e ajuste.</p>
           )}
-          <div className="flex flex-wrap gap-2">
-            {iaDisponivel && (
-              <button type="button" onClick={novaComIA} disabled={isPending || escrevendo} className={btnPrimary}>
-                <IconSparkles width={16} height={16} /> {escrevendo ? "Escrevendo..." : "Nova versão com IA"}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {!iaDisponivel && (
+              <button type="button" onClick={() => nova(true)} disabled={isPending} className={btnPrimary}>
+                <IconPlus width={16} height={16} /> Nova versão com sugestão
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => nova(true)}
-              disabled={isPending}
-              className={iaDisponivel ? btnSecondary : btnPrimary}
-            >
-              <IconPlus width={16} height={16} /> Nova versão com sugestão
-            </button>
-            <button type="button" onClick={() => nova(false)} disabled={isPending} className={btnSecondary}>
+            {iaDisponivel && (
+              <button type="button" onClick={() => nova(true)} disabled={isPending} className={linkAcao}>
+                Sugestão automática (sem IA)
+              </button>
+            )}
+            <button type="button" onClick={() => nova(false)} disabled={isPending} className={linkAcao}>
               Versão em branco
             </button>
           </div>

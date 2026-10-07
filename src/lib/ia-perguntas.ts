@@ -2,17 +2,17 @@
 // fato no texto; o que ele deixa em branco a IA não diz. Sem imports de servidor: a tela e a action usam.
 
 export const ESTADOS = [
-  { id: "novo_caixa", rotulo: "Novo, na caixa" },
-  { id: "novo", rotulo: "Novo, sem caixa" },
-  { id: "seminovo", rotulo: "Seminovo, sem marcas de uso" },
-  { id: "usado_bom", rotulo: "Usado, em bom estado" },
-  { id: "usado_marcas", rotulo: "Usado, com marcas de uso" },
+  { id: "novo_caixa", rotulo: "Novo, na caixa", curto: "Novo na caixa" },
+  { id: "novo", rotulo: "Novo, sem caixa", curto: "Novo" },
+  { id: "seminovo", rotulo: "Seminovo, sem marcas de uso", curto: "Seminovo" },
+  { id: "usado_bom", rotulo: "Usado, em bom estado", curto: "Usado, bom estado" },
+  { id: "usado_marcas", rotulo: "Usado, com marcas de uso", curto: "Usado com marcas" },
 ] as const;
 
 export const ENTREGAS = [
-  { id: "retirada", rotulo: "Só retirada em mãos" },
-  { id: "entrega", rotulo: "Só entrega (combinar)" },
-  { id: "ambos", rotulo: "Retirada em mãos ou combinar entrega" },
+  { id: "retirada", rotulo: "Só retirada em mãos", curto: "Só retirada" },
+  { id: "entrega", rotulo: "Só entrega (combinar)", curto: "Só entrega" },
+  { id: "ambos", rotulo: "Retirada em mãos ou combinar entrega", curto: "Retirada ou entrega" },
 ] as const;
 
 export interface PerguntasIA {

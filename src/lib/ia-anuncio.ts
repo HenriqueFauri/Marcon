@@ -7,7 +7,7 @@ import type { ProdutoVariacao } from "@/types/domain";
 // Escrita de anúncio com IA (Claude). Só importar em código de servidor (actions):
 // a chave nunca pode ir ao navegador.
 // O modelo fica numa constante para trocar fácil depois do teste.
-export const MODELO_IA = "claude-sonnet-5-5";
+export const MODELO_IA = "claude-haiku-4-5";
 
 export function iaDisponivel() {
   return !!process.env.ANTHROPIC_API_KEY;

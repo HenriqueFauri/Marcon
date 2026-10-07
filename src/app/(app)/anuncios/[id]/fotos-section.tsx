@@ -5,12 +5,14 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
+import { Card, btnSecondary } from "@/components/ui";
 import { mensagemDeErro } from "@/lib/action";
 import { IconPlus, IconX } from "@/components/icons";
 import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
-import { excluirFoto, registrarFoto } from "../actions";
+import { excluirFoto, registrarFoto } from "../../produtos/actions";
+import { baixarBlob, buscarImagem, copiarImagemParaAreaDeTransferencia, nomeArquivo } from "./fotos-utils";
 
-interface FotoComUrl {
+export interface FotoComUrl {
   id: string;
   path: string;
   variacao_id: string | null;
@@ -32,57 +34,105 @@ function nomeSeguro(nome: string) {
   return `${limpo || "foto"}.${ext}`;
 }
 
+// As fotos do produto vivem aqui, no anúncio: enviar, remover, copiar e baixar.
 // Produto com variações: um bloco de fotos gerais (vale para todas) e um por variação.
 // O limite de fotos do plano conta por bloco, igual ao banco.
 export function FotosSection({
   produtoId,
+  nomeProduto,
   fotos,
   variacoes = [],
   maxFotos = MAX_FOTOS_POR_ITEM,
 }: {
   produtoId: string;
+  nomeProduto: string;
   fotos: FotoComUrl[];
   variacoes?: { id: string; nome_combinacao: string }[];
   maxFotos?: number;
 }) {
-  if (variacoes.length === 0) {
-    return <GrupoFotos produtoId={produtoId} variacaoId={null} fotos={fotos} maxFotos={maxFotos} />;
+  const toast = useToast();
+  const [ocupado, setOcupado] = useState(false);
+  const comUrl = fotos.filter((f): f is FotoComUrl & { url: string } => !!f.url);
+
+  // no celular abre o compartilhamento (Facebook, WhatsApp...); no desktop baixa os arquivos
+  async function levarTodas() {
+    setOcupado(true);
+    try {
+      const arquivos = await Promise.all(
+        comUrl.map(async (f, i) => {
+          const blob = await buscarImagem(f.url);
+          return new File([blob], nomeArquivo(nomeProduto, i, blob.type), { type: blob.type });
+        }),
+      );
+      if (navigator.canShare?.({ files: arquivos })) {
+        await navigator.share({ files: arquivos });
+        return;
+      }
+      for (const arquivo of arquivos) {
+        baixarBlob(arquivo, arquivo.name);
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      toast.success(`${arquivos.length} foto(s) baixada(s).`);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") toast.error("Não foi possível preparar as fotos.");
+    } finally {
+      setOcupado(false);
+    }
   }
+
+  const grupo = (variacaoId: string | null) => (
+    <GrupoFotos
+      produtoId={produtoId}
+      nomeProduto={nomeProduto}
+      variacaoId={variacaoId}
+      fotos={fotos.filter((f) => f.variacao_id === variacaoId)}
+      maxFotos={maxFotos}
+    />
+  );
+
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="mb-1 text-sm font-semibold text-ink">Fotos gerais</h3>
-        <p className="mb-3 text-xs text-ink-muted">Aparecem em qualquer variação que não tenha foto própria.</p>
-        <GrupoFotos
-          produtoId={produtoId}
-          variacaoId={null}
-          fotos={fotos.filter((f) => f.variacao_id === null)}
-          maxFotos={maxFotos}
-        />
-      </div>
-      {variacoes.map((v) => (
-        <div key={v.id}>
-          <h3 className="mb-3 text-sm font-semibold text-ink">{v.nome_combinacao}</h3>
-          <GrupoFotos
-            produtoId={produtoId}
-            variacaoId={v.id}
-            fotos={fotos.filter((f) => f.variacao_id === v.id)}
-            maxFotos={maxFotos}
-          />
+    <Card
+      title="Fotos"
+      description="A primeira é a capa. Envie aqui, copie e cole direto no anúncio ou baixe."
+      action={
+        comUrl.length > 1 ? (
+          <button type="button" onClick={levarTodas} disabled={ocupado} className={`${btnSecondary} px-4 py-1.5 text-sm`}>
+            {ocupado ? "Preparando..." : "Baixar todas"}
+          </button>
+        ) : undefined
+      }
+    >
+      {variacoes.length === 0 ? (
+        grupo(null)
+      ) : (
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-1 text-sm font-semibold text-ink">Fotos gerais</h3>
+            <p className="mb-3 text-xs text-ink-muted">Aparecem em qualquer variação que não tenha foto própria.</p>
+            {grupo(null)}
+          </div>
+          {variacoes.map((v) => (
+            <div key={v.id}>
+              <h3 className="mb-3 text-sm font-semibold text-ink">{v.nome_combinacao}</h3>
+              {grupo(v.id)}
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </Card>
   );
 }
 
 // maxFotos vem do plano (3 no grátis, 10 no pago); o banco impõe o mesmo limite
 function GrupoFotos({
   produtoId,
+  nomeProduto,
   variacaoId,
   fotos,
   maxFotos,
 }: {
   produtoId: string;
+  nomeProduto: string;
   variacaoId: string | null;
   fotos: FotoComUrl[];
   maxFotos: number;
@@ -92,6 +142,24 @@ function GrupoFotos({
   const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
   const { isPending, run } = useAction();
   const toast = useToast();
+
+  async function copiarImagem(url: string) {
+    try {
+      await copiarImagemParaAreaDeTransferencia(url);
+      toast.success("Foto copiada. É só colar no anúncio.");
+    } catch {
+      toast.error("Seu navegador não copiou a imagem. Use o botão Baixar.");
+    }
+  }
+
+  async function baixarUma(url: string, i: number) {
+    try {
+      const blob = await buscarImagem(url);
+      baixarBlob(blob, nomeArquivo(nomeProduto, i, blob.type));
+    } catch {
+      toast.error("Não foi possível baixar a foto.");
+    }
+  }
 
   async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -161,25 +229,37 @@ function GrupoFotos({
     <div>
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
         {fotos.map((foto, i) => (
-          <div key={foto.id} className="group relative aspect-square overflow-hidden rounded-2xl border border-line bg-fill">
-            {foto.url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={foto.url} alt={`Foto ${i + 1} do produto`} className="h-full w-full object-cover" loading="lazy" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">sem preview</div>
+          <div key={foto.id} className="flex flex-col gap-1.5">
+            <div className="group relative aspect-square overflow-hidden rounded-2xl border border-line bg-fill">
+              {foto.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={foto.url} alt={`Foto ${i + 1} do produto`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">sem preview</div>
+              )}
+              {i === 0 && (
+                <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">Capa</span>
+              )}
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => run(() => excluirFoto(foto.id, foto.path, produtoId))}
+                aria-label={`Remover foto ${i + 1}`}
+                className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-danger disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+              >
+                <IconX width={14} height={14} />
+              </button>
+            </div>
+            {foto.url && (
+              <div className="flex items-center justify-center gap-3 text-[13px] font-medium text-brand-text">
+                <button type="button" onClick={() => copiarImagem(foto.url!)} className="hover:underline">
+                  Copiar
+                </button>
+                <button type="button" onClick={() => baixarUma(foto.url!, i)} className="hover:underline">
+                  Baixar
+                </button>
+              </div>
             )}
-            {i === 0 && (
-              <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">Capa</span>
-            )}
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={() => run(() => excluirFoto(foto.id, foto.path, produtoId))}
-              aria-label={`Remover foto ${i + 1}`}
-              className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-danger disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
-            >
-              <IconX width={14} height={14} />
-            </button>
           </div>
         ))}
         {fotos.length < maxFotos && (
@@ -187,7 +267,7 @@ function GrupoFotos({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={!!enviando}
-            className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
+            className="flex aspect-square flex-col items-center justify-center gap-1 self-start rounded-2xl border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
           >
             <IconPlus />
             {enviando ? `${enviando.atual}/${enviando.total}...` : "Adicionar"}
