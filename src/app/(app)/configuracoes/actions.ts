@@ -61,7 +61,13 @@ export async function atualizarLogoEmpresa(path: string | null): Promise<ActionR
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const anterior = user?.user_metadata?.empresa_logo_path as string | undefined;
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+    // o arquivo sobe direto do navegador; só vale caminho da pasta do próprio usuário
+    // (a loja e o recibo repetem a conferência no banco, porque o usuário também edita os metadados por fora)
+    if (path !== null && (!path.startsWith(`${user.id}/`) || path.includes(".."))) {
+      return { ok: false, error: "Imagem inválida." };
+    }
+    const anterior = user.user_metadata?.empresa_logo_path as string | undefined;
 
     const { error } = await supabase.auth.updateUser({ data: { empresa_logo_path: path } });
     if (error) return falha(error);

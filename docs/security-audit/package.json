@@ -1,0 +1,13 @@
+{
+  "name": "relatorio-auditoria-seguranca",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gerar": "node gerar-relatorio.mjs",
+    "conferir": "node conferir-pdf.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^4.10.38",
+    "puppeteer-core": "^24.0.0"
+  }
+}

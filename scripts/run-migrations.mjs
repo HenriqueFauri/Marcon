@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { Client } from "pg";
+import { sslDoBanco } from "./db-ssl.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.join(root, "..", ".env.local");
@@ -35,7 +36,7 @@ const client = new Client({
   user: "postgres",
   password,
   database: "postgres",
-  ssl: { rejectUnauthorized: false },
+  ssl: sslDoBanco(root, env),
 });
 
 await client.connect();

@@ -1,3 +1,4 @@
+import "server-only";
 import { createClient } from "@supabase/supabase-js";
 
 // Cliente com a chave de serviço: ignora o RLS. Só para rotinas do servidor

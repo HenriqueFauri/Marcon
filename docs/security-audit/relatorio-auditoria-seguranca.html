@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de Auditoria de Segurança: UseMarcon</title>
+<style>
+  :root { --ink:#0f172a; --ink2:#334155; --muted:#64748b; --line:#e2e8f0; --fill:#f8fafc; --brand:#0f766e; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin:0; font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color:var(--ink); font-size:10pt; line-height:1.5; background:#fff; }
+  h1,h2,h3 { line-height:1.25; color:var(--ink); }
+  h2 { font-size:16pt; margin:0 0 10pt; padding-bottom:6pt; border-bottom:2px solid var(--ink); break-after:avoid; }
+  h3 { font-size:11.5pt; margin:16pt 0 6pt; break-after:avoid; }
+  p { margin:0 0 7pt; }
+  code { font-family:Consolas, "Cascadia Mono", monospace; font-size:8.6pt; background:#f1f5f9; padding:0 3px; border-radius:3px; overflow-wrap:anywhere; }
+  .secao { break-before:page; }
+  .capa { height:247mm; display:flex; flex-direction:column; justify-content:space-between; }
+  .capa .faixa { border-left:6px solid var(--brand); padding-left:16pt; margin-top:36pt; }
+  .capa .eyebrow { text-transform:uppercase; letter-spacing:.12em; font-size:9pt; color:var(--muted); font-weight:600; }
+  .capa h1 { font-size:27pt; margin:6pt 0 8pt; }
+  .capa .meta { color:var(--ink2); font-size:10.5pt; }
+  .capa .bloco { background:var(--fill); border:1px solid var(--line); border-radius:8px; padding:12pt 14pt; margin-top:12pt; }
+  .capa .bloco h3 { margin-top:0; }
+  .capa ul { margin:0; padding-left:14pt; }
+  .capa li { margin-bottom:3pt; }
+  table { width:100%; border-collapse:collapse; font-size:9pt; }
+  th { text-align:left; font-weight:600; color:var(--ink2); background:var(--fill); border-bottom:1.5px solid #cbd5e1; padding:5pt 6pt; }
+  td { border-bottom:1px solid var(--line); padding:5pt 6pt; vertical-align:top; }
+  tr { break-inside:avoid; }
+  .stack td, .metodo td, .escala td { font-size:8.6pt; padding:3.5pt 6pt; }
+  .stack td:first-child { width:28%; font-weight:600; color:var(--ink2); }
+  .metodo td:first-child { width:24%; font-weight:600; }
+  .chip { display:inline-block; color:#fff; font-size:7.6pt; font-weight:700; padding:1.5pt 7pt; border-radius:999px; white-space:nowrap; letter-spacing:.02em; }
+  .kpis { display:grid; grid-template-columns:repeat(5, 1fr); gap:6pt; margin:4pt 0 12pt; }
+  .kpi { border:1px solid var(--line); border-radius:8px; padding:8pt; border-top:4px solid; }
+  .kpi .v { font-size:20pt; font-weight:700; line-height:1.1; }
+  .kpi .n { font-size:8.5pt; color:var(--muted); }
+  .graficos { display:grid; grid-template-columns: minmax(0,5fr) minmax(0,7fr); gap:10pt; align-items:start; break-inside:avoid; }
+  .grafico { margin:0; border:1px solid var(--line); border-radius:8px; padding:10pt; }
+  .grafico figcaption { font-weight:600; font-size:9.5pt; color:var(--ink2); margin-bottom:6pt; }
+  .rosca-wrap { display:flex; flex-direction:column; align-items:center; gap:6pt; }
+  .rosca-num { font-size:30px; font-weight:700; fill:var(--ink); }
+  .rosca-rot { font-size:11px; fill:var(--muted); }
+  .legenda { display:grid; grid-template-columns:1fr 1fr; gap:2pt 12pt; font-size:8.6pt; color:var(--ink2); width:100%; }
+  .legenda.linha { display:flex; flex-wrap:wrap; gap:4pt 12pt; margin-top:6pt; }
+  .leg { display:flex; align-items:center; gap:5pt; }
+  .leg-v { margin-left:auto; font-weight:600; color:var(--ink); }
+  .sw { width:9pt; height:9pt; border-radius:2px; display:inline-block; flex:none; }
+  .bar-cat { font-size:12px; fill:var(--ink2); font-weight:600; }
+  .bar-v { font-size:11px; fill:var(--muted); }
+  .eixo { stroke:#cbd5e1; stroke-width:1; }
+  .duas { display:grid; grid-template-columns:1fr 1fr; gap:12pt; }
+  .caixa { border:1px solid var(--line); border-radius:8px; padding:10pt 12pt; }
+  .caixa li { break-inside:avoid; }
+  .caixa.forte { border-top:4px solid #059669; }
+  .caixa.fraco { border-top:4px solid #EA580C; }
+  .caixa ul { margin:0; padding-left:13pt; }
+  .caixa li { margin-bottom:4pt; }
+  .fortes-lista li { margin-bottom:5pt; }
+  .tag-cat { display:inline-block; font-size:7.4pt; font-weight:700; color:#059669; border:1px solid #059669; border-radius:4px; padding:0 4pt; margin-right:4pt; }
+  .tab-achados td.ref { width:40%; font-family:Consolas, monospace; font-size:7.8pt; color:var(--ink2); overflow-wrap:anywhere; }
+  .tab-achados td.sev { width:13%; }
+  .tab-achados td.id { width:6%; font-weight:700; }
+  .vazio { color:var(--muted); font-style:italic; }
+  .achado { border:1px solid var(--line); border-left:5px solid; border-radius:6px; padding:9pt 11pt; margin:9pt 0; }
+  .achado h4, .achado p, .bloco-cat { break-inside:avoid; }
+  .ref-arq { break-after:avoid; }
+  .achado h4 { margin:0 0 5pt; font-size:10.5pt; }
+  .achado .rot { font-weight:600; color:var(--ink2); }
+  pre.trecho { font-family:Consolas, monospace; font-size:7.8pt; background:#0f172a; color:#e2e8f0; padding:6pt 8pt; border-radius:5px; white-space:pre-wrap; overflow-wrap:anywhere; margin:3pt 0 6pt; line-height:1.4; }
+  .ref-arq { font-family:Consolas, monospace; font-size:8pt; color:var(--brand); font-weight:600; overflow-wrap:anywhere; }
+  .rec { display:grid; grid-template-columns:34pt 1fr; gap:8pt; padding:7pt 0; border-bottom:1px solid var(--line); break-inside:avoid; }
+  .rec .p { font-weight:800; font-size:11pt; color:#fff; border-radius:6px; text-align:center; padding:3pt 0; height:fit-content; }
+  .issue { margin:10pt 0 14pt; }
+  .issue .marca { font-family:Consolas, monospace; font-size:8.5pt; font-weight:700; color:var(--brand); margin:0; }
+  .issue pre { font-family:Consolas, monospace; font-size:7.9pt; line-height:1.42; background:var(--fill); border:1px solid var(--line); border-radius:6px; padding:8pt 10pt; white-space:pre-wrap; overflow-wrap:anywhere; margin:3pt 0; }
+  .nota { font-size:8.8pt; color:var(--muted); }
+</style></head>
+<body>
+
+<section class="capa">
+  <div>
+    <div class="faixa">
+      <div class="eyebrow">Auditoria de segurança · código e banco de produção</div>
+      <h1>Relatório de Auditoria de Segurança: UseMarcon</h1>
+      <div class="meta">Data: <b>07/10/2026</b> · Revisão: <code>ef1c099 (branch claude/epic-hamilton-638849, base local-work-marcon)</code></div>
+      <div class="meta">Categorias: banco sem tranca, permissão no navegador, IDOR, chaves expostas e XSS</div>
+    </div>
+    <div class="bloco">
+      <h3>Escopo auditado</h3>
+      <ul><li>Código da aplicação em src/ (Next.js 16, App Router): 17 arquivos de server actions (60 ações exportadas), 6 route handlers, páginas públicas /loja e /r.</li><li>29 migrations em supabase/migrations e o estado real do banco de produção (projeto ouvxsfebfegqcvwmdume), lido só com consultas de leitura: políticas RLS, views, funções SECURITY DEFINER, gatilhos, FKs, CHECKs, privilégios e Storage.</li><li>Scripts em scripts/, README.md, vercel.json, next.config.ts, .gitignore e o histórico git completo (155 commits).</li><li>Fora do escopo: painel da Vercel, painel do Asaas, configuração de Auth no painel do Supabase e testes dinâmicos contra produção (nada foi escrito no banco).</li></ul>
+    </div>
+    <div class="bloco">
+      <h3>Resultado em uma linha</h3>
+      <p style="margin:0">11 achados verificados: 2 altas, 2 médias, 2 baixas, 5 informativas. Nenhum crítico. 16 controles conferidos e corretos. Severidade máxima: <span class="chip" style="background:#EA580C">Alta</span></p>
+    </div>
+  </div>
+  <p class="nota">Toda afirmação deste relatório foi conferida no código ou por consulta somente leitura ao banco de produção. Nada foi alterado no banco durante a auditoria.</p>
+</section>
+
+<section class="secao">
+  <h2>Stack detectada e nota metodológica</h2>
+  <table class="stack"><tr><td>Linguagem</td><td>TypeScript (Node 24), SQL/PLpgSQL</td></tr><tr><td>Framework</td><td>Next.js 16.3 com App Router, Server Actions e proxy.ts (antigo middleware)</td></tr><tr><td>Banco e acesso</td><td>Supabase Postgres via @supabase/supabase-js e @supabase/ssr (PostgREST). Sem ORM.</td></tr><tr><td>Autenticação</td><td>Supabase Auth (e-mail e Google), sessão em cookie; admin por lista ADMIN_EMAILS no servidor</td></tr><tr><td>Isolamento</td><td>RLS por owner_id = auth.uid() em todas as tabelas; funções RPC com filtro manual; cliente service role em pontos específicos</td></tr><tr><td>Armazenamento</td><td>Supabase Storage, 3 buckets privados com política por pasta do usuário</td></tr><tr><td>Frontend</td><td>React 19 + Tailwind 4, PWA com push (web-push)</td></tr><tr><td>Deploy</td><td>Vercel (vercel.json com cron). Sem Docker, Helm, Terraform ou CI no repositório</td></tr><tr><td>Integrações</td><td>Asaas (cobrança, webhook), Anthropic (IA de anúncios), Google Analytics, Microsoft Clarity</td></tr></table>
+  <h3>Como cada categoria foi mapeada para esta stack</h3>
+  <table class="metodo"><tr><td>1. Banco sem tranca</td><td>Mecanismo do projeto: RLS do Postgres com owner_id = auth.uid(). Conferido em produção: RLS ligado e políticas em cada tabela, views com security_invoker, funções SECURITY DEFINER (que ignoram RLS) e os pontos onde o servidor usa a chave de serviço. Também as FKs, porque a checagem de FK ignora RLS.</td></tr><tr><td>2. Permissão definida no navegador</td><td>Cruzamento de cada gate de interface (menu Admin, recursos do plano pago, cota de IA) com a checagem no servidor ou no banco. Inclui limites de plano cuja contagem depende de dados que o próprio usuário pode alterar pela API REST, o que equivale a confiar no cliente.</td></tr><tr><td>3. IDOR</td><td>Todas as server actions exportadas (60 funções em 17 arquivos 'use server') e os 6 route handlers, um por um: de onde vem cada ID, qual cliente Supabase é usado (sessão com RLS ou service role) e se a posse do objeto e dos objetos relacionados é conferida.</td></tr><tr><td>4. Chaves expostas</td><td>Busca por padrões de chave (Anthropic, Supabase JWT, Asaas, AWS, chaves privadas, senhas, defaults ${VAR:-x}) no código, scripts, docs e no histórico git inteiro; variáveis NEXT_PUBLIC_ que entram no bundle; componentes 'use client' que importem módulos com segredo.</td></tr><tr><td>5. Inputs sem tratamento (XSS)</td><td>Busca por dangerouslySetInnerHTML, innerHTML, eval, new Function, srcdoc, window.open e href/src montados com dado do usuário; renderização de markdown/HTML (não há lib); dados do lojista exibidos na loja e no recibo públicos; CHECKs do banco que repetem a validação do formulário.</td></tr></table>
+  <h3>Escala de severidade</h3>
+  <table class="escala">
+    <tr><td style="width:16%"><span class="chip" style="background:#B91C1C">Crítica</span></td><td>Exploração remota simples que expõe ou altera dados de outras contas em massa, ou dá controle da plataforma.</td></tr>
+    <tr><td><span class="chip" style="background:#EA580C">Alta</span></td><td>Exploração simples com impacto real em outra conta ou custo direto para o negócio.</td></tr>
+    <tr><td><span class="chip" style="background:#D97706">Média</span></td><td>Impacto real, mas com pré-condição que limita (conhecer um dado difícil de obter, papel específico).</td></tr>
+    <tr><td><span class="chip" style="background:#2563EB">Baixa</span></td><td>Impacto pequeno ou exige posição privilegiada (rede, máquina do desenvolvedor).</td></tr>
+    <tr><td><span class="chip" style="background:#64748B">Informativa</span></td><td>Sem exploração conhecida; endurecimento e defesa em profundidade.</td></tr>
+  </table>
+</section>
+
+<section class="secao">
+  <h2>Resumo executivo</h2>
+  <div class="kpis">
+    <div class="kpi" style="border-top-color:#B91C1C"><div class="v">0</div><div class="n">Crítica</div></div><div class="kpi" style="border-top-color:#EA580C"><div class="v">2</div><div class="n">Alta</div></div><div class="kpi" style="border-top-color:#D97706"><div class="v">2</div><div class="n">Média</div></div><div class="kpi" style="border-top-color:#2563EB"><div class="v">2</div><div class="n">Baixa</div></div><div class="kpi" style="border-top-color:#64748B"><div class="v">5</div><div class="n">Informativa</div></div>
+  </div>
+  <div class="graficos"><figure class="grafico">
+    <figcaption>Achados por severidade</figcaption>
+    <div class="rosca-wrap">
+      <svg viewBox="0 0 200 200" width="190" height="190" role="img" aria-label="Rosca de achados por severidade">
+        <path d="M 100.97 22.01 A 78 78 0 0 1 170.54 66.71 L 145.22 78.66 A 50 50 0 0 0 100.62 50.00 Z" fill="#EA580C"><title>Alta: 2</title></path><path d="M 171.35 68.49 A 78 78 0 0 1 159.58 150.34 L 138.19 132.27 A 50 50 0 0 0 145.74 79.80 Z" fill="#D97706"><title>Média: 2</title></path><path d="M 158.31 151.81 A 78 78 0 0 1 78.96 175.11 L 86.51 148.15 A 50 50 0 0 0 137.38 133.21 Z" fill="#2563EB"><title>Baixa: 2</title></path><path d="M 77.09 174.56 A 78 78 0 0 1 99.03 22.01 L 99.38 50.00 A 50 50 0 0 0 85.31 147.79 Z" fill="#64748B"><title>Informativa: 5</title></path>
+        <text x="100" y="98" text-anchor="middle" class="rosca-num">11</text>
+        <text x="100" y="118" text-anchor="middle" class="rosca-rot">achados</text>
+      </svg>
+      <div class="legenda"><div class="leg"><span class="sw" style="background:#B91C1C"></span><span class="leg-n">Crítica</span><span class="leg-v">0</span></div><div class="leg"><span class="sw" style="background:#EA580C"></span><span class="leg-n">Alta</span><span class="leg-v">2</span></div><div class="leg"><span class="sw" style="background:#D97706"></span><span class="leg-n">Média</span><span class="leg-v">2</span></div><div class="leg"><span class="sw" style="background:#2563EB"></span><span class="leg-n">Baixa</span><span class="leg-v">2</span></div><div class="leg"><span class="sw" style="background:#64748B"></span><span class="leg-n">Informativa</span><span class="leg-v">5</span></div></div>
+    </div>
+  </figure><figure class="grafico">
+    <figcaption>Achados e pontos fortes por categoria</figcaption>
+    <svg viewBox="0 0 400 246" width="100%" role="img" aria-label="Barras por categoria">
+      <line x1="100" x2="100" y1="2" y2="238" class="eixo"/>
+      
+      <text x="92" y="24" text-anchor="end" class="bar-cat">1. Isolamento</text>
+      <rect x="100" y="6" width="38" height="15" fill="#EA580C"><title>Banco sem tranca: 1 Alta</title></rect><rect x="140" y="6" width="38" height="15" fill="#D97706"><title>Banco sem tranca: 1 Média</title></rect><rect x="180" y="6" width="38" height="15" fill="#2563EB"><title>Banco sem tranca: 1 Baixa</title></rect><path d="M 220 6 h 77 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -77 Z" fill="#64748B"><title>Banco sem tranca: 2 Informativa</title></path>
+      <text x="305" y="18" class="bar-v">5 achados</text>
+      <path d="M 100 23 h 197 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -197 Z" fill="#059669"><title>Banco sem tranca: 5 pontos fortes</title></path>
+      <text x="305" y="35" class="bar-v">5 fortes</text>
+      <text x="92" y="72" text-anchor="end" class="bar-cat">2. Permissão</text>
+      <path d="M 100 54 h 37 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -37 Z" fill="#EA580C"><title>Permissão definida no navegador: 1 Alta</title></path>
+      <text x="145" y="66" class="bar-v">1 achado</text>
+      <path d="M 100 71 h 77 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -77 Z" fill="#059669"><title>Permissão definida no navegador: 2 pontos fortes</title></path>
+      <text x="185" y="83" class="bar-v">2 fortes</text>
+      <text x="92" y="120" text-anchor="end" class="bar-cat">3. IDOR</text>
+      <path d="M 100 102 h 37 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -37 Z" fill="#D97706"><title>IDOR: 1 Média</title></path>
+      <text x="145" y="114" class="bar-v">1 achado</text>
+      <path d="M 100 119 h 157 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -157 Z" fill="#059669"><title>IDOR: 4 pontos fortes</title></path>
+      <text x="265" y="131" class="bar-v">4 fortes</text>
+      <text x="92" y="168" text-anchor="end" class="bar-cat">4. Segredos</text>
+      <rect x="100" y="150" width="38" height="15" fill="#2563EB"><title>Chaves expostas: 1 Baixa</title></rect><path d="M 140 150 h 77 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -77 Z" fill="#64748B"><title>Chaves expostas: 2 Informativa</title></path>
+      <text x="225" y="162" class="bar-v">3 achados</text>
+      <path d="M 100 167 h 77 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -77 Z" fill="#059669"><title>Chaves expostas: 2 pontos fortes</title></path>
+      <text x="185" y="179" class="bar-v">2 fortes</text>
+      <text x="92" y="216" text-anchor="end" class="bar-cat">5. XSS</text>
+      <path d="M 100 198 h 37 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -37 Z" fill="#64748B"><title>Inputs sem tratamento (XSS): 1 Informativa</title></path>
+      <text x="145" y="210" class="bar-v">1 achado</text>
+      <path d="M 100 215 h 117 a 3 3 0 0 1 3 3 v 9 a 3 3 0 0 1 -3 3 h -117 Z" fill="#059669"><title>Inputs sem tratamento (XSS): 3 pontos fortes</title></path>
+      <text x="225" y="227" class="bar-v">3 fortes</text>
+    </svg>
+    <div class="legenda linha">
+      <div class="leg"><span class="sw" style="background:#EA580C"></span>Alta</div><div class="leg"><span class="sw" style="background:#D97706"></span>Média</div><div class="leg"><span class="sw" style="background:#2563EB"></span>Baixa</div><div class="leg"><span class="sw" style="background:#64748B"></span>Informativa</div>
+      <div class="leg"><span class="sw" style="background:#059669"></span>Ponto forte</div>
+    </div>
+  </figure></div>
+  <h3>Leitura</h3>
+  <p>O isolamento por dono está bem montado onde o projeto pensou nele: RLS em todas as tabelas, views com <code>security_invoker</code>, buckets privados e admin decidido no servidor. Os dois riscos altos ficam nas bordas desse desenho. Primeiro, o RLS protege cada linha, mas não a relação entre linhas, e a loja pública confia nessa relação (A1). Segundo, limites que custam dinheiro são contados em tabelas que o próprio usuário pode apagar (A3). Nenhum segredo foi encontrado no repositório nem no histórico, e não há ponto de XSS.</p>
+  <table>
+    <tr><th>Categoria</th><th style="width:16%">Achados</th><th style="width:20%">Mais grave</th><th style="width:16%">Pontos fortes</th></tr>
+    <tr><td>1. Banco sem tranca</td><td>5</td><td><span class="chip" style="background:#EA580C">Alta</span></td><td>5</td></tr><tr><td>2. Permissão definida no navegador</td><td>1</td><td><span class="chip" style="background:#EA580C">Alta</span></td><td>2</td></tr><tr><td>3. IDOR</td><td>1</td><td><span class="chip" style="background:#D97706">Média</span></td><td>4</td></tr><tr><td>4. Chaves expostas</td><td>3</td><td><span class="chip" style="background:#2563EB">Baixa</span></td><td>2</td></tr><tr><td>5. Inputs sem tratamento (XSS)</td><td>1</td><td><span class="chip" style="background:#64748B">Informativa</span></td><td>3</td></tr>
+  </table>
+</section>
+
+<section class="secao">
+  <h2>Pontos fortes e pontos fracos</h2>
+  <div class="caixa fraco" style="margin-bottom:12pt">
+    <h3 style="margin-top:0">Pontos fracos (riscos centrais)</h3>
+    <ul><li>O RLS protege a linha, mas não a relação: nenhuma política nem FK garante que o produto_id de uma linha filha é do mesmo dono, e funções SECURITY DEFINER públicas confiam nessa relação (A1, A2).</li><li>Limites que custam dinheiro (IA) e que sustentam o plano pago (vendas/mês) são contados em tabelas que o próprio usuário apaga e edita (A3).</li><li>A service role assina caminhos de arquivo que vêm de colunas e metadados editáveis pelo usuário, sem conferir a pasta do dono (A4). Validações feitas só na server action são contornadas pela API REST.</li><li>Endpoints públicos sem limite de taxa (métricas e cupons) e pequenos endurecimentos pendentes (A5 a A11).</li></ul>
+  </div>
+  <div class="caixa forte">
+    <h3 style="margin-top:0">Pontos fortes (verificados, com evidência)</h3>
+    <ul class="fortes-lista"><li><span class="tag-cat">Isolamento</span>RLS ligado em 100% das 30 tabelas do schema public, com políticas owner_id = auth.uid() e WITH CHECK nos UPDATEs (conferido em produção, não só nas migrations).</li><li><span class="tag-cat">Isolamento</span>As duas views (produtos_com_estoque, parcelas_com_status) têm security_invoker=true: respeitam o RLS de quem consulta.</li><li><span class="tag-cat">Isolamento</span>Buckets logo-empresa, produto-fotos e vitrine-banner privados, com política por pasta (storage.foldername(name))[1] = auth.uid().</li><li><span class="tag-cat">Isolamento</span>Funções públicas (vitrine_publica, vitrine_banner, validar_cupom_vitrine) só respondem para loja ativa e plano pago/teste e não expõem custo, estoque exato nem dados de cliente; recibo_publico exige token UUID aleatório (gen_random_uuid) e devolve só campos do recibo.</li><li><span class="tag-cat">Isolamento</span>Tabelas financeiras sensíveis (assinaturas, comissoes, saques, indicacoes, asaas_eventos) só têm SELECT do dono ou nenhuma política: escrita só pela service role ou por função definer (pedir_saque confere uid e saldo com lock).</li><li><span class="tag-cat">Permissão</span>Admin decidido no servidor por ADMIN_EMAILS + e-mail confirmado, nunca por user_metadata (src/lib/admin.ts:13-17). O menu esconde o link (layout.tsx:24) e o backend repete a checagem em /admin (page.tsx:49), /admin/indicacoes (page.tsx:28) e em todas as ações (admin/actions.ts:18 e 97).</li><li><span class="tag-cat">Permissão</span>Recursos do plano pago (importar histórico, fotos extras, vitrine, banner, cupons) barrados no banco por gatilho ou na função pública, não só na interface.</li><li><span class="tag-cat">IDOR</span>Todas as server actions usam o cliente da sessão: update/delete por id passam pelo RLS (clientes, fornecedores, lançamentos, cupons, variações, fotos, anúncios, canais, formas de pagamento).</li><li><span class="tag-cat">IDOR</span>As RPCs de escrita (registrar_venda, cancelar_venda, pagar_parcela, estoque, excluir_produto, novo_link_recibo, salvar_anuncio_versao) filtram owner_id = auth.uid() em toda leitura e escrita.</li><li><span class="tag-cat">IDOR</span>Usos da service role têm escopo fixo: assinatura sempre .eq('owner_id', user.id); /indique só consulta ids que o RLS já devolveu; webhook e cron não recebem ids de usuário.</li><li><span class="tag-cat">IDOR</span>Webhook do Asaas exige token com timingSafeEqual e é idempotente; cron fechado sem CRON_SECRET; callback de auth só redireciona para caminho interno (bloqueia // e prefixa a origem).</li><li><span class="tag-cat">Segredos</span>Nenhum segredo no código, scripts, README ou nos 155 commits do histórico; .env* no .gitignore; scripts leem a senha do .env.local.</li><li><span class="tag-cat">Segredos</span>Só vão para o bundle variáveis públicas por natureza (URL e anon key do Supabase, chave pública VAPID, ids de GA e Clarity). Nenhum componente 'use client' importa módulo com segredo. Sem defaults ${VAR:-x} nem arquivos de Docker/CI.</li><li><span class="tag-cat">XSS</span>Único dangerouslySetInnerHTML é um script estático de tema (layout.tsx:37-41). Ids de GA e Clarity validados por regex antes de entrar no script (analytics.tsx:8-9).</li><li><span class="tag-cat">XSS</span>Sem renderizador de markdown/HTML; todo texto do lojista e do cliente passa pelo escape do React; o PDF do recibo usa texto do pdf-lib.</li><li><span class="tag-cat">XSS</span>Links com dado do usuário têm prefixo fixo (https://wa.me/, https://instagram.com/) e o banco repete a validação com CHECK (whatsapp só dígitos, instagram [A-Za-z0-9._], cor #RRGGBB, slug).</li></ul>
+  </div>
+</section>
+
+<section class="secao">
+  <h2>Achados por categoria</h2>
+  <div class="bloco-cat"><h3>1. Banco sem tranca</h3>
+    <table class="tab-achados"><tr><th>Id</th><th>Severidade</th><th>Arquivo:linha</th><th>Descrição</th></tr>
+      <tr><td class="id">A1</td><td class="sev"><span class="chip" style="background:#EA580C">Alta</span></td><td class="ref">supabase/migrations/0001_fase1_produtos_estoque_caixa.sql:96-97<br>supabase/migrations/0001_fase1_produtos_estoque_caixa.sql:122-123<br>supabase/migrations/0026_vitrine_extras.sql:71 e 75 (vitrine_publica, SECURITY DEFINER, em produção)<br>supabase/migrations/0011_limite_de_fotos.sql:6-14 (limitar_fotos_produto)</td><td>Tabelas filhas aceitam produto de outro dono e a loja pública mostra essas linhas</td></tr><tr><td class="id">A4</td><td class="sev"><span class="chip" style="background:#D97706">Média</span></td><td class="ref">src/lib/vitrine-servidor.ts:26-28, 31-32 e 36-38<br>src/app/r/[token]/page.tsx:33-36 e src/app/r/[token]/pdf/route.ts:47<br>src/app/(app)/configuracoes/actions.ts:58-66<br>src/app/(app)/vitrine/actions.ts:113 (validação só na action)</td><td>A chave de serviço assina arquivos do Storage cujo caminho o usuário escolhe</td></tr><tr><td class="id">A5</td><td class="sev"><span class="chip" style="background:#2563EB">Baixa</span></td><td class="ref">supabase/migrations/0028_vitrine_cupons_metricas.sql:87-117<br>src/app/loja/[slug]/actions.ts:27-35</td><td>Métricas da vitrine podem ser infladas por qualquer pessoa, sem limite</td></tr><tr><td class="id">A7</td><td class="sev"><span class="chip" style="background:#64748B">Informativa</span></td><td class="ref">produção: proacl de ajustar_estoque, cancelar_venda, excluir_produto, pagar_parcela, registrar_entrada/saida_estoque, registrar_venda, uso_do_plano, aplicar_limites_*<br>supabase/migrations/0029_revogar_execute_anon.sql</td><td>13 funções SECURITY DEFINER executáveis por anon (correção já em PR)</td></tr><tr><td class="id">A11</td><td class="sev"><span class="chip" style="background:#64748B">Informativa</span></td><td class="ref">supabase/migrations/0028_vitrine_cupons_metricas.sql:39 e 56-57</td><td>Validação de cupom sem limite de tentativas</td></tr>
+    </table></div><div class="bloco-cat"><h3>2. Permissão definida no navegador</h3>
+    <table class="tab-achados"><tr><th>Id</th><th>Severidade</th><th>Arquivo:linha</th><th>Descrição</th></tr>
+      <tr><td class="id">A3</td><td class="sev"><span class="chip" style="background:#EA580C">Alta</span></td><td class="ref">supabase/migrations/0017_ia_anuncios_e_recibo.sql:29-33<br>função ia_do_mes (produção), usada pelo gatilho aplicar_limites_ia<br>supabase/migrations/0003_clientes_vendas_parcelas.sql:63-64 + vendas_do_mes<br>src/app/(app)/anuncios/actions.ts:120</td><td>Cota de IA e limite de vendas do plano contados em linhas que o usuário apaga ou edita</td></tr>
+    </table></div><div class="bloco-cat"><h3>3. IDOR</h3>
+    <table class="tab-achados"><tr><th>Id</th><th>Severidade</th><th>Arquivo:linha</th><th>Descrição</th></tr>
+      <tr><td class="id">A2</td><td class="sev"><span class="chip" style="background:#D97706">Média</span></td><td class="ref">src/app/(app)/produtos/actions.ts:494-513<br>src/app/(app)/produtos/actions.ts:396-397 (criarVariacao, para comparação)</td><td>registrarFoto grava foto em qualquer produto_id e com qualquer path</td></tr>
+    </table></div><div class="bloco-cat"><h3>4. Chaves expostas</h3>
+    <table class="tab-achados"><tr><th>Id</th><th>Severidade</th><th>Arquivo:linha</th><th>Descrição</th></tr>
+      <tr><td class="id">A6</td><td class="sev"><span class="chip" style="background:#2563EB">Baixa</span></td><td class="ref">scripts/run-migrations.mjs:32-38<br>scripts/confirm-test-user.mjs:25-31</td><td>Scripts conectam como postgres sem verificar o certificado TLS</td></tr><tr><td class="id">A8</td><td class="sev"><span class="chip" style="background:#64748B">Informativa</span></td><td class="ref">src/app/api/cron/cobrancas/route.ts:8</td><td>CRON_SECRET comparado sem tempo constante</td></tr><tr><td class="id">A9</td><td class="sev"><span class="chip" style="background:#64748B">Informativa</span></td><td class="ref">src/lib/supabase/admin.ts:1-10</td><td>Cliente service role sem a guarda server-only</td></tr>
+    </table></div><div class="bloco-cat"><h3>5. Inputs sem tratamento (XSS)</h3>
+    <table class="tab-achados"><tr><th>Id</th><th>Severidade</th><th>Arquivo:linha</th><th>Descrição</th></tr>
+      <tr><td class="id">A10</td><td class="sev"><span class="chip" style="background:#64748B">Informativa</span></td><td class="ref">next.config.ts:3-8</td><td>Sem Content-Security-Policy nem cabeçalhos de segurança</td></tr>
+    </table></div>
+</section>
+
+<section class="secao">
+  <h2>Detalhe dos achados</h2>
+  <div class="achado" style="border-left-color:#EA580C">
+    <h4>A1 · Tabelas filhas aceitam produto de outro dono e a loja pública mostra essas linhas <span class="chip" style="background:#EA580C">Alta</span></h4>
+    <p><span class="rot">Categoria:</span> Banco sem tranca</p>
+    <div class="ref-arq">supabase/migrations/0001_fase1_produtos_estoque_caixa.sql:96-97</div><pre class="trecho">create policy &quot;produto_variacoes_insert_own&quot; on produto_variacoes
+  for insert with check (owner_id = auth.uid());</pre><div class="ref-arq">supabase/migrations/0001_fase1_produtos_estoque_caixa.sql:122-123</div><pre class="trecho">create policy &quot;produto_fotos_insert_own&quot; on produto_fotos
+  for insert with check (owner_id = auth.uid());</pre><div class="ref-arq">supabase/migrations/0026_vitrine_extras.sql:71 e 75 (vitrine_publica, SECURITY DEFINER, em produção)</div><pre class="trecho">from produto_variacoes v where v.produto_id = p.id
+...
+from produto_fotos f where f.produto_id = p.id</pre><div class="ref-arq">supabase/migrations/0011_limite_de_fotos.sql:6-14 (limitar_fotos_produto)</div><pre class="trecho">select count(*) from produto_fotos
+where produto_id = new.produto_id
+  and variacao_id is not distinct from new.variacao_id
+) &gt;= 10 then raise exception 'Limite de 10 fotos atingido.';</pre>
+    <p><span class="rot">O que acontece:</span> As políticas de INSERT/UPDATE conferem só o owner_id da linha nova, nunca se o produto_id pertence ao mesmo dono. As FKs são de coluna única e a checagem de FK ignora RLS, então qualquer conta logada grava em produto_variacoes ou produto_fotos uma linha sua apontando para o produto de outra pessoa. A função vitrine_publica roda como dono do banco e junta variações e fotos só por produto_id.</p>
+    <p><span class="rot">Como explorar:</span> Conta grátis basta. O atacante pega o id do produto no HTML de /loja/&lt;slug&gt; ou no link ?p=&lt;id&gt;, e com a anon key (pública no bundle) e o próprio JWT faz POST em /rest/v1/produto_variacoes com nome e preco_venda escolhidos, ou em /rest/v1/produto_fotos com uma imagem da própria pasta. A variação falsa (ex.: preço R$ 1,00) e a foto aparecem na loja da vítima, que não vê nada no app porque o RLS esconde linhas de outro dono. Inserindo 10 fotos, o gatilho de limite passa a recusar fotos novas da própria vítima naquele produto.</p>
+    <p><span class="rot">Condição:</span> A loja da vítima precisa estar no ar (vitrine ativa e plano pago ou teste de 14 dias). <span class="rot">Impacto:</span> Fraude de preço e conteúdo ofensivo na loja de terceiros, dano de reputação, bloqueio do envio de fotos.</p>
+  </div><div class="achado" style="border-left-color:#D97706">
+    <h4>A2 · registrarFoto grava foto em qualquer produto_id e com qualquer path <span class="chip" style="background:#D97706">Média</span></h4>
+    <p><span class="rot">Categoria:</span> IDOR</p>
+    <div class="ref-arq">src/app/(app)/produtos/actions.ts:494-513</div><pre class="trecho">export async function registrarFoto(produtoId: string, path: string, ordem: number, variacaoId: string | null = null) {
+  ...
+  const { error } = await supabase.from(&quot;produto_fotos&quot;).insert({
+    owner_id: user.id,
+    produto_id: produtoId,
+    variacao_id: variacaoId,
+    path,
+    ordem,
+  });</pre><div class="ref-arq">src/app/(app)/produtos/actions.ts:396-397 (criarVariacao, para comparação)</div><pre class="trecho">const { data: produto } = await supabase.from(&quot;produtos&quot;).select(...).eq(&quot;id&quot;, produtoId).maybeSingle();
+if (!produto) return { ok: false, error: &quot;Produto não encontrado.&quot; };</pre>
+    <p><span class="rot">O que acontece:</span> Server action é rota pública com POST. registrarFoto recebe produtoId e path do cliente e insere sem conferir que o produto é do usuário (criarVariacao confere) nem que o path está na pasta dele. É o caminho pela própria aplicação do problema A1, sem nem precisar da API REST.</p>
+    <p><span class="rot">Como explorar:</span> Chamar a action com o id de produto de outra loja e um path qualquer. Mesmo efeito do A1 na loja pública e alimenta o A4 (path de outra pessoa).</p>
+    <p><span class="rot">Condição:</span> Usuário logado. <span class="rot">Impacto:</span> Mesmo do A1 e do A4.</p>
+  </div><div class="achado" style="border-left-color:#EA580C">
+    <h4>A3 · Cota de IA e limite de vendas do plano contados em linhas que o usuário apaga ou edita <span class="chip" style="background:#EA580C">Alta</span></h4>
+    <p><span class="rot">Categoria:</span> Permissão definida no navegador</p>
+    <div class="ref-arq">supabase/migrations/0017_ia_anuncios_e_recibo.sql:29-33</div><pre class="trecho">create policy &quot;ia_geracoes_update_own&quot; on ia_geracoes
+  for update using (owner_id = auth.uid());
+-- apagar só para devolver a cota quando a geração falha
+create policy &quot;ia_geracoes_delete_own&quot; on ia_geracoes
+  for delete using (owner_id = auth.uid());</pre><div class="ref-arq">função ia_do_mes (produção), usada pelo gatilho aplicar_limites_ia</div><pre class="trecho">select count(*)::integer from ia_geracoes
+where owner_id = p_owner
+  and created_at &gt;= (date_trunc('month', ...))</pre><div class="ref-arq">supabase/migrations/0003_clientes_vendas_parcelas.sql:63-64 + vendas_do_mes</div><pre class="trecho">create policy &quot;vendas_update_own&quot; on vendas
+  for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+-- conferido: authenticated tem UPDATE na coluna created_at e DELETE na tabela</pre><div class="ref-arq">src/app/(app)/anuncios/actions.ts:120</div><pre class="trecho">await supabase.from(&quot;ia_geracoes&quot;).delete().eq(&quot;id&quot;, registro.id);</pre>
+    <p><span class="rot">O que acontece:</span> O limite mensal de IA (10 no grátis, 30 no pago) é count(*) em ia_geracoes, e o dono tem DELETE e UPDATE (inclusive em created_at) nessa tabela. O limite de 30 vendas por mês do plano grátis é count(*) em vendas por created_at, coluna que o dono também pode alterar.</p>
+    <p><span class="rot">Como explorar:</span> Depois de cada geração, DELETE em /rest/v1/ia_geracoes?id=eq.&lt;id&gt; (ou PATCH created_at para o mês passado) devolve a cota. Em script, gera anúncios sem teto, cada um uma chamada paga à API da Anthropic na conta do UseMarcon. No grátis, PATCH em vendas.created_at libera vendas acima de 30 no mês.</p>
+    <p><span class="rot">Condição:</span> Usuário logado; para a IA, ANTHROPIC_API_KEY configurada no servidor. <span class="rot">Impacto:</span> Custo direto e sem teto na API da Anthropic; o limite do plano grátis deixa de valer, reduzindo o motivo para assinar.</p>
+  </div><div class="achado" style="border-left-color:#D97706">
+    <h4>A4 · A chave de serviço assina arquivos do Storage cujo caminho o usuário escolhe <span class="chip" style="background:#D97706">Média</span></h4>
+    <p><span class="rot">Categoria:</span> Banco sem tranca</p>
+    <div class="ref-arq">src/lib/vitrine-servidor.ts:26-28, 31-32 e 36-38</div><pre class="trecho">const paths = [...new Set(bruta.produtos.flatMap((p) =&gt; p.fotos.map((f) =&gt; f.path)))];
+await admin.storage.from(&quot;produto-fotos&quot;).createSignedUrls(paths, 3600);
+await admin.storage.from(&quot;logo-empresa&quot;).createSignedUrl(bruta.loja.logo_path, 3600);
+await admin.storage.from(&quot;vitrine-banner&quot;).createSignedUrls(bannerBruto.paths, 3600)</pre><div class="ref-arq">src/app/r/[token]/page.tsx:33-36 e src/app/r/[token]/pdf/route.ts:47</div><pre class="trecho">await admin.storage.from(&quot;logo-empresa&quot;).createSignedUrl(empresa.logo_path, 3600)</pre><div class="ref-arq">src/app/(app)/configuracoes/actions.ts:58-66</div><pre class="trecho">export async function atualizarLogoEmpresa(path: string | null) {
+  ...
+  await supabase.auth.updateUser({ data: { empresa_logo_path: path } });</pre><div class="ref-arq">src/app/(app)/vitrine/actions.ts:113 (validação só na action)</div><pre class="trecho">if (!path.startsWith(`${user.id}/`) || path.includes(&quot;..&quot;)) return { ok: false, error: &quot;Imagem inválida.&quot; };</pre>
+    <p><span class="rot">O que acontece:</span> Os buckets são privados e a política de Storage limita cada usuário à própria pasta. Mas a loja e o recibo assinam, com a service role (que ignora essa política), caminhos vindos de produto_fotos.path (sem CHECK), vitrines.banner_paths (o CHECK só limita a 3 itens) e user_metadata.empresa_logo_path (o próprio usuário edita com auth.updateUser, direto do navegador). A checagem de pasta de adicionarImagemBanner é contornada com PATCH direto em /rest/v1/vitrines.</p>
+    <p><span class="rot">Como explorar:</span> Quem conhece o caminho de um arquivo privado de outra conta grava esse caminho na própria loja ou no próprio logo e recebe um link assinado válido por 1 hora, renovável. Os nomes têm Date.now() em milissegundos, então não dá para adivinhar no escuro, mas os caminhos aparecem nas URLs assinadas sempre que a imagem foi pública. Ex.: o vendedor tira um produto da vitrine e as fotos continuam acessíveis para quem guardou o caminho.</p>
+    <p><span class="rot">Condição:</span> Conhecer o caminho exato do arquivo; para a vitrine, loja própria ativa (o recibo não exige plano). <span class="rot">Impacto:</span> Leitura de imagens privadas de outras contas e 'despublicar' que não revoga o acesso.</p>
+  </div><div class="achado" style="border-left-color:#2563EB">
+    <h4>A5 · Métricas da vitrine podem ser infladas por qualquer pessoa, sem limite <span class="chip" style="background:#2563EB">Baixa</span></h4>
+    <p><span class="rot">Categoria:</span> Banco sem tranca</p>
+    <div class="ref-arq">supabase/migrations/0028_vitrine_cupons_metricas.sql:87-117</div><pre class="trecho">create or replace function registrar_evento_vitrine(p_slug text, p_tipo text, p_produto uuid default null) ... security definer
+...
+grant execute on function registrar_evento_vitrine(text, text, uuid) to anon, authenticated;</pre><div class="ref-arq">src/app/loja/[slug]/actions.ts:27-35</div><pre class="trecho">await supabase.rpc(&quot;registrar_evento_vitrine&quot;, { p_slug: s, p_tipo: tipo, p_produto: produtoId ?? null });</pre>
+    <p><span class="rot">O que acontece:</span> A função é pública por desenho (a loja abre sem login), mas não há limite por IP, sessão ou janela de tempo.</p>
+    <p><span class="rot">Como explorar:</span> Um laço chamando /rest/v1/rpc/registrar_evento_vitrine com o slug de qualquer loja soma visitas, pedidos e aberturas de produto à vontade.</p>
+    <p><span class="rot">Condição:</span> Nenhuma: anon key pública. <span class="rot">Impacto:</span> Números de visitas e pedidos na página Vitrine deixam de ser confiáveis; crescimento de tabela.</p>
+  </div><div class="achado" style="border-left-color:#2563EB">
+    <h4>A6 · Scripts conectam como postgres sem verificar o certificado TLS <span class="chip" style="background:#2563EB">Baixa</span></h4>
+    <p><span class="rot">Categoria:</span> Chaves expostas</p>
+    <div class="ref-arq">scripts/run-migrations.mjs:32-38</div><pre class="trecho">user: &quot;postgres&quot;,
+password,
+database: &quot;postgres&quot;,
+ssl: { rejectUnauthorized: false },</pre><div class="ref-arq">scripts/confirm-test-user.mjs:25-31</div><pre class="trecho">user: &quot;postgres&quot;,
+password: env.SUPABASE_DB_PASSWORD,
+ssl: { rejectUnauthorized: false },</pre>
+    <p><span class="rot">O que acontece:</span> A senha do superusuário vem do .env.local (correto, nada hardcoded), mas a conexão aceita qualquer certificado.</p>
+    <p><span class="rot">Como explorar:</span> Quem estiver no meio da rede (Wi-Fi público, proxy) intercepta a conexão e captura a senha do postgres.</p>
+    <p><span class="rot">Condição:</span> Rodar os scripts numa rede hostil. <span class="rot">Impacto:</span> Acesso total ao banco de produção.</p>
+  </div><div class="achado" style="border-left-color:#64748B">
+    <h4>A7 · 13 funções SECURITY DEFINER executáveis por anon (correção já em PR) <span class="chip" style="background:#64748B">Informativa</span></h4>
+    <p><span class="rot">Categoria:</span> Banco sem tranca</p>
+    <div class="ref-arq">produção: proacl de ajustar_estoque, cancelar_venda, excluir_produto, pagar_parcela, registrar_entrada/saida_estoque, registrar_venda, uso_do_plano, aplicar_limites_*</div><pre class="trecho">{=X/postgres,...,anon=X/postgres,authenticated=X/postgres,...}</pre><div class="ref-arq">supabase/migrations/0029_revogar_execute_anon.sql</div><pre class="trecho">revoke execute on function ... from public, anon;</pre>
+    <p><span class="rot">O que acontece:</span> Lidas uma a uma: todas barram uid nulo, explicitamente ou porque filtram owner_id = auth.uid(). Não há vazamento hoje; é defesa em profundidade.</p>
+    <p><span class="rot">Como explorar:</span> Nenhuma conhecida. A migration 0029 (PR HenriqueFauri/Marcon#61) revoga, aguardando aplicação em produção.</p>
+    <p><span class="rot">Condição:</span> - <span class="rot">Impacto:</span> Superfície de ataque maior que o necessário.</p>
+  </div><div class="achado" style="border-left-color:#64748B">
+    <h4>A8 · CRON_SECRET comparado sem tempo constante <span class="chip" style="background:#64748B">Informativa</span></h4>
+    <p><span class="rot">Categoria:</span> Chaves expostas</p>
+    <div class="ref-arq">src/app/api/cron/cobrancas/route.ts:8</div><pre class="trecho">if (!segredo || request.headers.get(&quot;authorization&quot;) !== `Bearer ${segredo}`) {</pre>
+    <p><span class="rot">O que acontece:</span> O webhook do Asaas usa timingSafeEqual; o cron usa !==.</p>
+    <p><span class="rot">Como explorar:</span> Ataque de tempo pela internet é impraticável aqui; registro por consistência.</p>
+    <p><span class="rot">Condição:</span> - <span class="rot">Impacto:</span> Mínimo.</p>
+  </div><div class="achado" style="border-left-color:#64748B">
+    <h4>A9 · Cliente service role sem a guarda server-only <span class="chip" style="background:#64748B">Informativa</span></h4>
+    <p><span class="rot">Categoria:</span> Chaves expostas</p>
+    <div class="ref-arq">src/lib/supabase/admin.ts:1-10</div><pre class="trecho">import { createClient } from &quot;@supabase/supabase-js&quot;;
+// ... Nunca importar em código de cliente.
+export function createAdminClient() {</pre>
+    <p><span class="rot">O que acontece:</span> Conferido: nenhum componente 'use client' importa o módulo hoje, e a chave não tem prefixo NEXT_PUBLIC_, então não iria para o bundle. A regra está só num comentário.</p>
+    <p><span class="rot">Como explorar:</span> Nenhuma hoje.</p>
+    <p><span class="rot">Condição:</span> - <span class="rot">Impacto:</span> Proteção contra regressão futura.</p>
+  </div><div class="achado" style="border-left-color:#64748B">
+    <h4>A10 · Sem Content-Security-Policy nem cabeçalhos de segurança <span class="chip" style="background:#64748B">Informativa</span></h4>
+    <p><span class="rot">Categoria:</span> Inputs sem tratamento (XSS)</p>
+    <div class="ref-arq">next.config.ts:3-8</div><pre class="trecho">const nextConfig: NextConfig = {
+  async redirects() { ... },
+};</pre>
+    <p><span class="rot">O que acontece:</span> Nenhum XSS foi encontrado, mas não há CSP, X-Frame-Options/frame-ancestors nem Referrer-Policy que limitem o dano se um aparecer.</p>
+    <p><span class="rot">Como explorar:</span> Nenhuma direta.</p>
+    <p><span class="rot">Condição:</span> - <span class="rot">Impacto:</span> Defesa em profundidade e proteção contra clickjacking no app logado.</p>
+  </div><div class="achado" style="border-left-color:#64748B">
+    <h4>A11 · Validação de cupom sem limite de tentativas <span class="chip" style="background:#64748B">Informativa</span></h4>
+    <p><span class="rot">Categoria:</span> Banco sem tranca</p>
+    <div class="ref-arq">supabase/migrations/0028_vitrine_cupons_metricas.sql:39 e 56-57</div><pre class="trecho">create or replace function validar_cupom_vitrine(p_slug text, p_codigo text) returns jsonb
+...
+grant execute on function validar_cupom_vitrine(text, text) to anon, authenticated;</pre>
+    <p><span class="rot">O que acontece:</span> Qualquer pessoa testa códigos à vontade. Cupons são feitos para circular, mas um cupom 'secreto' (ex.: para um influenciador) pode ser descoberto por força bruta se for curto.</p>
+    <p><span class="rot">Como explorar:</span> Laço de tentativas em /rest/v1/rpc/validar_cupom_vitrine.</p>
+    <p><span class="rot">Condição:</span> Cupom curto ou previsível. <span class="rot">Impacto:</span> Desconto usado por quem não deveria.</p>
+  </div>
+</section>
+
+<section class="secao">
+  <h2>Recomendações priorizadas</h2>
+  <div class="rec"><div class="p" style="background:#EA580C">P1</div><div><b>Amarrar produto_id ao dono no banco</b><br>Políticas WITH CHECK (ou gatilho) que exigem o produto do mesmo owner_id em produto_variacoes, produto_fotos, produto_anuncios e ia_geracoes; filtrar v.owner_id/f.owner_id = p.owner_id em vitrine_publica; checar posse em registrarFoto; limpar linhas cruzadas existentes. (A1, A2)</div></div><div class="rec"><div class="p" style="background:#EA580C">P1</div><div><b>Tirar do usuário o controle da contagem dos limites</b><br>Remover DELETE/UPDATE de ia_geracoes para authenticated (devolução de cota por função definer ou pela service role) e impedir alteração de vendas.created_at. (A3)</div></div><div class="rec"><div class="p" style="background:#D97706">P2</div><div><b>Conferir a pasta antes de assinar</b><br>CHECK de prefixo owner_id/ em produto_fotos.path e vitrines.banner_paths; as funções públicas só devolvem logo_path dentro da pasta do dono; validação de path em atualizarLogoEmpresa e registrarFoto. (A4)</div></div><div class="rec"><div class="p" style="background:#D97706">P2</div><div><b>Aplicar a migration 0029</b><br>Revoga execute de anon nas 13 funções SECURITY DEFINER (PR HenriqueFauri/Marcon#61). (A7)</div></div><div class="rec"><div class="p" style="background:#2563EB">P3</div><div><b>Limite de taxa nos endpoints públicos</b><br>Limite por IP/sessão em registrar_evento_vitrine e validar_cupom_vitrine. (A5, A11)</div></div><div class="rec"><div class="p" style="background:#64748B">P4</div><div><b>Endurecimento</b><br>TLS verificado nos scripts, comparação em tempo constante no cron, import 'server-only' no cliente admin, CSP e cabeçalhos de segurança. (A6, A8, A9, A10)</div></div>
+  <p class="nota" style="margin-top:10pt">O achado A7 não vira issue: a correção já está no PR HenriqueFauri/Marcon#61 e só falta aplicar a migration 0029 em produção.</p>
+</section>
+
+<section class="secao">
+  <h2>Issues para o GitHub</h2>
+  <p>Cada bloco abaixo é o texto completo de uma issue em Markdown. Copie o que está entre as marcas <code>--- ISSUE n ---</code> e <code>--- FIM ISSUE n ---</code>: a primeira linha (<code># ...</code>) é o título.</p>
+  <div class="issue">
+    <p class="marca">--- ISSUE 1 ---</p>
+    <pre># [Segurança] Outra conta consegue injetar variações e fotos na loja pública de um vendedor
+
+**Labels sugeridas:** `security`, `alta`
+**Achados do relatório:** A1, A2
+
+## Problema e por que é explorável
+As políticas RLS de `produto_variacoes` e `produto_fotos` conferem só `owner_id = auth.uid()` da linha nova. Não conferem se o `produto_id` pertence ao mesmo dono, e a FK (coluna única) ignora RLS. A função pública `vitrine_publica` (SECURITY DEFINER) junta variações e fotos só por `produto_id`. A server action `registrarFoto` também insere sem conferir posse.
+
+Qualquer conta logada (grátis serve) pega o id de um produto no HTML de `/loja/&lt;slug&gt;`, chama `POST /rest/v1/produto_variacoes` com a anon key e o próprio JWT, e a variação aparece na loja da vítima com nome e preço escolhidos pelo atacante. O mesmo vale para fotos. Com 10 fotos inseridas, o gatilho `limitar_fotos_produto` passa a recusar fotos da própria vítima.
+
+## Evidência
+- `supabase/migrations/0001_fase1_produtos_estoque_caixa.sql:96-97` e `:122-123`
+  ```sql
+  create policy &quot;produto_variacoes_insert_own&quot; on produto_variacoes
+    for insert with check (owner_id = auth.uid());
+  create policy &quot;produto_fotos_insert_own&quot; on produto_fotos
+    for insert with check (owner_id = auth.uid());
+  ```
+- `supabase/migrations/0026_vitrine_extras.sql:71` e `:75` (vitrine_publica)
+  ```sql
+  from produto_variacoes v where v.produto_id = p.id
+  from produto_fotos f where f.produto_id = p.id
+  ```
+- `src/app/(app)/produtos/actions.ts:494-513`
+  ```ts
+  const { error } = await supabase.from(&quot;produto_fotos&quot;).insert({
+    owner_id: user.id, produto_id: produtoId, variacao_id: variacaoId, path, ordem,
+  });
+  ```
+- `supabase/migrations/0011_limite_de_fotos.sql:6-14`: o limite de 10 conta fotos por `produto_id`, de qualquer dono.
+
+## Impacto
+Fraude de preço e conteúdo ofensivo na loja de terceiros, dano de reputação para o vendedor e para o UseMarcon, bloqueio do envio de fotos.
+
+## Sugestão de correção
+1. Migration nova trocando os WITH CHECK de INSERT e UPDATE em `produto_variacoes`, `produto_fotos`, `produto_anuncios` e `ia_geracoes` para:
+   ```sql
+   with check (
+     owner_id = auth.uid()
+     and exists (select 1 from produtos p where p.id = produto_id and p.owner_id = auth.uid())
+   )
+   ```
+   (ou um gatilho BEFORE INSERT OR UPDATE que compare `owner_id` com o dono do produto, o que também cobre a service role).
+2. Em `vitrine_publica`, filtrar `v.owner_id = p.owner_id` e `f.owner_id = p.owner_id`.
+3. Em `limitar_fotos_produto` e `aplicar_limites_foto`, contar só fotos com `owner_id = new.owner_id`.
+4. Em `registrarFoto`, buscar o produto com o cliente da sessão antes de inserir (como `criarVariacao` já faz).
+5. Limpar o que já existir:
+   ```sql
+   select 'variacao', v.id from produto_variacoes v join produtos p on p.id = v.produto_id where v.owner_id &lt;&gt; p.owner_id
+   union all
+   select 'foto', f.id from produto_fotos f join produtos p on p.id = f.produto_id where f.owner_id &lt;&gt; p.owner_id;
+   ```
+
+## Critérios de aceite
+- [ ] Com o JWT da conta B, `POST /rest/v1/produto_variacoes` com `produto_id` de um produto da conta A é recusado (erro de RLS).
+- [ ] O mesmo para `produto_fotos`, `produto_anuncios` e `ia_geracoes`.
+- [ ] `registrarFoto` com produto de outra conta devolve &quot;Produto não encontrado.&quot;.
+- [ ] `vitrine_publica` não devolve variação nem foto cujo `owner_id` é diferente do dono do produto.
+- [ ] A consulta de limpeza devolve zero linhas em produção depois da migration.
+- [ ] Cadastro de variação e envio de foto continuam funcionando para o próprio dono.</pre>
+    <p class="marca">--- FIM ISSUE 1 ---</p>
+  </div><div class="issue">
+    <p class="marca">--- ISSUE 2 ---</p>
+    <pre># [Segurança] Cota de IA e limite de vendas do plano podem ser zerados pelo próprio usuário
+
+**Labels sugeridas:** `security`, `alta`
+**Achados do relatório:** A3
+
+## Problema e por que é explorável
+O limite mensal de escritas com IA é `count(*)` em `ia_geracoes` (função `ia_do_mes`), e o dono tem políticas de DELETE e UPDATE nessa tabela, além de privilégio de UPDATE em `created_at`. Basta apagar a linha (ou mudar a data) depois de cada geração para a cota voltar. Cada geração é uma chamada paga à API da Anthropic.
+
+O limite de 30 vendas/mês do plano grátis é `count(*)` em `vendas` por `created_at`, coluna que o dono também pode alterar via `PATCH /rest/v1/vendas`.
+
+## Evidência
+- `supabase/migrations/0017_ia_anuncios_e_recibo.sql:29-33`
+  ```sql
+  create policy &quot;ia_geracoes_update_own&quot; on ia_geracoes
+    for update using (owner_id = auth.uid());
+  create policy &quot;ia_geracoes_delete_own&quot; on ia_geracoes
+    for delete using (owner_id = auth.uid());
+  ```
+- Função `ia_do_mes` (produção): `select count(*)::integer from ia_geracoes where owner_id = p_owner and created_at &gt;= ...`
+- `supabase/migrations/0003_clientes_vendas_parcelas.sql:63-64`: `vendas_update_own` sem restrição de coluna; `has_column_privilege('authenticated','public.vendas','created_at','UPDATE')` = true.
+- `src/app/(app)/anuncios/actions.ts:120`: o app apaga a linha para devolver a cota quando a IA falha, motivo da política de DELETE.
+
+## Impacto
+Custo sem teto na conta da Anthropic do UseMarcon; o limite do plano grátis deixa de valer.
+
+## Sugestão de correção
+1. `drop policy &quot;ia_geracoes_delete_own&quot;` e `drop policy &quot;ia_geracoes_update_own&quot;`.
+2. Devolver a cota de outro jeito: função `devolver_cota_ia(p_id uuid)` SECURITY DEFINER que só apaga linha do próprio usuário criada há menos de 2 minutos e ainda sem tokens registrados; gravar os tokens com a service role ou por outra função definer.
+3. Em `vendas` (e `ia_geracoes`), impedir mudança de `created_at`: gatilho BEFORE UPDATE com `new.created_at := old.created_at`, ou `revoke update (created_at)` de authenticated.
+4. Avaliar contar o uso mensal numa tabela de contadores só gravável por função definer, para que apagar vendas também não libere cota.
+
+## Critérios de aceite
+- [ ] Com o JWT do usuário, `DELETE /rest/v1/ia_geracoes?id=eq.&lt;id&gt;` não apaga nada (0 linhas).
+- [ ] `PATCH` em `created_at` de `ia_geracoes` e de `vendas` não muda o valor.
+- [ ] Quando a chamada à IA falha, a cota continua sendo devolvida (teste com chave inválida).
+- [ ] Depois de 10 gerações no plano grátis, a 11ª é recusada mesmo após tentativas de apagar ou editar linhas.</pre>
+    <p class="marca">--- FIM ISSUE 2 ---</p>
+  </div><div class="issue">
+    <p class="marca">--- ISSUE 3 ---</p>
+    <pre># [Segurança] Chave de serviço assina arquivos do Storage fora da pasta do dono
+
+**Labels sugeridas:** `security`, `média`
+**Achados do relatório:** A4
+
+## Problema e por que é explorável
+A loja (`buscarVitrine`) e o recibo (`/r/[token]` e o PDF) assinam com a service role caminhos vindos de `produto_fotos.path`, `vitrines.banner_paths` e `user_metadata.empresa_logo_path`. Os três são editáveis pelo usuário (os metadados pelo próprio `auth.updateUser` no navegador), e nada confere que o caminho começa com o id do dono. A checagem de pasta em `adicionarImagemBanner` existe só na server action e é contornada com `PATCH /rest/v1/vitrines`.
+
+Quem conhece o caminho de um arquivo privado de outra conta (por exemplo, de uma foto que já foi pública e saiu da vitrine) consegue um link assinado novo sempre que quiser.
+
+## Evidência
+- `src/lib/vitrine-servidor.ts:26-28, 31-32, 36-38`
+  ```ts
+  await admin.storage.from(&quot;produto-fotos&quot;).createSignedUrls(paths, 3600);
+  await admin.storage.from(&quot;logo-empresa&quot;).createSignedUrl(bruta.loja.logo_path, 3600);
+  await admin.storage.from(&quot;vitrine-banner&quot;).createSignedUrls(bannerBruto.paths, 3600)
+  ```
+- `src/app/r/[token]/page.tsx:33-36` e `src/app/r/[token]/pdf/route.ts:47`: mesmo padrão com o logo.
+- `src/app/(app)/configuracoes/actions.ts:66`: `updateUser({ data: { empresa_logo_path: path } })` sem validar o path.
+- `src/app/(app)/vitrine/actions.ts:113`: `` path.startsWith(`${user.id}/`) `` só na action. No banco, `vitrines_banner_paths_check` só limita a 3 itens.
+
+## Impacto
+Leitura de imagens privadas de outras contas; tirar um produto da vitrine não revoga o acesso a quem guardou o caminho.
+
+## Sugestão de correção
+1. CHECK em `produto_fotos`: `path like owner_id::text || '/%' and path not like '%..%'`.
+2. CHECK (ou gatilho) em `vitrines`: todo item de `banner_paths` começa com `owner_id::text || '/'`.
+3. Em `vitrine_publica` e `recibo_publico`, devolver `logo_path` só se `starts_with(logo_path, owner_id::text || '/')`. Melhor ainda: mover o logo de `user_metadata` para uma coluna de tabela com CHECK.
+4. Validar o prefixo também em `atualizarLogoEmpresa` e `registrarFoto`.
+5. Rodar uma consulta para achar caminhos atuais fora da pasta do dono.
+
+## Critérios de aceite
+- [ ] Inserir em `produto_fotos` um path de outra pasta é recusado pelo banco.
+- [ ] `PATCH /rest/v1/vitrines` com `banner_paths` de outra pasta é recusado.
+- [ ] Logo apontado (via `auth.updateUser`) para arquivo de outra conta não aparece no recibo nem na loja.
+- [ ] Envio de fotos, banner e logo continua funcionando para o dono.</pre>
+    <p class="marca">--- FIM ISSUE 3 ---</p>
+  </div><div class="issue">
+    <p class="marca">--- ISSUE 4 ---</p>
+    <pre># [Segurança] Métricas da vitrine e validação de cupom sem limite de taxa
+
+**Labels sugeridas:** `security`, `baixa`
+**Achados do relatório:** A5, A11
+
+## Problema e por que é explorável
+`registrar_evento_vitrine` e `validar_cupom_vitrine` são públicas por desenho, mas não têm limite de chamadas. Qualquer pessoa infla visitas, pedidos e aberturas de produto de qualquer loja, e testa códigos de cupom por força bruta.
+
+## Evidência
+- `supabase/migrations/0028_vitrine_cupons_metricas.sql:87-117` (registrar_evento_vitrine, grant para anon na linha 117)
+- `supabase/migrations/0028_vitrine_cupons_metricas.sql:39` e `:56-57` (validar_cupom_vitrine, grant para anon)
+- `src/app/loja/[slug]/actions.ts:11-35`: as actions só validam formato.
+
+## Impacto
+Métricas não confiáveis na página Vitrine; cupom restrito descoberto e usado por terceiros.
+
+## Sugestão de correção
+1. Revogar execute de anon nas duas funções e chamá-las só pelas server actions (que rodam no servidor).
+2. Nas actions, limitar por IP (cabeçalho `x-forwarded-for` da Vercel) e por slug numa janela curta, com tabela de contagem ou KV.
+3. Contar visita no máximo uma vez por visitante por dia (cookie anônimo).
+4. Orientar no app que cupom restrito tenha 8 caracteres ou mais.
+
+## Critérios de aceite
+- [ ] Chamada direta a `/rest/v1/rpc/registrar_evento_vitrine` com a anon key é recusada.
+- [ ] 100 chamadas seguidas da mesma origem à action contam no máximo o limite definido.
+- [ ] Validação de cupom bloqueia temporariamente após N tentativas erradas por IP.</pre>
+    <p class="marca">--- FIM ISSUE 4 ---</p>
+  </div><div class="issue">
+    <p class="marca">--- ISSUE 5 ---</p>
+    <pre># [Segurança] Endurecimento: TLS nos scripts, comparação do CRON_SECRET, server-only e CSP
+
+**Labels sugeridas:** `security`, `baixa`
+**Achados do relatório:** A6, A8, A9, A10
+
+## Problema e por que é explorável
+Pequenos ajustes de defesa em profundidade, agrupados para não gerar várias issues:
+- Os scripts de banco conectam como `postgres` com `ssl: { rejectUnauthorized: false }`: numa rede hostil a senha do superusuário pode ser capturada.
+- O cron compara o segredo com `!==` (o webhook já usa `timingSafeEqual`).
+- O cliente service role não importa `server-only`; a regra está só num comentário.
+- Não há CSP nem cabeçalhos como `frame-ancestors`/`X-Frame-Options` e `Referrer-Policy`.
+
+## Evidência
+- `scripts/run-migrations.mjs:38` e `scripts/confirm-test-user.mjs:31`: `ssl: { rejectUnauthorized: false }`
+- `src/app/api/cron/cobrancas/route.ts:8`: `` request.headers.get(&quot;authorization&quot;) !== `Bearer ${segredo}` ``
+- `src/lib/supabase/admin.ts:1-10`: sem `import &quot;server-only&quot;`
+- `next.config.ts:3-8`: só `redirects()`, sem `headers()`
+
+## Impacto
+Baixo hoje; reduz o dano de erros futuros e o risco de vazar a senha do banco.
+
+## Sugestão de correção
+1. Nos scripts, usar `ssl: { rejectUnauthorized: true, ca: &lt;certificado do Supabase&gt; }` ou a connection string do pooler com `sslmode=verify-full`.
+2. No cron, comparar com `timingSafeEqual`, igual ao webhook.
+3. Adicionar o pacote `server-only` e `import &quot;server-only&quot;` em `src/lib/supabase/admin.ts`, `src/lib/asaas.ts` e `src/lib/ia-anuncio.ts`.
+4. Em `next.config.ts`, `headers()` com `Content-Security-Policy` (scripts próprios, GA, Clarity; `frame-ancestors 'none'`), `Referrer-Policy: strict-origin-when-cross-origin` e `X-Content-Type-Options: nosniff`. Começar em `Content-Security-Policy-Report-Only`.
+
+## Critérios de aceite
+- [ ] Scripts falham ao conectar se o certificado não for o do Supabase.
+- [ ] Cron usa comparação em tempo constante.
+- [ ] Importar `@/lib/supabase/admin` num componente `'use client'` quebra o build.
+- [ ] Resposta das páginas traz CSP (report-only no primeiro deploy) sem quebrar GA, Clarity e a loja.</pre>
+    <p class="marca">--- FIM ISSUE 5 ---</p>
+  </div>
+</section>
+
+</body></html>

@@ -1,11 +1,20 @@
+import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarCobrancasDoDia } from "@/lib/push/eventos";
+
+// comparação em tempo constante, como no webhook do Asaas
+function segredoConfere(recebido: string | null, esperado: string) {
+  if (!recebido) return false;
+  const a = Buffer.from(recebido);
+  const b = Buffer.from(`Bearer ${esperado}`);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 // Chamada diária por um agendador (ver vercel.json). O agendador envia
 // "Authorization: Bearer <CRON_SECRET>"; sem o segredo configurado a rota fica fechada.
 export async function GET(request: Request) {
   const segredo = process.env.CRON_SECRET;
-  if (!segredo || request.headers.get("authorization") !== `Bearer ${segredo}`) {
+  if (!segredo || !segredoConfere(request.headers.get("authorization"), segredo)) {
     return new Response("Não autorizado", { status: 401 });
   }
 
