@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
-// Content-Security-Policy em modo "só relata" (Report-Only): o navegador avisa no console o que
-// seria bloqueado, mas não bloqueia nada. Depois de uns dias sem aviso relevante nas telas
-// principais (login, painel, loja, recibo), trocar para "Content-Security-Policy" para valer.
+// Content-Security-Policy: o navegador só carrega scripts, imagens e conexões das origens abaixo.
+// Rodou em Report-Only e as telas principais (login, login com Google, painel, loja, recibo) não
+// geraram nenhum aviso, então agora vale de verdade. Se uma tela nova carregar algo de fora e
+// quebrar, o console mostra "Refused to ..." com o endereço a incluir na lista.
 // 'unsafe-inline' fica por causa do script do tema escuro no layout e dos scripts do next/script;
 // 'unsafe-eval' só em desenvolvimento (o Next precisa dele no modo dev).
 const dev = process.env.NODE_ENV !== "production";
@@ -14,7 +15,8 @@ const csp = [
   "img-src 'self' data: blob: https://*.supabase.co https://www.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
-  "worker-src 'self'",
+  // o Clarity pode criar um worker a partir de um blob
+  "worker-src 'self' blob:",
   "manifest-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -32,7 +34,7 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: [
-          { key: "Content-Security-Policy-Report-Only", value: csp },
+          { key: "Content-Security-Policy", value: csp },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
