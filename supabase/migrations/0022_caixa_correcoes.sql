@@ -251,6 +251,8 @@ $$;
 -- registrar_entrada_estoque: p_afeta_caixa (false = estoque que já era seu)
 -- ---------------------------------------------------------------------------
 drop function if exists registrar_entrada_estoque(uuid, uuid, integer, numeric, date, text, text, uuid);
+-- a própria assinatura nova também, para a migration poder rodar de novo sem erro
+drop function if exists registrar_entrada_estoque(uuid, uuid, integer, numeric, date, text, text, uuid, boolean);
 
 create function registrar_entrada_estoque(
   p_produto_id uuid,

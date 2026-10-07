@@ -53,3 +53,31 @@ export async function comprimirImagem(arquivo: File): Promise<File> {
     imagem.close();
   }
 }
+
+// Logo da empresa: reduz para caber em 512 px e grava como PNG (guarda a transparência e é um
+// formato que o PDF do recibo consegue embutir; WebP não). Fica leve para a memória e o PDF.
+const LADO_LOGO = 512;
+
+export async function comprimirLogo(arquivo: File): Promise<File> {
+  let imagem: ImageBitmap;
+  try {
+    imagem = await createImageBitmap(arquivo, { imageOrientation: "from-image" });
+  } catch {
+    return arquivo;
+  }
+  try {
+    const escala = Math.min(1, LADO_LOGO / Math.max(imagem.width, imagem.height));
+    if (escala === 1 && arquivo.type === "image/png" && arquivo.size <= JA_PEQUENA / 4) return arquivo;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(imagem.width * escala);
+    canvas.height = Math.round(imagem.height * escala);
+    const contexto = canvas.getContext("2d");
+    if (!contexto) return arquivo;
+    contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height);
+    const blob = await paraBlob(canvas, "image/png", 1);
+    if (!blob || blob.type !== "image/png" || (blob.size >= arquivo.size && arquivo.type === "image/png")) return arquivo;
+    return new File([blob], nomeJpeg(arquivo.name).replace(/\.jpg$/, ".png"), { type: "image/png", lastModified: Date.now() });
+  } finally {
+    imagem.close();
+  }
+}
