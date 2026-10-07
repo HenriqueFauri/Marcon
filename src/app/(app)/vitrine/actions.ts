@@ -19,16 +19,55 @@ import {
   normalizarWhatsapp,
 } from "@/lib/vitrine";
 
-export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
+// Configurações da loja: endereço, WhatsApp, no ar, entrega e frete. Cria a vitrine na primeira vez.
+export async function salvarConfiguracao(formData: FormData): Promise<ActionResult> {
   try {
     const slug = texto(formData, "slug").toLowerCase();
     const whatsapp = normalizarWhatsapp(texto(formData, "whatsapp"));
-    const cor = texto(formData, "cor") || COR_PADRAO;
-    const boasVindas = textoOuNull(formData, "boas_vindas");
     const ativa = formData.get("ativa") === "on";
-    const anuncio = textoOuNull(formData, "anuncio");
     const entrega = ENTREGAS.find((e) => e.valor === texto(formData, "entrega"))?.valor ?? "ambos";
+    const freteBruto = numero(formData, "frete_fixo");
+    const frete = entrega === "retirada" ? null : freteBruto;
+
+    if (!SLUG_REGEX.test(slug))
+      return { ok: false, error: "O endereço precisa ter de 3 a 40 letras minúsculas, números ou hífen." };
+    if (!/^\d{10,15}$/.test(whatsapp)) return { ok: false, error: "Informe o WhatsApp com DDD." };
+    if (frete !== null && (Number.isNaN(frete) || frete < 0 || frete > 9999)) return { ok: false, error: "Confira o valor do frete." };
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { data: anterior } = await supabase.from("vitrines").select("slug").maybeSingle();
+    const { error } = await supabase.from("vitrines").upsert(
+      { owner_id: user.id, slug, whatsapp, ativa, entrega, frete_fixo: frete, updated_at: new Date().toISOString() },
+      { onConflict: "owner_id" },
+    );
+    if (error) {
+      if (/duplicate key|unique constraint/i.test(error.message))
+        return { ok: false, error: "Esse endereço já está em uso. Escolha outro." };
+      return falha(error);
+    }
+
+    revalidatePath("/vitrine", "layout");
+    revalidatePath(`/loja/${slug}`);
+    if (anterior?.slug && anterior.slug !== slug) revalidatePath(`/loja/${anterior.slug}`);
+    if (!anterior) return ok("Loja criada. Agora escolha os produtos e personalize.");
+    return ok(ativa ? "Configurações salvas. A loja está no ar." : "Configurações salvas. A loja está desligada.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// Personalização: o que aparece na loja (cores, textos, banner, rodapé). Só depois de criada.
+export async function salvarPersonalizacao(formData: FormData): Promise<ActionResult> {
+  try {
+    const cor = texto(formData, "cor") || COR_PADRAO;
     const tema = texto(formData, "tema") === "escuro" ? "escuro" : "claro";
+    const boasVindas = textoOuNull(formData, "boas_vindas");
+    const anuncio = textoOuNull(formData, "anuncio");
     // aceita "@loja", "loja" ou o endereço completo do perfil
     const instagram =
       texto(formData, "instagram")
@@ -38,16 +77,10 @@ export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
     const bannerTitulo = textoOuNull(formData, "banner_titulo");
     const bannerSubtitulo = textoOuNull(formData, "banner_subtitulo");
     const bannerBotao = textoOuNull(formData, "banner_botao");
-    const freteBruto = numero(formData, "frete_fixo");
-    const frete = entrega === "retirada" ? null : freteBruto;
 
-    if (!SLUG_REGEX.test(slug))
-      return { ok: false, error: "O endereço precisa ter de 3 a 40 letras minúsculas, números ou hífen." };
-    if (!/^\d{10,15}$/.test(whatsapp)) return { ok: false, error: "Informe o WhatsApp com DDD." };
     if (!COR_REGEX.test(cor)) return { ok: false, error: "Escolha uma cor válida." };
     if (boasVindas && boasVindas.length > BOAS_VINDAS_MAX)
       return { ok: false, error: `A frase de boas-vindas tem no máximo ${BOAS_VINDAS_MAX} letras.` };
-
     if (anuncio && anuncio.length > ANUNCIO_MAX)
       return { ok: false, error: `A barra de anúncio tem no máximo ${ANUNCIO_MAX} letras.` };
     if (
@@ -57,7 +90,6 @@ export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
     )
       return { ok: false, error: "Um dos textos do banner passou do limite de letras." };
     if (instagram && !INSTAGRAM_REGEX.test(instagram)) return { ok: false, error: "Confira o usuário do Instagram." };
-    if (frete !== null && (Number.isNaN(frete) || frete < 0 || frete > 9999)) return { ok: false, error: "Confira o valor do frete." };
 
     const supabase = await createClient();
     const {
@@ -65,37 +97,30 @@ export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
 
-    const { error } = await supabase.from("vitrines").upsert(
-      {
-        owner_id: user.id,
-        slug,
-        whatsapp,
+    const { data, error } = await supabase
+      .from("vitrines")
+      .update({
         cor,
-        boas_vindas: boasVindas,
-        ativa,
-        anuncio,
-        entrega,
         tema,
+        boas_vindas: boasVindas,
+        anuncio,
         instagram,
         banner_titulo: bannerTitulo,
         banner_subtitulo: bannerSubtitulo,
         banner_botao: bannerBotao,
-        frete_fixo: frete,
         mostrar_endereco: formData.get("mostrar_endereco") === "on",
         ultimas_unidades: formData.get("ultimas_unidades") === "on",
         updated_at: new Date().toISOString(),
-      },
-      { onConflict: "owner_id" },
-    );
-    if (error) {
-      if (/duplicate key|unique constraint/i.test(error.message))
-        return { ok: false, error: "Esse endereço já está em uso. Escolha outro." };
-      return falha(error);
-    }
+      })
+      .eq("owner_id", user.id)
+      .select("slug")
+      .maybeSingle();
+    if (error) return falha(error);
+    if (!data) return { ok: false, error: "Crie sua loja em Configurações antes de personalizar." };
 
-    revalidatePath("/vitrine");
-    revalidatePath(`/loja/${slug}`);
-    return ok(ativa ? "Vitrine salva e no ar." : "Vitrine salva (desligada).");
+    revalidatePath("/vitrine", "layout");
+    revalidatePath(`/loja/${data.slug}`);
+    return ok("Personalização salva.");
   } catch (e) {
     return falha(e);
   }
@@ -126,7 +151,7 @@ export async function adicionarImagemBanner(path: string): Promise<ActionResult>
       .eq("owner_id", user.id);
     if (error) return falha(error);
 
-    revalidatePath("/vitrine");
+    revalidatePath("/vitrine", "layout");
     return ok("Imagem adicionada ao banner.");
   } catch (e) {
     return falha(e);
@@ -150,7 +175,7 @@ export async function removerImagemBanner(path: string): Promise<ActionResult> {
     if (error) return falha(error);
     if (path.startsWith(`${user.id}/`)) await supabase.storage.from("vitrine-banner").remove([path]);
 
-    revalidatePath("/vitrine");
+    revalidatePath("/vitrine", "layout");
     return ok("Imagem removida.");
   } catch (e) {
     return falha(e);
@@ -170,7 +195,7 @@ export async function definirNaVitrine(ids: string[], valor: boolean): Promise<A
       .update({ na_vitrine: valor === true, updated_at: new Date().toISOString() })
       .in("id", ids);
     if (error) return falha(error);
-    revalidatePath("/vitrine");
+    revalidatePath("/vitrine", "layout");
     return ok();
   } catch (e) {
     return falha(e);
@@ -186,7 +211,7 @@ export async function definirDestaque(id: string, valor: boolean): Promise<Actio
       .update({ destaque: valor === true, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) return falha(error);
-    revalidatePath("/vitrine");
+    revalidatePath("/vitrine", "layout");
     return ok();
   } catch (e) {
     return falha(e);
@@ -220,7 +245,7 @@ export async function criarCupom(formData: FormData): Promise<ActionResult> {
       if (/duplicate key|unique constraint/i.test(error.message)) return { ok: false, error: "Você já tem um cupom com esse código." };
       return falha(error);
     }
-    revalidatePath("/vitrine");
+    revalidatePath("/vitrine", "layout");
     return ok(`Cupom ${codigo} criado.`);
   } catch (e) {
     return falha(e);
@@ -233,7 +258,7 @@ export async function alternarCupom(id: string, ativo: boolean): Promise<ActionR
     const supabase = await createClient();
     const { error } = await supabase.from("vitrine_cupons").update({ ativo: ativo === true }).eq("id", id);
     if (error) return falha(error);
-    revalidatePath("/vitrine");
+    revalidatePath("/vitrine", "layout");
     return ok(ativo ? "Cupom ligado." : "Cupom desligado.");
   } catch (e) {
     return falha(e);
@@ -246,7 +271,7 @@ export async function excluirCupom(id: string): Promise<ActionResult> {
     const supabase = await createClient();
     const { error } = await supabase.from("vitrine_cupons").delete().eq("id", id);
     if (error) return falha(error);
-    revalidatePath("/vitrine");
+    revalidatePath("/vitrine", "layout");
     return ok("Cupom excluído.");
   } catch (e) {
     return falha(e);

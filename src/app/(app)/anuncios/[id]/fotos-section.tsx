@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAction } from "@/components/use-action";
@@ -9,7 +9,7 @@ import { Card, btnSecondary } from "@/components/ui";
 import { mensagemDeErro } from "@/lib/action";
 import { IconPlus, IconX } from "@/components/icons";
 import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
-import { excluirFoto, registrarFoto } from "../../produtos/actions";
+import { excluirFoto, registrarFoto, reordenarFotos } from "../../produtos/actions";
 import { baixarBlob, buscarImagem, copiarImagemParaAreaDeTransferencia, nomeArquivo } from "./fotos-utils";
 
 export interface FotoComUrl {
@@ -123,7 +123,10 @@ export function FotosSection({
   );
 }
 
-// maxFotos vem do plano (3 no grátis, 10 no pago); o banco impõe o mesmo limite
+// maxFotos vem do plano (3 no grátis, 10 no pago); o banco impõe o mesmo limite.
+// Arrastar uma foto muda a ordem (a primeira é a capa): no mouse, é só arrastar; no toque,
+// segurar um instante e arrastar (para não brigar com a rolagem da tela). Soltar arquivos
+// de imagem em cima do bloco envia as fotos.
 function GrupoFotos({
   produtoId,
   nomeProduto,
@@ -139,9 +142,111 @@ function GrupoFotos({
 }) {
   const limitadoPeloPlano = maxFotos < MAX_FOTOS_POR_ITEM;
   const inputRef = useRef<HTMLInputElement>(null);
+  const gradeRef = useRef<HTMLDivElement>(null);
   const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
+  const [soltando, setSoltando] = useState(false);
   const { isPending, run } = useAction();
   const toast = useToast();
+
+  // ordem na tela: muda na hora ao arrastar e volta a seguir o servidor quando ele responde
+  const [ordem, setOrdem] = useState(fotos);
+  const assinatura = fotos.map((f) => f.id).join(",");
+  const [assinaturaVista, setAssinaturaVista] = useState(assinatura);
+  if (assinatura !== assinaturaVista) {
+    setAssinaturaVista(assinatura);
+    setOrdem(fotos);
+  }
+  const ordemRef = useRef(ordem);
+  useEffect(() => {
+    ordemRef.current = ordem;
+  }, [ordem]);
+
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const gesto = useRef<{
+    id: string;
+    x: number;
+    y: number;
+    ativo: boolean;
+    pointerId: number;
+    el: HTMLElement;
+    timer: ReturnType<typeof setTimeout> | null;
+  } | null>(null);
+
+  // no toque, a tela não rola enquanto uma foto está sendo arrastada
+  useEffect(() => {
+    const el = gradeRef.current;
+    if (!el) return;
+    const bloquear = (e: TouchEvent) => {
+      if (gesto.current?.ativo) e.preventDefault();
+    };
+    el.addEventListener("touchmove", bloquear, { passive: false });
+    return () => el.removeEventListener("touchmove", bloquear);
+  }, []);
+
+  function ativarArraste() {
+    const g = gesto.current;
+    if (!g) return;
+    g.ativo = true;
+    try {
+      g.el.setPointerCapture(g.pointerId);
+    } catch {}
+    setArrastando(g.id);
+    navigator.vibrate?.(10);
+  }
+
+  function iniciarArraste(e: React.PointerEvent<HTMLElement>, id: string) {
+    if (e.button !== 0 || isPending || enviando || ordem.length < 2) return;
+    if ((e.target as HTMLElement).closest("button")) return; // o botão de remover continua sendo clique
+    const g = { id, x: e.clientX, y: e.clientY, ativo: false, pointerId: e.pointerId, el: e.currentTarget, timer: null as ReturnType<typeof setTimeout> | null };
+    if (e.pointerType !== "mouse") g.timer = setTimeout(ativarArraste, 280);
+    gesto.current = g;
+  }
+
+  function moverArraste(e: React.PointerEvent<HTMLElement>) {
+    const g = gesto.current;
+    if (!g) return;
+    if (!g.ativo) {
+      const distancia = Math.hypot(e.clientX - g.x, e.clientY - g.y);
+      if (e.pointerType === "mouse") {
+        if (distancia > 6) ativarArraste();
+        else return;
+      } else {
+        // mexeu antes do toque longo: é rolagem, não arraste
+        if (distancia > 10) {
+          if (g.timer) clearTimeout(g.timer);
+          gesto.current = null;
+        }
+        return;
+      }
+    }
+    const alvoId = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-foto-id]")?.dataset.fotoId;
+    if (!alvoId || alvoId === g.id) return;
+    setOrdem((atual) => {
+      const de = atual.findIndex((f) => f.id === g.id);
+      const para = atual.findIndex((f) => f.id === alvoId);
+      if (de < 0 || para < 0) return atual;
+      const nova = [...atual];
+      const [item] = nova.splice(de, 1);
+      nova.splice(para, 0, item);
+      return nova;
+    });
+  }
+
+  function terminarArraste() {
+    const g = gesto.current;
+    gesto.current = null;
+    if (!g) return;
+    if (g.timer) clearTimeout(g.timer);
+    if (!g.ativo) return;
+    setArrastando(null);
+    const ids = ordemRef.current.map((f) => f.id);
+    if (ids.join(",") === assinatura) return;
+    const novaCapa = ids[0] !== fotos[0]?.id;
+    run(() => reordenarFotos(produtoId, ids), {
+      success: novaCapa ? "Capa atualizada." : "Ordem salva.",
+      onError: () => setOrdem(fotos),
+    });
+  }
 
   async function copiarImagem(url: string) {
     try {
@@ -161,7 +266,7 @@ function GrupoFotos({
     }
   }
 
-  async function handleUpload(files: FileList | null) {
+  async function handleUpload(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
     const vagas = maxFotos - fotos.length;
     if (vagas <= 0) {
@@ -225,52 +330,109 @@ function GrupoFotos({
     }
   }
 
+  const cabe = fotos.length < maxFotos;
+
   return (
-    <div>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-        {fotos.map((foto, i) => (
-          <div key={foto.id} className="flex flex-col gap-1.5">
-            <div className="group relative aspect-square overflow-hidden rounded-2xl border border-line bg-fill">
-              {foto.url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={foto.url} alt={`Foto ${i + 1} do produto`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">sem preview</div>
-              )}
-              {i === 0 && (
-                <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">Capa</span>
-              )}
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => run(() => excluirFoto(foto.id, foto.path, produtoId))}
-                aria-label={`Remover foto ${i + 1}`}
-                className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-danger disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+    <div
+      onDragOver={(e) => {
+        if (!cabe || enviando || !e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setSoltando(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSoltando(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setSoltando(false);
+        const imagens = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+        if (imagens.length === 0) {
+          toast.error("Solte arquivos de imagem (JPEG, PNG ou WebP).");
+          return;
+        }
+        void handleUpload(imagens);
+      }}
+      className={`relative -m-2 rounded-3xl p-2 transition ${soltando ? "bg-brand-tint ring-2 ring-brand ring-offset-2 ring-offset-surface" : ""}`}
+    >
+      {soltando && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-3xl">
+          <span className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-on-brand shadow-lg">Solte para enviar</span>
+        </div>
+      )}
+      <div ref={gradeRef} className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+        {ordem.map((foto, i) => {
+          const esta = arrastando === foto.id;
+          return (
+            <div key={foto.id} className="flex flex-col gap-1.5">
+              <div
+                data-foto-id={foto.id}
+                onPointerDown={(e) => iniciarArraste(e, foto.id)}
+                onPointerMove={moverArraste}
+                onPointerUp={terminarArraste}
+                onPointerCancel={terminarArraste}
+                onContextMenu={(e) => {
+                  if (gesto.current) e.preventDefault(); // segurar no celular não abre o menu da imagem
+                }}
+                className={`group relative aspect-square select-none overflow-hidden rounded-2xl border bg-fill transition [-webkit-touch-callout:none] ${
+                  ordem.length > 1 ? "cursor-grab active:cursor-grabbing" : ""
+                } ${esta ? "z-10 scale-105 border-brand opacity-80 shadow-xl ring-2 ring-brand" : "border-line"}`}
               >
-                <IconX width={14} height={14} />
-              </button>
-            </div>
-            {foto.url && (
-              <div className="flex items-center justify-center gap-3 text-[13px] font-medium text-brand-text">
-                <button type="button" onClick={() => copiarImagem(foto.url!)} className="hover:underline">
-                  Copiar
-                </button>
-                <button type="button" onClick={() => baixarUma(foto.url!, i)} className="hover:underline">
-                  Baixar
+                {foto.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={foto.url}
+                    alt={`Foto ${i + 1} do produto`}
+                    draggable={false}
+                    className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs text-ink-muted">sem preview</div>
+                )}
+                {i === 0 && (
+                  <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">Capa</span>
+                )}
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => run(() => excluirFoto(foto.id, foto.path, produtoId))}
+                  aria-label={`Remover foto ${i + 1}`}
+                  className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white transition hover:bg-danger disabled:opacity-50 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+                >
+                  <IconX width={14} height={14} />
                 </button>
               </div>
-            )}
-          </div>
-        ))}
-        {fotos.length < maxFotos && (
+              {foto.url && (
+                <div className="flex items-center justify-center gap-3 text-[13px] font-medium text-brand-text">
+                  <button type="button" onClick={() => copiarImagem(foto.url!)} className="hover:underline">
+                    Copiar
+                  </button>
+                  <button type="button" onClick={() => baixarUma(foto.url!, i)} className="hover:underline">
+                    Baixar
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {cabe && (
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={!!enviando}
-            className="flex aspect-square flex-col items-center justify-center gap-1 self-start rounded-2xl border border-dashed border-line-strong text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
+            className="flex aspect-square flex-col items-center justify-center gap-1 self-start rounded-2xl border border-dashed border-line-strong px-2 text-center text-xs text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
           >
             <IconPlus />
-            {enviando ? `${enviando.atual}/${enviando.total}...` : "Adicionar"}
+            {enviando ? (
+              `${enviando.atual}/${enviando.total}...`
+            ) : (
+              <>
+                Adicionar
+                <span className="hidden text-[11px] text-ink-faint sm:block">ou arraste aqui</span>
+              </>
+            )}
           </button>
         )}
       </div>
@@ -287,8 +449,9 @@ function GrupoFotos({
       />
       <p className="mt-3 text-xs text-ink-muted">
         {fotos.length === 0
-          ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez; o Marcon reduz o tamanho sozinho."
+          ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez, ou arrastar os arquivos pra cá; o Marcon reduz o tamanho sozinho."
           : `${fotos.length} de ${maxFotos} ${maxFotos === 1 ? "foto" : "fotos"}.`}
+        {fotos.length > 1 && " Arraste as fotos para mudar a ordem (no celular, segure e arraste). A primeira é a capa."}
         {limitadoPeloPlano && fotos.length >= maxFotos && (
           <>
             {" "}
