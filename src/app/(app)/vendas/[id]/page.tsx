@@ -55,7 +55,6 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
           </span>
         }
         description={venda.cliente_nome ? `Cliente: ${venda.cliente_nome}` : "Venda avulsa"}
-        action={!cancelada && <CancelarVendaButton vendaId={venda.id} />}
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -67,6 +66,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
           hint={outrosGastos > 0 ? `inclui ${formatBRL(outrosGastos)} de outros gastos` : undefined}
         />
         <StatCard
+          className="col-span-2 sm:col-span-1"
           label="Lucro"
           value={formatBRL(lucro)}
           tone={lucro >= 0 ? "positive" : "negative"}
@@ -191,6 +191,13 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
             </tbody>
           </Table>
         </Card>
+      )}
+
+      {/* ação destrutiva no fim da tela */}
+      {!cancelada && (
+        <div className="mt-10 flex justify-center">
+          <CancelarVendaButton vendaId={venda.id} />
+        </div>
       )}
     </div>
   );

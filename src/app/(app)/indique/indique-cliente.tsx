@@ -11,7 +11,7 @@ import { SAQUE_MINIMO } from "@/lib/indicacao";
 import { pedirSaque } from "./actions";
 
 // Link + mensagem pronta: o afiliado só escolhe como mandar.
-export function CompartilharCard({ link, mensagem }: { link: string; mensagem: string }) {
+export function CompartilharCard({ link, mensagem, descricao }: { link: string; mensagem: string; descricao: string }) {
   const toast = useToast();
 
   async function copiar(texto: string, aviso: string) {
@@ -24,7 +24,7 @@ export function CompartilharCard({ link, mensagem }: { link: string; mensagem: s
   }
 
   return (
-    <Card title="Seu link" description="Quem criar a conta por ele fica ligado a você, em qualquer aparelho.">
+    <Card title="Seu link" description={descricao}>
       <div className="flex items-center gap-2">
         <input readOnly value={link} aria-label="Seu link de indicação" onFocus={(e) => e.currentTarget.select()} className={`${inputClass} font-mono text-[13px]`} />
         <button type="button" onClick={() => copiar(link, "Link copiado.")} className={`${btnSecondary} shrink-0`}>

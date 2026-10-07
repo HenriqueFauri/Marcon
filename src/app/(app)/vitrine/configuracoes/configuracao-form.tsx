@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "@/components/use-action";
 import { formatarTelefone } from "@/lib/format";
-import { ENTREGAS, sugerirSlug, type Entrega } from "@/lib/vitrine";
+import { sugerirSlug, type Entrega } from "@/lib/vitrine";
 import { Field, btnPrimary, inputClass } from "@/components/ui";
-import { Interruptor, Secao } from "../campos";
+import { Grupo, Interruptor, Segmentado } from "../campos";
 import { salvarConfiguracao } from "../actions";
 
 export interface ConfiguracaoVitrine {
@@ -16,6 +16,12 @@ export interface ConfiguracaoVitrine {
   entrega: Entrega;
   freteFixo: string;
 }
+
+const AJUDA_ENTREGA: Record<Entrega, string> = {
+  ambos: "O cliente escolhe entrega ou retirada no pedido.",
+  entrega: "Só entrega. A opção de retirar no local não aparece.",
+  retirada: "Só retirada. Sem endereço de entrega e sem frete.",
+};
 
 export function ConfiguracaoForm({
   config,
@@ -33,7 +39,7 @@ export function ConfiguracaoForm({
   const [slug, setSlug] = useState(config?.slug ?? sugerirSlug(nomeNegocio));
   const [whatsapp, setWhatsapp] = useState(formatarTelefone(config?.whatsapp ?? telefoneEmpresa));
   const [entrega, setEntrega] = useState<Entrega>(config?.entrega ?? "ambos");
-  const link = `${base}/loja/${slug || "sua-loja"}`;
+  const dominio = base.replace(/^https?:\/\//, "");
 
   return (
     <form
@@ -45,33 +51,34 @@ export function ConfiguracaoForm({
           },
         })
       }
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-7"
     >
-      <Secao titulo="Loja no ar">
-        <Interruptor
-          name="ativa"
-          padrao={config?.ativa ?? true}
-          titulo="Vitrine no ar"
-          ajuda='Desligada, o link mostra "loja não encontrada". Produtos, cupons e personalização continuam guardados.'
-        />
-      </Secao>
+      <Grupo rodape='Desligada, o link mostra "loja não encontrada". Produtos, cupons e personalização ficam guardados.'>
+        <Interruptor name="ativa" padrao={config?.ativa ?? true} titulo="Vitrine no ar" />
+      </Grupo>
 
-      <Secao titulo="Endereço e contato">
-        <Field label="Endereço da loja" hint="De 3 a 40 letras minúsculas, números ou hífen. Se mudar, o link antigo para de funcionar.">
-          <input
-            name="slug"
-            value={slug}
-            onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-            required
-            minLength={3}
-            maxLength={40}
-            placeholder="minha-loja"
-            className={inputClass}
-            autoCapitalize="none"
-            autoCorrect="off"
-          />
+      <Grupo titulo="Link e contato" rodape="Se mudar o endereço, o link antigo para de funcionar.">
+        <Field label="Endereço da loja">
+          <div className="flex items-center rounded-xl bg-fill pl-3.5 focus-within:ring-4 focus-within:ring-brand/15">
+            <span className="shrink-0 text-[15px] text-ink-muted">/loja/</span>
+            <input
+              name="slug"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+              required
+              minLength={3}
+              maxLength={40}
+              placeholder="minha-loja"
+              aria-describedby="link-completo"
+              className="min-w-0 flex-1 bg-transparent py-2.5 pr-3.5 text-[15px] text-ink outline-none placeholder:text-ink-muted"
+              autoCapitalize="none"
+              autoCorrect="off"
+            />
+          </div>
         </Field>
-        <p className="-mt-2 break-all text-xs text-ink-muted">{link}</p>
+        <p id="link-completo" className="-mt-2 truncate text-[13px] text-ink-muted">
+          {dominio}/loja/{slug || "sua-loja"}
+        </p>
         <Field label="WhatsApp que recebe os pedidos">
           <input
             name="whatsapp"
@@ -84,48 +91,39 @@ export function ConfiguracaoForm({
             className={inputClass}
           />
         </Field>
-      </Secao>
+      </Grupo>
 
-      <Secao titulo="Entrega e retirada" descricao="O que o cliente pode escolher no pedido.">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {ENTREGAS.map((e) => (
-            <label
-              key={e.valor}
-              className={`cursor-pointer rounded-xl border px-3.5 py-3 text-sm transition ${
-                entrega === e.valor ? "border-brand bg-brand-tint" : "border-line hover:bg-fill"
-              }`}
-            >
-              <input
-                type="radio"
-                name="entrega"
-                value={e.valor}
-                checked={entrega === e.valor}
-                onChange={() => setEntrega(e.valor)}
-                className="sr-only"
-              />
-              <span className="block font-medium text-ink">{e.titulo}</span>
-              <span className="mt-0.5 block text-xs text-ink-muted">{e.ajuda}</span>
-            </label>
-          ))}
-        </div>
+      <Grupo titulo="Entrega" rodape={AJUDA_ENTREGA[entrega]}>
+        <Segmentado
+          name="entrega"
+          rotulo="Como o cliente recebe"
+          valor={entrega}
+          onMudar={setEntrega}
+          opcoes={[
+            { valor: "ambos", label: "Os dois" },
+            { valor: "entrega", label: "Entrega" },
+            { valor: "retirada", label: "Retirada" },
+          ]}
+        />
         {entrega !== "retirada" && (
-          <Field label="Frete fixo (opcional)" hint="Somado ao total quando o cliente escolhe entrega. Vazio = combinar no WhatsApp.">
-            <input
-              name="frete_fixo"
-              inputMode="decimal"
-              defaultValue={config?.freteFixo ?? ""}
-              placeholder="Ex: 10,00"
-              className={`${inputClass} sm:max-w-40`}
-            />
+          <Field label="Frete fixo (opcional)" hint="Vazio = combinar no WhatsApp.">
+            <div className="flex items-center rounded-xl bg-fill pl-3.5 focus-within:ring-4 focus-within:ring-brand/15 sm:max-w-48">
+              <span className="shrink-0 text-[15px] text-ink-muted">R$</span>
+              <input
+                name="frete_fixo"
+                inputMode="decimal"
+                defaultValue={config?.freteFixo ?? ""}
+                placeholder="10,00"
+                className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-muted"
+              />
+            </div>
           </Field>
         )}
-      </Secao>
+      </Grupo>
 
-      <div className="border-t border-line pt-4">
-        <button type="submit" disabled={isPending} className={`${btnPrimary} w-full sm:w-auto`}>
-          {isPending ? "Salvando..." : config ? "Salvar configurações" : "Criar minha loja"}
-        </button>
-      </div>
+      <button type="submit" disabled={isPending} className={`${btnPrimary} w-full py-3 sm:w-auto sm:self-start`}>
+        {isPending ? "Salvando..." : config ? "Salvar" : "Criar minha loja"}
+      </button>
     </form>
   );
 }

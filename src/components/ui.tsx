@@ -34,8 +34,14 @@ export function PageHeader({
   return (
     <div className="mb-6">
       {back && (
-        <Link href={back.href} className="mb-2 inline-block text-xs text-ink-muted hover:text-ink">
-          ← {back.label}
+        <Link
+          href={back.href}
+          className="-ml-1 mb-1 inline-flex max-w-full items-center gap-0.5 text-[15px] font-medium text-brand-text hover:opacity-80"
+        >
+          <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          <span className="truncate">{back.label}</span>
         </Link>
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -93,21 +99,23 @@ export function StatCard({
   tone = "neutral",
   hint,
   href,
+  className = "",
 }: {
   label: string;
   value: ReactNode;
   tone?: Tom;
   hint?: ReactNode;
   href?: string;
+  className?: string;
 }) {
   const conteudo = (
     <>
       <p className="text-[13px] font-medium text-ink-muted">{label}</p>
       <p className={`mt-1 truncate text-[22px] font-bold tracking-tight tabular-nums ${TONS[tone]}`}>{value}</p>
-      {hint && <p className="mt-0.5 truncate text-[13px] text-ink-muted">{hint}</p>}
+      {hint && <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-ink-muted">{hint}</p>}
     </>
   );
-  const classe = "hairline block rounded-3xl bg-surface p-4 sm:p-5";
+  const classe = `hairline block rounded-3xl bg-surface p-4 sm:p-5 ${className}`;
   return href ? (
     <Link href={href} className={`${classe} transition hover:bg-surface/70 active:scale-[0.99]`}>
       {conteudo}
@@ -195,3 +203,37 @@ export const thClass = "px-4 py-3 text-left text-xs font-medium uppercase tracki
 export const theadClass = "border-b border-line";
 export const tbodyClass = "divide-y divide-line";
 export const tdClass = "px-4 py-3.5";
+
+// Controle segmentado do iOS feito de links (filtros que mudam a URL). As opções dividem a
+// largura, então nada rola de lado nem corta no celular.
+export function Segmentos({
+  itens,
+  rotulo,
+  className = "",
+}: {
+  itens: { href: string; label: ReactNode; ativo: boolean }[];
+  rotulo: string;
+  className?: string;
+}) {
+  return (
+    <nav
+      aria-label={rotulo}
+      className={`grid gap-0.5 rounded-full bg-fill p-[3px] ${className}`}
+      style={{ gridTemplateColumns: `repeat(${itens.length}, minmax(0, 1fr))` }}
+    >
+      {itens.map((i) => (
+        <Link
+          key={i.href}
+          href={i.href}
+          replace
+          aria-current={i.ativo ? "page" : undefined}
+          className={`flex min-w-0 items-center justify-center gap-1 rounded-full px-2 py-2 text-[13px] transition ${
+            i.ativo ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"
+          }`}
+        >
+          <span className="truncate">{i.label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}

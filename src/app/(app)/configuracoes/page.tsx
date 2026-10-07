@@ -37,7 +37,7 @@ export default async function ConfiguracoesPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="Configurações" description="Seu perfil, dados da empresa, cadastros auxiliares e notificações." />
+      <PageHeader title="Configurações" />
 
       <div className="flex flex-col gap-6">
         <Card title="Perfil">

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { ProdutoComEstoque } from "@/types/domain";
 import { SearchInput } from "@/components/search-input";
-import { Badge, EmptyState, ErrorMessage, PageHeader } from "@/components/ui";
+import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/components/ui";
 import { IconBox } from "@/components/icons";
 import { VistaToggle, type Vista } from "./vista-toggle";
 
@@ -86,7 +86,6 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
     <div>
       <PageHeader
         title="Anúncios"
-        description="Títulos, descrições e fotos de cada produto, prontos para copiar no marketplace."
       />
 
       <div className="mb-4 flex flex-col gap-3">
@@ -94,18 +93,11 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
           <SearchInput placeholder="Buscar produto..." />
           <VistaToggle vista={vista} hrefLista={href({ vista: "lista" })} hrefGaleria={href({ vista: "galeria" })} />
         </div>
-        <div className="flex gap-1 overflow-x-auto">
-          {FILTROS.map((f) => (
-            <Link
-              key={f.valor}
-              href={href({ filtro: f.valor })}
-              replace
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${filtro === f.valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
-            >
-              {f.label}
-            </Link>
-          ))}
-        </div>
+        <Segmentos
+          rotulo="Filtrar anúncios"
+          className="sm:w-96"
+          itens={FILTROS.map((f) => ({ href: href({ filtro: f.valor }), label: f.label, ativo: filtro === f.valor }))}
+        />
       </div>
 
       {produtos.length === 0 ? (
@@ -154,15 +146,15 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
           })}
         </ul>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface sm:grid sm:grid-cols-2 sm:gap-3 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:bg-transparent sm:shadow-none xl:grid-cols-3">
           {lista.map((p) => {
             const capa = capaPorProduto.get(p.id);
             const url = capa ? urlPorCaminho.get(capa) : undefined;
             const versoes = versoesPorProduto.get(p.id) ?? 0;
             const fotos = totalFotos.get(p.id) ?? 0;
             return (
-              <li key={p.id} className="hairline relative flex min-w-0 items-center gap-3 rounded-2xl bg-surface p-3 hover:bg-fill/50">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-fill text-ink-muted">
+              <li key={p.id} className="relative flex min-w-0 items-center gap-3 px-4 py-3 active:bg-fill sm:hairline sm:rounded-2xl sm:bg-surface sm:p-3 sm:hover:bg-fill/50">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-fill text-ink-faint sm:h-16 sm:w-16">
                   {url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={url} alt="" className="h-full w-full object-cover" />
@@ -171,18 +163,16 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <Link href={`/anuncios/${p.id}`} className="block truncate font-medium text-ink after:absolute after:inset-0">
+                  <Link href={`/anuncios/${p.id}`} className="line-clamp-2 text-[17px] leading-snug text-ink after:absolute after:inset-0 sm:text-[15px] sm:font-medium">
                     {p.nome}
                   </Link>
-                  <p className="truncate text-xs text-ink-muted">
-                    {[p.categorias?.nome, p.marca].filter(Boolean).join(" · ") || "Sem categoria"}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    <Badge tone={versoes ? "positive" : "neutral"}>
+                  <p className="mt-0.5 truncate text-[13px] text-ink-muted">
+                    <span className={versoes ? "text-positive" : ""}>
                       {versoes ? `${versoes} ${versoes === 1 ? "versão" : "versões"}` : "Sem anúncio"}
-                    </Badge>
-                    <Badge tone={fotos ? "info" : "neutral"}>{fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "Sem fotos"}</Badge>
-                  </div>
+                    </span>
+                    {" · "}
+                    {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "sem fotos"}
+                  </p>
                 </div>
               </li>
             );

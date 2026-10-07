@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import type { Fornecedor, ProdutoVariacao } from "@/types/domain";
 import { Modal } from "@/components/modal";
-import { btnPrimary, btnSecondary } from "@/components/ui";
-import { IconCart, IconMinus, IconPencil, IconPlus } from "@/components/icons";
+import { btnPrimary } from "@/components/ui";
+import { IconCart, IconMegaphone, IconMinus, IconPencil, IconPlus } from "@/components/icons";
 import { EntradaEstoqueForm } from "./entrada-estoque-form";
 import { SaidaEstoqueForm } from "./saida-estoque-form";
 import { AjusteEstoqueForm } from "./ajuste-estoque-form";
@@ -35,37 +35,48 @@ export function ProdutoAcoes({
 }) {
   const [janela, setJanela] = useState<Janela>(null);
 
+  const travado = precisaVariacao ? "Adicione uma variação antes de mexer no estoque." : undefined;
+  const atalho =
+    "hairline flex flex-col items-center justify-center gap-1 rounded-2xl bg-surface px-1 py-3 text-[12px] font-medium text-ink-2 transition hover:bg-fill/60 active:scale-[0.97] disabled:opacity-40";
+  const icone = "flex h-8 w-8 items-center justify-center rounded-full bg-brand-tint text-brand-text";
+
+  // atalhos como nos Contatos do iPhone (ícone em cima do nome) e "Vender" como ação principal
   return (
-    <>
-      <button
-        type="button"
-        disabled={precisaVariacao}
-        onClick={() => setJanela("entrada")}
-        title={precisaVariacao ? "Adicione uma variação antes de mexer no estoque." : "Compra de mercadoria"}
-        className={btnSecondary}
-      >
-        <IconPlus width={16} height={16} className="text-positive" /> Entrada
-      </button>
-      <button
-        type="button"
-        disabled={precisaVariacao}
-        onClick={() => setJanela("saida")}
-        title={precisaVariacao ? "Adicione uma variação antes de mexer no estoque." : "Perda, brinde ou ajuste"}
-        className={btnSecondary}
-      >
-        <IconMinus width={16} height={16} className="text-danger" /> Saída
-      </button>
-      <button
-        type="button"
-        disabled={precisaVariacao}
-        onClick={() => setJanela("ajuste")}
-        title={precisaVariacao ? "Adicione uma variação antes de mexer no estoque." : "Corrigir a quantidade, sem mexer no caixa"}
-        className={btnSecondary}
-      >
-        <IconPencil width={16} height={16} /> Ajustar
-      </button>
-      <Link href={`/vendas/novo?produto=${produtoId}`} className={btnPrimary}>
-        <IconCart width={16} height={16} /> Vender
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-stretch">
+      <div className="grid grid-cols-4 gap-2 sm:flex-1">
+        <button type="button" disabled={precisaVariacao} onClick={() => setJanela("entrada")} title={travado ?? "Compra de mercadoria"} className={atalho}>
+          <span className={icone}>
+            <IconPlus width={17} height={17} />
+          </span>
+          Entrada
+        </button>
+        <button type="button" disabled={precisaVariacao} onClick={() => setJanela("saida")} title={travado ?? "Perda, brinde ou ajuste"} className={atalho}>
+          <span className={icone}>
+            <IconMinus width={17} height={17} />
+          </span>
+          Saída
+        </button>
+        <button
+          type="button"
+          disabled={precisaVariacao}
+          onClick={() => setJanela("ajuste")}
+          title={travado ?? "Corrigir a quantidade, sem mexer no caixa"}
+          className={atalho}
+        >
+          <span className={icone}>
+            <IconPencil width={16} height={16} />
+          </span>
+          Ajustar
+        </button>
+        <Link href={`/anuncios/${produtoId}`} className={atalho}>
+          <span className={icone}>
+            <IconMegaphone width={16} height={16} />
+          </span>
+          Anúncios
+        </Link>
+      </div>
+      <Link href={`/vendas/novo?produto=${produtoId}`} className={`${btnPrimary} py-3 sm:px-8`}>
+        <IconCart width={17} height={17} /> Vender
       </Link>
 
       <Modal
@@ -108,6 +119,6 @@ export function ProdutoAcoes({
           onConcluido={() => setJanela(null)}
         />
       </Modal>
-    </>
+    </div>
   );
 }

@@ -4,7 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/toaster";
 import { formatBRL } from "@/lib/format";
-import { Badge, inputClass } from "@/components/ui";
+import { inputClass } from "@/components/ui";
+import { Segmentado } from "./campos";
 import { IconLink } from "@/components/icons";
 import { definirDestaque, definirNaVitrine } from "./actions";
 
@@ -35,10 +36,10 @@ function Interruptor({ ligado, onMudar, rotulo }: { ligado: boolean; onMudar: ()
       aria-checked={ligado}
       aria-label={rotulo}
       onClick={onMudar}
-      className={`relative h-7 w-12 shrink-0 rounded-full transition ${ligado ? "bg-brand" : "bg-fill-strong"}`}
+      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${ligado ? "bg-positive" : "bg-fill-strong"}`}
     >
       <span
-        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${ligado ? "left-[22px]" : "left-0.5"}`}
+        className={`absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform ${ligado ? "translate-x-5" : ""}`}
       />
     </button>
   );
@@ -62,6 +63,7 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
     );
   }, [produtos, busca, filtro]);
   const total = produtos.filter((p) => p.naVitrine).length;
+  const todosLigados = visiveis.length > 0 && visiveis.every((p) => p.naVitrine);
 
   function aplicar(ids: string[], mudanca: Partial<ProdutoDaLista>, gravar: () => Promise<{ ok: boolean; error?: string }>) {
     const antes = produtos;
@@ -115,58 +117,44 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
         aria-label="Buscar produto"
         className={inputClass}
       />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1.5">
-          {FILTROS.map((f) => (
-            <button
-              key={f.valor}
-              type="button"
-              aria-pressed={filtro === f.valor}
-              onClick={() => setFiltro(f.valor)}
-              className={`rounded-full px-3 py-1 text-[13px] font-medium transition ${
-                filtro === f.valor ? "bg-brand-tint text-brand-text" : "bg-fill text-ink-2 hover:bg-fill-strong"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1.5 text-[13px]">
-          <button type="button" onClick={() => emMassa(true)} className="rounded-full px-2.5 py-1 font-medium text-brand-text hover:bg-fill">
-            Colocar todos
+      <Segmentado rotulo="Filtrar produtos" valor={filtro} onMudar={setFiltro} opcoes={FILTROS} />
+      <div className="flex items-center justify-between gap-3 px-1">
+        <p className="text-[13px] text-ink-muted">
+          {total} de {produtos.length} na vitrine
+        </p>
+        {visiveis.length > 0 && (
+          <button
+            type="button"
+            onClick={() => emMassa(!todosLigados)}
+            className="text-[15px] font-medium text-brand-text transition hover:opacity-80"
+          >
+            {todosLigados ? "Tirar todos" : "Colocar todos"}
           </button>
-          <button type="button" onClick={() => emMassa(false)} className="rounded-full px-2.5 py-1 font-medium text-ink-2 hover:bg-fill">
-            Tirar todos
-          </button>
-        </div>
+        )}
       </div>
-      <p className="text-xs text-ink-muted">
-        {total} de {produtos.length} na vitrine. &quot;Colocar todos&quot; e &quot;Tirar todos&quot; valem para a lista que está na tela.
-      </p>
 
       {visiveis.length === 0 ? (
         <p className="py-6 text-center text-sm text-ink-muted">Nenhum produto nesta lista.</p>
       ) : (
-        <ul className="divide-y divide-line">
+        <ul className="-mx-4 divide-y divide-line border-t border-line sm:-mx-5">
           {visiveis.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 py-2.5">
+            <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
               {p.foto ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.foto} alt="" className="h-11 w-11 shrink-0 rounded-xl bg-fill object-cover" />
+                <img src={p.foto} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-fill object-cover" />
               ) : (
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-fill text-sm text-ink-muted" aria-hidden="true">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-fill text-[15px] font-medium text-ink-faint" aria-hidden="true">
                   {p.nome.charAt(0).toUpperCase()}
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <Link href={`/produtos/${p.id}`} className="line-clamp-1 text-[14px] font-medium text-ink hover:underline">
+                <Link href={`/produtos/${p.id}`} className="line-clamp-2 text-[15px] leading-snug text-ink hover:underline">
                   {p.nome}
                 </Link>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+                <p className="mt-0.5 text-[13px] text-ink-muted">
                   <span className="tabular-nums">{formatBRL(p.preco)}</span>
-                  {p.esgotado && <Badge tone="warning">Esgotado</Badge>}
-                  {p.semFoto && <Badge>Sem foto</Badge>}
-                </div>
+                  {p.esgotado && <span className="text-warning"> · Esgotado</span>}
+                </p>
               </div>
               {p.naVitrine && (
                 <>

@@ -110,7 +110,6 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
     <div>
       <PageHeader
         title="Fluxo de caixa"
-        description="Vendas, parcelas, compras de estoque e lançamentos manuais num só lugar."
         action={<NovoLancamentoForm hoje={hoje} categorias={categorias} />}
       />
 
@@ -121,7 +120,8 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
             {periodo.modo === "todo" ? <>Desde o primeiro lançamento, {formatData(periodo.de)}, até hoje</> : <>De {formatData(periodo.de)} até {formatData(periodo.ate)}</>}
           </p>
         )}
-        <div className="flex gap-1">
+        {/* mesmo controle segmentado do período, para os filtros da tela terem um estilo só */}
+        <div className="grid w-full grid-cols-3 gap-0.5 rounded-full bg-fill p-[3px] sm:w-80" role="group" aria-label="Tipo">
           {[
             [undefined, "Tudo"],
             ["entrada", "Entradas"],
@@ -130,7 +130,8 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
             <Link
               key={rotulo}
               href={filtroHref(valor)}
-              className={`rounded-lg px-3 py-1.5 text-sm ${tipo === valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
+              aria-current={tipo === valor ? "page" : undefined}
+              className={`rounded-full px-2 py-2 text-center text-[13px] transition ${tipo === valor ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"}`}
             >
               {rotulo}
             </Link>
@@ -151,7 +152,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
           label="Saldo em caixa"
           value={formatBRL(saldoEmCaixa)}
           tone={saldoEmCaixa >= 0 ? "neutral" : "negative"}
-          hint={`${formatBRL(saldoAnterior)} ${noMes ? "vindo do mês anterior" : "antes do período"}`}
+          hint={`${formatBRL(saldoAnterior)} ${noMes ? "do mês anterior" : "antes do período"}`}
         />
       </div>
 

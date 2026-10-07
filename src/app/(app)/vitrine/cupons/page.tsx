@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { hojeISO } from "@/lib/format";
-import { Card } from "@/components/ui";
 import { Cupons, type CupomDaLista } from "../cupons";
 
 export const metadata: Metadata = { title: "Vitrine | Cupons" };
@@ -19,8 +18,6 @@ export default async function VitrineCuponsPage() {
   })) as CupomDaLista[];
 
   return (
-    <Card title="Cupons de desconto" description="Crie um código para divulgar. O cliente digita no pedido e o desconto vai junto na mensagem.">
-      <Cupons cupons={cupons} hoje={hojeISO()} />
-    </Card>
+    <Cupons cupons={cupons} hoje={hojeISO()} />
   );
 }

@@ -83,7 +83,6 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
     <div>
       <PageHeader
         title="Clientes"
-        description="Cadastre clientes para vincular às vendas e saber quanto cada um ainda deve."
         action={novo}
       />
 
@@ -103,11 +102,12 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
         )
       ) : (
         <Table compacta>
-          <thead className={theadClass}>
+          {/* no celular as linhas viram lista: sem cabeçalho, o valor em aberto vai embaixo do nome */}
+          <thead className={`${theadClass} hidden sm:table-header-group`}>
             <tr>
               <th className={thClass}>Nome</th>
               <th className={`${thClass} hidden sm:table-cell`}>Contato</th>
-              <th className={`${thClass} text-right`}>Em aberto</th>
+              <th className={`${thClass} hidden text-right sm:table-cell`}>Em aberto</th>
               <th className={`${thClass} text-right`}>
                 <span className="sr-only">Ações</span>
               </th>
@@ -120,8 +120,10 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
               return (
                 <tr key={c.id} className="hover:bg-fill/50">
                   <td className={tdClass}>
-                    <p className="font-medium text-ink">{c.nome}</p>
-                    {c.telefone && <p className="text-xs text-ink-muted sm:hidden">{c.telefone}</p>}
+                    <p className="text-[17px] text-ink sm:text-[15px] sm:font-medium">{c.nome}</p>
+                    <p className="text-[13px] text-ink-muted sm:hidden">
+                      {[c.telefone, saldo ? `${formatBRL(saldo.valor)} em aberto` : null].filter(Boolean).join(" · ") || "Sem telefone"}
+                    </p>
                     {c.observacoes && <p className="max-w-xs truncate text-xs text-ink-muted">{c.observacoes}</p>}
                   </td>
                   <td className={`${tdClass} hidden text-ink-2 sm:table-cell`}>
@@ -129,7 +131,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
                     {c.email && <p className="text-xs text-ink-muted">{c.email}</p>}
                   </td>
                   <td
-                    className={`${tdClass} text-right tabular-nums ${saldo ? (saldo.atrasado ? "text-danger" : "text-warning") : "text-ink-faint"}`}
+                    className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${saldo ? (saldo.atrasado ? "text-danger" : "text-warning") : "text-ink-faint"}`}
                   >
                     {saldo ? formatBRL(saldo.valor) : "—"}
                   </td>

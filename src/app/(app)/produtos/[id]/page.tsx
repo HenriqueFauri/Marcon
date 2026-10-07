@@ -11,7 +11,7 @@ import type {
 import { formatBRL, formatData, hojeISO } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
 import { Badge, Card, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
-import { IconMegaphone, IconPencil } from "@/components/icons";
+import { IconPencil } from "@/components/icons";
 import { ProdutoAcoes } from "./produto-acoes";
 import { VariacoesSection } from "./variacoes-section";
 import { ExcluirProdutoButton } from "./excluir-produto-button";
@@ -76,8 +76,13 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         }
         description={[p.categorias?.nome ?? "Sem categoria", p.marca, p.sku ? `SKU ${p.sku}` : null].filter(Boolean).join(" · ")}
         action={
-          <>
-            <ProdutoAcoes
+          <Link href={`/produtos/${p.id}/editar`} className={`${btnSecondary} px-4 py-2 text-sm`}>
+            <IconPencil width={15} height={15} /> Editar
+          </Link>
+        }
+      />
+
+      <ProdutoAcoes
               produtoId={p.id}
               custoAtual={Number(p.custo_min)}
               estoqueAtual={Number(p.estoque_atual)}
@@ -86,16 +91,6 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
               fornecedorPadrao={p.fornecedor_id}
               hoje={hojeISO()}
               precisaVariacao={precisaVariacao}
-            />
-            <Link href={`/anuncios/${p.id}`} className={btnSecondary}>
-              <IconMegaphone width={16} height={16} /> Anúncios
-            </Link>
-            <Link href={`/produtos/${p.id}/editar`} className={btnSecondary}>
-              <IconPencil width={16} height={16} /> Editar
-            </Link>
-            <ExcluirProdutoButton produtoId={p.id} nome={p.nome} />
-          </>
-        }
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -179,6 +174,11 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
             </Table>
           )}
         </section>
+      </div>
+
+      {/* ação destrutiva no fim, longe dos atalhos do dia a dia */}
+      <div className="mt-10 flex justify-center">
+        <ExcluirProdutoButton produtoId={p.id} nome={p.nome} />
       </div>
     </div>
   );

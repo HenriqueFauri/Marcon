@@ -24,12 +24,13 @@ export function VistaToggle({ vista, hrefLista, hrefGaleria }: { vista: Vista; h
           scroll={false}
           onClick={() => lembrarPreferencia("marcon-vista-anuncios", o.valor)}
           aria-current={vista === o.valor ? "page" : undefined}
-          className={`flex items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] transition ${
+          aria-label={o.rotulo}
+          className={`flex items-center justify-center gap-1.5 rounded-full px-3 py-2 text-[13px] sm:px-3.5 sm:py-1.5 transition ${
             vista === o.valor ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"
           }`}
         >
           {o.icone}
-          {o.rotulo}
+          <span className="hidden sm:inline">{o.rotulo}</span>
         </Link>
       ))}
     </nav>

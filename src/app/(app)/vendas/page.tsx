@@ -94,9 +94,17 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
   const ticketMedio = concluidas.length ? totalVendido / concluidas.length : 0;
   const margem = totalVendido > 0 ? (lucroTotal / totalVendido) * 100 : 0;
 
+  // vendas do período agrupadas por dia, na ordem em que já vieram (mais recentes primeiro)
+  const porDia: [string, typeof vendas][] = [];
+  for (const v of vendas) {
+    const ultimo = porDia[porDia.length - 1];
+    if (ultimo && ultimo[0] === v.data) ultimo[1].push(v);
+    else porDia.push([v.data, [v]]);
+  }
+
   return (
     <div>
-      <PageHeader title="Vendas" description="Registre e acompanhe suas vendas." action={novaVenda} />
+      <PageHeader title="Vendas" action={novaVenda} />
 
       <div className="mb-4 flex flex-col gap-3">
         <PeriodoPicker periodo={periodo} basePath="/vendas" />
@@ -126,6 +134,49 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
           action={novaVenda}
         />
       ) : (
+        <>
+        {/* no celular, lista agrupada por dia (como o app Carteira); a tabela fica para telas largas */}
+        <div className="flex flex-col gap-6 sm:hidden">
+          {porDia.map(([dia, doDia]) => (
+            <section key={dia}>
+              <h2 className="mb-1.5 px-4 text-[13px] uppercase text-ink-muted">{formatData(dia)}</h2>
+              <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface">
+                {doDia.map((v) => {
+                  const cancelada = v.status === "cancelada";
+                  const lucro = Number(v.valor_total) - Number(v.custo_total);
+                  return (
+                    <li key={v.id}>
+                      <Link
+                        href={`/vendas/${v.id}`}
+                        className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${cancelada ? "opacity-50" : ""}`}
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[17px] text-ink">{v.cliente_nome ?? "Avulsa"}</span>
+                          <span className="block truncate text-[13px] text-ink-muted">
+                            {cancelada ? "Cancelada" : [v.canal, v.tipo_pagamento === "a_prazo" ? "A prazo" : v.forma_pagamento].filter(Boolean).join(" · ") || "À vista"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className={`block text-[17px] tabular-nums text-ink ${cancelada ? "line-through" : ""}`}>{formatBRL(v.valor_total)}</span>
+                          {!cancelada && (
+                            <span className={`block text-[13px] tabular-nums ${lucro >= 0 ? "text-positive" : "text-danger"}`}>
+                              {lucro >= 0 ? "+" : ""}
+                              {formatBRL(lucro)}
+                            </span>
+                          )}
+                        </span>
+                        <span aria-hidden="true" className="text-lg text-ink-faint">
+                          ›
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
+        <div className="hidden sm:block">
         <Table compacta>
           <thead className={theadClass}>
             <tr>
@@ -181,6 +232,8 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
             })}
           </tbody>
         </Table>
+        </div>
+        </>
       )}
       {totalDeVendas > vendas.length && (
         <p className="mt-3 text-center text-[13px] text-ink-muted">

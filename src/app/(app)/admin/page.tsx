@@ -95,7 +95,6 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     <div className="mx-auto max-w-6xl">
       <PageHeader
         title="Administração"
-        description="Todas as contas do Marcon. Sua conta e seus dados continuam os mesmos: esta tela é só uma a mais."
         action={
           <Link href="/admin/indicacoes" className={btnSecondary}>
             Saques de indicação

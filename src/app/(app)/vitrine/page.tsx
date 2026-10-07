@@ -3,7 +3,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
 import { hojeISO } from "@/lib/format";
-import { Card, btnPrimary } from "@/components/ui";
+import { btnPrimary } from "@/components/ui";
+import { IconBox, IconGift, IconSettings, IconSparkles } from "@/components/icons";
+import { Grupo, LinhaLink } from "./campos";
 import { LinkDaLoja } from "./link-da-loja";
 
 export const metadata: Metadata = { title: "Vitrine" };
@@ -18,7 +20,7 @@ function diasAtras(dia: string, dias: number) {
 
 function Numero({ valor, rotulo }: { valor: string | number; rotulo: string }) {
   return (
-    <div className="rounded-2xl bg-fill/60 px-3 py-3 text-center">
+    <div className="rounded-2xl bg-fill/60 px-2 py-3 text-center">
       <p className="text-xl font-semibold tabular-nums text-ink">{valor}</p>
       <p className="text-xs text-ink-muted">{rotulo}</p>
     </div>
@@ -45,6 +47,7 @@ export default async function VitrineVisaoGeralPage() {
     { count: formasPagamento },
     { data: metricasData },
     { data: metricasProdutoData },
+    { count: cuponsAtivos },
     base,
   ] = await Promise.all([
     supabase.auth.getUser(),
@@ -53,6 +56,7 @@ export default async function VitrineVisaoGeralPage() {
     supabase.from("formas_pagamento").select("id", { count: "exact", head: true }),
     supabase.from("vitrine_metricas").select("visitas, pedidos").gte("dia", desde),
     supabase.from("vitrine_metricas_produto").select("produto_id, aberturas").gte("dia", desde),
+    supabase.from("vitrine_cupons").select("id", { count: "exact", head: true }).eq("ativo", true),
     enderecoDoApp(),
   ]);
 
@@ -89,100 +93,123 @@ export default async function VitrineVisaoGeralPage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
+  const pendentes = passos.filter((p) => !p.feito);
+  const tile = "h-[17px] w-[17px]";
+
   return (
-    <div className="flex flex-col gap-6">
-      <Card title="Sua loja">
+    <div className="flex flex-col gap-7">
+      <Grupo titulo="Sua loja">
         {vitrine?.ativa ? (
           <LinkDaLoja link={`${base}/loja/${vitrine.slug}`} nomeLoja={(meta.nome_negocio as string | undefined) || "loja"} />
-        ) : vitrine ? (
-          <div className="flex flex-col items-start gap-3">
-            <p className="text-sm text-ink-2">A loja está desligada: o link mostra &quot;loja não encontrada&quot;.</p>
-            <Link href="/vitrine/configuracoes" className={btnPrimary}>
-              Colocar no ar
-            </Link>
-          </div>
         ) : (
           <div className="flex flex-col items-start gap-3">
-            <p className="text-sm text-ink-2">Em poucos minutos você tem um link com seus produtos para mandar no status e nos grupos.</p>
+            <p className="text-[15px] text-ink-2">
+              {vitrine
+                ? 'A loja está desligada: o link mostra "loja não encontrada".'
+                : "Em poucos minutos você tem um link com seus produtos para mandar no status e nos grupos."}
+            </p>
             <Link href="/vitrine/configuracoes" className={btnPrimary}>
-              Criar minha loja
+              {vitrine ? "Colocar no ar" : "Criar minha loja"}
             </Link>
           </div>
         )}
+      </Grupo>
 
-        {feitos < passos.length && (
-          <div className="mt-5 border-t border-line pt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-[13px] font-semibold text-ink">Primeiros passos</p>
-              <p className="text-xs text-ink-muted">
+      {pendentes.length > 0 && (
+        <Grupo
+          titulo={
+            <span className="flex justify-between">
+              <span>Para deixar pronta</span>
+              <span className="normal-case">
                 {feitos} de {passos.length}
-              </p>
-            </div>
-            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-fill">
-              <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${(feitos / passos.length) * 100}%` }} />
-            </div>
-            <ul className="flex flex-col gap-1">
-              {passos.map((p) => (
-                <li key={p.titulo}>
-                  <Link
-                    href={p.href}
-                    className={`flex items-start gap-2.5 rounded-xl px-2 py-1.5 text-sm transition ${p.feito ? "" : "hover:bg-fill"}`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
-                        p.feito ? "bg-positive text-white" : "border border-line-strong text-transparent"
-                      }`}
-                    >
-                      ✓
-                    </span>
-                    <span className={`min-w-0 flex-1 ${p.feito ? "text-ink-muted line-through" : "text-ink"}`}>
-                      <span className="font-medium">{p.titulo}</span>
-                      {!p.feito && <span className="block text-xs text-ink-muted">{p.ajuda}</span>}
-                    </span>
-                    {!p.feito && <span className="shrink-0 text-ink-muted">›</span>}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </Card>
+              </span>
+            </span>
+          }
+          semPadding
+        >
+          {pendentes.map((p) => (
+            <Link
+              key={p.titulo}
+              href={p.href}
+              className="flex items-center gap-3 border-t border-line px-4 py-3 transition first:border-t-0 hover:bg-fill/60 active:bg-fill"
+            >
+              <span aria-hidden="true" className="h-[22px] w-[22px] shrink-0 rounded-full border-[1.5px] border-line-strong" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-[17px] text-ink">{p.titulo}</span>
+                <span className="block text-[13px] leading-snug text-ink-muted">{p.ajuda}</span>
+              </span>
+              <span aria-hidden="true" className="text-lg text-ink-faint">
+                ›
+              </span>
+            </Link>
+          ))}
+        </Grupo>
+      )}
+
+      {/* no celular as seções ficam aqui, como no Ajustes do iPhone; no computador, nas abas do topo */}
+      <div className="sm:hidden">
+        <Grupo titulo="Gerenciar" semPadding>
+          <LinhaLink
+            href="/vitrine/produtos"
+            icone={<IconBox className={tile} />}
+            tom="bg-brand text-on-brand"
+            rotulo="Produtos"
+            detalhe={marcados.length === 0 ? "Nenhum" : `${marcados.length} na loja`}
+          />
+          <LinhaLink
+            href="/vitrine/personalizar"
+            icone={<IconSparkles className={tile} />}
+            tom="bg-tile-warning text-on-tile-warning"
+            rotulo="Personalizar"
+          />
+          <LinhaLink
+            href="/vitrine/configuracoes"
+            icone={<IconSettings className={tile} />}
+            tom="bg-ink-muted text-surface"
+            rotulo="Configurações"
+          />
+          <LinhaLink
+            href="/vitrine/cupons"
+            icone={<IconGift className={tile} />}
+            tom="bg-tile-positive text-on-tile-positive"
+            rotulo="Cupons"
+            detalhe={(cuponsAtivos ?? 0) === 0 ? "Nenhum" : `${cuponsAtivos} ${cuponsAtivos === 1 ? "ativo" : "ativos"}`}
+          />
+        </Grupo>
+      </div>
 
       {vitrine && (
-        <Card
-          title="Desempenho"
-          description={`Últimos ${DIAS_METRICAS} dias. Visita e produto aberto contam uma vez por dia em cada aparelho; suas próprias visitas logado não contam.`}
+        <Grupo
+          titulo={
+            <span className="flex justify-between">
+              <span>Desempenho</span>
+              <span className="normal-case">Últimos {DIAS_METRICAS} dias</span>
+            </span>
+          }
+          rodape={maisVistos.length === 0 ? "Suas visitas logado não contam. Divulgue o link e os números aparecem aqui." : undefined}
         >
           <div className="grid grid-cols-3 gap-2">
             <Numero valor={visitas} rotulo="visitas" />
-            <Numero valor={pedidos} rotulo="pedidos enviados" />
-            <Numero valor={visitas > 0 ? `${Math.round((pedidos / visitas) * 100)}%` : "0%"} rotulo="viraram pedido" />
+            <Numero valor={pedidos} rotulo="pedidos" />
+            <Numero valor={visitas > 0 ? `${Math.round((pedidos / visitas) * 100)}%` : "0%"} rotulo="conversão" />
           </div>
-          <p className="mt-2 text-xs text-ink-muted">
-            Pedido enviado é quem tocou em &quot;Enviar pedido pelo WhatsApp&quot;. O mesmo carrinho enviado de novo não conta duas vezes.
-          </p>
-          {maisVistos.length > 0 ? (
-            <div className="mt-4">
-              <p className="mb-1.5 text-[13px] font-semibold text-ink">Produtos mais vistos</p>
-              <ol className="divide-y divide-line text-sm">
+          {maisVistos.length > 0 && (
+            <div>
+              <p className="mb-1 text-[13px] text-ink-muted">Mais vistos</p>
+              <ol className="divide-y divide-line">
                 {maisVistos.map(([id, n], i) => (
-                  <li key={id} className="flex items-center justify-between gap-3 py-2">
+                  <li key={id} className="flex items-center justify-between gap-3 py-2.5 text-[15px]">
                     <Link href={`/produtos/${id}`} className="min-w-0 truncate text-ink hover:underline">
-                      <span className="mr-2 tabular-nums text-ink-muted">{i + 1}.</span>
+                      <span className="mr-2 tabular-nums text-ink-muted">{i + 1}</span>
                       {nomePorId.get(id)}
                     </Link>
-                    <span className="shrink-0 text-xs tabular-nums text-ink-muted">
-                      {n} {n === 1 ? "vez" : "vezes"}
-                    </span>
+                    <span className="shrink-0 tabular-nums text-ink-muted">{n}</span>
                   </li>
                 ))}
               </ol>
             </div>
-          ) : (
-            <p className="mt-3 text-xs text-ink-muted">Divulgue o link: os números aparecem aqui conforme os clientes visitam.</p>
           )}
-        </Card>
+        </Grupo>
       )}
     </div>
   );

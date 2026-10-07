@@ -47,7 +47,7 @@ export default async function VitrineProdutosPage() {
   });
 
   return (
-    <Card title="Produtos na vitrine" description="Escolha o que aparece na loja. A estrela coloca o produto nos destaques. Custo e quantidade em estoque nunca aparecem.">
+    <Card>
       <ProdutosDaVitrine produtos={produtos} linkDaLoja={vitrine?.ativa ? `${base}/loja/${vitrine.slug}` : null} />
     </Card>
   );
