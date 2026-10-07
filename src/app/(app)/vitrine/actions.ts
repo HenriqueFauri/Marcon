@@ -155,3 +155,39 @@ export async function removerImagemBanner(path: string): Promise<ActionResult> {
     return falha(e);
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// liga ou desliga vários produtos de uma vez (a lista da página Vitrine); o RLS só deixa mexer nos próprios
+export async function definirNaVitrine(ids: string[], valor: boolean): Promise<ActionResult> {
+  try {
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 2000 || !ids.every((id) => UUID.test(id)))
+      return { ok: false, error: "Produtos inválidos." };
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("produtos")
+      .update({ na_vitrine: valor === true, updated_at: new Date().toISOString() })
+      .in("id", ids);
+    if (error) return falha(error);
+    revalidatePath("/vitrine");
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function definirDestaque(id: string, valor: boolean): Promise<ActionResult> {
+  try {
+    if (!UUID.test(id)) return { ok: false, error: "Produto inválido." };
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("produtos")
+      .update({ destaque: valor === true, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) return falha(error);
+    revalidatePath("/vitrine");
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}

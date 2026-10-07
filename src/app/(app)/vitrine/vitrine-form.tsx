@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { useAction } from "@/components/use-action";
-import { useToast } from "@/components/toaster";
 import { formatarTelefone } from "@/lib/format";
 import {
   ANUNCIO_MAX,
@@ -17,7 +16,7 @@ import {
   type Entrega,
   type Tema,
 } from "@/lib/vitrine";
-import { Field, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
+import { Field, btnPrimary, inputClass } from "@/components/ui";
 import { salvarVitrine } from "./actions";
 
 export interface VitrineConfig {
@@ -65,8 +64,6 @@ export function VitrineForm({
   telefoneEmpresa,
   temEndereco,
   base,
-  produtosNaVitrine,
-  temPlano,
   bannerImagens,
 }: {
   config: VitrineConfig | null;
@@ -74,12 +71,9 @@ export function VitrineForm({
   telefoneEmpresa: string;
   temEndereco: boolean;
   base: string;
-  produtosNaVitrine: number;
-  temPlano: boolean;
   bannerImagens: ReactNode;
 }) {
   const { isPending, run } = useAction();
-  const toast = useToast();
   const [slug, setSlug] = useState(config?.slug ?? sugerirSlug(nomeNegocio));
   const [whatsapp, setWhatsapp] = useState(formatarTelefone(config?.whatsapp ?? telefoneEmpresa));
   const [cor, setCor] = useState(config?.cor ?? COR_PADRAO);
@@ -90,30 +84,13 @@ export function VitrineForm({
 
   const link = `${base}/loja/${slug || "sua-loja"}`;
 
-  async function copiar() {
-    try {
-      await navigator.clipboard.writeText(link);
-      toast.success("Link copiado.");
-    } catch {
-      toast.error("Não consegui copiar. Selecione o link e copie.");
-    }
-  }
-
-  if (!temPlano) {
-    return (
-      <p className="rounded-xl bg-fill/60 px-4 py-3 text-sm text-ink-2">
-        A vitrine faz parte do plano Marcon (e do teste de 14 dias). Assine para ter a sua loja online com link.
-      </p>
-    );
-  }
-
   return (
     <form action={(formData) => run(() => salvarVitrine(formData))} className="flex flex-col gap-5">
       <Interruptor
         name="ativa"
         padrao={config?.ativa ?? true}
         titulo="Vitrine no ar"
-        ajuda={'Desligada, o link mostra "loja não encontrada". Escolha os produtos em cada cadastro ("Mostrar na vitrine").'}
+        ajuda={'Desligada, o link mostra "loja não encontrada". Seus produtos e escolhas continuam guardados.'}
       />
 
       <Field label="Endereço da loja" hint="De 3 a 40 letras minúsculas, números ou hífen.">
@@ -305,28 +282,10 @@ export function VitrineForm({
         />
       </Secao>
 
-      <p className="text-xs text-ink-muted">
-        {produtosNaVitrine === 0
-          ? 'Nenhum produto marcado ainda. Abra um produto, edite e ligue "Mostrar na vitrine".'
-          : `${produtosNaVitrine} ${produtosNaVitrine === 1 ? "produto aparece" : "produtos aparecem"} na vitrine.`}
-      </p>
-
-      <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={isPending} className={btnPrimary}>
-          {isPending ? "Salvando..." : "Salvar vitrine"}
+      <div className="border-t border-line pt-4">
+        <button type="submit" disabled={isPending} className={`${btnPrimary} w-full sm:w-auto`}>
+          {isPending ? "Salvando..." : config ? "Salvar alterações" : "Criar minha loja"}
         </button>
-        {config && (
-          <>
-            <button type="button" onClick={copiar} className={btnSecondary}>
-              Copiar link
-            </button>
-            {config.ativa && (
-              <a href={`/loja/${config.slug}`} target="_blank" rel="noopener noreferrer" className={btnSecondary}>
-                Ver loja
-              </a>
-            )}
-          </>
-        )}
       </div>
     </form>
   );
