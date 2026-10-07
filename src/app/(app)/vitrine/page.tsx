@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
 import { lerUso } from "@/lib/uso";
 import { Card, PageHeader } from "@/components/ui";
+import { BannerImagens } from "./banner-imagens";
 import { VitrineForm } from "./vitrine-form";
 
 export const metadata: Metadata = { title: "Vitrine" };
@@ -27,6 +28,13 @@ export default async function VitrinePage() {
   ]);
 
   const meta = user?.user_metadata ?? {};
+  const paths = (vitrine?.banner_paths as string[] | undefined) ?? [];
+  const { data: assinadas } =
+    paths.length > 0 ? await supabase.storage.from("vitrine-banner").createSignedUrls(paths, 3600) : { data: [] };
+  const imagens = paths.flatMap((path) => {
+    const url = assinadas?.find((a) => a.path === path)?.signedUrl;
+    return url ? [{ path, url }] : [];
+  });
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -52,6 +60,9 @@ export default async function VitrinePage() {
                     instagram: vitrine.instagram ?? "",
                     mostrarEndereco: vitrine.mostrar_endereco,
                     ultimasUnidades: vitrine.ultimas_unidades,
+                    bannerTitulo: vitrine.banner_titulo ?? "",
+                    bannerSubtitulo: vitrine.banner_subtitulo ?? "",
+                    bannerBotao: vitrine.banner_botao ?? "",
                   }
                 : null
             }
@@ -61,6 +72,7 @@ export default async function VitrinePage() {
             base={base}
             produtosNaVitrine={naVitrine ?? 0}
             temPlano={uso ? uso.plano !== "gratis" : true}
+            bannerImagens={<BannerImagens imagens={imagens} habilitado={!!vitrine} />}
           />
         </Card>
         <p className="text-xs text-ink-muted">

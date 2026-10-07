@@ -136,12 +136,15 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
         <div className="h-1 bg-[var(--loja)]" />
       </header>
 
+      {vitrine.banner && <BannerDaLoja banner={vitrine.banner} />}
+
       <main className="mx-auto max-w-3xl px-4 pb-32 pt-4">
         {produtos.length === 0 ? (
           <p className="py-16 text-center text-sm text-ink-muted">Esta loja ainda não tem produtos na vitrine.</p>
         ) : (
           <>
             <input
+              id="produtos"
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
@@ -354,6 +357,56 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
         )}
       </Modal>
     </div>
+  );
+}
+
+function BannerDaLoja({ banner }: { banner: NonNullable<Vitrine["banner"]> }) {
+  const [indice, setIndice] = useState(0);
+  const temTexto = !!(banner.titulo || banner.subtitulo || banner.botao);
+  const slides = banner.urls.length > 0 ? banner.urls : [null];
+  return (
+    <section className="mx-auto max-w-3xl px-4 pt-4" aria-label="Destaque da loja">
+      <div className="relative overflow-hidden rounded-3xl bg-[var(--loja)]">
+        <div
+          className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={(e) => setIndice(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))}
+        >
+          {slides.map((url, i) => (
+            <div key={url ?? "sem-imagem"} className="relative aspect-[5/2] w-full shrink-0 snap-center">
+              {url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={url} alt="" className="h-full w-full object-cover" loading={i === 0 ? "eager" : "lazy"} />
+              )}
+            </div>
+          ))}
+        </div>
+        {temTexto && (
+          <div
+            className={`pointer-events-none absolute inset-0 flex flex-col justify-end gap-1 p-4 sm:p-6 ${
+              banner.urls.length > 0 ? "bg-gradient-to-t from-black/70 via-black/20 to-transparent text-white" : "text-[var(--loja-texto)]"
+            }`}
+          >
+            {banner.titulo && <h2 className="text-xl font-bold leading-tight sm:text-2xl">{banner.titulo}</h2>}
+            {banner.subtitulo && <p className="text-sm opacity-90 sm:text-base">{banner.subtitulo}</p>}
+            {banner.botao && (
+              <a
+                href="#produtos"
+                className="pointer-events-auto mt-2 inline-flex w-fit rounded-full bg-white px-4 py-2 text-sm font-semibold text-black shadow"
+              >
+                {banner.botao}
+              </a>
+            )}
+          </div>
+        )}
+        {slides.length > 1 && (
+          <div className="absolute right-3 top-3 flex gap-1.5" aria-hidden="true">
+            {slides.map((_, i) => (
+              <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === indice ? "bg-white" : "bg-white/50"}`} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

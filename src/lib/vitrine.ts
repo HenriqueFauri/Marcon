@@ -8,6 +8,10 @@ export const COR_PADRAO = "#0f766e";
 export const COR_REGEX = /^#[0-9a-fA-F]{6}$/;
 export const BOAS_VINDAS_MAX = 160;
 export const ANUNCIO_MAX = 120;
+export const BANNER_MAX_IMAGENS = 3;
+export const BANNER_TITULO_MAX = 60;
+export const BANNER_SUBTITULO_MAX = 120;
+export const BANNER_BOTAO_MAX = 24;
 export const INSTAGRAM_REGEX = /^[A-Za-z0-9._]{1,30}$/;
 
 export type Entrega = "ambos" | "entrega" | "retirada";
@@ -88,8 +92,23 @@ export interface VitrineProduto extends Omit<VitrineProdutoBruto, "fotos"> {
   fotos: { url: string; variacaoId: string | null }[];
 }
 
+export interface BannerBruto {
+  paths: string[];
+  titulo: string | null;
+  subtitulo: string | null;
+  botao: string | null;
+}
+
+export interface Banner {
+  urls: string[];
+  titulo: string | null;
+  subtitulo: string | null;
+  botao: string | null;
+}
+
 export interface Vitrine {
   loja: Omit<VitrineBruta["loja"], "logo_path"> & { logoUrl: string | null };
+  banner: Banner | null;
   produtos: VitrineProduto[];
 }
 

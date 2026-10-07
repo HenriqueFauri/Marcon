@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { falha, numero, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 import {
   ANUNCIO_MAX,
+  BANNER_BOTAO_MAX,
+  BANNER_MAX_IMAGENS,
+  BANNER_SUBTITULO_MAX,
+  BANNER_TITULO_MAX,
   BOAS_VINDAS_MAX,
   COR_PADRAO,
   COR_REGEX,
@@ -30,6 +34,9 @@ export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
         .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
         .replace(/^@/, "")
         .replace(/[/?].*$/, "") || null;
+    const bannerTitulo = textoOuNull(formData, "banner_titulo");
+    const bannerSubtitulo = textoOuNull(formData, "banner_subtitulo");
+    const bannerBotao = textoOuNull(formData, "banner_botao");
     const freteBruto = numero(formData, "frete_fixo");
     const frete = entrega === "retirada" ? null : freteBruto;
 
@@ -42,6 +49,12 @@ export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
 
     if (anuncio && anuncio.length > ANUNCIO_MAX)
       return { ok: false, error: `A barra de anúncio tem no máximo ${ANUNCIO_MAX} letras.` };
+    if (
+      (bannerTitulo && bannerTitulo.length > BANNER_TITULO_MAX) ||
+      (bannerSubtitulo && bannerSubtitulo.length > BANNER_SUBTITULO_MAX) ||
+      (bannerBotao && bannerBotao.length > BANNER_BOTAO_MAX)
+    )
+      return { ok: false, error: "Um dos textos do banner passou do limite de letras." };
     if (instagram && !INSTAGRAM_REGEX.test(instagram)) return { ok: false, error: "Confira o usuário do Instagram." };
     if (frete !== null && (Number.isNaN(frete) || frete < 0 || frete > 9999)) return { ok: false, error: "Confira o valor do frete." };
 
@@ -63,6 +76,9 @@ export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
         entrega,
         tema,
         instagram,
+        banner_titulo: bannerTitulo,
+        banner_subtitulo: bannerSubtitulo,
+        banner_botao: bannerBotao,
         frete_fixo: frete,
         mostrar_endereco: formData.get("mostrar_endereco") === "on",
         ultimas_unidades: formData.get("ultimas_unidades") === "on",
@@ -79,6 +95,62 @@ export async function salvarVitrine(formData: FormData): Promise<ActionResult> {
     revalidatePath("/vitrine");
     revalidatePath(`/loja/${slug}`);
     return ok(ativa ? "Vitrine salva e no ar." : "Vitrine salva (desligada).");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// As imagens sobem direto do navegador para o bucket vitrine-banner (pasta do dono); estas ações
+// só guardam a lista. O caminho precisa estar na pasta do próprio usuário.
+export async function adicionarImagemBanner(path: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+    if (!path.startsWith(`${user.id}/`) || path.includes("..")) return { ok: false, error: "Imagem inválida." };
+
+    const { data: atual } = await supabase.from("vitrines").select("banner_paths").maybeSingle();
+    if (!atual) return { ok: false, error: "Salve a vitrine antes de enviar imagens do banner." };
+    const paths = (atual.banner_paths as string[]) ?? [];
+    if (paths.length >= BANNER_MAX_IMAGENS) {
+      await supabase.storage.from("vitrine-banner").remove([path]);
+      return { ok: false, error: `O banner aceita até ${BANNER_MAX_IMAGENS} imagens.` };
+    }
+
+    const { error } = await supabase
+      .from("vitrines")
+      .update({ banner_paths: [...paths, path], updated_at: new Date().toISOString() })
+      .eq("owner_id", user.id);
+    if (error) return falha(error);
+
+    revalidatePath("/vitrine");
+    return ok("Imagem adicionada ao banner.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function removerImagemBanner(path: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { data: atual } = await supabase.from("vitrines").select("banner_paths").maybeSingle();
+    const paths = ((atual?.banner_paths as string[] | undefined) ?? []).filter((p) => p !== path);
+    const { error } = await supabase
+      .from("vitrines")
+      .update({ banner_paths: paths, updated_at: new Date().toISOString() })
+      .eq("owner_id", user.id);
+    if (error) return falha(error);
+    if (path.startsWith(`${user.id}/`)) await supabase.storage.from("vitrine-banner").remove([path]);
+
+    revalidatePath("/vitrine");
+    return ok("Imagem removida.");
   } catch (e) {
     return falha(e);
   }
