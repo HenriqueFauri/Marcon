@@ -38,7 +38,7 @@ export function linkDeIndicacao(base: string, codigo: string) {
 }
 
 export function mensagemDeConvite(link: string) {
-  return `Uso o Marcon para controlar vendas, estoque e caixa direto do celular. Dá para testar de graça: ${link}`;
+  return `Uso o Marcon pra controlar vendas, estoque e caixa. É o app de quem vende no Marketplace e no WhatsApp. Dá pra testar de graça: ${link}`;
 }
 
 export interface ComissaoLinha {

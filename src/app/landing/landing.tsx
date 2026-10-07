@@ -8,8 +8,12 @@ import {
   IconPencil,
   IconPlus,
   IconReceipt,
+  IconCart,
+  IconMegaphone,
+  IconMinus,
   IconSparkles,
   IconWallet,
+  IconWhatsapp,
 } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
 import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
@@ -50,7 +54,7 @@ const PUBLICOS: Record<
     selo: "Pra quem vende no WhatsApp",
     manchete: ["Fechou no Zap?", "Registra em segundos."],
     apoio:
-      "Anota a venda, gera o recibo com link pra mandar no WhatsApp e mostra o lucro de cada uma. Sem caderninho e sem planilha.",
+      "Manda o link da sua vitrine e o pedido chega pronto no Zap. Depois é só registrar a venda, mandar o recibo e ver o lucro de cada uma. Sem caderninho e sem planilha.",
     canal: "WhatsApp",
   },
 };
@@ -64,6 +68,7 @@ const SECOES = [
   { id: "estoque", rotulo: "Estoque" },
   { id: "vendas", rotulo: "Vendas" },
   { id: "anuncios", rotulo: "Anúncios" },
+  { id: "vitrine", rotulo: "Vitrine" },
   { id: "lucro", rotulo: "Lucro" },
   { id: "planos", rotulo: "Planos" },
 ];
@@ -253,15 +258,13 @@ function PainelMetas() {
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex min-w-0 flex-col">
             <span className="text-[13px] font-semibold text-brand-text">Vendas · 83%</span>
-            <span className="truncate text-[22px] font-bold leading-[1.1] tracking-tight tabular-nums text-ink">
-              R$ 1.240,00<span className="text-[13px] font-normal text-ink-muted"> / R$ 1.500</span>
-            </span>
+            <span className="text-[22px] font-bold leading-[1.1] tracking-tight tabular-nums text-ink">R$ 1.240,00</span>
+            <span className="text-[12px] tabular-nums text-ink-muted">de R$ 1.500</span>
           </div>
           <div className="flex min-w-0 flex-col">
             <span className="text-[13px] font-semibold text-tile-positive">Lucro · 84%</span>
-            <span className="truncate text-[22px] font-bold leading-[1.1] tracking-tight tabular-nums text-ink">
-              R$ 506,20<span className="text-[13px] font-normal text-ink-muted"> / R$ 600</span>
-            </span>
+            <span className="text-[22px] font-bold leading-[1.1] tracking-tight tabular-nums text-ink">R$ 506,20</span>
+            <span className="text-[12px] tabular-nums text-ink-muted">de R$ 600</span>
           </div>
           <span className="text-[13px] text-brand-text">Editar metas</span>
         </div>
@@ -386,18 +389,27 @@ function TelaProduto() {
   return (
     <Tela>
       <Cabecalho titulo="Fone KZ ZSN Pro" sub="Fones · KZ" />
+      <div className="grid grid-cols-4 gap-1.5">
+        {[
+          { rotulo: "Entrada", icone: <IconPlus width={15} height={15} /> },
+          { rotulo: "Saída", icone: <IconMinus width={15} height={15} /> },
+          { rotulo: "Ajustar", icone: <IconPencil width={14} height={14} /> },
+          { rotulo: "Anúncios", icone: <IconMegaphone width={14} height={14} /> },
+        ].map((a) => (
+          <span key={a.rotulo} className="hairline flex flex-col items-center gap-1 rounded-2xl bg-surface py-2.5 text-[10px] font-medium text-ink-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-tint text-brand-text">{a.icone}</span>
+            {a.rotulo}
+          </span>
+        ))}
+      </div>
+      <span className="bg-brand-fill flex items-center justify-center gap-1.5 rounded-full py-2.5 text-[14px] font-semibold text-on-brand">
+        <IconCart width={15} height={15} /> Vender
+      </span>
       <div className="grid grid-cols-2 gap-2.5">
         <Stat rotulo="Custo médio" valor="R$ 47,50" dica="Fornecedor: Importa SP" />
         <Stat rotulo="Preço de venda" valor="R$ 89,90" dica="47,2% de margem" />
         <Stat rotulo="Em estoque" valor="6 un." tom="text-positive" dica="Alerta com 2 ou menos" />
         <Stat rotulo="Vendidos" valor="18" dica="R$ 763,20 de lucro" />
-      </div>
-      <div className="hairline flex items-center justify-between gap-3 rounded-3xl bg-surface px-4 py-3.5">
-        <span>
-          <span className="block text-[15px] font-semibold tracking-tight text-ink">Anúncios</span>
-          <span className="block text-[12px] text-ink-muted">Títulos, descrições e fotos pra copiar.</span>
-        </span>
-        <span className="text-ink-faint">›</span>
       </div>
     </Tela>
   );
@@ -473,6 +485,71 @@ function TelaAnuncios({ canal }: { canal: string }) {
           </p>
         </div>
       </Cartao>
+    </Tela>
+  );
+}
+
+function ProdutoNaVitrine({ nome, preco, tom, selo }: { nome: string; preco: string; tom: string; selo?: string }) {
+  return (
+    <div className="hairline overflow-hidden rounded-2xl bg-surface">
+      <div className={`relative flex aspect-square items-center justify-center ${tom}`}>
+        <IconBox width={24} height={24} strokeWidth={1.6} />
+        {selo && (
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-semibold text-black">{selo}</span>
+        )}
+      </div>
+      <div className="p-2">
+        <p className="line-clamp-2 min-h-[2.5em] text-[11px] font-medium leading-snug text-ink">{nome}</p>
+        <p className="mt-0.5 text-[12px] font-semibold tabular-nums text-ink">{preco}</p>
+      </div>
+    </div>
+  );
+}
+
+function TelaVitrine() {
+  const corDaLoja = "#0f766e";
+  return (
+    <Tela>
+      <div className="-mx-3.5 -mt-3.5 overflow-hidden rounded-t-[34px]">
+        <p className="px-4 pb-1.5 pt-3 text-center text-[11px] font-medium text-white" style={{ background: corDaLoja }}>
+          Frete grátis acima de R$ 150
+        </p>
+        <div className="flex items-center gap-2.5 border-b border-line bg-surface px-4 py-3">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[15px] font-bold text-white"
+            style={{ background: corDaLoja }}
+          >
+            L
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[15px] font-semibold tracking-tight text-ink">Loja do Lucas</span>
+            <span className="block truncate text-[11px] text-ink-muted">Eletrônicos com garantia. Entrego na cidade.</span>
+          </span>
+        </div>
+      </div>
+      <div className="rounded-xl bg-fill px-3 py-2 text-[12px] text-ink-muted">Buscar produto</div>
+      <div className="flex gap-1.5 text-[11px] font-medium">
+        <span className="rounded-full px-3 py-1 text-white" style={{ background: corDaLoja }}>
+          Todos
+        </span>
+        <span className="rounded-full bg-fill px-3 py-1 text-ink-2">Fones</span>
+        <span className="rounded-full bg-fill px-3 py-1 text-ink-2">Carregadores</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <ProdutoNaVitrine nome="Fone KZ ZSN Pro com microfone" preco="R$ 89,90" tom="bg-[#e7ddd3] text-[#8a6a4f]" selo="Últimas 2" />
+        <ProdutoNaVitrine nome="Carregador turbo 20W USB-C" preco="R$ 39,90" tom="bg-[#dbe6f3] text-[#4b6a8d]" />
+        <ProdutoNaVitrine nome="Parafusadeira 12V Bivolt" preco="R$ 169,90" tom="bg-[#f3e3c9] text-[#9a6b1f]" />
+        <ProdutoNaVitrine nome="Smartwatch D20" preco="R$ 59,90" tom="bg-[#dcebe2] text-[#3f7556]" />
+      </div>
+      <div className="hairline flex items-center justify-between gap-3 rounded-2xl bg-surface px-3.5 py-2.5">
+        <span>
+          <span className="block text-[13px] font-semibold tabular-nums text-ink">R$ 129,80</span>
+          <span className="block text-[11px] text-ink-muted">2 itens no pedido</span>
+        </span>
+        <span className="rounded-full px-3.5 py-1.5 text-[12px] font-semibold text-white" style={{ background: corDaLoja }}>
+          Ver pedido
+        </span>
+      </div>
     </Tela>
   );
 }
@@ -753,9 +830,49 @@ export function Landing({ publico }: { publico: Publico }) {
         </Recurso>
 
         <Recurso
+          id="vitrine"
+          rotulo="Vitrine"
+          invertido
+          titulo={
+            <>
+              Mandou o link.
+              <br />O pedido chega pronto.
+            </>
+          }
+          texto="Sua loja com link pra mandar no status e nos grupos. O cliente vê fotos e preços, monta o carrinho e o pedido cai no seu WhatsApp com tudo escrito. Sem responder “ainda tem?” um por um."
+          pontos={[
+            "Você escolhe quais produtos aparecem",
+            "Esgotado aparece marcado, sem você mexer",
+            "Cupom de desconto, frete e retirada no local",
+          ]}
+          flutuante={
+            <Flutuante className="mr-auto sm:-left-16 sm:-bottom-6">
+              <div className="hairline glass rounded-[22px] p-3 text-left shadow-[0_24px_40px_-18px_rgba(0,0,0,0.35)]">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#25d366] text-white">
+                    <IconWhatsapp width={15} height={15} />
+                  </span>
+                  <span className="text-[13px] font-semibold text-ink">Novo pedido</span>
+                  <span className="ml-auto text-[11px] text-ink-muted">agora</span>
+                </div>
+                <p className="rounded-2xl rounded-tl-md bg-[#dcf8c6] px-3 py-2 text-[12px] leading-snug text-[#111]">
+                  Olá! Quero fazer um pedido:
+                  <br />• 1x Fone KZ ZSN Pro (Preto): R$ 89,90
+                  <br />• 1x Carregador turbo 20W: R$ 39,90
+                  <br />
+                  Total: R$ 129,80
+                </p>
+              </div>
+            </Flutuante>
+          }
+        >
+          <TelaVitrine />
+        </Recurso>
+
+        <Recurso
           id="importar"
           rotulo="Importar"
-          invertido
+          fundo="bg-panel"
           titulo={
             <>
               Já usa outro app?
@@ -776,7 +893,7 @@ export function Landing({ publico }: { publico: Publico }) {
         <Recurso
           id="lucro"
           rotulo="Lucro"
-          fundo="bg-panel"
+          invertido
           titulo={
             <>
               Tá valendo a pena?
@@ -849,8 +966,8 @@ export function Landing({ publico }: { publico: Publico }) {
               {DIAS_DE_TESTE} dias com tudo liberado, sem cartão. Depois você escolhe.
             </p>
 
-            <div className="mt-12 grid gap-4 sm:grid-cols-2">
-              <div className="hairline flex flex-col rounded-3xl bg-surface p-6 sm:p-8">
+            <div className="mt-12 grid gap-6 sm:grid-cols-2 sm:gap-4">
+              <div className="hairline order-2 flex flex-col rounded-3xl bg-surface p-6 sm:order-none sm:p-8">
                 <h3 className="text-[19px] font-semibold tracking-tight">{PLANO_GRATIS.nome}</h3>
                 <p className="mt-1 text-[15px] text-ink-muted">Pra quem está começando.</p>
                 <p className="mt-5 text-[40px] font-bold tracking-[-0.04em] tabular-nums">
@@ -865,7 +982,7 @@ export function Landing({ publico }: { publico: Publico }) {
                 </Link>
               </div>
 
-              <div className="relative flex flex-col rounded-3xl border border-brand bg-surface p-6 shadow-[0_30px_60px_-30px_rgba(212,95,48,0.45)] sm:p-8">
+              <div className="relative order-1 flex flex-col rounded-3xl border border-brand bg-surface p-6 shadow-[0_30px_60px_-30px_rgba(212,95,48,0.45)] sm:order-none sm:p-8">
                 <span className="absolute -top-3 left-6 rounded-full bg-brand-fill px-3 py-1 text-[12px] font-semibold text-on-brand sm:left-8">
                   {DIAS_DE_TESTE} dias grátis
                 </span>

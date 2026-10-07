@@ -146,7 +146,7 @@ export default async function IndiquePage() {
           {indicados.length === 0 ? (
             <EmptyState
               title="Ninguém ainda"
-              description="Mande o link para quem vende pelo celular e ainda anota tudo no caderno. Quando a pessoa criar a conta, ela aparece aqui."
+              description="Mande o link pra quem vende no Marketplace ou no WhatsApp e ainda anota tudo no caderno. Quando a pessoa criar a conta, ela aparece aqui."
             />
           ) : (
             <Table compacta>
