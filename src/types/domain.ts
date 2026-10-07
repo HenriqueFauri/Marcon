@@ -23,6 +23,7 @@ export interface Produto {
   sku: string | null;
   fornecedor_nome: string | null;
   fornecedor_id: string | null;
+  na_vitrine: boolean;
   created_at: string;
 }
 
