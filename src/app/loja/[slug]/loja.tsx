@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { Modal } from "@/components/modal";
+import { IconChevronLeft, IconChevronRight, IconX } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
 import {
-  TOKENS_ESCUROS,
-  corDoTexto,
+  coresDaLoja,
+  fundoEscuro,
+  tokensDaLoja,
   descontoDoCupom,
   rotuloDoCupom,
   type Cupom,
@@ -16,6 +18,10 @@ import {
   type Vitrine,
   type VitrineProduto,
   type VitrineVariacao,
+  type DadosDaPrevia,
+  PREVIA_DADOS,
+  PREVIA_PRONTA,
+  aplicarPrevia,
 } from "@/lib/vitrine";
 import { registrarEvento, validarCupom } from "./actions";
 
@@ -84,8 +90,13 @@ function contarSeNovo(chave: string, valor: string) {
   }
 }
 
-export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
-  const { loja, produtos } = vitrine;
+// previa: a loja aberta no iframe de Personalizar. Mostra o que ainda não foi salvo (recebe do
+// formulário por postMessage), não conta métricas, não guarda carrinho e não envia pedido.
+export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; vitrine: Vitrine; previa?: boolean }) {
+  const [ajuste, setAjuste] = useState<DadosDaPrevia | null>(null);
+  const vitrine = ajuste ? aplicarPrevia(salva, ajuste) : salva;
+  const { loja } = vitrine;
+  const produtos = salva.produtos; // a prévia muda só a aparência, nunca os produtos
   const chaveStorage = `marcon-loja-${slug}`;
   const [itens, setItens] = useState<ItemSalvo[]>([]);
   const [busca, setBusca] = useState("");
@@ -108,6 +119,7 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
 
   // carrinho salvo no aparelho e produto aberto pelo link (?p=id); só no navegador, depois da hidratação
   useEffect(() => {
+    if (previa) return;
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- lê o storage só no navegador
       setItens(lerItensSalvos(JSON.parse(localStorage.getItem(chaveStorage) ?? "[]")));
@@ -119,22 +131,46 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
       setAberto(produto);
       if (contarSeNovo(`marcon-produto-${produto.id}`, hojeLocal())) void registrarEvento(slug, "produto", produto.id);
     }
-  }, [chaveStorage, porId, slug]);
+  }, [chaveStorage, porId, slug, previa]);
   useEffect(() => {
+    if (previa) return;
     try {
       localStorage.setItem(chaveStorage, JSON.stringify(itens));
     } catch {}
-  }, [itens, chaveStorage]);
+  }, [itens, chaveStorage, previa]);
+
+  // prévia: avisa o formulário que está pronta e passa a seguir o que ele mandar
+  useEffect(() => {
+    if (!previa || window.parent === window) return;
+    function receber(e: MessageEvent) {
+      if (e.origin !== window.location.origin || e.data?.tipo !== PREVIA_DADOS) return;
+      setAjuste(e.data.dados as DadosDaPrevia);
+    }
+    window.addEventListener("message", receber);
+    window.parent.postMessage({ tipo: PREVIA_PRONTA }, window.location.origin);
+    return () => window.removeEventListener("message", receber);
+  }, [previa]);
+
+  // ao puxar a página além do fim (iPhone), aparece o fundo do body: pinta com o fundo da loja
+  const fundo = coresDaLoja(loja).fundo;
+  useEffect(() => {
+    const antes = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = fundo;
+    return () => {
+      document.body.style.backgroundColor = antes;
+    };
+  }, [fundo]);
 
   // o endereço reflete o produto aberto, para dar para copiar e mandar o link
   const abrir = useCallback((p: VitrineProduto | null) => {
     setAberto(p);
+    if (previa) return;
     if (p && contarSeNovo(`marcon-produto-${p.id}`, hojeLocal())) void registrarEvento(slug, "produto", p.id);
     const url = new URL(window.location.href);
     if (p) url.searchParams.set("p", p.id);
     else url.searchParams.delete("p");
     window.history.replaceState(null, "", url);
-  }, [slug]);
+  }, [slug, previa]);
 
   function avisar(texto: string) {
     setAviso(texto);
@@ -233,23 +269,18 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
     );
   }
 
-  const escuro = loja.tema === "escuro";
-  const estilo = {
-    ...(escuro ? TOKENS_ESCUROS : {}),
-    colorScheme: escuro ? "dark" : "light",
-    "--loja": loja.cor,
-    "--loja-texto": corDoTexto(loja.cor),
-  } as CSSProperties;
+  const cores = coresDaLoja(loja);
+  const estilo = { ...tokensDaLoja(cores), colorScheme: fundoEscuro(cores.fundo) ? "dark" : "light" } as CSSProperties;
   const campo =
     "w-full rounded-xl border border-transparent bg-fill px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-muted focus:border-[var(--loja)] focus:bg-surface";
   const botao =
-    "inline-flex items-center justify-center rounded-full bg-[var(--loja)] px-5 py-3 text-[15px] font-semibold text-[var(--loja-texto)] shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex items-center justify-center rounded-full bg-[var(--loja-botao)] px-5 py-3 text-[15px] font-semibold text-[var(--loja-botao-texto)] shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
   const nomeLoja = loja.nome ?? "Loja";
 
   return (
     <div style={estilo} className="min-h-dvh bg-canvas text-ink">
       {loja.anuncio && (
-        <p className="bg-[var(--loja)] px-4 py-2 text-center text-[13px] font-medium text-[var(--loja-texto)]">{loja.anuncio}</p>
+        <p className="bg-[var(--loja-faixa)] px-4 py-2 text-center text-[13px] font-medium text-[var(--loja-faixa-texto)]">{loja.anuncio}</p>
       )}
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
@@ -271,9 +302,9 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
         </div>
       </header>
 
-      {vitrine.banner && <BannerDaLoja banner={vitrine.banner} />}
+      {vitrine.banner && <BannerDaLoja key={vitrine.banner.urls.join()} banner={vitrine.banner} />}
 
-      <main className="mx-auto max-w-3xl px-4 pb-36 pt-4">
+      <main className="mx-auto max-w-3xl px-4 pb-36 pt-2">
         {produtos.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-fill text-2xl" aria-hidden="true">
@@ -287,7 +318,8 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
           </div>
         ) : (
           <>
-            <div id="produtos" className="scroll-mt-4">
+            {/* busca e categorias ficam no topo ao rolar, para quem tem muitos produtos */}
+            <div id="produtos" className="sticky top-0 z-10 -mx-4 scroll-mt-0 bg-canvas/90 px-4 pb-2 pt-2 backdrop-blur-xl">
               <input
                 type="search"
                 value={busca}
@@ -296,9 +328,11 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                 aria-label="Buscar produto"
                 className={campo}
               />
-            </div>
             {categorias.length > 0 && (
-              <div className={`-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 ${SEM_BARRA}`}>
+              // o degradê na direita mostra que tem mais categorias para o lado
+              <div
+                className={`-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pr-10 [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] ${SEM_BARRA}`}
+              >
                 {[null, ...categorias].map((c) => {
                   const ativo = categoria === c;
                   return (
@@ -317,9 +351,10 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                 })}
               </div>
             )}
+            </div>
 
             {destaques.length > 0 && (
-              <section className="mt-6" aria-label="Destaques">
+              <section className="mt-4" aria-label="Destaques">
                 <h2 className="mb-2.5 text-[15px] font-semibold">Destaques</h2>
                 <ul className={`-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 ${SEM_BARRA}`}>
                   {destaques.map((p) => (
@@ -440,7 +475,7 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
         )
       )}
 
-      <Modal open={!!aberto} onClose={() => abrir(null)} title={aberto?.nome ?? ""} description={aberto?.marca ?? undefined}>
+      <Modal folha open={!!aberto} onClose={() => abrir(null)} title={aberto?.nome ?? ""} description={aberto?.marca ?? undefined}>
         {aberto && (
           <DetalheDoProduto
             key={aberto.id}
@@ -452,7 +487,7 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
         )}
       </Modal>
 
-      <Modal open={verCarrinho} onClose={() => setVerCarrinho(false)} title="Seu pedido">
+      <Modal folha open={verCarrinho} onClose={() => setVerCarrinho(false)} title="Seu pedido">
         {linhas.length === 0 ? (
           <p className="py-6 text-center text-sm text-ink-muted">Seu pedido está vazio.</p>
         ) : (
@@ -593,7 +628,11 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                 <dd className="text-lg font-semibold tabular-nums">{formatBRL(total)}</dd>
               </div>
             </dl>
-            {faltaEndereco ? (
+            {previa ? (
+              <button type="button" disabled className={`${botao} mt-4 w-full`}>
+                Na prévia o pedido não é enviado
+              </button>
+            ) : faltaEndereco ? (
               <button type="button" disabled className={`${botao} mt-4 w-full`}>
                 Informe o endereço de entrega
               </button>
@@ -623,6 +662,21 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
               </a>
             )}
             <p className="mt-2 text-center text-xs text-ink-muted">O pagamento e a entrega você combina direto com a loja.</p>
+            <div className="mt-5 flex items-center justify-between border-t border-line pt-3 text-[13px]">
+              <a href={linkDuvida} target="_blank" rel="noopener noreferrer" className="font-medium text-ink-2 hover:underline">
+                Ficou com dúvida? Chame a loja
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setItens([]);
+                  setVerCarrinho(false);
+                }}
+                className="font-medium text-danger hover:underline"
+              >
+                Esvaziar pedido
+              </button>
+            </div>
           </>
         )}
       </Modal>
@@ -658,8 +712,72 @@ function indiceDoScroll(el: HTMLElement) {
   return Math.round(el.scrollLeft / Math.max(el.clientWidth, 1));
 }
 
+// setas de passar foto, só onde tem mouse (no toque, arrasta com o dedo)
+function Setas({ alvo, total, atual }: { alvo: RefObject<HTMLDivElement | null>; total: number; atual: number }) {
+  if (total < 2) return null;
+  const rolar = (direcao: number) => alvo.current?.scrollBy({ left: direcao * alvo.current.clientWidth, behavior: "smooth" });
+  const base =
+    "absolute top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 [@media(hover:hover)]:flex";
+  return (
+    <>
+      {atual > 0 && (
+        <button type="button" aria-label="Foto anterior" onClick={() => rolar(-1)} className={`${base} left-2`}>
+          <IconChevronLeft width={20} height={20} />
+        </button>
+      )}
+      {atual < total - 1 && (
+        <button type="button" aria-label="Próxima foto" onClick={() => rolar(1)} className={`${base} right-2`}>
+          <IconChevronRight width={20} height={20} />
+        </button>
+      )}
+    </>
+  );
+}
+
+// foto em tela cheia sobre fundo preto (outro <dialog>, por cima da janela do produto); no celular dá para
+// ampliar com dois dedos. Toque em qualquer lugar ou Esc fecha.
+function FotoAmpliada({ url, alt, onFechar }: { url: string | null; alt: string; onFechar: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (url && !d.open) d.showModal();
+    if (!url && d.open) d.close();
+  }, [url]);
+  return (
+    <dialog
+      ref={ref}
+      // o React propaga close e click pela árvore: sem parar aqui, fecharia também a janela do produto
+      onClose={(e) => {
+        e.stopPropagation();
+        onFechar();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onFechar();
+      }}
+      className="m-0 h-dvh max-h-none w-screen max-w-none bg-black p-0 backdrop:bg-black"
+    >
+      {url && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={alt} className="h-full w-full object-contain" />
+          <button
+            type="button"
+            aria-label="Fechar foto"
+            className="absolute right-4 top-[max(env(safe-area-inset-top),1rem)] flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
+          >
+            <IconX />
+          </button>
+        </>
+      )}
+    </dialog>
+  );
+}
+
 function BannerDaLoja({ banner }: { banner: NonNullable<Vitrine["banner"]> }) {
   const [indice, setIndice] = useState(0);
+  const carrossel = useRef<HTMLDivElement>(null);
   const temTexto = !!(banner.titulo || banner.subtitulo || banner.botao);
   if (banner.urls.length === 0 && !temTexto) return null;
   return (
@@ -667,7 +785,9 @@ function BannerDaLoja({ banner }: { banner: NonNullable<Vitrine["banner"]> }) {
       <div className="overflow-hidden rounded-3xl bg-[var(--loja)] text-[var(--loja-texto)]">
         {banner.urls.length > 0 && (
           <div className="relative">
+            <Setas alvo={carrossel} total={banner.urls.length} atual={indice} />
             <div
+              ref={carrossel}
               className={`flex snap-x snap-mandatory overflow-x-auto ${SEM_BARRA}`}
               onScroll={(e) => setIndice(indiceDoScroll(e.currentTarget))}
             >
@@ -741,7 +861,7 @@ function CartaoDoProduto({ produto: p, onAbrir }: { produto: VitrineProduto; onA
           <span className="absolute left-2 top-2 rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-semibold text-white">Esgotado</span>
         )}
         {ultimas !== null && (
-          <span className="absolute left-2 top-2 rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-semibold text-black">
+          <span className="absolute left-2 top-2 rounded-full bg-tile-warning px-2.5 py-1 text-[11px] font-semibold text-on-tile-warning">
             {ultimas === 1 ? "Última unidade" : `Últimas ${ultimas}`}
           </span>
         )}
@@ -798,6 +918,8 @@ function DetalheDoProduto({
   const indisponivel = comVariacoes ? !variacao || variacao.esgotado : produto.esgotado;
   const ultimas = variacao ? variacao.ultimas : comVariacoes ? null : produto.ultimas;
 
+  const [ampliada, setAmpliada] = useState<string | null>(null);
+
   function escolher(id: string) {
     setVariacaoId(id);
     setFoto(0);
@@ -822,24 +944,31 @@ function DetalheDoProduto({
     <div>
       {fotos.length > 0 ? (
         <div className="mb-4">
-          <div
-            ref={galeria}
-            className={`-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 ${SEM_BARRA}`}
-            onScroll={(e) => setFoto(indiceDoScroll(e.currentTarget))}
-          >
-            {fotos.map((f) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={f.url}
-                src={f.url}
-                alt={produto.nome}
-                className="aspect-square w-full shrink-0 snap-center rounded-2xl bg-fill object-cover"
-              />
-            ))}
+          <div className="relative">
+            <Setas alvo={galeria} total={fotos.length} atual={foto} />
+            <div
+              ref={galeria}
+              className={`-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 ${SEM_BARRA}`}
+              onScroll={(e) => setFoto(indiceDoScroll(e.currentTarget))}
+            >
+              {fotos.map((f) => (
+                <button
+                  key={f.url}
+                  type="button"
+                  onClick={() => setAmpliada(f.url)}
+                  aria-label="Ver foto em tela cheia"
+                  className="w-full shrink-0 snap-center cursor-zoom-in"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={f.url} alt={produto.nome} className="aspect-square w-full rounded-2xl bg-fill object-cover" />
+                </button>
+              ))}
+            </div>
           </div>
           <div className="mt-2">
             <Pontos total={fotos.length} atual={foto} />
           </div>
+          <FotoAmpliada url={ampliada} alt={produto.nome} onFechar={() => setAmpliada(null)} />
         </div>
       ) : (
         <div className="mb-4 aspect-[4/3] rounded-2xl bg-fill">
@@ -850,7 +979,7 @@ function DetalheDoProduto({
       <div className="flex items-start justify-between gap-3">
         <div>
           {ultimas !== null && ultimas !== undefined && !produto.esgotado && (
-            <p className="mb-1 text-xs font-semibold text-amber-600">
+            <p className="mb-1 text-xs font-semibold text-warning">
               {ultimas === 1 ? "Última unidade!" : `Últimas ${ultimas} unidades!`}
             </p>
           )}

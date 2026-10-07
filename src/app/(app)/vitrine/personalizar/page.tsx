@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { coresDaLoja } from "@/lib/vitrine";
 import { Card, btnPrimary } from "@/components/ui";
 import { BannerImagens } from "../banner-imagens";
 import { PersonalizacaoForm } from "./personalizacao-form";
@@ -20,7 +21,9 @@ export default async function VitrinePersonalizarPage() {
     return (
       <Card>
         <div className="flex flex-col items-start gap-3">
-          <p className="text-sm text-ink-2">Crie sua loja primeiro: escolha o endereço e o WhatsApp. Depois volte aqui para deixar com a sua cara.</p>
+          <p className="text-sm text-ink-2">
+            Crie sua loja primeiro: escolha o endereço e o WhatsApp. Depois volte aqui para deixar com a sua cara.
+          </p>
           <Link href="/vitrine/configuracoes" className={btnPrimary}>
             Criar minha loja
           </Link>
@@ -39,30 +42,21 @@ export default async function VitrinePersonalizarPage() {
   });
 
   return (
-    <div className="flex flex-col gap-4">
-        <PersonalizacaoForm
-          config={{
-            cor: vitrine.cor,
-            tema: vitrine.tema,
-            boasVindas: vitrine.boas_vindas ?? "",
-            anuncio: vitrine.anuncio ?? "",
-            instagram: vitrine.instagram ?? "",
-            mostrarEndereco: vitrine.mostrar_endereco,
-            ultimasUnidades: vitrine.ultimas_unidades,
-            bannerTitulo: vitrine.banner_titulo ?? "",
-            bannerSubtitulo: vitrine.banner_subtitulo ?? "",
-            bannerBotao: vitrine.banner_botao ?? "",
-          }}
-          temEndereco={!!(meta.empresa_endereco as string | undefined)}
-          bannerImagens={<BannerImagens imagens={imagens} habilitado />}
-        />
-      <p className="px-4 text-[13px] text-ink-muted">
-        O nome e o logo da loja vêm de{" "}
-        <Link href="/configuracoes" className="font-medium text-brand-text hover:underline">
-          Configurações do app
-        </Link>
-        , em Dados da empresa.
-      </p>
-    </div>
+    <PersonalizacaoForm
+      config={{
+        cores: coresDaLoja(vitrine),
+        boasVindas: vitrine.boas_vindas ?? "",
+        anuncio: vitrine.anuncio ?? "",
+        instagram: vitrine.instagram ?? "",
+        mostrarEndereco: vitrine.mostrar_endereco,
+        ultimasUnidades: vitrine.ultimas_unidades,
+        bannerTitulo: vitrine.banner_titulo ?? "",
+        bannerSubtitulo: vitrine.banner_subtitulo ?? "",
+        bannerBotao: vitrine.banner_botao ?? "",
+      }}
+      temEndereco={!!(meta.empresa_endereco as string | undefined)}
+      bannerImagens={<BannerImagens imagens={imagens} habilitado />}
+      bannerUrls={imagens.map((i) => i.url)}
+    />
   );
 }

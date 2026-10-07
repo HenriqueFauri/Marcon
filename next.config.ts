@@ -41,6 +41,15 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
+      // a prévia da loja abre num iframe de Personalizar: só o próprio app pode emoldurar
+      // (a regra de baixo sobrescreve a de cima nas duas chaves)
+      {
+        source: "/previa-da-loja",
+        headers: [
+          { key: "Content-Security-Policy", value: csp.replace("frame-ancestors 'none'", "frame-ancestors 'self'") },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        ],
+      },
     ];
   },
 };

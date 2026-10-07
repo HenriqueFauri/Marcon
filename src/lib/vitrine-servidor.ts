@@ -16,9 +16,21 @@ export const buscarVitrine = cache(async (slug: string): Promise<Vitrine | null>
   ]);
   const bruta = data as VitrineBruta | null;
   if (!bruta) return null;
-  const bannerBruto = dadosBanner as BannerBruto | null;
+  return montarVitrine(bruta, dadosBanner as BannerBruto | null);
+});
 
-  // os buckets são privados: a chave de serviço assina links curtos só para esta página
+// Prévia em Personalizar: a loja do dono logado, mesmo desligada (função vitrine_previa, migration 0036).
+// O banner e os textos chegam do formulário, então aqui vêm só loja e produtos.
+export async function buscarPrevia(): Promise<Vitrine | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("vitrine_previa");
+  const bruta = data as VitrineBruta | null;
+  if (!bruta) return null;
+  return montarVitrine(bruta, null);
+}
+
+// os buckets são privados: a chave de serviço assina links curtos só para esta página
+async function montarVitrine(bruta: VitrineBruta, bannerBruto: BannerBruto | null): Promise<Vitrine> {
   const admin = createAdminClient();
   const urls = new Map<string, string>();
   let logoUrl: string | null = null;
@@ -61,4 +73,4 @@ export const buscarVitrine = cache(async (slug: string): Promise<Vitrine | null>
       }),
     })),
   };
-});
+}
