@@ -537,3 +537,25 @@ export async function excluirProduto(produtoId: string, apagarHistorico: boolean
     return falha(e);
   }
 }
+
+// nova ordem das fotos de um bloco (gerais ou de uma variação), arrastadas no anúncio; a primeira é a capa
+export async function reordenarFotos(produtoId: string, ids: string[]): Promise<ActionResult> {
+  try {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(produtoId) || !Array.isArray(ids) || ids.length === 0 || ids.length > 20 || !ids.every((id) => uuid.test(id)))
+      return { ok: false, error: "Fotos inválidas." };
+
+    const supabase = await createClient();
+    const resultados = await Promise.all(
+      ids.map((id, ordem) => supabase.from("produto_fotos").update({ ordem }).eq("id", id).eq("produto_id", produtoId)),
+    );
+    const erro = resultados.find((r) => r.error)?.error;
+    if (erro) return falha(erro);
+
+    revalidatePath(`/anuncios/${produtoId}`);
+    revalidatePath("/anuncios");
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}

@@ -67,12 +67,21 @@ function lerItensSalvos(bruto: unknown): ItemSalvo[] {
   );
 }
 
-function primeiraVezNaSessao(chave: string) {
+// Métricas sem inflar: guarda no aparelho o que já foi contado. Visita e produto aberto contam uma
+// vez por dia; pedido conta uma vez por carrinho (tocar de novo em "Enviar" com o mesmo pedido não soma).
+// Sem storage (aba privada bloqueada), não conta: melhor faltar do que sobrar.
+function hojeLocal() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
+function contarSeNovo(chave: string, valor: string) {
   try {
-    if (sessionStorage.getItem(chave)) return false;
-    sessionStorage.setItem(chave, "1");
-  } catch {}
-  return true;
+    if (localStorage.getItem(chave) === valor) return false;
+    localStorage.setItem(chave, valor);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
@@ -103,12 +112,12 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- lê o storage só no navegador
       setItens(lerItensSalvos(JSON.parse(localStorage.getItem(chaveStorage) ?? "[]")));
     } catch {}
-    if (primeiraVezNaSessao(`marcon-visita-${slug}`)) void registrarEvento(slug, "visita");
+    if (contarSeNovo(`marcon-visita-${slug}`, hojeLocal())) void registrarEvento(slug, "visita");
     const id = new URLSearchParams(window.location.search).get("p");
     const produto = id ? porId.get(id) : undefined;
     if (produto) {
       setAberto(produto);
-      if (primeiraVezNaSessao(`marcon-produto-${produto.id}`)) void registrarEvento(slug, "produto", produto.id);
+      if (contarSeNovo(`marcon-produto-${produto.id}`, hojeLocal())) void registrarEvento(slug, "produto", produto.id);
     }
   }, [chaveStorage, porId, slug]);
   useEffect(() => {
@@ -120,7 +129,7 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   // o endereço reflete o produto aberto, para dar para copiar e mandar o link
   const abrir = useCallback((p: VitrineProduto | null) => {
     setAberto(p);
-    if (p && primeiraVezNaSessao(`marcon-produto-${p.id}`)) void registrarEvento(slug, "produto", p.id);
+    if (p && contarSeNovo(`marcon-produto-${p.id}`, hojeLocal())) void registrarEvento(slug, "produto", p.id);
     const url = new URL(window.location.href);
     if (p) url.searchParams.set("p", p.id);
     else url.searchParams.delete("p");
@@ -601,7 +610,10 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                     cupom: cupom && desconto > 0 ? { codigo: cupom.codigo, desconto } : null,
                   }),
                 )}
-                onClick={() => void registrarEvento(slug, "pedido")}
+                onClick={() => {
+                  const pedido = linhas.map((l) => `${l.chave}x${l.quantidade}`).join("|");
+                  if (contarSeNovo(`marcon-pedido-${slug}`, `${hojeLocal()}:${pedido}`)) void registrarEvento(slug, "pedido");
+                }}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`${botao} mt-4 w-full gap-2`}
