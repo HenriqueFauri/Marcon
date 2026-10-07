@@ -12,7 +12,7 @@ import {
   type DadosDaPrevia,
 } from "@/lib/vitrine";
 import { Field, btnPrimary, inputClass } from "@/components/ui";
-import { Grupo, Interruptor } from "../campos";
+import { Grupo, Interruptor, LinhaLink } from "../campos";
 import { EscolhaDeCores } from "./escolha-de-cores";
 import { PreviaAoVivo } from "./previa-ao-vivo";
 import { salvarPersonalizacao } from "../actions";
@@ -74,6 +74,10 @@ export function PersonalizacaoForm({
         action={(formData) => run(() => salvarPersonalizacao(formData))}
         className="flex min-w-0 flex-col gap-7 lg:col-start-1 lg:row-start-1"
       >
+        <Grupo titulo="Loja" semPadding rodape="O nome e o logo são os mesmos do app, em Configurações, Dados da empresa.">
+          <LinhaLink href="/configuracoes" rotulo="Nome e logo" detalhe="Configurações" />
+        </Grupo>
+
         <EscolhaDeCores cores={cores} onMudar={setCores} />
 
         <Grupo titulo="Topo da loja">
@@ -133,18 +137,20 @@ export function PersonalizacaoForm({
           </Field>
         </Grupo>
 
-        <Grupo titulo="Produtos e rodapé">
+        <Grupo titulo="Produtos">
           <Interruptor
             name="ultimas_unidades"
             padrao={config.ultimasUnidades}
             titulo="Últimas unidades"
             ajuda="Avisa quando restam de 1 a 5. Acima disso, o estoque não aparece."
           />
-          <div className="border-t border-line" />
+        </Grupo>
+
+        <Grupo titulo="Rodapé">
           <Interruptor
             name="mostrar_endereco"
             padrao={config.mostrarEndereco}
-            titulo="Endereço no rodapé"
+            titulo="Mostrar endereço"
             ajuda={temEndereco ? "O de Configurações, Dados da empresa." : "Preencha em Configurações, Dados da empresa."}
           />
           <div className="border-t border-line" />
