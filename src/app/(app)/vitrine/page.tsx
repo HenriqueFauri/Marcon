@@ -115,6 +115,17 @@ export default async function VitrineVisaoGeralPage() {
         )}
       </Grupo>
 
+      {vitrine?.ativa && (
+        <Grupo titulo="Como o link aparece no Zap" semPadding rodape="Link de um produto mostra a foto e o preço dele.">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a mesma imagem que o WhatsApp baixa */}
+          <img src={`/loja/${vitrine.slug}/imagem`} alt="Prévia do link da loja" className="aspect-[1200/630] w-full bg-fill object-cover" />
+          <div className="px-4 py-3">
+            <p className="truncate text-[15px] font-semibold text-ink">{(meta.nome_negocio as string | undefined) || "Sua loja"}</p>
+            <p className="truncate text-[13px] text-ink-muted">{base.replace(/^https?:\/\//, "")}</p>
+          </div>
+        </Grupo>
+      )}
+
       {pendentes.length > 0 && (
         <Grupo
           titulo={

@@ -18,6 +18,7 @@
     "react-dom": "19.2.8",
     "read-excel-file": "^9.3.10",
     "server-only": "^0.0.1",
+    "sharp": "0.35.5",
     "unpdf": "^1.8.1",
     "web-push": "^3.6.7"
   },
