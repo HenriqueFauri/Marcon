@@ -59,3 +59,10 @@ export function CabecalhoVitrine({ selo }: { selo: ReactNode }) {
     </div>
   );
 }
+
+// Personalizar ganha largura no computador para a prévia da loja ficar ao lado do formulário
+export function LarguraVitrine({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const larga = pathname.startsWith("/vitrine/personalizar");
+  return <div className={`mx-auto max-w-2xl ${larga ? "lg:max-w-5xl" : ""}`}>{children}</div>;
+}

@@ -55,6 +55,7 @@ export default async function VitrinePersonalizarPage() {
           }}
           temEndereco={!!(meta.empresa_endereco as string | undefined)}
           bannerImagens={<BannerImagens imagens={imagens} habilitado />}
+          bannerUrls={imagens.map((i) => i.url)}
         />
       <p className="px-4 text-[13px] text-ink-muted">
         O nome e o logo da loja vêm de{" "}

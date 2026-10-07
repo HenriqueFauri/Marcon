@@ -7,8 +7,11 @@ alter table vitrines
   add column if not exists cor_texto text check (cor_texto ~ '^#[0-9a-fA-F]{6}$'),
   add column if not exists cor_faixa text check (cor_faixa ~ '^#[0-9a-fA-F]{6}$');
 
--- mesma função da 0031, agora com as cores novas
-create or replace function vitrine_publica(p_slug text) returns jsonb
+-- Os dados da loja saem de uma função interna (vitrine_dados), usada por duas portas:
+-- vitrine_publica (cliente, sem login: só loja no ar e dono com plano) e vitrine_previa
+-- (o próprio dono, logado: vê a loja mesmo desligada, para a prévia em Personalizar).
+-- O corpo é o da 0031, agora com as cores novas.
+create or replace function vitrine_dados(p_owner uuid) returns jsonb
 language sql
 stable
 security definer
@@ -75,6 +78,19 @@ as $$
   )
   from vitrines vt
   join auth.users u on u.id = vt.owner_id
+  where vt.owner_id = p_owner;
+$$;
+
+revoke execute on function vitrine_dados(uuid) from public, anon, authenticated;
+
+create or replace function vitrine_publica(p_slug text) returns jsonb
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select vitrine_dados(vt.owner_id)
+  from vitrines vt
   where vt.slug = lower(p_slug)
     and vt.ativa
     and plano_do_usuario(vt.owner_id) in ('pago', 'teste');
@@ -82,3 +98,15 @@ $$;
 
 revoke execute on function vitrine_publica(text) from public;
 grant execute on function vitrine_publica(text) to anon, authenticated;
+
+create or replace function vitrine_previa() returns jsonb
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select vitrine_dados(vt.owner_id) from vitrines vt where vt.owner_id = auth.uid();
+$$;
+
+revoke execute on function vitrine_previa() from public, anon;
+grant execute on function vitrine_previa() to authenticated;

@@ -336,3 +336,35 @@ export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dad
 export function linkDoWhatsapp(whatsapp: string, mensagem: string) {
   return `https://wa.me/${whatsapp}?text=${encodeURIComponent(mensagem)}`;
 }
+
+// Prévia ao vivo em Personalizar: o formulário manda o que ainda não foi salvo para a loja
+// aberta num iframe (/previa-da-loja), por postMessage na mesma origem.
+export const PREVIA_PRONTA = "marcon-previa-pronta";
+export const PREVIA_DADOS = "marcon-previa-dados";
+
+export interface DadosDaPrevia {
+  cores: CoresDaLoja;
+  boasVindas: string;
+  anuncio: string;
+  instagram: string;
+  banner: Banner;
+}
+
+// a loja com o que está no formulário por cima do que está salvo
+export function aplicarPrevia(vitrine: Vitrine, d: DadosDaPrevia): Vitrine {
+  return {
+    ...vitrine,
+    loja: {
+      ...vitrine.loja,
+      cor: d.cores.destaque,
+      cor_botao: d.cores.botao,
+      cor_fundo: d.cores.fundo,
+      cor_texto: d.cores.texto,
+      cor_faixa: d.cores.faixa,
+      boas_vindas: d.boasVindas.trim() || null,
+      anuncio: d.anuncio.trim() || null,
+      instagram: d.instagram.trim().replace(/^@/, "") || null,
+    },
+    banner: d.banner,
+  };
+}

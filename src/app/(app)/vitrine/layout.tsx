@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { lerUso } from "@/lib/uso";
 import { Badge, Card, PageHeader, btnPrimary } from "@/components/ui";
-import { CabecalhoVitrine } from "./abas";
+import { CabecalhoVitrine, LarguraVitrine } from "./abas";
 
 // Menu Vitrine dividido em subpáginas (visão geral, produtos, personalizar, configurações, cupons).
 // O plano é conferido aqui uma vez: no grátis, nenhuma subpágina abre, só o convite para assinar.
@@ -42,9 +42,9 @@ export default async function VitrineLayout({ children }: LayoutProps<"/vitrine"
   );
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <LarguraVitrine>
       <CabecalhoVitrine selo={selo} />
       {children}
-    </div>
+    </LarguraVitrine>
   );
 }

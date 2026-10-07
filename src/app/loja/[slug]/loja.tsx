@@ -17,6 +17,10 @@ import {
   type Vitrine,
   type VitrineProduto,
   type VitrineVariacao,
+  type DadosDaPrevia,
+  PREVIA_DADOS,
+  PREVIA_PRONTA,
+  aplicarPrevia,
 } from "@/lib/vitrine";
 import { registrarEvento, validarCupom } from "./actions";
 
@@ -85,8 +89,13 @@ function contarSeNovo(chave: string, valor: string) {
   }
 }
 
-export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
-  const { loja, produtos } = vitrine;
+// previa: a loja aberta no iframe de Personalizar. Mostra o que ainda não foi salvo (recebe do
+// formulário por postMessage), não conta métricas, não guarda carrinho e não envia pedido.
+export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; vitrine: Vitrine; previa?: boolean }) {
+  const [ajuste, setAjuste] = useState<DadosDaPrevia | null>(null);
+  const vitrine = ajuste ? aplicarPrevia(salva, ajuste) : salva;
+  const { loja } = vitrine;
+  const produtos = salva.produtos; // a prévia muda só a aparência, nunca os produtos
   const chaveStorage = `marcon-loja-${slug}`;
   const [itens, setItens] = useState<ItemSalvo[]>([]);
   const [busca, setBusca] = useState("");
@@ -109,6 +118,7 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
 
   // carrinho salvo no aparelho e produto aberto pelo link (?p=id); só no navegador, depois da hidratação
   useEffect(() => {
+    if (previa) return;
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- lê o storage só no navegador
       setItens(lerItensSalvos(JSON.parse(localStorage.getItem(chaveStorage) ?? "[]")));
@@ -120,12 +130,25 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
       setAberto(produto);
       if (contarSeNovo(`marcon-produto-${produto.id}`, hojeLocal())) void registrarEvento(slug, "produto", produto.id);
     }
-  }, [chaveStorage, porId, slug]);
+  }, [chaveStorage, porId, slug, previa]);
   useEffect(() => {
+    if (previa) return;
     try {
       localStorage.setItem(chaveStorage, JSON.stringify(itens));
     } catch {}
-  }, [itens, chaveStorage]);
+  }, [itens, chaveStorage, previa]);
+
+  // prévia: avisa o formulário que está pronta e passa a seguir o que ele mandar
+  useEffect(() => {
+    if (!previa || window.parent === window) return;
+    function receber(e: MessageEvent) {
+      if (e.origin !== window.location.origin || e.data?.tipo !== PREVIA_DADOS) return;
+      setAjuste(e.data.dados as DadosDaPrevia);
+    }
+    window.addEventListener("message", receber);
+    window.parent.postMessage({ tipo: PREVIA_PRONTA }, window.location.origin);
+    return () => window.removeEventListener("message", receber);
+  }, [previa]);
 
   // ao puxar a página além do fim (iPhone), aparece o fundo do body: pinta com o fundo da loja
   const fundo = coresDaLoja(loja).fundo;
@@ -140,12 +163,13 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
   // o endereço reflete o produto aberto, para dar para copiar e mandar o link
   const abrir = useCallback((p: VitrineProduto | null) => {
     setAberto(p);
+    if (previa) return;
     if (p && contarSeNovo(`marcon-produto-${p.id}`, hojeLocal())) void registrarEvento(slug, "produto", p.id);
     const url = new URL(window.location.href);
     if (p) url.searchParams.set("p", p.id);
     else url.searchParams.delete("p");
     window.history.replaceState(null, "", url);
-  }, [slug]);
+  }, [slug, previa]);
 
   function avisar(texto: string) {
     setAviso(texto);
@@ -277,7 +301,7 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
         </div>
       </header>
 
-      {vitrine.banner && <BannerDaLoja banner={vitrine.banner} />}
+      {vitrine.banner && <BannerDaLoja key={vitrine.banner.urls.join()} banner={vitrine.banner} />}
 
       <main className="mx-auto max-w-3xl px-4 pb-36 pt-4">
         {produtos.length === 0 ? (
@@ -599,7 +623,11 @@ export function Loja({ slug, vitrine }: { slug: string; vitrine: Vitrine }) {
                 <dd className="text-lg font-semibold tabular-nums">{formatBRL(total)}</dd>
               </div>
             </dl>
-            {faltaEndereco ? (
+            {previa ? (
+              <button type="button" disabled className={`${botao} mt-4 w-full`}>
+                Na prévia o pedido não é enviado
+              </button>
+            ) : faltaEndereco ? (
               <button type="button" disabled className={`${botao} mt-4 w-full`}>
                 Informe o endereço de entrega
               </button>
