@@ -17,6 +17,7 @@ import {
   tdClass,
   thClass,
   theadClass,
+  Segmentos,
 } from "@/components/ui";
 import { IconPlus } from "@/components/icons";
 
@@ -24,8 +25,8 @@ export const metadata: Metadata = { title: "Produtos" };
 
 const FILTROS = [
   { valor: "", label: "Ativos" },
-  { valor: "baixo", label: "Estoque baixo" },
-  { valor: "sem", label: "Sem estoque" },
+  { valor: "baixo", label: "Acabando" },
+  { valor: "sem", label: "Zerados" },
   { valor: "inativos", label: "Inativos" },
 ] as const;
 
@@ -84,7 +85,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
 
   return (
     <div>
-      <PageHeader title="Produtos" description="Seu catálogo, preços e estoque." action={novo} />
+      <PageHeader title="Produtos" action={novo} />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Produtos ativos" value={ativos.length} />
@@ -105,17 +106,11 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <SearchInput placeholder="Buscar por nome, marca, SKU..." />
-        <div className="flex gap-1 overflow-x-auto">
-          {FILTROS.map((f) => (
-            <Link
-              key={f.valor}
-              href={filtroHref(f.valor)}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm ${filtro === f.valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
-            >
-              {f.label}
-            </Link>
-          ))}
-        </div>
+        <Segmentos
+          rotulo="Filtrar produtos"
+          className="sm:w-[26rem]"
+          itens={FILTROS.map((f) => ({ href: filtroHref(f.valor), label: f.label, ativo: filtro === f.valor }))}
+        />
       </div>
 
       {todos.length === 0 ? (
@@ -127,6 +122,37 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
       ) : lista.length === 0 ? (
         <EmptyState title="Nenhum produto encontrado" description="Tente outro termo de busca ou filtro." />
       ) : (
+        <>
+        {/* no celular, lista do iPhone: nome, categoria, preço e estoque; a tabela fica para telas largas */}
+        <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface sm:hidden">
+          {lista.map((p) => {
+            const situacao = situacaoEstoque(p);
+            return (
+              <li key={p.id}>
+                <Link href={`/produtos/${p.id}`} className="flex items-center gap-3 px-4 py-3 transition active:bg-fill">
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 text-[17px] leading-snug text-ink">{p.nome}</span>
+                    <span className="block truncate text-[13px] text-ink-muted">
+                      {[p.categorias?.nome, p.marca].filter(Boolean).join(" · ") || "Sem categoria"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-[17px] tabular-nums text-ink">{formatBRL(p.preco_varejo)}</span>
+                    <span
+                      className={`block text-[13px] tabular-nums ${situacao === "sem" ? "text-danger" : situacao === "baixo" ? "text-warning" : "text-ink-muted"}`}
+                    >
+                      {p.estoque_total} {p.unidade_medida}
+                    </span>
+                  </span>
+                  <span aria-hidden="true" className="text-lg text-ink-faint">
+                    ›
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="hidden sm:block">
         <Table compacta>
           <thead className={theadClass}>
             <tr>
@@ -181,6 +207,8 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
             })}
           </tbody>
         </Table>
+        </div>
+        </>
       )}
     </div>
   );

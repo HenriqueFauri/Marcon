@@ -119,13 +119,14 @@ export default async function IndiquePage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader
-        title="Indique e ganhe"
-        description={`Cada pessoa que você indicar e assinar paga ${formatBRL(PLANOS.marcon.valor)} por mês. Você fica com ${percentual}% (${formatBRL(comissaoPorMes)}) de cada mensalidade, todo mês, enquanto ela continuar assinando.`}
-      />
+      <PageHeader title="Indique e ganhe" />
 
       <div className="flex flex-col gap-6">
-        <CompartilharCard link={link} mensagem={mensagemDeConvite(link)} />
+        <CompartilharCard
+          link={link}
+          mensagem={mensagemDeConvite(link)}
+          descricao={`Você ganha ${percentual}% (${formatBRL(comissaoPorMes)}) de cada mensalidade de quem assinar pelo seu link, todo mês, enquanto a pessoa continuar assinando.`}
+        />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <StatCard

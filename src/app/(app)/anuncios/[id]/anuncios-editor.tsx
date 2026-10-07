@@ -396,7 +396,7 @@ export function AnunciosEditor({
   return (
     <div className="flex flex-col gap-6">
       <Card title="Títulos e descrições" description="Uma versão por canal. Ajuste, copie e publique.">
-        <div className="mb-4 flex gap-1 overflow-x-auto" role="tablist" aria-label="Canais de venda">
+        <div className="-mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Canais de venda">
           {canais.map((c) => {
             const qtd = anuncios.filter((a) => a.canal_id === c.id).length;
             const ativo = c.id === canal.id;

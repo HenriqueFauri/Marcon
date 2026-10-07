@@ -40,7 +40,6 @@ export default async function VitrinePersonalizarPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="Personalizar a loja" description="Cores, textos, banner e rodapé. O que você salva aparece na loja na hora.">
         <PersonalizacaoForm
           config={{
             cor: vitrine.cor,
@@ -57,8 +56,7 @@ export default async function VitrinePersonalizarPage() {
           temEndereco={!!(meta.empresa_endereco as string | undefined)}
           bannerImagens={<BannerImagens imagens={imagens} habilitado />}
         />
-      </Card>
-      <p className="px-1 text-xs text-ink-muted">
+      <p className="px-4 text-[13px] text-ink-muted">
         O nome e o logo da loja vêm de{" "}
         <Link href="/configuracoes" className="font-medium text-brand-text hover:underline">
           Configurações do app

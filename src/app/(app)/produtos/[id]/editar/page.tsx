@@ -25,7 +25,7 @@ export default async function EditarProdutoPage({ params }: PageProps<"/produtos
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Editar produto" description={p.nome} back={{ href: `/produtos/${p.id}`, label: p.nome }} />
+      <PageHeader title="Editar produto" back={{ href: `/produtos/${p.id}`, label: p.nome }} />
       <ProdutoForm
         produto={p}
         fornecedores={(fornecedores ?? []) as Fornecedor[]}

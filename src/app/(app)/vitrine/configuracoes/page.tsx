@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
-import { Card } from "@/components/ui";
 import { ConfiguracaoForm } from "./configuracao-form";
 
 export const metadata: Metadata = { title: "Vitrine | Configurações" };
@@ -24,10 +23,6 @@ export default async function VitrineConfiguracoesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card
-        title={vitrine ? "Configurações da loja" : "Criar minha loja"}
-        description={vitrine ? undefined : "Escolha o endereço do link e o WhatsApp que recebe os pedidos. Dá para mudar depois."}
-      >
         <ConfiguracaoForm
           config={
             vitrine
@@ -44,8 +39,7 @@ export default async function VitrineConfiguracoesPage() {
           telefoneEmpresa={(meta.empresa_telefone as string | undefined) ?? ""}
           base={base}
         />
-      </Card>
-      <p className="px-1 text-xs text-ink-muted">
+      <p className="px-4 text-[13px] text-ink-muted">
         As formas de pagamento que o cliente escolhe no pedido são as mesmas das vendas, em{" "}
         <Link href="/configuracoes" className="font-medium text-brand-text hover:underline">
           Configurações do app

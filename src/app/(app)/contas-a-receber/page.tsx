@@ -14,6 +14,7 @@ import {
   tdClass,
   thClass,
   theadClass,
+  Segmentos,
 } from "@/components/ui";
 import { IconWhatsapp } from "@/components/icons";
 import { MarcarPagoButton } from "./marcar-pago-button";
@@ -76,7 +77,7 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
 
   return (
     <div>
-      <PageHeader title="Contas a receber" description="Parcelas das vendas a prazo e parceladas." />
+      <PageHeader title="Contas a receber" />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total em aberto" value={formatBRL(soma(abertas))} tone="warning" hint={`${abertas.length} parcela(s)`} />
@@ -90,24 +91,22 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
         <StatCard label="Recebido no mês" value={formatBRL(recebidoMes)} tone="positive" />
       </div>
 
-      <div className="mb-4 flex gap-1 overflow-x-auto" role="tablist">
-        {FILTROS.map((f) => (
-          <Link
-            key={f.valor}
-            href={f.valor === "abertas" ? "/contas-a-receber" : `/contas-a-receber?status=${f.valor}`}
-            role="tab"
-            aria-selected={filtro === f.valor}
-            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition ${
-              filtro === f.valor ? "bg-fill font-medium text-ink" : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            {f.label}
-            {f.valor === "atrasadas" && atrasadas.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-danger-tint px-1.5 text-xs text-danger">{atrasadas.length}</span>
-            )}
-          </Link>
-        ))}
-      </div>
+      <Segmentos
+        rotulo="Filtrar parcelas"
+        className="mb-4 sm:w-[28rem]"
+        itens={FILTROS.map((f) => ({
+          href: f.valor === "abertas" ? "/contas-a-receber" : `/contas-a-receber?status=${f.valor}`,
+          label:
+            f.valor === "atrasadas" && atrasadas.length > 0 ? (
+              <>
+                {f.label} <span className="text-danger">{atrasadas.length}</span>
+              </>
+            ) : (
+              f.label
+            ),
+          ativo: filtro === f.valor,
+        }))}
+      />
 
       {visiveis.length === 0 ? (
         <EmptyState

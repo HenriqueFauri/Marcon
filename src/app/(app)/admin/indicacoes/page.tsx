@@ -94,7 +94,6 @@ export default async function IndicacoesAdminPage() {
       <PageHeader
         back={{ href: "/admin", label: "Administração" }}
         title="Indicações"
-        description="Saques pedidos pelos afiliados. Faça o PIX no seu banco e depois marque como pago."
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

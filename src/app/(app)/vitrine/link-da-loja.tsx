@@ -28,17 +28,17 @@ export function LinkDaLoja({ link, nomeLoja }: { link: string; nomeLoja: string 
           Copiar
         </button>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <a
           href={`https://wa.me/?text=${encodeURIComponent(textoWhats)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className={btnPrimary}
+          className={`${btnPrimary} px-3`}
         >
           <IconWhatsapp />
-          Divulgar no WhatsApp
+          Divulgar
         </a>
-        <a href={link} target="_blank" rel="noopener noreferrer" className={btnSecondary}>
+        <a href={link} target="_blank" rel="noopener noreferrer" className={`${btnSecondary} px-3`}>
           Ver loja
         </a>
       </div>

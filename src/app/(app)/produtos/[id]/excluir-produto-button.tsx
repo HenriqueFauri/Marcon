@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { useAction } from "@/components/use-action";
-import { btnDanger, btnGhost, btnSecondary } from "@/components/ui";
+import { btnDanger, btnGhost } from "@/components/ui";
 import { IconTrash } from "@/components/icons";
 import { excluirProduto } from "../actions";
 
@@ -16,8 +16,8 @@ export function ExcluirProdutoButton({ produtoId, nome }: { produtoId: string; n
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className={`${btnSecondary} hover:border-danger/50 hover:text-danger`}>
-        <IconTrash width={16} height={16} /> Excluir
+      <button onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[15px] font-medium text-danger transition hover:bg-danger-tint">
+        <IconTrash width={16} height={16} /> Excluir produto
       </button>
       <Modal
         open={open}

@@ -63,7 +63,6 @@ export default async function FornecedoresPage({ searchParams }: PageProps<"/for
     <div>
       <PageHeader
         title="Fornecedores"
-        description="Cadastre fornecedores para vincular às entradas de estoque."
         action={novo}
       />
 

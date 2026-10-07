@@ -22,14 +22,15 @@ export function PeriodoPicker({
   params?: Record<string, string | undefined>;
 }) {
   const href = (extra: Record<string, string | undefined>) => montarHref(basePath, { ...extra, ...params });
+  // controle segmentado do iOS: as opções dividem a largura, sem rolar de lado nem cortar no celular
   const chip = (ativo: boolean) =>
-    `whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] transition ${
+    `whitespace-nowrap rounded-full px-1 py-2 text-center text-[13px] transition ${
       ativo ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"
     }`;
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-full bg-fill p-[3px]" role="group" aria-label="Período">
+      <div className="grid w-full grid-cols-5 gap-0.5 rounded-full bg-fill p-[3px] sm:w-auto sm:self-start" role="group" aria-label="Período">
         <Link href={href({})} className={chip(periodo.modo === "mes")}>
           Mês
         </Link>
@@ -39,7 +40,7 @@ export function PeriodoPicker({
           </Link>
         ))}
         <Link href={href({ todo: "1" })} className={chip(periodo.modo === "todo")}>
-          Todo
+          Tudo
         </Link>
       </div>
 

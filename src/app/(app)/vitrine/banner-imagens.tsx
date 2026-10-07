@@ -7,7 +7,7 @@ import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
 import { TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX, comprimirImagem } from "@/lib/imagem";
 import { BANNER_MAX_IMAGENS } from "@/lib/vitrine";
-import { btnGhost, btnSecondary } from "@/components/ui";
+import { IconPlus, IconX } from "@/components/icons";
 import { adicionarImagemBanner, removerImagemBanner } from "./actions";
 
 // Imagens do banner: sobem direto do navegador para o bucket vitrine-banner (como o logo) e a
@@ -65,39 +65,37 @@ export function BannerImagens({
 
   return (
     <div>
-      <p className="mb-1.5 text-[13px] font-medium text-ink-muted">
-        Imagens ({imagens.length}/{BANNER_MAX_IMAGENS})
-      </p>
-      <p className="mb-2 text-xs text-ink-muted">
-        Ideal: 1600 × 640 px (proporção 5:2). Imagens de outro formato são cortadas ao centro. JPG, PNG ou WEBP.
-      </p>
-      {imagens.length > 0 && (
-        <ul className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {imagens.map((img) => (
-            <li key={img.path} className="overflow-hidden rounded-xl border border-line bg-fill">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt="Imagem do banner" className="aspect-[5/2] w-full object-cover" />
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => run(() => removerImagemBanner(img.path))}
-                className={`${btnGhost} w-full rounded-none py-2 text-sm`}
-              >
-                Remover
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={!habilitado || cheio || enviando}
-        className={btnSecondary}
-      >
-        {enviando ? "Enviando..." : cheio ? "Limite de imagens atingido" : "Adicionar imagem"}
-      </button>
-      {!habilitado && <p className="mt-1.5 text-xs text-ink-muted">Salve a vitrine primeiro para poder enviar imagens.</p>}
+      <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {imagens.map((img, i) => (
+          <li key={img.path} className="group relative overflow-hidden rounded-2xl border border-line bg-fill">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={img.url} alt={`Imagem ${i + 1} do banner`} className="aspect-[5/2] w-full object-cover" />
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => run(() => removerImagemBanner(img.path))}
+              aria-label={`Remover imagem ${i + 1} do banner`}
+              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-danger disabled:opacity-50"
+            >
+              <IconX width={14} height={14} />
+            </button>
+          </li>
+        ))}
+        {!cheio && (
+          <li>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={!habilitado || enviando}
+              className="flex aspect-[5/2] w-full flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-line-strong text-[13px] text-ink-muted transition hover:border-brand hover:text-brand-text disabled:opacity-50"
+            >
+              <IconPlus />
+              {enviando ? "Enviando..." : "Adicionar imagem"}
+              <span className="text-[11px] text-ink-faint">1600 × 640 px</span>
+            </button>
+          </li>
+        )}
+      </ul>
       <input
         ref={inputRef}
         type="file"

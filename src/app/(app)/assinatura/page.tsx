@@ -27,7 +27,7 @@ export default async function AssinaturaPage({ searchParams }: PageProps<"/assin
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Assinatura" description="Seu plano do Marcon. A cobrança é feita pelo Asaas." />
+      <PageHeader title="Assinatura" />
       <AssinaturaPainel
         situacao={situacao}
         cobrancaDisponivel={asaasConfigurado()}
