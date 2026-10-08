@@ -37,13 +37,15 @@ interface VendaRegistrada extends DadosVendaNotificacao {
 
 // Depois de registrar uma venda: avisa a venda e, se ela empurrou o mês por
 // cima da meta ou de um nível de faturamento, avisa a conquista também.
-export async function avisarVenda(supabase: SupabaseClient, user: User, venda: VendaRegistrada) {
+// "cliente": cliente de serviço para quando não há usuário logado (webhook do WhatsApp). Com ele as
+// consultas não têm o RLS, por isso todas filtram pelo dono (user.id) explicitamente.
+export async function avisarVenda(supabase: SupabaseClient, user: User, venda: VendaRegistrada, cliente?: SupabaseClient) {
   const pref = lerPreferencias(user.user_metadata);
   const url = `/vendas/${venda.vendaId}`;
   // a posição é o total de vendas: cada venda nova pega a frase seguinte da rotação e nenhuma se repete em seguida
-  const { count } = await supabase.from("vendas").select("id", { count: "exact", head: true }).neq("status", "cancelada");
+  const { count } = await supabase.from("vendas").select("id", { count: "exact", head: true }).eq("owner_id", user.id).neq("status", "cancelada");
   const posicao = count ?? 0;
-  await enviarEvento(user.id, pref, "venda", posicao, linhaDaVenda(venda, pref.dados.venda), url);
+  await enviarEvento(user.id, pref, "venda", posicao, linhaDaVenda(venda, pref.dados.venda), url, cliente);
 
   // só vendas do mês corrente contam para meta e níveis
   const mes = mesAtual();
@@ -53,6 +55,7 @@ export async function avisarVenda(supabase: SupabaseClient, user: User, venda: V
   const { data: doMes } = await supabase
     .from("vendas")
     .select("valor_total, custo_total")
+    .eq("owner_id", user.id)
     .gte("data", `${mes}-01`)
     .lt("data", primeiroDiaDoProximoMes(mes))
     .neq("status", "cancelada");
@@ -66,16 +69,16 @@ export async function avisarVenda(supabase: SupabaseClient, user: User, venda: V
     typeof alvo === "number" && alvo > 0 && antes < alvo && depois >= alvo;
 
   if (cruzou(faturamentoAntes, faturamento, meta.meta_vendas)) {
-    await enviarEvento(user.id, pref, "meta", posicao, linhaDaMeta("vendas", faturamento), "/");
+    await enviarEvento(user.id, pref, "meta", posicao, linhaDaMeta("vendas", faturamento), "/", cliente);
   }
   if (cruzou(lucroAntes, lucro, meta.meta_lucro)) {
-    await enviarEvento(user.id, pref, "meta", posicao + 1, linhaDaMeta("lucro", lucro), "/");
+    await enviarEvento(user.id, pref, "meta", posicao + 1, linhaDaMeta("lucro", lucro), "/", cliente);
   }
 
   // uma venda grande pode pular níveis: avisa só o mais alto
   const nivel = [...NIVEIS].reverse().find((n) => faturamentoAntes < n.valor && faturamento >= n.valor);
   if (nivel) {
-    await enviarEvento(user.id, pref, nivel.evento, posicao, linhaDoNivel(faturamento, mes), "/");
+    await enviarEvento(user.id, pref, nivel.evento, posicao, linhaDoNivel(faturamento, mes), "/", cliente);
   }
 }
 

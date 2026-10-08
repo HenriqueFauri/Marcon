@@ -1,5 +1,7 @@
 import "server-only";
+import type { User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { avisarVenda } from "@/lib/push/eventos";
 import { mensagemDeErro } from "@/lib/action";
 import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
 
@@ -16,6 +18,7 @@ type Entrada = Record<string, unknown>;
 export interface ContextoVenda {
   owner: string;
   telefone: string;
+  user?: User; // para o aviso (push) da venda, com as preferências de notificação dele
 }
 
 const MINUTOS_DO_RASCUNHO = 10;
@@ -311,5 +314,32 @@ export async function resolverPendente(db: Db, ctx: ContextoVenda, texto: string
   }
 
   await db.from("whatsapp_acoes").update({ status: "executada", venda_id: vendaId, resolvida_em: agora }).eq("id", acao.id);
+
+  // o mesmo aviso que o app manda quando a venda sai pela tela. Opcional: falhar aqui não desfaz a venda
+  if (ctx.user) {
+    try {
+      const [{ data: venda }, { data: itensVenda }] = await Promise.all([
+        db.from("vendas").select("custo_total").eq("id", vendaId).eq("owner_id", ctx.owner).single(),
+        db.from("venda_itens").select("produto_nome, quantidade").eq("venda_id", vendaId).eq("owner_id", ctx.owner),
+      ]);
+      await avisarVenda(
+        db,
+        ctx.user,
+        {
+          vendaId: String(vendaId),
+          data: r.data,
+          valor: r.total,
+          lucro: r.total - Number(venda?.custo_total ?? 0),
+          cliente: r.clienteNome,
+          canal: r.canalNome,
+          itens: (itensVenda ?? []).map((i) => ({ nome: i.produto_nome, quantidade: i.quantidade })),
+        },
+        db,
+      );
+    } catch (erroAviso) {
+      console.error("[whatsapp] aviso da venda", erroAviso);
+    }
+  }
+
   return `Venda lançada: ${formatBRL(r.total)}. Estoque e caixa já foram atualizados.`;
 }
