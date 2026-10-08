@@ -1,4 +1,4 @@
--- Roteiro de segurança do assistente no WhatsApp (migrations 0038 a 0040).
+-- Roteiro de segurança do assistente no WhatsApp (migrations 0038 a 0041).
 -- Sempre desfaz tudo no fim: o último comando é um RAISE EXCEPTION com o resultado, então nada fica gravado.
 -- Como rodar: colar no SQL Editor do Supabase (ou execute_sql) e ler a mensagem de erro final.
 --   "WHATSAPP OK ..."      = todos os testes passaram
@@ -33,8 +33,17 @@ begin
     if n = 0 then oks := array_append(oks, t || ' sem politica'); else falhas := array_append(falhas, t || ' tem politica'); end if;
   end loop;
   -- o dono não cria vínculo sozinho (só o webhook, depois do código chegar pelo WhatsApp)
-  select count(*) into n from pg_policies where tablename = 'whatsapp_vinculos' and cmd in ('INSERT', 'UPDATE', 'ALL');
-  if n = 0 then oks := array_append(oks, 'vinculo sem insert/update pelo dono'); else falhas := array_append(falhas, 'vinculo aceita insert/update pelo dono'); end if;
+  select count(*) into n from pg_policies where tablename = 'whatsapp_vinculos' and cmd in ('INSERT', 'ALL');
+  if n = 0 then oks := array_append(oks, 'vinculo sem insert pelo dono'); else falhas := array_append(falhas, 'vinculo aceita insert pelo dono'); end if;
+  -- 0041: o dono só muda a coluna lancar_venda (nunca o número nem o dono)
+  if has_column_privilege('authenticated', 'public.whatsapp_vinculos', 'lancar_venda', 'UPDATE') then oks := array_append(oks, 'dono muda lancar_venda'); else falhas := array_append(falhas, 'dono NAO muda lancar_venda'); end if;
+  if has_column_privilege('authenticated', 'public.whatsapp_vinculos', 'telefone', 'UPDATE')
+     or has_column_privilege('authenticated', 'public.whatsapp_vinculos', 'owner_id', 'UPDATE') then
+    falhas := array_append(falhas, 'dono muda telefone ou dono do vinculo');
+  else
+    oks := array_append(oks, 'telefone e dono travados');
+  end if;
+  if has_column_privilege('anon', 'public.whatsapp_vinculos', 'lancar_venda', 'UPDATE') then falhas := array_append(falhas, 'anon muda vinculo'); else oks := array_append(oks, 'anon nao muda vinculo'); end if;
 
   -- 2) registrar_venda_como: só o servidor executa
   if has_function_privilege('anon', fn, 'execute') then falhas := array_append(falhas, 'anon executa'); else oks := array_append(oks, 'anon sem permissao'); end if;
