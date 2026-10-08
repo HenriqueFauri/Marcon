@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assistenteAtivo, contaPodeUsar, enviarMensagem, extrairMensagem, type MensagemRecebida } from "@/lib/whatsapp/evolution";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
-import { responder } from "@/lib/whatsapp/assistente";
+import { responder, type Troca } from "@/lib/whatsapp/assistente";
 
 // Webhook do assistente no WhatsApp. A Evolution chama aqui a cada mensagem recebida.
 // Configuração do webhook (cabeçalho com WHATSAPP_WEBHOOK_SECRET): docs/whatsapp-assistente.md.
@@ -58,6 +58,40 @@ async function tentarVincular(admin: Admin, msg: MensagemRecebida, codigo: strin
   );
 }
 
+// memória curta: as últimas trocas deste número (a tabela só guarda pergunta e resposta em texto)
+const HORAS_DE_MEMORIA = 6;
+const MAX_MENSAGENS_DE_MEMORIA = 8;
+
+async function carregarHistorico(admin: Admin, telefone: string): Promise<Troca[]> {
+  const desde = new Date(Date.now() - HORAS_DE_MEMORIA * 3600_000).toISOString();
+  const { data, error } = await admin
+    .from("whatsapp_conversas")
+    .select("papel, texto")
+    .eq("telefone", telefone)
+    .gte("criado_em", desde)
+    .order("id", { ascending: false })
+    .limit(MAX_MENSAGENS_DE_MEMORIA);
+  if (error) {
+    console.error("[whatsapp] histórico", error.message);
+    return []; // sem memória, mas responde
+  }
+  const lista = ((data ?? []) as Troca[]).reverse();
+  while (lista.length && lista[0].papel !== "user") lista.shift(); // a API exige começar por pergunta
+  return lista;
+}
+
+async function guardarTroca(admin: Admin, telefone: string, pergunta: string, resposta: string) {
+  const { error } = await admin.from("whatsapp_conversas").insert([
+    { telefone, papel: "user", texto: pergunta },
+    { telefone, papel: "assistant", texto: resposta },
+  ]);
+  if (error) console.error("[whatsapp] guardar histórico", error.message);
+  // nada fica guardado por mais de 24 horas
+  await admin.from("whatsapp_conversas").delete().lt("criado_em", new Date(Date.now() - 24 * 3600_000).toISOString());
+}
+
+const LIMPAR = /^s*(limpar|nova conversa|reiniciar|recome[cç]ar)s*[.!]?s*$/i;
+
 async function processar(msg: MensagemRecebida) {
   const admin = createAdminClient();
   if (!admin) {
@@ -93,8 +127,16 @@ async function processar(msg: MensagemRecebida) {
     return;
   }
 
-  const resposta = await responder(msg.texto, owner);
+  if (LIMPAR.test(msg.texto)) {
+    await admin.from("whatsapp_conversas").delete().eq("telefone", msg.telefone);
+    await enviarMensagem(msg.telefone, "Conversa reiniciada. Pode perguntar.");
+    return;
+  }
+
+  const historico = await carregarHistorico(admin, msg.telefone);
+  const resposta = await responder(msg.texto, owner, historico);
   await enviarMensagem(msg.telefone, resposta);
+  await guardarTroca(admin, msg.telefone, msg.texto, resposta);
 }
 
 export async function POST(request: Request) {

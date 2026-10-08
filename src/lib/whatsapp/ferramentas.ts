@@ -59,6 +59,20 @@ export const FERRAMENTAS: Anthropic.Tool[] = [
       required: ["de", "ate"],
     },
   },
+  {
+    name: "produtos_vendidos",
+    description:
+      "Lista os produtos vendidos em um período, do mais vendido ao menos, com unidades, valor e lucro de cada um. Só vendas concluídas.",
+    input_schema: {
+      type: "object",
+      properties: {
+        de: { type: "string", description: "Primeiro dia, AAAA-MM-DD" },
+        ate: { type: "string", description: "Último dia, AAAA-MM-DD (inclusive)" },
+        limite: { type: "integer", description: "Máximo de produtos na lista (padrão 15, máximo 30)" },
+      },
+      required: ["de", "ate"],
+    },
+  },
 ];
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
@@ -185,6 +199,36 @@ export async function executarFerramenta(nome: string, entrada: Entrada, owner: 
         valorVendido: Math.round(vendido * 100) / 100,
         lucro: Math.round((vendido - custo) * 100) / 100,
       };
+    }
+
+    case "produtos_vendidos": {
+      const de = String(entrada.de ?? "");
+      const ate = String(entrada.ate ?? "");
+      if (!DATA.test(de) || !DATA.test(ate)) return { erro: "Datas inválidas, use AAAA-MM-DD" };
+      const inicio = de < somarDias(ate, -730) ? somarDias(ate, -730) : de;
+      const { data, error } = await db
+        .from("venda_itens")
+        .select("produto_nome, quantidade, preco_unitario, custo_unitario, vendas!inner(data, status)")
+        .eq("owner_id", owner)
+        .eq("vendas.status", "concluida")
+        .gte("vendas.data", inicio)
+        .lte("vendas.data", ate)
+        .limit(10000);
+      if (error) throw error;
+      const por = new Map<string, { produto: string; unidades: number; valor: number; lucro: number }>();
+      for (const i of data ?? []) {
+        const linha = por.get(i.produto_nome) ?? { produto: i.produto_nome, unidades: 0, valor: 0, lucro: 0 };
+        linha.unidades += Number(i.quantidade);
+        linha.valor += Number(i.quantidade) * Number(i.preco_unitario);
+        linha.lucro += Number(i.quantidade) * (Number(i.preco_unitario) - Number(i.custo_unitario));
+        por.set(i.produto_nome, linha);
+      }
+      const max = Math.min(Math.max(Math.floor(Number(entrada.limite)) || 15, 1), 30);
+      const lista = [...por.values()]
+        .sort((a, b) => b.unidades - a.unidades || b.valor - a.valor)
+        .slice(0, max)
+        .map((l) => ({ ...l, valor: Math.round(l.valor * 100) / 100, lucro: Math.round(l.lucro * 100) / 100 }));
+      return { de: inicio, ate, produtosDiferentes: por.size, produtos: lista };
     }
 
     default:
