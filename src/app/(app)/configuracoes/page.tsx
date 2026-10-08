@@ -10,6 +10,9 @@ import { NotificacoesPreferencias } from "./notificacoes-preferencias";
 import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
+import { WhatsappCard } from "./whatsapp-card";
+import { assistenteAtivo, contaPodeUsar } from "@/lib/whatsapp/evolution";
+import { PREFIXO, telefoneMascarado } from "@/lib/whatsapp/vinculo";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -26,6 +29,9 @@ export default async function ConfiguracoesPage() {
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
   ]);
+
+  const whatsappLiberado = assistenteAtivo() && contaPodeUsar(user?.email);
+  const { data: vinculoWhatsapp } = whatsappLiberado ? await supabase.from("whatsapp_vinculos").select("telefone").maybeSingle() : { data: null };
 
   const meta = user?.user_metadata ?? {};
   const nome = (meta.nome as string | undefined) ?? (meta.full_name as string | undefined) ?? (meta.name as string | undefined) ?? "";
@@ -54,6 +60,16 @@ export default async function ConfiguracoesPage() {
             logoUrl={logoSignedUrl?.signedUrl ?? null}
           />
         </Card>
+
+        {whatsappLiberado && (
+          <Card title="Assistente no WhatsApp">
+            <WhatsappCard
+              vinculadoFinal={vinculoWhatsapp ? telefoneMascarado(vinculoWhatsapp.telefone) : null}
+              numeroDoMarcon={(process.env.WHATSAPP_NUMERO ?? "").replace(/D/g, "")}
+              prefixo={PREFIXO}
+            />
+          </Card>
+        )}
 
         <Card title="Importar dados" description="Trouxe seus produtos, vendas e caixa de outro sistema? Traga tudo de uma vez.">
           <Link href="/importar" className="text-[14px] font-medium text-brand-text underline-offset-2 hover:underline">
