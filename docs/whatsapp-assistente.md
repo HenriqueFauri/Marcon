@@ -41,6 +41,10 @@ Para trocar a Evolution pela API oficial da Meta, reescreva só `enviarMensagem(
 
 **Comandos sem IA.** `ajuda` (lista de exemplos) e `limpar`. Não gastam tokens.
 
+**Cota (decisão de 2026-10-08).** 600 perguntas por mês e 40 por dia por conta (`src/lib/whatsapp/uso.ts`). Só pergunta que usa IA conta; `ajuda`, `limpar`, `SIM` e `NÃO` não contam, mas passam por um freio geral de 150 mensagens por dia. O uso fica em `limites_taxa` (chave `wa:uso:<conta>`, uma linha por dia; o mês é a soma). Aviso único ao passar de 80% e mensagem clara no limite.
+
+**Tela.** Configurações mostra só uma linha ("Assistente no WhatsApp", Vinculado ou Ativar). A tela `/configuracoes/whatsapp` tem conexão, uso do mês, exemplos que abrem o WhatsApp com a pergunta pronta, o interruptor "Lançar vendas por aqui" (coluna `whatsapp_vinculos.lancar_venda`, migration 0041; o dono só muda essa coluna), apagar a conversa e desvincular (que também apaga a conversa).
+
 **Lançar venda.**
 1. O modelo chama `preparar_venda`, que só valida: produto (nome exato tem prioridade), variação, estoque, preço (o dito ou o cadastrado), desconto, a prazo (exige cliente), forma de pagamento e canal (casados com o cadastro quando existir). Ambíguo, sem estoque ou sem preço: devolve pergunta ou erro e não grava nada.
 2. O servidor grava o rascunho em `whatsapp_acoes` e monta o texto de confirmação (o modelo não reescreve valores). Vale 10 minutos, um por número.
@@ -72,6 +76,7 @@ Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `res
 | `0038_whatsapp.sql` | `whatsapp_vinculos`, `whatsapp_codigos` | Dono lê e apaga o vínculo e cria código; vínculo só nasce pelo webhook |
 | `0039_whatsapp_conversas.sql` | `whatsapp_conversas` | RLS sem política: só a chave de serviço |
 | `0040_whatsapp_vendas.sql` | `whatsapp_acoes` e `registrar_venda_como()` | Tabela sem política; função só para `service_role` |
+| `0041_whatsapp_lancar_venda.sql` | `whatsapp_vinculos.lancar_venda` | Dono muda só essa coluna (grant por coluna) |
 
 Retenção (o que a política de privacidade promete), apagada a cada mensagem respondida: conversa 24 horas, código vencido 1 hora depois, `whatsapp_acoes` 90 dias.
 
@@ -87,7 +92,8 @@ As migrations são rastreadas em `public.schema_migrations`. Todas já aplicadas
 | `WHATSAPP_EMAILS_ESCRITA` | Contas que podem lançar. Vazio = ninguém |
 | `WHATSAPP_NUMERO` | Número do chip, só dígitos, para o link `wa.me` |
 | `WHATSAPP_WEBHOOK_SECRET` | Segredo do cabeçalho `x-whatsapp-secret` |
-| `WHATSAPP_LIMITE_DIA` | Mensagens por conta por dia (padrão 60) |
+| `WHATSAPP_COTA_MES` | Perguntas com IA por conta por mês (padrão 600) |
+| `WHATSAPP_LIMITE_DIA` | Perguntas com IA por conta por dia (padrão 40) |
 | `WHATSAPP_LIMITE_VENDAS_DIA` | Vendas lançadas por conta por dia (padrão 30) |
 | `WHATSAPP_MODELO` | Opcional. Padrão `claude-haiku-5-5` |
 | `WHATSAPP_ORIENTAR` | `1` responde número desconhecido (só em chip dedicado) |

@@ -43,7 +43,7 @@ export async function salvarVersaoAnuncio(dados: {
 // Diz por que a chamada à IA falhou, em português. Enquanto a IA está em teste, o motivo
 // real aparece na tela (e vai inteiro para o log do servidor) para achar o problema rápido.
 function motivoDaFalhaDaIA(e: InstanceType<typeof Anthropic.APIError>) {
-  const detalhe = (e.message ?? "").replace(/s+/g, " ").slice(0, 200);
+  const detalhe = (e.message ?? "").replace(/\s+/g, " ").slice(0, 200);
   const sobra = "Sua cota não foi usada.";
   if (e.status === 401) return `A chave da IA (ANTHROPIC_API_KEY) foi recusada. Confira a chave na Vercel e refaça o deploy. ${sobra}`;
   if (e.status === 403) return `A chave da IA não tem permissão para isso (use uma chave de workspace, não de organização). ${sobra}`;

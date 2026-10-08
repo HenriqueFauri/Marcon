@@ -13,6 +13,7 @@ import {
 import { resolverPendente } from "@/lib/whatsapp/venda";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
+import { AVISO_EM, COTA_MES, TETO_DIA, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
 
 // Webhook do assistente no WhatsApp. A Evolution chama aqui a cada mensagem recebida.
 // Configuração do webhook (cabeçalho com WHATSAPP_WEBHOOK_SECRET): docs/whatsapp-assistente.md.
@@ -168,7 +169,11 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
   const codigo = lerCodigo(msg.texto);
   if (codigo) return tentarVincular(admin, msg, codigo);
 
-  const { data: vinculo } = await admin.from("whatsapp_vinculos").select("owner_id").eq("telefone", msg.telefone).maybeSingle();
+  const { data: vinculo } = await admin
+    .from("whatsapp_vinculos")
+    .select("owner_id, lancar_venda")
+    .eq("telefone", msg.telefone)
+    .maybeSingle();
   if (!vinculo) {
     // número desconhecido: silêncio. Num número de uso misto, responder a qualquer contato seria um desastre.
     // Com WHATSAPP_ORIENTAR=1 (só em número dedicado ao Marcon) vale uma orientação por hora.
@@ -182,15 +187,11 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
   const { data: conta } = await admin.auth.admin.getUserById(owner);
   if (!contaPodeUsar(conta.user?.email)) return;
   estado.vinculado = true;
-  const escrita = escritaAtiva() && contaPodeEscrever(conta.user?.email);
+  // liberado pelo Marcon E ligado pelo vendedor (interruptor em Configurações)
+  const escrita = escritaAtiva() && contaPodeEscrever(conta.user?.email) && vinculo.lancar_venda !== false;
 
-  const porDia = Number(process.env.WHATSAPP_LIMITE_DIA ?? 60);
-  if (!(await dentroDoLimite(admin, `wa:dia:${owner}`, porDia, 86400))) {
-    if (await dentroDoLimite(admin, `wa:aviso-limite:${owner}`, 1, 86400)) {
-      await enviarMensagem(msg.telefone, "Você chegou no limite de mensagens de hoje. Amanhã eu volto a responder.");
-    }
-    return;
-  }
+  // freio geral contra excesso, inclusive de ajuda, limpar, SIM e NÃO (que não contam na cota)
+  if (!(await dentroDoLimite(admin, `wa:geral:${owner}`, 150, 86400))) return;
 
   if (AJUDA.test(msg.texto)) {
     await enviarMensagem(msg.telefone, textoAjuda(escrita));
@@ -215,9 +216,34 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
     }
   }
 
+  // cota: só pergunta que usa IA conta (decisão de 2026-10-08: 600 por mês, 40 por dia)
+  const usados = await usoDoMes(admin, owner);
+  if (usados >= COTA_MES) {
+    if (await dentroDoLimite(admin, `wa:aviso-cota:${owner}`, 1, 86400)) {
+      await enviarMensagem(
+        msg.telefone,
+        `Você usou as ${COTA_MES} perguntas deste mês. Volto a responder no dia 1º. Dá para ver o uso em Configurações, no Marcon.`,
+      );
+    }
+    return;
+  }
+  if (!(await dentroDoLimite(admin, `wa:dia:${owner}`, TETO_DIA, 86400))) {
+    if (await dentroDoLimite(admin, `wa:aviso-limite:${owner}`, 1, 86400)) {
+      await enviarMensagem(msg.telefone, `Você chegou nas ${TETO_DIA} perguntas de hoje. Amanhã eu volto a responder.`);
+    }
+    return;
+  }
+
   const historico = await carregarHistorico(admin, msg.telefone);
   const resposta = await responder(msg.texto, ctx, historico);
-  await enviarMensagem(msg.telefone, resposta);
+  await registrarUso(admin, owner);
+  // aviso único ao passar de 80% da cota, para o limite não pegar de surpresa
+  const agora = usados + 1;
+  const aviso =
+    usados < COTA_MES * AVISO_EM && agora >= COTA_MES * AVISO_EM
+      ? `\n\n_Você já usou ${agora} de ${COTA_MES} perguntas deste mês._`
+      : "";
+  await enviarMensagem(msg.telefone, resposta + aviso);
   await guardarTroca(admin, msg.telefone, msg.texto, resposta);
 }
 
