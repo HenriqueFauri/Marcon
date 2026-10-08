@@ -113,7 +113,7 @@ export function ConfiguracaoForm({
                 name="frete_fixo"
                 inputMode="decimal"
                 defaultValue={config?.freteFixo ?? ""}
-                placeholder="10,00"
+                placeholder="A combinar"
                 className="min-w-0 flex-1 bg-transparent px-2 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-muted"
               />
             </div>

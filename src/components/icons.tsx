@@ -219,3 +219,17 @@ export const IconStore = (p: P) => (
     <path d="M10 20v-4.5h4V20" />
   </Icon>
 );
+export const IconPalette = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-.9 2-1.8 0-1.6-1.3-1.9-1.3-3.2 0-1 .8-1.8 1.8-1.8H17a3.5 3.5 0 0 0 3.5-3.5C20.5 6.6 16.7 3.5 12 3.5Z" />
+    <circle cx="7.8" cy="11" r="1" fill="currentColor" stroke="none" />
+    <circle cx="10.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="7.8" r="1" fill="currentColor" stroke="none" />
+  </Icon>
+);
+export const IconTicket = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 8.5V6.8A1.8 1.8 0 0 1 5.8 5h12.4A1.8 1.8 0 0 1 20 6.8v1.7a2.5 2.5 0 0 0 0 7v1.7a1.8 1.8 0 0 1-1.8 1.8H5.8A1.8 1.8 0 0 1 4 17.2v-1.7a2.5 2.5 0 0 0 0-7Z" />
+    <path d="M14 5v2.5M14 11v2M14 16.5V19" />
+  </Icon>
+);

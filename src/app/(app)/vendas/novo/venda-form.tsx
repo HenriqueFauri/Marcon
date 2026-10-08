@@ -24,6 +24,17 @@ export interface Vendavel {
   estoque: number;
 }
 
+// pedido da vitrine virando venda (Registrar venda, em Vitrine > Pedidos)
+export interface PedidoParaVenda {
+  id: string;
+  codigo: string;
+  itens: { chave: string; quantidade: number; preco: number }[];
+  desconto: number;
+  clienteNome: string | null;
+  pagamento: string | null;
+  semEstoque: string[];
+}
+
 interface ItemCarrinho {
   chave: string;
   quantidade: number;
@@ -76,7 +87,7 @@ const valorLinha =
 
 // o que aparece na lista enquanto a pessoa ainda não cadastrou os próprios (Configurações)
 const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
-const CANAIS_SUGERIDOS = ["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre"];
+const CANAIS_SUGERIDOS = ["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre", "Vitrine"];
 
 // Campo "escolha da lista ou digite": select com os cadastrados + texto livre.
 // Com `sugestoes`, vira sempre uma lista de escolha: os cadastrados, depois as sugestões
@@ -237,6 +248,7 @@ export function VendaForm({
   formas,
   hoje,
   produtoInicial,
+  pedido = null,
 }: {
   vendaveis: Vendavel[];
   clientes: Cliente[];
@@ -244,6 +256,7 @@ export function VendaForm({
   formas: FormaPagamento[];
   hoje: string;
   produtoInicial?: string | null;
+  pedido?: PedidoParaVenda | null;
 }) {
   const router = useRouter();
   const { isPending, run } = useAction();
@@ -253,16 +266,28 @@ export function VendaForm({
   const iniciais = produtoInicial ? vendaveis.filter((v) => v.produto_id === produtoInicial) : [];
   const [busca, setBusca] = useState(iniciais.length > 1 ? iniciais[0].produto_nome : "");
   const [tabela, setTabela] = useState<"varejo" | "atacado">("varejo");
-  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>(() =>
-    iniciais.length === 1 ? [{ chave: iniciais[0].chave, quantidade: 1, preco: emTexto(iniciais[0].preco_varejo) }] : [],
-  );
-  const [clienteId, setClienteId] = useState("");
-  const [clienteNome, setClienteNome] = useState("");
-  const [canalId, setCanalId] = useState("");
-  const [canalNome, setCanalNome] = useState("");
-  const [formaId, setFormaId] = useState("");
-  const [formaNome, setFormaNome] = useState("");
-  const [desconto, setDesconto] = useState("");
+  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>(() => {
+    if (pedido) {
+      const existe = new Set(vendaveis.map((v) => v.chave));
+      return pedido.itens
+        .filter((i) => existe.has(i.chave))
+        .map((i) => ({ chave: i.chave, quantidade: i.quantidade, preco: emTexto(i.preco) }));
+    }
+    return iniciais.length === 1 ? [{ chave: iniciais[0].chave, quantidade: 1, preco: emTexto(iniciais[0].preco_varejo) }] : [];
+  });
+  // do pedido: cliente, canal e forma de pagamento já cadastrados entram pelo id; os outros, pelo nome
+  const doCadastro = <T extends { id: string; nome: string }>(lista: T[], nome: string | null | undefined) =>
+    nome ? lista.find((x) => x.nome.trim().toLowerCase() === nome.trim().toLowerCase()) : undefined;
+  const clientePedido = doCadastro(clientes, pedido?.clienteNome);
+  const canalPedido = pedido ? doCadastro(canais, "Vitrine") : undefined;
+  const formaPedido = doCadastro(formas, pedido?.pagamento);
+  const [clienteId, setClienteId] = useState(clientePedido?.id ?? "");
+  const [clienteNome, setClienteNome] = useState(clientePedido ? "" : (pedido?.clienteNome ?? ""));
+  const [canalId, setCanalId] = useState(canalPedido?.id ?? "");
+  const [canalNome, setCanalNome] = useState(pedido && !canalPedido ? "Vitrine" : "");
+  const [formaId, setFormaId] = useState(formaPedido?.id ?? "");
+  const [formaNome, setFormaNome] = useState(formaPedido ? "" : (pedido?.pagamento ?? ""));
+  const [desconto, setDesconto] = useState(pedido && pedido.desconto > 0 ? emTexto(pedido.desconto) : "");
   const [outrosGastos, setOutrosGastos] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState<"a_vista" | "a_prazo">("a_vista");
   const [numeroParcelas, setNumeroParcelas] = useState(2);
@@ -376,6 +401,7 @@ export function VendaForm({
           desconto: valorDesconto,
           outrosGastos: valorOutros,
           data,
+          pedidoId: pedido?.id ?? null,
         }).then((r) => {
           if (r.ok && r.id) router.push(`/vendas/${r.id}`);
           return r;
@@ -388,6 +414,12 @@ export function VendaForm({
 
   return (
     <form onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
+      {pedido && (
+        <p className="rounded-2xl bg-info-tint px-4 py-3 text-[15px] text-ink-2 lg:col-span-5">
+          Do pedido <strong className="text-ink">#{pedido.codigo}</strong> da vitrine. Confira e registre.
+          {pedido.semEstoque.length > 0 && <> Sem estoque agora, ficou de fora: {pedido.semEstoque.join(", ")}.</>}
+        </p>
+      )}
       <div className="flex flex-col items-center gap-0.5 pb-1 pt-2 lg:hidden" aria-live="polite">
         <span className="text-[15px] text-ink-muted">
           Total · {linhas.length} {linhas.length === 1 ? "item" : "itens"}

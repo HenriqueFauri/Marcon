@@ -10,12 +10,14 @@ import {
   BANNER_SUBTITULO_MAX,
   BANNER_TITULO_MAX,
   BOAS_VINDAS_MAX,
+  CORES_CLARAS,
   COR_PADRAO,
   COR_REGEX,
   CUPOM_REGEX,
   ENTREGAS,
   INSTAGRAM_REGEX,
   SLUG_REGEX,
+  fundoEscuro,
   normalizarWhatsapp,
 } from "@/lib/vitrine";
 
@@ -65,7 +67,10 @@ export async function salvarConfiguracao(formData: FormData): Promise<ActionResu
 export async function salvarPersonalizacao(formData: FormData): Promise<ActionResult> {
   try {
     const cor = texto(formData, "cor") || COR_PADRAO;
-    const tema = texto(formData, "tema") === "escuro" ? "escuro" : "claro";
+    const corBotao = texto(formData, "cor_botao") || cor;
+    const corFundo = texto(formData, "cor_fundo") || CORES_CLARAS.fundo;
+    const corTexto = texto(formData, "cor_texto") || CORES_CLARAS.texto;
+    const corFaixa = texto(formData, "cor_faixa") || cor;
     const boasVindas = textoOuNull(formData, "boas_vindas");
     const anuncio = textoOuNull(formData, "anuncio");
     // aceita "@loja", "loja" ou o endereço completo do perfil
@@ -78,7 +83,7 @@ export async function salvarPersonalizacao(formData: FormData): Promise<ActionRe
     const bannerSubtitulo = textoOuNull(formData, "banner_subtitulo");
     const bannerBotao = textoOuNull(formData, "banner_botao");
 
-    if (!COR_REGEX.test(cor)) return { ok: false, error: "Escolha uma cor válida." };
+    if (![cor, corBotao, corFundo, corTexto, corFaixa].every((c) => COR_REGEX.test(c))) return { ok: false, error: "Escolha cores válidas." };
     if (boasVindas && boasVindas.length > BOAS_VINDAS_MAX)
       return { ok: false, error: `A frase de boas-vindas tem no máximo ${BOAS_VINDAS_MAX} letras.` };
     if (anuncio && anuncio.length > ANUNCIO_MAX)
@@ -101,7 +106,12 @@ export async function salvarPersonalizacao(formData: FormData): Promise<ActionRe
       .from("vitrines")
       .update({
         cor,
-        tema,
+        cor_botao: corBotao,
+        cor_fundo: corFundo,
+        cor_texto: corTexto,
+        cor_faixa: corFaixa,
+        // o tema segue o fundo: vale para lojas antigas e para o modo claro ou escuro dos campos do navegador
+        tema: fundoEscuro(corFundo) ? "escuro" : "claro",
         boas_vindas: boasVindas,
         anuncio,
         instagram,
@@ -273,6 +283,28 @@ export async function excluirCupom(id: string): Promise<ActionResult> {
     if (error) return falha(error);
     revalidatePath("/vitrine", "layout");
     return ok("Cupom excluído.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// Pedidos recebidos (migration 0037): descartar (o cliente desistiu) ou voltar para "novo".
+// "vendido" só vem de registrarVenda, que guarda junto o id da venda.
+export async function mudarStatusDoPedido(id: string, status: "novo" | "descartado"): Promise<ActionResult> {
+  try {
+    if (status !== "novo" && status !== "descartado") return { ok: false, error: "Status inválido." };
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("vitrine_pedidos")
+      .update({ status })
+      .eq("id", id)
+      .neq("status", "vendido")
+      .select("id")
+      .maybeSingle();
+    if (error) return falha(error);
+    if (!data) return { ok: false, error: "Não achei esse pedido, ou ele já virou venda." };
+    revalidatePath("/vitrine", "layout");
+    return ok(status === "descartado" ? "Pedido descartado." : "Pedido de volta para os novos.");
   } catch (e) {
     return falha(e);
   }

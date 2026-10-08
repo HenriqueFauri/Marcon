@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
 import { hojeISO } from "@/lib/format";
 import { btnPrimary } from "@/components/ui";
-import { IconBox, IconGift, IconSettings, IconSparkles } from "@/components/icons";
+import { IconBox, IconPalette, IconReceipt, IconSettings, IconTicket } from "@/components/icons";
+import type { PedidoRecebido } from "@/lib/vitrine";
 import { Grupo, LinhaLink } from "./campos";
 import { LinkDaLoja } from "./link-da-loja";
+import { LinhaDoPedido } from "./pedidos/linha-do-pedido";
 
 export const metadata: Metadata = { title: "Vitrine" };
 
@@ -34,7 +36,7 @@ interface Passo {
   href: string;
 }
 
-// Visão geral: o link para divulgar, o que falta para a loja ficar pronta e como ela está indo.
+// Visão geral: o link (com QR), pedidos novos, o próximo passo e como a loja está indo.
 export default async function VitrineVisaoGeralPage() {
   const supabase = await createClient();
   const desde = diasAtras(hojeISO(), DIAS_METRICAS - 1);
@@ -48,25 +50,54 @@ export default async function VitrineVisaoGeralPage() {
     { data: metricasData },
     { data: metricasProdutoData },
     { count: cuponsAtivos },
+    { data: pedidosData, count: pedidosNovos },
     base,
   ] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.from("vitrines").select("slug, ativa").maybeSingle(),
-    supabase.from("produtos").select("id, nome").eq("status", "ativo").eq("na_vitrine", true),
+    supabase.from("vitrines").select("slug, ativa, banner_paths, banner_titulo").maybeSingle(),
+    supabase
+      .from("produtos")
+      .select("id, nome, tem_variacoes, estoque_atual, destaque")
+      .eq("status", "ativo")
+      .eq("na_vitrine", true),
     supabase.from("formas_pagamento").select("id", { count: "exact", head: true }),
     supabase.from("vitrine_metricas").select("visitas, pedidos").gte("dia", desde),
     supabase.from("vitrine_metricas_produto").select("produto_id, aberturas").gte("dia", desde),
     supabase.from("vitrine_cupons").select("id", { count: "exact", head: true }).eq("ativo", true),
+    // sem a migration 0037 a consulta falha e a página segue sem o bloco de pedidos
+    supabase.from("vitrine_pedidos").select("*", { count: "exact" }).eq("status", "novo").order("created_at", { ascending: false }).limit(3),
     enderecoDoApp(),
   ]);
 
   const meta = user?.user_metadata ?? {};
   const marcados = marcadosData ?? [];
-  const { data: fotosData } = marcados.length
-    ? await supabase.from("produto_fotos").select("produto_id").in("produto_id", marcados.map((p) => p.id))
-    : { data: [] };
+  const ids = marcados.map((p) => p.id);
+  const [{ data: fotosData }, { data: variacoesData }] = await Promise.all([
+    ids.length
+      ? supabase.from("produto_fotos").select("produto_id").in("produto_id", ids)
+      : Promise.resolve({ data: [] as { produto_id: string }[] }),
+    ids.length
+      ? supabase.from("produto_variacoes").select("produto_id, estoque").in("produto_id", ids)
+      : Promise.resolve({ data: [] as { produto_id: string; estoque: number }[] }),
+  ]);
   const comFoto = new Set((fotosData ?? []).map((f) => f.produto_id as string));
   const semFoto = marcados.filter((p) => !comFoto.has(p.id)).length;
+
+  // estoque como a loja mostra: com variações, esgotado só se todas zeraram
+  const variacoesDe = new Map<string, { estoque: number }[]>();
+  for (const v of variacoesData ?? []) {
+    const lista = variacoesDe.get(v.produto_id) ?? [];
+    lista.push({ estoque: Number(v.estoque) });
+    variacoesDe.set(v.produto_id, lista);
+  }
+  const situacao = marcados.map((p) => {
+    const vs = p.tem_variacoes ? (variacoesDe.get(p.id) ?? []) : [];
+    const esgotado = p.tem_variacoes ? !vs.some((v) => v.estoque > 0) : Number(p.estoque_atual) <= 0;
+    return { ...p, esgotado };
+  });
+  const esgotados = situacao.filter((p) => p.esgotado).length;
+
+  const pedidosRecentes = (pedidosData ?? []) as PedidoRecebido[];
 
   const passos: Passo[] = [
     { feito: !!vitrine, titulo: "Criar a loja", ajuda: "Escolha o endereço e o WhatsApp que recebe os pedidos.", href: "/vitrine/configuracoes" },
@@ -95,12 +126,31 @@ export default async function VitrineVisaoGeralPage() {
 
   const pendentes = passos.filter((p) => !p.feito);
   const tile = "h-[17px] w-[17px]";
+  const linkDaLoja = vitrine ? `${base}/loja/${vitrine.slug}` : "";
+
+  // Próximo passo: com a loja pronta, uma sugestão só (a mais importante), a partir do que já sabemos
+  const temBanner = ((vitrine?.banner_paths as string[] | undefined) ?? []).length > 0 || !!vitrine?.banner_titulo;
+  const sugestoes: Passo[] = [];
+  if (esgotados > 0)
+    sugestoes.push({
+      feito: false,
+      titulo: `${esgotados} ${esgotados === 1 ? "produto da vitrine está esgotado" : "produtos da vitrine estão esgotados"}`,
+      ajuda: "Aparecem no fim da loja como esgotados. Reponha o estoque ou tire da vitrine.",
+      href: "/vitrine/produtos",
+    });
+  if (situacao.length > 0 && !situacao.some((p) => p.destaque))
+    sugestoes.push({ feito: false, titulo: "Escolha os produtos em destaque", ajuda: "Eles aparecem no topo da loja, antes de todos.", href: "/vitrine/produtos" });
+  if (!temBanner)
+    sugestoes.push({ feito: false, titulo: "Coloque um banner", ajuda: "Uma imagem ou frase no topo da loja chama a atenção pra novidade.", href: "/vitrine/personalizar" });
+  if ((cuponsAtivos ?? 0) === 0)
+    sugestoes.push({ feito: false, titulo: "Crie um cupom de boas-vindas", ajuda: "Um desconto pequeno ajuda o cliente a fechar o primeiro pedido.", href: "/vitrine/cupons" });
+  const proximo = pendentes.length === 0 ? sugestoes[0] : undefined;
 
   return (
     <div className="flex flex-col gap-7">
       <Grupo titulo="Sua loja">
         {vitrine?.ativa ? (
-          <LinkDaLoja link={`${base}/loja/${vitrine.slug}`} nomeLoja={(meta.nome_negocio as string | undefined) || "loja"} />
+          <LinkDaLoja link={linkDaLoja} nomeLoja={(meta.nome_negocio as string | undefined) || "loja"} />
         ) : (
           <div className="flex flex-col items-start gap-3">
             <p className="text-[15px] text-ink-2">
@@ -114,6 +164,44 @@ export default async function VitrineVisaoGeralPage() {
           </div>
         )}
       </Grupo>
+
+      {(pedidosNovos ?? 0) > 0 && (
+        <Grupo
+          titulo={
+            <span className="flex justify-between">
+              <span>Pedidos novos</span>
+              <span className="normal-case">{pedidosNovos}</span>
+            </span>
+          }
+          semPadding
+        >
+          {pedidosRecentes.map((p) => (
+            <LinhaDoPedido key={p.id} pedido={p} />
+          ))}
+          {(pedidosNovos ?? 0) > pedidosRecentes.length && (
+            <Link
+              href="/vitrine/pedidos"
+              className="block border-t border-line px-4 py-3 text-[15px] font-medium text-brand-text transition hover:bg-fill/60"
+            >
+              Ver todos os pedidos
+            </Link>
+          )}
+        </Grupo>
+      )}
+
+      {proximo && (
+        <Grupo titulo="Próximo passo" semPadding>
+          <Link href={proximo.href} className="flex items-center gap-3 px-4 py-3 transition hover:bg-fill/60 active:bg-fill">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[17px] text-ink">{proximo.titulo}</span>
+              <span className="block text-[13px] leading-snug text-ink-muted">{proximo.ajuda}</span>
+            </span>
+            <span aria-hidden="true" className="text-lg text-ink-faint">
+              ›
+            </span>
+          </Link>
+        </Grupo>
+      )}
 
       {pendentes.length > 0 && (
         <Grupo
@@ -150,6 +238,13 @@ export default async function VitrineVisaoGeralPage() {
       <div className="sm:hidden">
         <Grupo titulo="Gerenciar" semPadding>
           <LinhaLink
+            href="/vitrine/pedidos"
+            icone={<IconReceipt className={tile} />}
+            tom="bg-info text-white"
+            rotulo="Pedidos"
+            detalhe={(pedidosNovos ?? 0) === 0 ? "Nenhum novo" : `${pedidosNovos} ${pedidosNovos === 1 ? "novo" : "novos"}`}
+          />
+          <LinhaLink
             href="/vitrine/produtos"
             icone={<IconBox className={tile} />}
             tom="bg-brand text-on-brand"
@@ -158,7 +253,7 @@ export default async function VitrineVisaoGeralPage() {
           />
           <LinhaLink
             href="/vitrine/personalizar"
-            icone={<IconSparkles className={tile} />}
+            icone={<IconPalette className={tile} />}
             tom="bg-tile-warning text-on-tile-warning"
             rotulo="Personalizar"
           />
@@ -170,7 +265,7 @@ export default async function VitrineVisaoGeralPage() {
           />
           <LinhaLink
             href="/vitrine/cupons"
-            icone={<IconGift className={tile} />}
+            icone={<IconTicket className={tile} />}
             tom="bg-tile-positive text-on-tile-positive"
             rotulo="Cupons"
             detalhe={(cuponsAtivos ?? 0) === 0 ? "Nenhum" : `${cuponsAtivos} ${cuponsAtivos === 1 ? "ativo" : "ativos"}`}

@@ -242,3 +242,23 @@ input[type="date"]::-webkit-date-and-time-value,
 input[type="time"]::-webkit-date-and-time-value {
   text-align: left;
 }
+
+/* Folha que sobe de baixo (Modal com folha), como as do iPhone. Só no celular; no computador
+   o Modal continua centralizado. */
+@keyframes subir-folha {
+  from {
+    translate: 0 100%;
+  }
+}
+
+@media (max-width: 639px) {
+  .folha[open] {
+    animation: subir-folha 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folha[open] {
+    animation: none;
+  }
+}
