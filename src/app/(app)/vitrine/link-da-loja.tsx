@@ -3,6 +3,7 @@
 import { useToast } from "@/components/toaster";
 import { btnPrimary, btnSecondary } from "@/components/ui";
 import { IconWhatsapp } from "@/components/icons";
+import { QrDaLoja } from "./qr-da-loja";
 
 // link da loja com os atalhos para divulgar: copiar, abrir e mandar no WhatsApp (status, grupos, clientes)
 export function LinkDaLoja({ link, nomeLoja }: { link: string; nomeLoja: string }) {
@@ -28,7 +29,7 @@ export function LinkDaLoja({ link, nomeLoja }: { link: string; nomeLoja: string 
           Copiar
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <a
           href={`https://wa.me/?text=${encodeURIComponent(textoWhats)}`}
           target="_blank"
@@ -41,6 +42,7 @@ export function LinkDaLoja({ link, nomeLoja }: { link: string; nomeLoja: string 
         <a href={link} target="_blank" rel="noopener noreferrer" className={`${btnSecondary} px-3`}>
           Ver loja
         </a>
+        <QrDaLoja link={link} nomeLoja={nomeLoja} />
       </div>
     </div>
   );

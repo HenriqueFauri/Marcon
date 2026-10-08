@@ -7,6 +7,7 @@ import { IconChevronLeft } from "@/components/icons";
 import { Segmentos } from "@/components/ui";
 
 export const SECOES_VITRINE = [
+  { href: "/vitrine/pedidos", label: "Pedidos", item: "Pedido" },
   { href: "/vitrine/produtos", label: "Produtos" },
   { href: "/vitrine/personalizar", label: "Personalizar" },
   { href: "/vitrine/configuracoes", label: "Configurações" },
@@ -20,18 +21,21 @@ const ABAS = [{ href: "/vitrine", label: "Visão geral" }, ...SECOES_VITRINE];
 export function CabecalhoVitrine({ selo }: { selo: ReactNode }) {
   const pathname = usePathname();
   const secao = SECOES_VITRINE.find((s) => pathname.startsWith(s.href));
+  // dentro de um item da seção (ex.: um pedido), o "‹" volta para a lista da seção
+  const noItem = !!secao && pathname !== secao.href;
+  const voltar = noItem && secao ? { href: secao.href, label: secao.label } : { href: "/vitrine", label: "Vitrine" };
 
   return (
     <div className="mb-6">
       {secao && (
-        <Link href="/vitrine" className="-ml-1 mb-1 inline-flex items-center gap-0.5 text-[15px] font-medium text-brand-text sm:hidden">
+        <Link href={voltar.href} className="-ml-1 mb-1 inline-flex items-center gap-0.5 text-[15px] font-medium text-brand-text sm:hidden">
           <IconChevronLeft width={18} height={18} />
-          Vitrine
+          {voltar.label}
         </Link>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-[28px] font-bold leading-tight tracking-tight text-ink">
-          <span className="sm:hidden">{secao?.label ?? "Vitrine"}</span>
+          <span className="sm:hidden">{(noItem && secao?.item) || secao?.label || "Vitrine"}</span>
           <span className="hidden sm:inline">Vitrine</span>
         </h1>
         <span className={secao ? "hidden sm:inline-flex" : "inline-flex"}>{selo}</span>
