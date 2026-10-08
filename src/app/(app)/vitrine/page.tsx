@@ -7,7 +7,6 @@ import { btnPrimary } from "@/components/ui";
 import { IconBox, IconPalette, IconReceipt, IconSettings, IconTicket } from "@/components/icons";
 import type { PedidoRecebido } from "@/lib/vitrine";
 import { Grupo, LinhaLink } from "./campos";
-import { DivulgarProduto, type ProdutoParaDivulgar } from "./divulgar-produto";
 import { LinkDaLoja } from "./link-da-loja";
 import { LinhaDoPedido } from "./pedidos/linha-do-pedido";
 
@@ -37,7 +36,7 @@ interface Passo {
   href: string;
 }
 
-// Visão geral: o link (com QR), pedidos novos, o próximo passo, divulgar um produto e como a loja está indo.
+// Visão geral: o link (com QR), pedidos novos, o próximo passo e como a loja está indo.
 export default async function VitrineVisaoGeralPage() {
   const supabase = await createClient();
   const desde = diasAtras(hojeISO(), DIAS_METRICAS - 1);
@@ -58,10 +57,9 @@ export default async function VitrineVisaoGeralPage() {
     supabase.from("vitrines").select("slug, ativa, banner_paths, banner_titulo").maybeSingle(),
     supabase
       .from("produtos")
-      .select("id, nome, preco_varejo, tem_variacoes, estoque_atual, destaque")
+      .select("id, nome, tem_variacoes, estoque_atual, destaque")
       .eq("status", "ativo")
-      .eq("na_vitrine", true)
-      .order("created_at", { ascending: false }),
+      .eq("na_vitrine", true),
     supabase.from("formas_pagamento").select("id", { count: "exact", head: true }),
     supabase.from("vitrine_metricas").select("visitas, pedidos").gte("dia", desde),
     supabase.from("vitrine_metricas_produto").select("produto_id, aberturas").gte("dia", desde),
@@ -76,43 +74,28 @@ export default async function VitrineVisaoGeralPage() {
   const ids = marcados.map((p) => p.id);
   const [{ data: fotosData }, { data: variacoesData }] = await Promise.all([
     ids.length
-      ? supabase.from("produto_fotos").select("produto_id, path, variacao_id").in("produto_id", ids).order("ordem")
-      : Promise.resolve({ data: [] as { produto_id: string; path: string; variacao_id: string | null }[] }),
+      ? supabase.from("produto_fotos").select("produto_id").in("produto_id", ids)
+      : Promise.resolve({ data: [] as { produto_id: string }[] }),
     ids.length
-      ? supabase.from("produto_variacoes").select("produto_id, preco_venda, estoque").in("produto_id", ids)
-      : Promise.resolve({ data: [] as { produto_id: string; preco_venda: number | null; estoque: number }[] }),
+      ? supabase.from("produto_variacoes").select("produto_id, estoque").in("produto_id", ids)
+      : Promise.resolve({ data: [] as { produto_id: string; estoque: number }[] }),
   ]);
   const comFoto = new Set((fotosData ?? []).map((f) => f.produto_id as string));
   const semFoto = marcados.filter((p) => !comFoto.has(p.id)).length;
 
-  // estoque e preço como a loja mostra: com variações, esgotado só se todas zeraram; preço "a partir de"
-  const variacoesDe = new Map<string, { preco: number | null; estoque: number }[]>();
+  // estoque como a loja mostra: com variações, esgotado só se todas zeraram
+  const variacoesDe = new Map<string, { estoque: number }[]>();
   for (const v of variacoesData ?? []) {
     const lista = variacoesDe.get(v.produto_id) ?? [];
-    lista.push({ preco: v.preco_venda === null ? null : Number(v.preco_venda), estoque: Number(v.estoque) });
+    lista.push({ estoque: Number(v.estoque) });
     variacoesDe.set(v.produto_id, lista);
   }
   const situacao = marcados.map((p) => {
     const vs = p.tem_variacoes ? (variacoesDe.get(p.id) ?? []) : [];
     const esgotado = p.tem_variacoes ? !vs.some((v) => v.estoque > 0) : Number(p.estoque_atual) <= 0;
-    const precos = vs.length ? vs.map((v) => v.preco ?? Number(p.preco_varejo)) : [Number(p.preco_varejo)];
-    return { ...p, esgotado, preco: Math.min(...precos), varia: Math.min(...precos) !== Math.max(...precos) };
+    return { ...p, esgotado };
   });
   const esgotados = situacao.filter((p) => p.esgotado).length;
-
-  // primeira foto de cada produto (a do produto antes das de variação), assinada para a miniatura
-  const fotoDe = new Map<string, string>();
-  for (const foto of [...(fotosData ?? [])].sort((a, b) => Number(!!a.variacao_id) - Number(!!b.variacao_id)))
-    if (!fotoDe.has(foto.produto_id)) fotoDe.set(foto.produto_id, foto.path);
-  const { data: assinadas } = fotoDe.size
-    ? await supabase.storage.from("produto-fotos").createSignedUrls([...fotoDe.values()], 3600)
-    : { data: [] };
-  const urlDe = new Map((assinadas ?? []).flatMap((a) => (a.path && a.signedUrl ? [[a.path, a.signedUrl] as const] : [])));
-  // para divulgar: só o que está à venda, destaques primeiro
-  const paraDivulgar: ProdutoParaDivulgar[] = situacao
-    .filter((p) => !p.esgotado)
-    .sort((a, b) => Number(b.destaque) - Number(a.destaque))
-    .map((p) => ({ id: p.id, nome: p.nome, preco: p.preco, varia: p.varia, foto: urlDe.get(fotoDe.get(p.id) ?? "") ?? null }));
 
   const pedidosRecentes = (pedidosData ?? []) as PedidoRecebido[];
 
@@ -217,12 +200,6 @@ export default async function VitrineVisaoGeralPage() {
               ›
             </span>
           </Link>
-        </Grupo>
-      )}
-
-      {vitrine?.ativa && paraDivulgar.length > 0 && (
-        <Grupo titulo="Divulgar um produto" rodape="O link do produto mostra a foto e o preço dele no Zap.">
-          <DivulgarProduto produtos={paraDivulgar} linkDaLoja={linkDaLoja} />
         </Grupo>
       )}
 
