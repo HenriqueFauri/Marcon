@@ -18,6 +18,9 @@ import { responder, type Troca } from "@/lib/whatsapp/assistente";
 // Configuração do webhook (cabeçalho com WHATSAPP_WEBHOOK_SECRET): docs/whatsapp-assistente.md.
 // A rota fica fora do proxy de sessão (src/proxy.ts), porque quem chama não é um usuário logado.
 
+// a resposta roda em after(): até 5 voltas da IA e consultas ao banco
+export const maxDuration = 60;
+
 type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
 
 function segredoValido(recebido: string | null) {
@@ -58,6 +61,14 @@ async function tentarVincular(admin: Admin, msg: MensagemRecebida, codigo: strin
   // o código é de uso único; o número ou a conta que já estavam vinculados são substituídos
   await admin.from("whatsapp_codigos").delete().eq("codigo", codigo);
   await admin.from("whatsapp_vinculos").delete().or(`owner_id.eq.${linha.owner_id},telefone.eq.${msg.telefone}`);
+  // a memória e os rascunhos são guardados pelo telefone: com o vínculo novo (talvez de outra conta),
+  // nada do que veio antes pode seguir valendo
+  await admin.from("whatsapp_conversas").delete().eq("telefone", msg.telefone);
+  await admin
+    .from("whatsapp_acoes")
+    .update({ status: "cancelada", resolvida_em: new Date().toISOString() })
+    .eq("telefone", msg.telefone)
+    .eq("status", "pendente");
   const { error } = await admin.from("whatsapp_vinculos").insert({ owner_id: linha.owner_id, telefone: msg.telefone });
   if (error) throw error;
 
@@ -95,8 +106,17 @@ async function guardarTroca(admin: Admin, telefone: string, pergunta: string, re
     { telefone, papel: "assistant", texto: resposta },
   ]);
   if (error) console.error("[whatsapp] guardar histórico", error.message);
-  // nada fica guardado por mais de 24 horas
-  await admin.from("whatsapp_conversas").delete().lt("criado_em", new Date(Date.now() - 24 * 3600_000).toISOString());
+  await apagarAntigos(admin);
+}
+
+// prazos que a política de privacidade promete: conversa 24 horas, registro de lançamentos 90 dias
+async function apagarAntigos(admin: Admin) {
+  const agora = Date.now();
+  await Promise.all([
+    admin.from("whatsapp_conversas").delete().lt("criado_em", new Date(agora - 24 * 3600_000).toISOString()),
+    admin.from("whatsapp_codigos").delete().lt("expira_em", new Date(agora - 3600_000).toISOString()),
+    admin.from("whatsapp_acoes").delete().lt("criado_em", new Date(agora - 90 * 86400_000).toISOString()),
+  ]);
 }
 
 const AJUDA = /^\s*(ajuda|menu|comandos|help|o que voc[eê] (faz|sabe fazer))\s*[?.!]?\s*$/i;
@@ -133,9 +153,9 @@ function textoAjuda(escrita: boolean) {
   );
 }
 
-const LIMPAR = /^s*(limpar|nova conversa|reiniciar|recome[cç]ar)s*[.!]?s*$/i;
+const LIMPAR = /^\s*(limpar|nova conversa|reiniciar|recome[cç]ar)\s*[.!]?\s*$/i;
 
-async function processar(msg: MensagemRecebida) {
+async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) {
   const admin = createAdminClient();
   if (!admin) {
     console.error("[whatsapp] SUPABASE_SERVICE_ROLE_KEY não configurada");
@@ -161,6 +181,7 @@ async function processar(msg: MensagemRecebida) {
   const owner = vinculo.owner_id as string;
   const { data: conta } = await admin.auth.admin.getUserById(owner);
   if (!contaPodeUsar(conta.user?.email)) return;
+  estado.vinculado = true;
   const escrita = escritaAtiva() && contaPodeEscrever(conta.user?.email);
 
   const porDia = Number(process.env.WHATSAPP_LIMITE_DIA ?? 60);
@@ -218,10 +239,13 @@ export async function POST(request: Request) {
 
   // responde 200 já: a IA demora e o provedor não deve ficar esperando (nem reenviar)
   after(async () => {
+    const estado = { vinculado: false };
     try {
-      await processar(msg);
+      await processar(msg, estado);
     } catch (e) {
       console.error("[whatsapp] falha ao processar", e);
+      // só avisa quem é usuário liberado: um erro não pode virar mensagem para qualquer contato
+      if (!estado.vinculado) return;
       try {
         await enviarMensagem(msg.telefone, "Tive um problema aqui. Tenta de novo daqui a pouco.");
       } catch {

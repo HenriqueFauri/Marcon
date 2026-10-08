@@ -29,13 +29,17 @@ export default function PrivacidadePage() {
             <strong>Do aparelho:</strong> quando você ativa as notificações, o dado técnico necessário para enviar o aviso ao
             celular.
           </li>
+          <li>
+            <strong>Do assistente no WhatsApp, se você vincular o seu número:</strong> o número vinculado, as mensagens que você
+            troca com o WhatsApp do Marcon e o registro das vendas que você lança por lá.
+          </li>
         </ul>
       </Secao>
 
       <Secao titulo="2. Para que usamos">
         <p>
-          Para fazer o Marcon funcionar (guardar e mostrar os seus dados), cobrar a assinatura, enviar os avisos que você ativou,
-          dar suporte e proteger o serviço contra abuso. Não vendemos seus dados nem os usamos para publicidade.
+          Para fazer o Marcon funcionar (guardar e mostrar os seus dados), escrever anúncios e responder no WhatsApp quando você
+          pede, cobrar a assinatura, enviar os avisos que você ativou, dar suporte e proteger o serviço contra abuso. Não vendemos seus dados nem os usamos para publicidade.
         </p>
       </Secao>
 
@@ -53,6 +57,12 @@ export default function PrivacidadePage() {
           <li>Vercel: hospedagem do aplicativo.</li>
           <li>Google (Analytics) e Microsoft (Clarity): métricas de uso do site e do aplicativo.</li>
           <li>Asaas: cobrança da assinatura.</li>
+          <li>
+            Anthropic: inteligência artificial que escreve os anúncios e responde no assistente do WhatsApp. Recebe só o necessário
+            para cada pedido, como os dados do produto ou o resultado da consulta que você fez.
+          </li>
+          <li>WhatsApp (Meta): entrega as mensagens do assistente, se você vincular o seu número.</li>
+          <li>Cloudflare: rede e conexão segura do domínio do Marcon.</li>
         </ul>
         <p>Esses serviços podem processar dados em servidores fora do Brasil. Também compartilhamos dados se a lei ou uma ordem judicial exigir.</p>
       </Secao>
@@ -60,7 +70,8 @@ export default function PrivacidadePage() {
       <Secao titulo="5. Segurança e por quanto tempo guardamos">
         <p>
           Cada conta só acessa os próprios dados, com regras de acesso no próprio banco. Guardamos seus dados enquanto a conta
-          existir. Depois que você pedir a exclusão, apagamos os dados, exceto o que formos obrigados a manter por lei (por exemplo,
+          existir. No assistente do WhatsApp, a conversa fica guardada por até 24 horas, só para ele entender a continuação do
+          que você pergunta, e o registro das vendas lançadas por lá fica por 90 dias. Depois que você pedir a exclusão, apagamos os dados, exceto o que formos obrigados a manter por lei (por exemplo,
           registros de cobrança).
         </p>
       </Secao>
