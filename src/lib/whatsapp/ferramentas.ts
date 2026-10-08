@@ -2,11 +2,18 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hojeISO, somarDias } from "@/lib/format";
+import { prepararVenda } from "./venda";
 
 // Ferramentas que o assistente pode chamar. REGRA DE SEGURANÇA: o servidor passa o owner (dono da
 // conta, descoberto pelo telefone vinculado) e toda consulta filtra por ele. O modelo nunca escolhe
 // de quem são os dados e só tem ferramentas de leitura. Aqui usamos a chave de serviço (ignora o RLS),
 // então um .eq("owner_id", owner) esquecido vazaria dados de outra conta: toda consulta tem que ter.
+
+export interface Contexto {
+  owner: string;
+  telefone: string;
+  escrita: boolean; // conta liberada para lançar venda
+}
 
 type Db = NonNullable<ReturnType<typeof createAdminClient>>;
 type Entrada = Record<string, unknown>;
@@ -180,7 +187,8 @@ async function comVariacoes(db: Db, owner: string, produtos: LinhaProduto[]) {
 
 const COLUNAS = "id, nome, marca, estoque_total, preco_varejo, custo, tem_variacoes";
 
-export async function executarFerramenta(nome: string, entrada: Entrada, owner: string): Promise<unknown> {
+export async function executarFerramenta(nome: string, entrada: Entrada, ctx: Contexto): Promise<unknown> {
+  const owner = ctx.owner;
   const db = createAdminClient();
   if (!db) throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada");
 
@@ -432,6 +440,11 @@ export async function executarFerramenta(nome: string, entrada: Entrada, owner: 
             : [],
         })),
       };
+    }
+
+    case "preparar_venda": {
+      if (!ctx.escrita) return { erro: "Lançar venda ainda não está liberado para esta conta." };
+      return prepararVenda(db, ctx, entrada);
     }
 
     default:

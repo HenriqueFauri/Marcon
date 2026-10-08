@@ -1,7 +1,16 @@
 import { timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { assistenteAtivo, contaPodeUsar, enviarMensagem, extrairMensagem, type MensagemRecebida } from "@/lib/whatsapp/evolution";
+import {
+  assistenteAtivo,
+  contaPodeEscrever,
+  contaPodeUsar,
+  enviarMensagem,
+  escritaAtiva,
+  extrairMensagem,
+  type MensagemRecebida,
+} from "@/lib/whatsapp/evolution";
+import { resolverPendente } from "@/lib/whatsapp/venda";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
 
@@ -116,6 +125,14 @@ const TEXTO_AJUDA = [
   "Por enquanto só consulto, não lanço nada. Mande *limpar* para recomeçar a conversa.",
 ].join("\n");
 
+function textoAjuda(escrita: boolean) {
+  if (!escrita) return TEXTO_AJUDA;
+  return TEXTO_AJUDA.replace("*Loja online*", "*Lançar venda*\n• vendi 2 controle PS4 por 80 no PIX\n\n*Loja online*").replace(
+    "Por enquanto só consulto, não lanço nada.",
+    "Antes de lançar uma venda eu sempre peço o seu SIM.",
+  );
+}
+
 const LIMPAR = /^s*(limpar|nova conversa|reiniciar|recome[cç]ar)s*[.!]?s*$/i;
 
 async function processar(msg: MensagemRecebida) {
@@ -144,6 +161,7 @@ async function processar(msg: MensagemRecebida) {
   const owner = vinculo.owner_id as string;
   const { data: conta } = await admin.auth.admin.getUserById(owner);
   if (!contaPodeUsar(conta.user?.email)) return;
+  const escrita = escritaAtiva() && contaPodeEscrever(conta.user?.email);
 
   const porDia = Number(process.env.WHATSAPP_LIMITE_DIA ?? 60);
   if (!(await dentroDoLimite(admin, `wa:dia:${owner}`, porDia, 86400))) {
@@ -154,7 +172,7 @@ async function processar(msg: MensagemRecebida) {
   }
 
   if (AJUDA.test(msg.texto)) {
-    await enviarMensagem(msg.telefone, TEXTO_AJUDA);
+    await enviarMensagem(msg.telefone, textoAjuda(escrita));
     return;
   }
 
@@ -164,8 +182,20 @@ async function processar(msg: MensagemRecebida) {
     return;
   }
 
+  const ctx = { owner, telefone: msg.telefone, escrita };
+
+  // SIM ou NÃO de um rascunho de venda aberto: resolvido aqui, pelo servidor, sem passar pelo modelo
+  if (escrita) {
+    const feito = await resolverPendente(admin, ctx, msg.texto, Number(process.env.WHATSAPP_LIMITE_VENDAS_DIA ?? 30));
+    if (feito) {
+      await enviarMensagem(msg.telefone, feito);
+      await guardarTroca(admin, msg.telefone, msg.texto, feito);
+      return;
+    }
+  }
+
   const historico = await carregarHistorico(admin, msg.telefone);
-  const resposta = await responder(msg.texto, owner, historico);
+  const resposta = await responder(msg.texto, ctx, historico);
   await enviarMensagem(msg.telefone, resposta);
   await guardarTroca(admin, msg.telefone, msg.texto, resposta);
 }

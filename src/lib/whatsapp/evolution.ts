@@ -21,6 +21,19 @@ export function contaPodeUsar(email: string | null | undefined) {
   return !!email && lista.includes(email.toLowerCase());
 }
 
+// Escrever (lançar venda) tem chave própria e lista própria. Lista vazia = ninguém escreve.
+export function escritaAtiva() {
+  return process.env.WHATSAPP_ESCRITA === "1";
+}
+
+export function contaPodeEscrever(email: string | null | undefined) {
+  const lista = (process.env.WHATSAPP_EMAILS_ESCRITA ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return !!email && lista.includes(email.toLowerCase());
+}
+
 export async function enviarMensagem(telefone: string, texto: string) {
   const base = process.env.EVOLUTION_API_URL;
   const chave = process.env.EVOLUTION_API_KEY;
