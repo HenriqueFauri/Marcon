@@ -39,3 +39,21 @@ Teste local: a Evolution roda no Docker e chama `http://host.docker.internal:300
 - Número desconhecido recebe no máximo uma orientação por hora.
 - Tentativas de código: 10 por hora por número. Evento repetido do provedor é descartado.
 - A Evolution usa o WhatsApp Web (não oficial): o número pode ser banido. Serve só para validar.
+
+## Lançar venda (F2)
+
+Desligado por padrão e com chave própria. Variáveis:
+
+| Variável | Para quê |
+| --- | --- |
+| `WHATSAPP_ESCRITA` | `1` liga o lançamento de venda |
+| `WHATSAPP_EMAILS_ESCRITA` | E-mails (vírgula) que podem lançar. Vazio = ninguém |
+| `WHATSAPP_LIMITE_VENDAS_DIA` | Vendas lançadas por conta por dia (padrão 30) |
+
+Como funciona:
+1. O modelo só chama `preparar_venda`, que valida produto, variação, estoque e preço e grava um rascunho em `whatsapp_acoes`. Quem monta o texto de confirmação é o servidor.
+2. Só uma mensagem exatamente `SIM` lança. `NÃO` cancela. O rascunho vale por 10 minutos e há um por número.
+3. O lançamento chama `registrar_venda_como` (migration 0040, só `service_role`), que usa a `registrar_venda` do app: estoque, custo, parcelas, caixa e limites do plano valem igual.
+4. A execução é reservada de forma atômica (`pendente` para `executando`), então um SIM repetido não lança duas vezes.
+
+Teste do banco: roteiro com rollback (venda de teste, estoque, caixa e permissões), no mesmo padrão de `supabase/tests`.
