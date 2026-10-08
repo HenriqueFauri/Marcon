@@ -54,7 +54,7 @@ async function tentarVincular(admin: Admin, msg: MensagemRecebida, codigo: strin
 
   await enviarMensagem(
     msg.telefone,
-    "Pronto, seu WhatsApp está vinculado ao Marcon. Pergunte, por exemplo:\n• tem panela?\n• quais 3 produtos com mais estoque?\n• quanto vendi hoje?",
+    "Pronto, seu WhatsApp está vinculado ao Marcon. Pergunte, por exemplo:\n• tem panela?\n• quanto vendi hoje?\n• quem está me devendo?\n\nMande *ajuda* para ver tudo que eu sei responder.",
   );
 }
 
@@ -90,6 +90,32 @@ async function guardarTroca(admin: Admin, telefone: string, pergunta: string, re
   await admin.from("whatsapp_conversas").delete().lt("criado_em", new Date(Date.now() - 24 * 3600_000).toISOString());
 }
 
+const AJUDA = /^\s*(ajuda|menu|comandos|help|o que voc[eê] (faz|sabe fazer))\s*[?.!]?\s*$/i;
+
+const TEXTO_AJUDA = [
+  "Eu consulto os dados do seu Marcon. Pergunte do seu jeito, por exemplo:",
+  "",
+  "*Produtos e estoque*",
+  "• tem panela?",
+  "• quanto custa o controle PS4?",
+  "• quais 3 produtos com mais estoque?",
+  "• o que está acabando?",
+  "",
+  "*Vendas*",
+  "• quanto vendi hoje?",
+  "• quais produtos vendi de sexta a domingo?",
+  "• quanto vendi no PIX esse mês?",
+  "",
+  "*Dinheiro*",
+  "• quem está me devendo?",
+  "• como está o caixa do mês?",
+  "",
+  "*Loja online*",
+  "• tenho pedido novo?",
+  "",
+  "Por enquanto só consulto, não lanço nada. Mande *limpar* para recomeçar a conversa.",
+].join("\n");
+
 const LIMPAR = /^s*(limpar|nova conversa|reiniciar|recome[cç]ar)s*[.!]?s*$/i;
 
 async function processar(msg: MensagemRecebida) {
@@ -124,6 +150,11 @@ async function processar(msg: MensagemRecebida) {
     if (await dentroDoLimite(admin, `wa:aviso-limite:${owner}`, 1, 86400)) {
       await enviarMensagem(msg.telefone, "Você chegou no limite de mensagens de hoje. Amanhã eu volto a responder.");
     }
+    return;
+  }
+
+  if (AJUDA.test(msg.texto)) {
+    await enviarMensagem(msg.telefone, TEXTO_AJUDA);
     return;
   }
 
