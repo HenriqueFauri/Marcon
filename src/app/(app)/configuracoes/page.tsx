@@ -11,7 +11,7 @@ import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 import { WhatsappCard } from "./whatsapp-card";
-import { assistenteAtivo, contaPodeUsar } from "@/lib/whatsapp/evolution";
+import { assistenteAtivo, contaPodeEscrever, contaPodeUsar, escritaAtiva } from "@/lib/whatsapp/evolution";
 import { PREFIXO, telefoneMascarado } from "@/lib/whatsapp/vinculo";
 
 export const metadata: Metadata = { title: "Configurações" };
@@ -67,6 +67,7 @@ export default async function ConfiguracoesPage() {
               vinculadoFinal={vinculoWhatsapp ? telefoneMascarado(vinculoWhatsapp.telefone) : null}
               numeroDoMarcon={(process.env.WHATSAPP_NUMERO ?? "").replace(/D/g, "")}
               prefixo={PREFIXO}
+              podeLancar={escritaAtiva() && contaPodeEscrever(user?.email)}
             />
           </Card>
         )}
