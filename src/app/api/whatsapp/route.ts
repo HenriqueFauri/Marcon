@@ -182,7 +182,7 @@ async function processar(msg: MensagemRecebida) {
     return;
   }
 
-  const ctx = { owner, telefone: msg.telefone, escrita };
+  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined };
 
   // SIM ou NÃO de um rascunho de venda aberto: resolvido aqui, pelo servidor, sem passar pelo modelo
   if (escrita) {
