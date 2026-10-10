@@ -8,6 +8,7 @@ import { formatBRL } from "@/lib/format";
 import { lerNumero } from "@/lib/numero";
 import { Margem } from "@/components/margem";
 import { useAction } from "@/components/use-action";
+import { AutoTextarea } from "@/components/auto-textarea";
 import { Card, Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
 
@@ -224,7 +225,8 @@ export function ProdutoForm({
       <Card title="Informações">
         <div className="flex flex-col gap-4">
           <Field label="Nome do produto *">
-            <input
+            <AutoTextarea
+              umaLinha
               name="nome"
               required
               autoFocus={!editando}
@@ -245,7 +247,7 @@ export function ProdutoForm({
           </div>
 
           <Field label="Descrição">
-            <textarea
+            <AutoTextarea
               name="descricao"
               rows={3}
               defaultValue={produto?.descricao ?? ""}

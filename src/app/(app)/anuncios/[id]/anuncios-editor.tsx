@@ -11,7 +11,14 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { Card, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconPlus, IconSparkles } from "@/components/icons";
 import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, type PerguntasIA } from "@/lib/ia-perguntas";
-import { escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
+import { AutoTextarea } from "@/components/auto-textarea";
+import { definirAnuncioDaVitrine, escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
+
+// Produto que está na vitrine: qual versão de anúncio a loja mostra (null = nome e descrição do cadastro).
+// Produto fora da vitrine recebe null no lugar do objeto e a escolha nem aparece.
+export interface VitrineDoProduto {
+  anuncioId: string | null;
+}
 
 
 function useCopiar() {
@@ -116,10 +123,30 @@ function GeradorIA({
   escrevendo: boolean;
   temVersao: boolean;
 }) {
-  const [maisDetalhes, setMaisDetalhes] = useState(false);
   return (
     <div className="mb-4 rounded-2xl bg-fill p-4">
       <div className="flex flex-col gap-4">
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <label htmlFor="ia-dica" className="text-[13px] font-medium text-ink-muted">
+              Conte sobre o produto
+            </label>
+            {perguntas.dica.length > LIMITE_DICA * 0.8 && (
+              <span className="text-xs text-ink-muted">
+                {perguntas.dica.length}/{LIMITE_DICA}
+              </span>
+            )}
+          </div>
+          <AutoTextarea
+            id="ia-dica"
+            rows={3}
+            value={perguntas.dica}
+            onChange={(e) => onChange({ ...perguntas, dica: e.target.value })}
+            maxLength={LIMITE_DICA}
+            placeholder="Cole a ficha do fornecedor ou escreva do seu jeito: material, medidas, pra que serve, o que destacar..."
+            className={`${inputClass} !bg-surface`}
+          />
+        </div>
         <Escolha rotulo="Estado" opcoes={ESTADOS} valor={perguntas.estado} onChange={(estado) => onChange({ ...perguntas, estado })} />
         <Escolha rotulo="Retirada e entrega" opcoes={ENTREGAS} valor={perguntas.entrega} onChange={(entrega) => onChange({ ...perguntas, entrega })} />
         <div>
@@ -135,25 +162,6 @@ function GeradorIA({
             className={`${inputClass} !bg-surface`}
           />
         </div>
-        {maisDetalhes || perguntas.dica ? (
-          <div>
-            <label htmlFor="ia-dica" className="mb-1.5 block text-[13px] font-medium text-ink-muted">
-              Mais alguma coisa
-            </label>
-            <input
-              id="ia-dica"
-              value={perguntas.dica}
-              onChange={(e) => onChange({ ...perguntas, dica: e.target.value })}
-              maxLength={LIMITE_DICA}
-              placeholder="Ótimo para presente, bateria dura o dia todo..."
-              className={`${inputClass} !bg-surface`}
-            />
-          </div>
-        ) : (
-          <button type="button" onClick={() => setMaisDetalhes(true)} className={`${linkAcao} self-start`}>
-            + Mais detalhes
-          </button>
-        )}
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <button type="button" onClick={onGerar} disabled={ocupado || escrevendo} className={btnPrimary}>
@@ -173,6 +181,7 @@ function VersaoCard({
   variacoes,
   dados,
   ia,
+  vitrine,
 }: {
   numero: number;
   produtoId: string;
@@ -181,7 +190,9 @@ function VersaoCard({
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
   ia: { disponivel: boolean; perguntas: PerguntasIA };
+  vitrine: VitrineDoProduto | null;
 }) {
+  const naVitrine = vitrine?.anuncioId === versao.id;
   const { isPending, run } = useAction();
   const { escrevendo, escrever } = useEscreverComIA();
   const copiar = useCopiar();
@@ -224,6 +235,7 @@ function VersaoCard({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-ink">Versão {numero}</span>
+          {naVitrine && <span className="text-[13px] font-medium text-positive">Na vitrine</span>}
           {variacoes.length > 0 && (
             <select
               value={variacaoId}
@@ -277,7 +289,8 @@ function VersaoCard({
               </button>
             </span>
           </div>
-          <input
+          <AutoTextarea
+            umaLinha
             id={`t-${versao.id}`}
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
@@ -299,11 +312,11 @@ function VersaoCard({
               </button>
             </span>
           </div>
-          <textarea
+          <AutoTextarea
             id={`d-${versao.id}`}
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
-            rows={Math.min(16, Math.max(6, descricao.split("\n").length + 1))}
+            rows={6}
             placeholder="Descrição do anúncio"
             className={inputClass}
           />
@@ -312,6 +325,24 @@ function VersaoCard({
           )}
         </div>
       </div>
+
+      {vitrine && (
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
+          <p className="text-[13px] text-ink-2">
+            {naVitrine ? "Sua vitrine mostra este título e esta descrição." : "A vitrine pode mostrar este texto."}
+          </p>
+          <button
+            type="button"
+            aria-pressed={naVitrine}
+            disabled={isPending || (!naVitrine && alterado)}
+            title={!naVitrine && alterado ? "Salve as alterações antes" : undefined}
+            onClick={() => run(() => definirAnuncioDaVitrine(produtoId, naVitrine ? null : versao.id))}
+            className={`${linkAcao} shrink-0 text-right`}
+          >
+            {naVitrine ? "Tirar da vitrine" : "Usar na vitrine"}
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <button
@@ -341,6 +372,7 @@ export function AnunciosEditor({
   variacoes,
   dados,
   iaDisponivel,
+  vitrine,
 }: {
   produtoId: string;
   canais: CanalVenda[];
@@ -348,6 +380,7 @@ export function AnunciosEditor({
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
   iaDisponivel: boolean;
+  vitrine: VitrineDoProduto | null;
 }) {
   const { isPending, run } = useAction();
   const { escrevendo, escrever } = useEscreverComIA();
@@ -440,6 +473,7 @@ export function AnunciosEditor({
               variacoes={variacoes}
               dados={dados}
               ia={{ disponivel: iaDisponivel, perguntas }}
+              vitrine={vitrine}
             />
           ))}
           {versoes.length === 0 && !iaDisponivel && (
