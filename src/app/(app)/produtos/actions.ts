@@ -544,6 +544,27 @@ export async function excluirProduto(produtoId: string, apagarHistorico: boolean
 }
 
 // nova ordem das fotos de um bloco (gerais ou de uma variação), arrastadas no anúncio; a primeira é a capa
+// Foto fora da vitrine continua no anúncio (copiar, baixar); só a loja deixa de mostrar.
+export async function definirFotoNaVitrine(id: string, produtoId: string, valor: boolean): Promise<ActionResult> {
+  try {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(id) || !uuid.test(produtoId)) return { ok: false, error: "Foto inválida." };
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("produto_fotos")
+      .update({ na_vitrine: valor === true })
+      .eq("id", id)
+      .eq("produto_id", produtoId);
+    if (error) return falha(error);
+
+    revalidatePath(`/anuncios/${produtoId}`);
+    revalidatePath("/vitrine", "layout");
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}
+
 export async function reordenarFotos(produtoId: string, ids: string[]): Promise<ActionResult> {
   try {
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

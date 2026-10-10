@@ -151,6 +151,37 @@ export async function escreverAnuncioIA(dados: {
   }
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Escolhe a versão de anúncio que a vitrine mostra no lugar do nome e da descrição do cadastro.
+// anuncioId nulo volta para o cadastro. A loja ainda confere produto e dono ao ler (vitrine_dados).
+export async function definirAnuncioDaVitrine(produtoId: string, anuncioId: string | null): Promise<ActionResult> {
+  try {
+    if (!UUID.test(produtoId) || (anuncioId !== null && !UUID.test(anuncioId))) return { ok: false, error: "Anúncio inválido." };
+    const supabase = await createClient();
+    if (anuncioId) {
+      const { data: anuncio } = await supabase
+        .from("produto_anuncios")
+        .select("id")
+        .eq("id", anuncioId)
+        .eq("produto_id", produtoId)
+        .maybeSingle();
+      if (!anuncio) return { ok: false, error: "Salve esta versão antes de usar na vitrine." };
+    }
+    const { error } = await supabase
+      .from("produtos")
+      .update({ vitrine_anuncio_id: anuncioId, updated_at: new Date().toISOString() })
+      .eq("id", produtoId);
+    if (error) return falha(error);
+
+    revalidatePath(`/anuncios/${produtoId}`);
+    revalidatePath("/vitrine", "layout");
+    return ok(anuncioId ? "A vitrine agora mostra este texto." : "A vitrine voltou a mostrar o nome do cadastro.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
 export async function excluirVersaoAnuncio(id: string, produtoId: string): Promise<ActionResult> {
   try {
     const supabase = await createClient();

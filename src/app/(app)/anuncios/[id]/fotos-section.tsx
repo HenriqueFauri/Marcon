@@ -9,7 +9,7 @@ import { Card, btnSecondary } from "@/components/ui";
 import { mensagemDeErro } from "@/lib/action";
 import { IconPlus, IconX } from "@/components/icons";
 import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
-import { excluirFoto, registrarFoto, reordenarFotos } from "../../produtos/actions";
+import { definirFotoNaVitrine, excluirFoto, registrarFoto, reordenarFotos } from "../../produtos/actions";
 import { baixarBlob, buscarImagem, copiarImagemParaAreaDeTransferencia, nomeArquivo } from "./fotos-utils";
 
 export interface FotoComUrl {
@@ -17,6 +17,7 @@ export interface FotoComUrl {
   path: string;
   variacao_id: string | null;
   url: string | null;
+  naVitrine: boolean;
 }
 
 const FORMATOS_ACEITOS = ["image/jpeg", "image/png", "image/webp"];
@@ -43,12 +44,14 @@ export function FotosSection({
   fotos,
   variacoes = [],
   maxFotos = MAX_FOTOS_POR_ITEM,
+  vitrine = false,
 }: {
   produtoId: string;
   nomeProduto: string;
   fotos: FotoComUrl[];
   variacoes?: { id: string; nome_combinacao: string }[];
   maxFotos?: number;
+  vitrine?: boolean; // produto na vitrine: dá para escolher quais fotos a loja mostra
 }) {
   const toast = useToast();
   const [ocupado, setOcupado] = useState(false);
@@ -87,6 +90,7 @@ export function FotosSection({
       variacaoId={variacaoId}
       fotos={fotos.filter((f) => f.variacao_id === variacaoId)}
       maxFotos={maxFotos}
+      vitrine={vitrine}
     />
   );
 
@@ -133,12 +137,14 @@ function GrupoFotos({
   variacaoId,
   fotos,
   maxFotos,
+  vitrine,
 }: {
   produtoId: string;
   nomeProduto: string;
   variacaoId: string | null;
   fotos: FotoComUrl[];
   maxFotos: number;
+  vitrine: boolean;
 }) {
   const limitadoPeloPlano = maxFotos < MAX_FOTOS_POR_ITEM;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -151,9 +157,11 @@ function GrupoFotos({
   // ordem na tela: muda na hora ao arrastar e volta a seguir o servidor quando ele responde
   const [ordem, setOrdem] = useState(fotos);
   const assinatura = fotos.map((f) => f.id).join(",");
-  const [assinaturaVista, setAssinaturaVista] = useState(assinatura);
-  if (assinatura !== assinaturaVista) {
-    setAssinaturaVista(assinatura);
+  // a marca de "na vitrine" entra aqui para a tela acompanhar o servidor quando ela muda
+  const estado = fotos.map((f) => `${f.id}${f.naVitrine ? "" : "-"}`).join(",");
+  const [estadoVisto, setEstadoVisto] = useState(estado);
+  if (estado !== estadoVisto) {
+    setEstadoVisto(estado);
     setOrdem(fotos);
   }
   const ordemRef = useRef(ordem);
@@ -246,6 +254,13 @@ function GrupoFotos({
       success: novaCapa ? "Capa atualizada." : "Ordem salva.",
       onError: () => setOrdem(fotos),
     });
+  }
+
+  // muda na hora na tela; se o banco recusar, volta como estava
+  function alternarVitrine(foto: FotoComUrl) {
+    const valor = !foto.naVitrine;
+    setOrdem((atual) => atual.map((f) => (f.id === foto.id ? { ...f, naVitrine: valor } : f)));
+    run(() => definirFotoNaVitrine(foto.id, produtoId, valor), { onError: () => setOrdem(fotos) });
   }
 
   async function copiarImagem(url: string) {
@@ -385,7 +400,7 @@ function GrupoFotos({
                     src={foto.url}
                     alt={`Foto ${i + 1} do produto`}
                     draggable={false}
-                    className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+                    className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition ${vitrine && !foto.naVitrine ? "opacity-40" : ""}`}
                     loading="lazy"
                   />
                 ) : (
@@ -413,6 +428,17 @@ function GrupoFotos({
                     Baixar
                   </button>
                 </div>
+              )}
+              {vitrine && (
+                <button
+                  type="button"
+                  aria-pressed={foto.naVitrine}
+                  disabled={isPending}
+                  onClick={() => alternarVitrine(foto)}
+                  className={`text-center text-[13px] font-medium hover:underline disabled:opacity-50 ${foto.naVitrine ? "text-positive" : "text-ink-muted"}`}
+                >
+                  {foto.naVitrine ? "✓ Na vitrine" : "Fora da vitrine"}
+                </button>
               )}
             </div>
           );
@@ -452,6 +478,7 @@ function GrupoFotos({
           ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez, ou arrastar os arquivos pra cá; o Marcon reduz o tamanho sozinho."
           : `${fotos.length} de ${maxFotos} ${maxFotos === 1 ? "foto" : "fotos"}.`}
         {fotos.length > 1 && " Arraste as fotos para mudar a ordem (no celular, segure e arraste). A primeira é a capa."}
+        {vitrine && fotos.length > 0 && " Toque em “Na vitrine” para esconder uma foto da sua loja; ela continua aqui pra copiar e baixar."}
         {limitadoPeloPlano && fotos.length >= maxFotos && (
           <>
             {" "}

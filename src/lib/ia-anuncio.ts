@@ -41,7 +41,8 @@ Escreva em português do Brasil, com linguagem simples e direta de vendedor, sem
 O que faz um anúncio bom: quem lê no celular entende em 5 segundos o que é, para que serve e por que vale a pena. Cada linha diz um fato do produto junto com o que ele muda para quem compra. Nada de enchimento.
 
 Fatos:
-- Use o que está nos dados do produto, nas respostas do vendedor e o que dá para ver com clareza nas fotos (cor, material aparente, acessórios que aparecem).
+- Use o que está nos dados do produto, nas respostas do vendedor, nas informações que ele passou e o que dá para ver com clareza nas fotos (cor, material aparente, acessórios que aparecem).
+- As informações que o vendedor passou (ficha do fornecedor colada, anotações soltas) são fonte de fatos: aproveite o que ajuda a vender e reescreva do seu jeito, sem copiar o texto nem despejar tudo no anúncio. Se vier um pedido de estilo ali (mais curto, destacar tal ponto), siga.
 - Se a marca e o modelo forem de um produto que você conhece bem, pode usar as características técnicas conhecidas dele (tipo de driver, bateria, conexão, tela, potência etc.). Só o que você tem certeza que vale para aquele modelo. Na dúvida, deixe de fora.
 - Nunca invente garantia, nota fiscal, medidas, compatibilidade, estado de conservação, frete grátis, prazo de entrega nem forma de entrega.
 - Se o vendedor não disse se o produto é novo ou usado, não diga nenhum dos dois. Se ele respondeu o estado, escreva-o como uma linha ✅ (ex.: "✅ Novo, na caixa").
@@ -114,7 +115,7 @@ function montarPedido(e: EntradaIA) {
       ? `- Retirada e entrega: ${entrega}`
       : "- Retirada e entrega: o vendedor não informou (não escreva linha de retirada ou entrega)",
     e.perguntas.acompanha ? `- O que acompanha: ${e.perguntas.acompanha}` : null,
-    e.perguntas.dica ? `- Outra informação: ${e.perguntas.dica}` : null,
+    e.perguntas.dica ? `- Informações que o vendedor passou sobre o produto:\n"""\n${e.perguntas.dica}\n"""` : null,
     e.fotos.length ? `\nAs ${e.fotos.length} foto(s) acima são do produto.` : "\nO produto não tem fotos.",
   ];
   return linhas.filter((l) => l !== null).join("\n");

@@ -19,13 +19,13 @@ export interface PerguntasIA {
   estado: string; // id de ESTADOS, ou "" se o vendedor não quis dizer
   entrega: string; // id de ENTREGAS, ou ""
   acompanha: string; // o que vem junto (cabo, caixa, divisor...)
-  dica: string; // qualquer outra coisa que o vendedor queira que apareça
+  dica: string; // informações do produto com as palavras do vendedor (ficha colada, anotações)
 }
 
 export const PERGUNTAS_VAZIAS: PerguntasIA = { estado: "", entrega: "", acompanha: "", dica: "" };
 
 export const LIMITE_ACOMPANHA = 150;
-export const LIMITE_DICA = 300;
+export const LIMITE_DICA = 2000;
 
 // Servidor: não confia no que veio da tela. Valor desconhecido vira "não informado".
 export function limparPerguntas(p: PerguntasIA): PerguntasIA {

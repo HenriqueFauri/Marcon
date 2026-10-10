@@ -25,6 +25,8 @@ export interface Produto {
   fornecedor_id: string | null;
   na_vitrine: boolean;
   destaque: boolean;
+  // só existe depois da migration 0042
+  vitrine_anuncio_id?: string | null;
   created_at: string;
 }
 
@@ -46,6 +48,8 @@ export interface ProdutoFoto {
   variacao_id: string | null;
   path: string;
   ordem: number;
+  // só existe depois da migration 0042
+  na_vitrine?: boolean;
   created_at: string;
 }
 
