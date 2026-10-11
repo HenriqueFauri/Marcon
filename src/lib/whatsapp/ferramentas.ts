@@ -3,6 +3,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hojeISO, somarDias } from "@/lib/format";
 import { prepararVenda } from "./venda";
+import { prepararCaixa, prepararEstoque, prepararProduto } from "./lancamentos";
+import { tipoLiberado } from "./rascunho";
 
 // Ferramentas que o assistente pode chamar. REGRA DE SEGURANÇA: o servidor passa o owner (dono da
 // conta, descoberto pelo telefone vinculado) e toda consulta filtra por ele. O modelo nunca escolhe
@@ -445,6 +447,22 @@ export async function executarFerramenta(nome: string, entrada: Entrada, ctx: Co
     case "preparar_venda": {
       if (!ctx.escrita) return { erro: "Lançar venda ainda não está liberado para esta conta." };
       return prepararVenda(db, ctx, entrada);
+    }
+
+    // lançamentos além da venda: conta com escrita E grupo ligado no servidor (WHATSAPP_LANCAMENTOS)
+    case "preparar_produto": {
+      if (!ctx.escrita || !tipoLiberado("produto")) return { erro: "Cadastrar produto por aqui ainda não está liberado." };
+      return prepararProduto(db, ctx, entrada);
+    }
+
+    case "preparar_estoque": {
+      if (!ctx.escrita || !tipoLiberado("estoque_entrada")) return { erro: "Lançar estoque por aqui ainda não está liberado." };
+      return prepararEstoque(db, ctx, entrada);
+    }
+
+    case "preparar_caixa": {
+      if (!ctx.escrita || !tipoLiberado("caixa_entrada")) return { erro: "Lançar no caixa por aqui ainda não está liberado." };
+      return prepararCaixa(db, ctx, entrada);
     }
 
     default:
