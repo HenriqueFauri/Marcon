@@ -99,11 +99,21 @@ Integrações, Webhooks, no painel do **sandbox**:
 
 A rota responde 401 se o token for diferente. Nunca cadastrar a URL de produção no sandbox nem a do Staging no Asaas real. A chave de API do sandbox é criada no próprio painel do sandbox.
 
+## Conta de teste e dados de exemplo
+
+```bash
+node scripts/seed-staging.mjs
+```
+
+Cria (ou reaproveita) a conta de teste do Staging e carrega produtos (com nomes longos e parecidos, e um com variações), fotos, anúncios, vendas, gastos e uma vitrine no ar (`/loja/loja-de-teste`). Rodar de novo não duplica. O script confere o `ref` e se recusa a rodar fora do Staging. O e-mail e a senha ficam no `.env.staging` (`STAGING_TESTE_EMAIL` e `STAGING_TESTE_SENHA`), nunca no git nem no chat.
+
+Para rodar o app local contra o Staging: copie o `.env.staging` para `.env.local` na worktree e `npm run dev`. Atenção: nessa worktree o `run-migrations.mjs` sem argumento também passa a apontar para o Staging.
+
 ## O que testar só no Staging
 
 Assinatura e comissão do Indique e ganhe com o Asaas sandbox (os tokens de produção não têm sandbox), cadastro novo, migrations novas e telas novas no celular.
 
 ## Pendências
 
-- Seed de dados de exemplo e usuário de teste no Staging.
+- Conferir no painel do Supabase Staging o Site URL e as Redirect URLs com a URL do `marcon-staging`.
 - Registrar a `0034_validar_foto_variacao.sql` em `schema_migrations` da produção (a definição é idêntica à que já existe lá).
