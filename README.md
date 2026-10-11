@@ -48,27 +48,19 @@ npm run dev
 
 ## Ambientes: produção e Staging
 
+**Regra: tudo é feito primeiro no Staging e depois passado à produção.** Só vai direto à produção se o dono pedir, e nesse caso a mesma mudança volta ao Staging em seguida, para os dois ficarem no mesmo nível.
+
 | | Vercel | Supabase | Branch |
 |---|---|---|---|
-| Produção | `Marcon` | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `local-work-marcon` |
-| Teste | `Marcon Staging` | `Marcon Staging` (`odgvhqwqyxtnaxgqiynb`) | `staging` |
-
-O app não sabe em qual ambiente está: ele só lê as variáveis de cada projeto da Vercel. Nada criado no Staging (usuários, produtos, vendas) chega à produção.
-
-**Fluxo:** desenvolve em branch `claude/...`, PR para `staging`, a Vercel `Marcon Staging` publica. Testado, `staging` vai por PR para `local-work-marcon` e a produção publica.
-
-**Migrations, sempre nesta ordem:** primeiro o Staging, depois a produção (só depois do teste passar). Toda migration passa pelos dois bancos; se o schema divergir, o código novo quebra num deles.
+| Produção | `marcon` | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `local-work-marcon` |
+| Staging | `marcon-staging` | `Marcon Staging` (`odgvhqwqyxtnaxgqiynb`) | `staging` |
 
 ```bash
-node scripts/run-migrations.mjs .env.staging   # Staging
-node scripts/run-migrations.mjs                # usa .env.local (produção)
+node scripts/run-migrations.mjs .env.staging   # migrations no Staging (sempre primeiro)
+node scripts/run-migrations.mjs                # migrations na produção (.env.local)
 ```
 
-O `.env.staging` fica só na máquina (o git ignora `.env*`) e tem URL, chave anon, service role e senha do banco do Staging, mais `ASAAS_ENV=sandbox`. Nunca coloque chaves de produção nele. Antes de rodar o script, confira o `ref` impresso na linha "Conectado a".
-
-**Variáveis do projeto `Marcon Staging` na Vercel:** as do `.env.staging`, mais `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_ENV=sandbox`, `ASAAS_API_KEY` (chave do sandbox) e `ASAAS_WEBHOOK_TOKEN`. Deixe sem `CRON_SECRET` e `ANTHROPIC_API_KEY` se não quiser cron nem custo de IA. Em Authentication > URL Configuration do Supabase Staging, ponha a URL do Staging no Site URL e nas Redirect URLs.
-
-**Plano gratuito do Supabase:** o Staging pausa após 7 dias sem uso; reative no painel (os dados ficam). O limite é de 2 projetos ativos por pessoa.
+Fluxo, variáveis da Vercel, Supabase, webhook do Asaas sandbox e armadilhas: [docs/AMBIENTES.md](docs/AMBIENTES.md).
 
 ## Notificações
 
