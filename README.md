@@ -46,6 +46,30 @@ node scripts/run-migrations.mjs   # aplica o que falta em supabase/migrations
 npm run dev
 ```
 
+## Ambientes: produção e Staging
+
+| | Vercel | Supabase | Branch |
+|---|---|---|---|
+| Produção | `Marcon` | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `local-work-marcon` |
+| Teste | `Marcon Staging` | `Marcon Staging` (`odgvhqwqyxtnaxgqiynb`) | `staging` |
+
+O app não sabe em qual ambiente está: ele só lê as variáveis de cada projeto da Vercel. Nada criado no Staging (usuários, produtos, vendas) chega à produção.
+
+**Fluxo:** desenvolve em branch `claude/...`, PR para `staging`, a Vercel `Marcon Staging` publica. Testado, `staging` vai por PR para `local-work-marcon` e a produção publica.
+
+**Migrations, sempre nesta ordem:** primeiro o Staging, depois a produção (só depois do teste passar). Toda migration passa pelos dois bancos; se o schema divergir, o código novo quebra num deles.
+
+```bash
+node scripts/run-migrations.mjs .env.staging   # Staging
+node scripts/run-migrations.mjs                # usa .env.local (produção)
+```
+
+O `.env.staging` fica só na máquina (o git ignora `.env*`) e tem URL, chave anon, service role e senha do banco do Staging, mais `ASAAS_ENV=sandbox`. Nunca coloque chaves de produção nele. Antes de rodar o script, confira o `ref` impresso na linha "Conectado a".
+
+**Variáveis do projeto `Marcon Staging` na Vercel:** as do `.env.staging`, mais `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ASAAS_ENV=sandbox`, `ASAAS_API_KEY` (chave do sandbox) e `ASAAS_WEBHOOK_TOKEN`. Deixe sem `CRON_SECRET` e `ANTHROPIC_API_KEY` se não quiser cron nem custo de IA. Em Authentication > URL Configuration do Supabase Staging, ponha a URL do Staging no Site URL e nas Redirect URLs.
+
+**Plano gratuito do Supabase:** o Staging pausa após 7 dias sem uso; reative no painel (os dados ficam). O limite é de 2 projetos ativos por pessoa.
+
 ## Notificações
 
 Os avisos são descontraídos e **mudam de frase a cada vez** (venda, meta batida, marcos de faturamento de R$ 1 mil, 5 mil e 10 mil no mês, e lembrete de cobrança). As frases ficam em `src/lib/notificacoes.ts` e não aparecem em Configurações, para manter a surpresa. Lá o usuário só escolhe **o que receber** e **quais dados mostrar** (venda: produto, valor, lucro, cliente, canal; cobrança: valor total e quem deve). Um botão manda um aviso de exemplo para conferir se chega.
