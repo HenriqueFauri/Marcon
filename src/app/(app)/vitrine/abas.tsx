@@ -8,7 +8,7 @@ import { Segmentos } from "@/components/ui";
 
 export const SECOES_VITRINE = [
   { href: "/vitrine/pedidos", label: "Pedidos", item: "Pedido" },
-  { href: "/vitrine/produtos", label: "Produtos" },
+  { href: "/vitrine/produtos", label: "Produtos", item: "Produto" },
   { href: "/vitrine/personalizar", label: "Personalizar" },
   { href: "/vitrine/configuracoes", label: "Configurações" },
   { href: "/vitrine/cupons", label: "Cupons" },
