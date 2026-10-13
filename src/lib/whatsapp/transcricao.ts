@@ -12,11 +12,24 @@ export function transcricaoAtiva() {
   return !!process.env.TRANSCRICAO_API_KEY;
 }
 
-// Dicas de vocabulário: ajudam o modelo a acertar o que o vendedor mais fala.
+// Dica de vocabulário: ajuda o modelo a acertar o que o vendedor mais fala. Os nomes dos produtos
+// dele entram aqui (só nome e marca, nada de preço ou cliente), cortados para caber no pedido.
 const DICA = "Vendedor brasileiro no WhatsApp. Vocabulário: vendi, PIX, dinheiro, cartão, estoque, caixa, produto, cliente, R$.";
+const MAX_DICA = 800;
+
+function dicaComProdutos(produtos: string[]) {
+  let texto = DICA;
+  const nomes = [...new Set(produtos.map((p) => p.trim()).filter(Boolean))];
+  if (nomes.length) texto += " Produtos da loja:";
+  for (const n of nomes) {
+    if (texto.length + n.length + 2 > MAX_DICA) break;
+    texto += ` ${n};`;
+  }
+  return texto;
+}
 
 // Devolve o texto falado, ou null quando não deu para entender.
-export async function transcrever(audio: AudioRecebido): Promise<string | null> {
+export async function transcrever(audio: AudioRecebido, produtos: string[] = []): Promise<string | null> {
   const chave = process.env.TRANSCRICAO_API_KEY;
   if (!chave || !audio.base64) return null;
 
@@ -31,7 +44,7 @@ export async function transcrever(audio: AudioRecebido): Promise<string | null> 
   form.append("file", new Blob([new Uint8Array(bytes)], { type: tipo }), `audio.${extensao}`);
   form.append("model", process.env.TRANSCRICAO_MODELO || "gpt-4o-mini-transcribe");
   form.append("language", "pt");
-  form.append("prompt", DICA);
+  form.append("prompt", dicaComProdutos(produtos));
   form.append("response_format", "json");
 
   const resposta = await fetch("https://api.openai.com/v1/audio/transcriptions", {

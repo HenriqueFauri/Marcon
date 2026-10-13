@@ -216,7 +216,16 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
       await enviarMensagem(msg.telefone, `Esse áudio ficou longo (limite de ${SEGUNDOS_MAXIMOS} segundos). Manda um menor ou escreve.`);
       return;
     }
-    const texto = await transcrever(msg.audio);
+    // os nomes dos produtos dele ajudam a transcrição a acertar marca e modelo (só nome, só do dono)
+    const { data: itens } = await admin
+      .from("produtos_com_estoque")
+      .select("nome, marca")
+      .eq("owner_id", owner)
+      .eq("status", "ativo")
+      .order("nome")
+      .limit(100);
+    const produtos = (itens ?? []).map((p) => [p.marca, p.nome].filter(Boolean).join(" ").slice(0, 50));
+    const texto = await transcrever(msg.audio, produtos);
     if (!texto) {
       await enviarMensagem(msg.telefone, "Não consegui entender o áudio. Pode mandar de novo ou escrever?");
       return;

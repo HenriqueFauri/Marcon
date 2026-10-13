@@ -62,7 +62,7 @@ export default function PrivacidadePage() {
             para cada pedido, como os dados do produto ou o resultado da consulta que você fez.
           </li>
           <li>
-            OpenAI: transforma em texto as mensagens de voz que você manda ao assistente do WhatsApp. Recebe só o áudio de cada mensagem.
+            OpenAI: transforma em texto as mensagens de voz que você manda ao assistente do WhatsApp. Recebe só o áudio de cada mensagem e, para acertar melhor, os nomes dos seus produtos.
           </li>
           <li>WhatsApp (Meta): entrega as mensagens do assistente, se você vincular o seu número.</li>
           <li>Cloudflare: rede e conexão segura do domínio do Marcon.</li>
