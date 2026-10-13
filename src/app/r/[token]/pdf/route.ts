@@ -62,6 +62,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/r/[token]/pdf">) {
   const recibo = await buscarRecibo(token);
   if (!recibo) return new Response("Recibo não encontrado", { status: 404 });
   const { empresa, venda, itens, parcelas } = recibo;
+  const totalParcelas = parcelas.reduce((m, p) => Math.max(m, p.numero), 0);
   const { subtotal, emAberto } = totaisDoRecibo(recibo);
   const cancelada = venda.status === "cancelada";
 
@@ -180,7 +181,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/r/[token]/pdf">) {
       y -= 12;
       regua();
       y -= 16;
-      texto(`${p.numero}/${parcelas.length} - ${formatBRL(p.valor)}`, MARGEM, 10);
+      texto(`${p.numero}/${totalParcelas} -${formatBRL(p.valor)}`, MARGEM, 10);
       if (!cancelada) direita(STATUS_PARCELA[p.status], 10, negrito, MUTED);
       y -= 12;
       texto(p.data_pagamento ? `paga em ${formatData(p.data_pagamento)}` : `vence em ${formatData(p.vencimento)}`, MARGEM, 9, normal, MUTED);

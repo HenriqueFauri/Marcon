@@ -36,7 +36,15 @@ export async function buscarRecibo(token: string): Promise<Recibo | null> {
   if (!TOKEN_RECIBO.test(token)) return null;
   const supabase = await createClient();
   const { data } = await supabase.rpc("recibo_publico", { p_token: token });
-  return (data as Recibo | null) ?? null;
+  const recibo = (data as Recibo | null) ?? null;
+  // parcela recebida em partes tem mais de uma linha com o mesmo número: o que já foi pago vem antes
+  recibo?.parcelas.sort(
+    (a, b) =>
+      a.numero - b.numero ||
+      Number(b.status === "pago") - Number(a.status === "pago") ||
+      (a.data_pagamento ?? "").localeCompare(b.data_pagamento ?? ""),
+  );
+  return recibo;
 }
 
 export function totaisDoRecibo(r: Recibo) {

@@ -19,6 +19,7 @@ export function EmpresaForm({
   email,
   endereco,
   documento,
+  pix,
   logoUrl,
 }: {
   nomeNegocio: string;
@@ -26,6 +27,7 @@ export function EmpresaForm({
   email: string;
   endereco: string;
   documento: string;
+  pix: string;
   logoUrl: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +142,18 @@ export function EmpresaForm({
             value={doc}
             onChange={(e) => setDoc(formatarDocumento(e.target.value))}
             placeholder="000.000.000-00 ou 00.000.000/0000-00"
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Chave PIX" hint="Vai junto na mensagem de cobrança pelo WhatsApp, em Contas a receber.">
+          <input
+            name="empresa_pix"
+            defaultValue={pix}
+            maxLength={140}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="CPF, CNPJ, celular, e-mail ou chave aleatória"
             className={inputClass}
           />
         </Field>
