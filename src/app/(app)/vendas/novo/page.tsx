@@ -21,15 +21,22 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
   const { data: pedidoData } = pedidoId
     ? await supabase.from("vitrine_pedidos").select("*").eq("id", pedidoId).eq("status", "novo").maybeSingle()
     : { data: null };
-  const [{ data: produtosData }, { data: variacoesData }, { data: clientesData }, { data: canaisData }, { data: formasData }] =
-    await Promise.all([
-      supabase.from("produtos_com_estoque").select("*").neq("status", "inativo").gt("estoque_total", 0).order("nome"),
-      // sem filtro de estoque: variação esgotada aparece em cinza no seletor, em vez de sumir
-      supabase.from("produto_variacoes").select("*").order("nome_combinacao"),
-      supabase.from("clientes").select("*").order("nome"),
-      supabase.from("canais_venda").select("*").order("nome"),
-      supabase.from("formas_pagamento").select("*").order("nome"),
-    ]);
+  const [
+    { data: produtosData },
+    { data: variacoesData },
+    { data: clientesData },
+    { data: canaisData },
+    { data: formasData },
+    { data: fotosData },
+  ] = await Promise.all([
+    supabase.from("produtos_com_estoque").select("*").neq("status", "inativo").gt("estoque_total", 0).order("nome"),
+    // sem filtro de estoque: variação esgotada aparece em cinza no seletor, em vez de sumir
+    supabase.from("produto_variacoes").select("*").order("nome_combinacao"),
+    supabase.from("clientes").select("*").order("nome"),
+    supabase.from("canais_venda").select("*").order("nome"),
+    supabase.from("formas_pagamento").select("*").order("nome"),
+    supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
+  ]);
 
   // plano grátis: 30 vendas por mês. O banco barra; aqui só se explica antes de o erro aparecer
   const uso = await lerUso(supabase);
@@ -37,6 +44,27 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
   const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
+
+  // capa de cada produto à venda: a primeira foto geral; foto de variação só se não houver nenhuma geral.
+  // Uma consulta e uma chamada de assinatura para a lista toda
+  const aVenda = new Set(produtos.map((p) => p.id));
+  const capa = new Map<string, string>();
+  const capaGeral = new Map<string, string>();
+  for (const f of fotosData ?? []) {
+    if (!aVenda.has(f.produto_id)) continue;
+    if (f.variacao_id === null && !capaGeral.has(f.produto_id)) capaGeral.set(f.produto_id, f.path);
+    if (!capa.has(f.produto_id)) capa.set(f.produto_id, f.path);
+  }
+  for (const [id, path] of capaGeral) capa.set(id, path);
+  const caminhos = [...new Set(capa.values())];
+  const { data: assinadas } = caminhos.length
+    ? await supabase.storage.from("produto-fotos").createSignedUrls(caminhos, 3600)
+    : { data: [] };
+  const urlPorCaminho = new Map((assinadas ?? []).map((a) => [a.path, a.signedUrl]));
+  const fotoDe = (produtoId: string) => {
+    const caminho = capa.get(produtoId);
+    return caminho ? (urlPorCaminho.get(caminho) ?? null) : null;
+  };
 
   // cada variação é um item vendável separado, com estoque, preço e custo próprios
   const vendaveis: Vendavel[] = produtos.flatMap((p): Vendavel[] => {
@@ -54,6 +82,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
           preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
           custo: Number(p.custo),
           estoque: p.estoque_total,
+          foto: fotoDe(p.id),
         },
       ];
     }
@@ -71,6 +100,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
         custo: Number(v.custo ?? p.custo),
         estoque: v.estoque,
+        foto: fotoDe(p.id),
       }));
   });
 

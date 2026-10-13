@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatBRL } from "@/lib/format";
-import { IconPlus } from "@/components/icons";
+import { IconBox, IconPlus } from "@/components/icons";
 import type { Vendavel } from "./venda-form";
 
 // Um produto na lista de venda. Produto com variações vira um só item, com um
@@ -11,6 +11,7 @@ export interface GrupoVendavel {
   produtoId: string;
   nome: string;
   detalhe: string;
+  foto: string | null;
   itens: Vendavel[];
   temVariacoes: boolean;
 }
@@ -26,12 +27,41 @@ export function agruparVendaveis(vendaveis: Vendavel[]): GrupoVendavel[] {
         produtoId: v.produto_id,
         nome: v.produto_nome,
         detalhe: v.detalhe,
+        foto: v.foto,
         itens: [v],
         temVariacoes: v.variacao_id !== null,
       });
     }
   }
   return [...grupos.values()];
+}
+
+// Foto pequena do produto (capa). Sem foto, ou se o link assinado venceu com a
+// tela aberta há muito tempo, fica o ícone de caixa.
+export function FotoProduto({ url }: { url: string | null }) {
+  const [falhou, setFalhou] = useState(false);
+  if (!url || falhou) {
+    return (
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-brand-text">
+        <IconBox width={22} height={22} strokeWidth={1.9} />
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      // a foto pode falhar antes de o React assumir a página: aí o onError não chega, então confere ao montar
+      ref={(img) => {
+        if (img?.complete && img.naturalWidth === 0) setFalhou(true);
+      }}
+      onError={() => setFalhou(true)}
+      className="h-11 w-11 shrink-0 rounded-xl bg-fill object-cover"
+    />
+  );
 }
 
 // "Azul / M" -> ["Azul", "M"]. O app grava a variação como texto livre, então
@@ -175,6 +205,10 @@ function Seletor({
   );
 }
 
+// a lista rola com a página: começa curta para o carrinho não ficar longe, e cresce a pedido
+const PRIMEIROS = 8;
+const MAIS = 20;
+
 export function ListaProdutos({
   grupos,
   noCarrinho,
@@ -189,27 +223,32 @@ export function ListaProdutos({
   abertoInicial?: string | null;
 }) {
   const [aberto, setAberto] = useState<string | null>(abertoInicial ?? null);
+  const [limite, setLimite] = useState(PRIMEIROS);
 
   if (grupos.length === 0) {
     return <p className="px-3 py-6 text-center text-sm text-ink-muted">Nada encontrado.</p>;
   }
 
   return (
-    <ul className="max-h-[28rem] divide-y divide-line overflow-y-auto rounded-2xl border border-line">
-      {grupos.map((g) => {
+    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
+      {grupos.slice(0, limite).map((g) => {
         const emCarrinho = g.itens.reduce((s, v) => s + (noCarrinho.get(v.chave) ?? 0), 0);
         const disponivel = g.itens.reduce((s, v) => s + Math.max(v.estoque - (noCarrinho.get(v.chave) ?? 0), 0), 0);
         const precos = g.itens.map(precoPadrao);
         const menor = Math.min(...precos);
         const maior = Math.max(...precos);
+        const preco = menor === maior ? formatBRL(menor) : `${formatBRL(menor)} a ${formatBRL(maior)}`;
         const esgotado = disponivel <= 0;
         const expandido = g.temVariacoes && aberto === g.produtoId;
 
         const cabecalho = (
           <>
-            <span className="min-w-0">
+            <FotoProduto url={g.foto} />
+            <span className="min-w-0 flex-1">
               {/* nome inteiro, dobrando: com nomes parecidos, o corte escondia justamente a diferença */}
               <span className="block break-words text-[15px] leading-snug text-ink">{g.nome}</span>
+              {/* no celular o preço desce para baixo do nome: ao lado, com a foto, espremia o nome */}
+              <span className="mt-0.5 block tabular-nums text-ink-2 sm:hidden">{preco}</span>
               <span className="mt-0.5 block text-xs leading-snug text-ink-muted">
                 {g.temVariacoes ? `${g.itens.length} ${g.itens.length === 1 ? "opção" : "opções"} · ` : ""}
                 {emCarrinho > 0
@@ -219,9 +258,7 @@ export function ListaProdutos({
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-2">
-              <span className="whitespace-nowrap tabular-nums text-ink-2">
-                {menor === maior ? formatBRL(menor) : `${formatBRL(menor)} a ${formatBRL(maior)}`}
-              </span>
+              <span className="hidden whitespace-nowrap tabular-nums text-ink-2 sm:inline">{preco}</span>
               <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-brand-tint px-1 text-brand-text">
                 {emCarrinho > 0 ? (
                   <span className="text-xs font-semibold">{emCarrinho}</span>
@@ -244,7 +281,7 @@ export function ListaProdutos({
               onClick={() => (g.temVariacoes ? setAberto(expandido ? null : g.produtoId) : onAdicionar(g.itens[0]))}
               disabled={!g.temVariacoes && esgotado}
               aria-expanded={g.temVariacoes ? expandido : undefined}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-fill disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-fill disabled:cursor-not-allowed disabled:opacity-40"
             >
               {cabecalho}
             </button>
@@ -252,6 +289,17 @@ export function ListaProdutos({
           </li>
         );
       })}
+      {grupos.length > limite && (
+        <li>
+          <button
+            type="button"
+            onClick={() => setLimite((l) => l + MAIS)}
+            className="flex min-h-11 w-full items-center justify-center px-3 py-2.5 text-[15px] font-medium text-brand-text transition hover:bg-fill"
+          >
+            Mostrar mais produtos
+          </button>
+        </li>
+      )}
     </ul>
   );
 }
