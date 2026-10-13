@@ -6,6 +6,7 @@ import { ConfirmButton } from "@/components/confirm-button";
 import { Interruptor } from "@/components/ajustes";
 import { btnPrimary, btnSecondary } from "@/components/ui";
 import {
+  alterarConfirmacaoWhatsapp,
   alterarLancarVenda,
   apagarConversaWhatsapp,
   conferirVinculoWhatsapp,
@@ -73,6 +74,22 @@ export function InterruptorVenda({ ligado }: { ligado: boolean }) {
         ajuda="Antes de lançar, o assistente sempre pede o seu SIM."
         desabilitado={isPending}
         onMudar={(v) => run(() => alterarLancarVenda(v))}
+      />
+    </div>
+  );
+}
+
+export function InterruptorConfirmacao({ grupo, pedir, titulo }: { grupo: string; pedir: boolean; titulo: string }) {
+  const { isPending, run } = useAction();
+  return (
+    <div className="border-t border-line px-4 py-3 first:border-t-0">
+      <Interruptor
+        name={`confirmar_${grupo}`}
+        padrao={pedir}
+        titulo={titulo}
+        ajuda={pedir ? "Mostro o resumo e espero o seu SIM." : "Lanço na hora e aviso o que fiz."}
+        desabilitado={isPending}
+        onMudar={(v) => run(() => alterarConfirmacaoWhatsapp(grupo, v))}
       />
     </div>
   );

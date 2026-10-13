@@ -1,6 +1,6 @@
 import "server-only";
 import { mensagemDeErro } from "@/lib/action";
-import { NAO, SIM, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
+import { NAO, SIM, grupoDoTipo, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
 import { executarVenda } from "./venda";
 import { executarCaixa, executarEstoque, executarProduto } from "./lancamentos";
 
@@ -30,6 +30,29 @@ function limiteDoDia(tipo: TipoAcao, owner: string) {
   return tipo === "venda"
     ? { chave: `wa:venda:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_VENDAS_DIA ?? 30), oQue: "vendas lançadas" }
     : { chave: `wa:lanc:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_LANCAMENTOS_DIA ?? 30), oQue: "lançamentos" };
+}
+
+// Vendedor que desligou a confirmação de um tipo (Configurações): logo depois de o modelo abrir o
+// rascunho, o SERVIDOR resolve como se fosse um SIM. O modelo continua sem gravar nada, e as travas
+// (limite do dia, rascunho único, tipo liberado) valem igual. Nunca vale para mensagem de voz.
+// `resposta` é o que o modelo devolveu: só age se for exatamente o resumo do rascunho recém-aberto.
+export async function confirmarSeDispensado(db: Db, ctx: ContextoAcao, resposta: string): Promise<string | null> {
+  if (ctx.porAudio || !ctx.semConfirmar?.length) return null;
+
+  const { data: acao } = await db
+    .from("whatsapp_acoes")
+    .select("owner_id, tipo, resumo")
+    .eq("telefone", ctx.telefone)
+    .eq("status", "pendente")
+    .maybeSingle();
+  if (!acao || acao.owner_id !== ctx.owner || acao.resumo !== resposta) return null;
+  if (!ctx.semConfirmar.includes(grupoDoTipo(acao.tipo as TipoAcao))) return null;
+
+  const feito = await resolverPendente(db, ctx, "sim");
+  if (!feito) return null;
+  // o resumo termina com a linha "Responda SIM..."; some só ela e deixa os detalhes antes do resultado
+  const detalhes = String(acao.resumo).split("\n\nResponda")[0];
+  return `${detalhes}\n\n${feito}`;
 }
 
 // Devolve o texto da resposta, ou null quando a mensagem não é SIM nem NÃO (ou não há rascunho).
