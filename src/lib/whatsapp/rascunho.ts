@@ -16,7 +16,8 @@ export interface ContextoAcao {
   telefone: string;
   user?: User; // para o aviso (push) da venda, com as preferências de notificação dele
   semConfirmar?: GrupoConfirmavel[]; // grupos em que o vendedor dispensou o SIM (Configurações)
-  porAudio?: boolean; // a mensagem veio de voz: a transcrição pode errar, então o SIM nunca é dispensado
+  porAudio?: boolean; // a mensagem veio de voz: a transcrição pode errar
+  vozSegura?: boolean; // transcrição com confiança alta e nenhuma palavra em dúvida: só então o SIM pode ser dispensado por voz
 }
 
 export const MINUTOS_DO_RASCUNHO = 10;

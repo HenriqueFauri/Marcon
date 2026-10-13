@@ -34,11 +34,11 @@ function limiteDoDia(tipo: TipoAcao, owner: string) {
 
 // Vendedor que desligou a confirmação de um tipo (Configurações): logo depois de o modelo abrir o
 // rascunho, o SERVIDOR resolve como se fosse um SIM. O modelo continua sem gravar nada, e as travas
-// (limite do dia, rascunho único, tipo liberado) valem igual. Nunca vale para mensagem de voz nem
-// para rascunho em que o produto foi achado por semelhança (payload.aproximado).
+// (limite do dia, rascunho único, tipo liberado) valem igual. Por voz só vale com a transcrição segura
+// (ctx.vozSegura), e nunca para rascunho em que o produto foi achado por semelhança (payload.aproximado).
 // `resposta` é o que o modelo devolveu: só age se for exatamente o resumo do rascunho recém-aberto.
 export async function confirmarSeDispensado(db: Db, ctx: ContextoAcao, resposta: string): Promise<string | null> {
-  if (ctx.porAudio || !ctx.semConfirmar?.length) return null;
+  if ((ctx.porAudio && !ctx.vozSegura) || !ctx.semConfirmar?.length) return null;
 
   const { data: acao } = await db
     .from("whatsapp_acoes")

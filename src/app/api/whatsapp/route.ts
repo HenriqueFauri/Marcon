@@ -12,7 +12,7 @@ import {
 } from "@/lib/whatsapp/evolution";
 import { confirmarSeDispensado, resolverPendente } from "@/lib/whatsapp/acoes";
 import { GRUPOS_CONFIRMAVEIS, gruposLiberados, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
-import { CONFIANCA_MINIMA, SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva } from "@/lib/whatsapp/transcricao";
+import { CONFIANCA_MINIMA, SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva, vozSegura } from "@/lib/whatsapp/transcricao";
 import { vocabularioDoDono } from "@/lib/whatsapp/produtos";
 import { hojeISO, somarDias } from "@/lib/format";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
@@ -249,6 +249,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   // com número desconhecido). O resto do fluxo é o mesmo do texto.
   let eco = "";
   let duvidosas: string[] = [];
+  let seguraParaDispensarSim = false;
   if (msg.audio) {
     if (!transcricaoAtiva()) {
       await enviarMensagem(msg.telefone, "Ainda não entendo áudio por aqui. Pode escrever?");
@@ -268,6 +269,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
     }
     msg = { ...msg, texto: voz.texto };
     duvidosas = voz.duvidosas;
+    seguraParaDispensarSim = vozSegura(voz);
     // mostra o que foi entendido: se a transcrição errou um número, o vendedor vê antes de confirmar
     eco = `🎤 _"${voz.texto}"_\n\n`;
   }
@@ -287,7 +289,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   const semConfirmar = ((vinculo.sem_confirmar ?? []) as string[]).filter((g): g is GrupoConfirmavel =>
     (GRUPOS_CONFIRMAVEIS as string[]).includes(g),
   );
-  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, duvidosas };
+  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, vozSegura: seguraParaDispensarSim, duvidosas };
 
   // SIM ou NÃO de um rascunho aberto (venda ou outro lançamento): resolvido aqui, pelo servidor, sem passar pelo modelo
   if (escrita) {
