@@ -12,6 +12,14 @@ import { procurarProdutos } from "./produtos";
 // de quem são os dados e só tem ferramentas de leitura. Aqui usamos a chave de serviço (ignora o RLS),
 // então um .eq("owner_id", owner) esquecido vazaria dados de outra conta: toda consulta tem que ter.
 
+// O que o assistente fez para responder: usado pelo teste de comportamento (scripts/eval-assistente.ts)
+export interface Rastro {
+  voltas: number;
+  ferramentas: string[];
+  tokens: number;
+  cacheados?: number;
+}
+
 export interface Contexto {
   owner: string;
   telefone: string;
@@ -19,6 +27,7 @@ export interface Contexto {
   porAudio?: boolean; // a mensagem veio de voz (transcrita)
   duvidosas?: string[]; // palavras em que a transcrição ficou em dúvida
   fatos?: string[]; // o que o sistema gravou ou deixou de gravar por este número (route.ts)
+  rastro?: Rastro; // preenchido por responder() quando alguém quer medir
 }
 
 type Db = NonNullable<ReturnType<typeof createAdminClient>>;

@@ -22,7 +22,13 @@ export interface ContextoAcao {
 export const MINUTOS_DO_RASCUNHO = 10;
 
 export const SIM = /^\s*(sim|s|confirmo|confirma|confirmar|pode|pode lan[cç]ar)\s*[.!]?\s*$/i;
-export const NAO = /^\s*(n[aã]o|n|cancela|cancelar)\s*[.!]?\s*$/i;
+// Jeito natural de dizer sim. Só vale quando a ÚLTIMA mensagem do assistente foi o resumo a confirmar
+// (acoes.ts): um "ok" dito para outra coisa nunca pode lançar uma venda.
+export const SIM_SUAVE =
+  /^\s*(isso|isso mesmo|isso a[ií]|ok|okay|beleza|blz|fechou|fechado|certo|t[aá] certo|est[aá] certo|pode mandar|pode registrar|manda ver|lan[cç]a|lan[cç]a a[ií]|registra|confirmado|aham|uhum|positivo|bora)\s*[.!]?\s*$/i;
+// Cancelar é o lado seguro: qualquer um destes descarta o rascunho.
+export const NAO =
+  /^\s*(n[aã]o|n|cancela|cancelar|cancela essa|cancela a venda|deixa|deixa pra l[aá]|deixa quieto|esquece|esque[cç]a|desisti|desisto|n[aã]o quero|melhor n[aã]o|errei|para|nada)\s*[.!]?\s*$/i;
 
 // Grupos que o Marcon liga no servidor com WHATSAPP_LANCAMENTOS (ex.: "produto,estoque,caixa").
 // Vazio = só venda, como sempre foi. Venda não entra aqui: ela depende de WHATSAPP_ESCRITA.

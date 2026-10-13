@@ -90,6 +90,21 @@ Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `res
 - *Confiança da voz.* A transcrição pede `logprobs` (só nos modelos `gpt-4o`; se o provedor recusar, segue sem). Palavra com probabilidade abaixo de 0,5 vai ao modelo como "em dúvida", junto de um aviso de que o texto veio de voz. Áudio com confiança média abaixo de `WHATSAPP_AUDIO_CONFIANCA_MINIMA` (padrão 0,3) nem chega ao modelo: pede para repetir. O log `[whatsapp] voz:` traz modelo, duração e confiança (nunca o texto), para calibrar esses cortes com uso real.
 - O vocabulário enviado à transcrição prioriza o que o dono mais vendeu em 90 dias e depois o resto do cadastro (`vocabularioDoDono()`), até 800 caracteres.
 
+**Resolver rápido e objetivo.**
+- *Valor da venda.* `preparar_venda` aceita `valor_total_item` ("vendi 2 por 80", sem "cada", é o total) além de `preco_unitario`. Quem divide é o servidor, e só se a conta fechar em centavos; senão pede o valor de cada unidade. O modelo não faz conta de dinheiro.
+- *Venda e pergunta na mesma mensagem.* Venda sozinha devolve o resumo sem gastar outra volta. Se há outra pergunta (mais de uma ferramenta, ou "?" na mensagem), o modelo ainda responde a outra parte, e o resumo da venda vem primeiro, intacto.
+- *Cache e paralelismo.* As regras e as ferramentas são um bloco fixo com `cache_control`; data, calendário e o registro do sistema vão num bloco separado. A pergunta típica caiu de uns 12 mil para cerca de 1 mil tokens novos. Consultas independentes rodam juntas; só os `preparar_*` (que gravam rascunho) vão em ordem.
+- *Dizer sim e não do jeito natural.* `SIM` e `NAO` aceitam "pode", "esquece", "deixa pra lá", "errei"... Já "ok", "isso", "fechou", "beleza" (`SIM_SUAVE`) só confirmam se a ÚLTIMA fala do assistente foi o resumo do rascunho (`acoes.ts`), para um "ok" dito a outra coisa nunca lançar venda. Frase com mais palavras ("sim, foram 3") não confirma nem cancela: vai ao modelo, que prepara outro rascunho.
+- *Exemplos no prompt.* `EXEMPLOS_DE_VENDA` em `assistente.ts` traz o jeito solto de falar (número por extenso, "ontem", "pro João", "saiu um", dois itens em uma frase).
+
+**Teste de comportamento (`scripts/eval-assistente.ts`).** É como o assistente é "treinado": um banco de conversas (consulta, venda, voz com ruído, correção no meio, recusa, registro do sistema) que roda o modelo de verdade contra o Staging e confere ferramenta usada, resposta, número de voltas e regras gerais (sem travessão, sem "fiado", sem despejar custo, resposta curta). Só prepara rascunhos e os apaga, nunca manda SIM. Para usar:
+
+```bash
+npx --yes tsx --conditions=react-server scripts/eval-assistente.ts [filtro] [--vezes=3]
+```
+
+Precisa do `.env.staging` na raiz. Regra de trabalho: todo ajuste de prompt ou de busca só entra se o placar não piorar; todo erro novo visto no WhatsApp vira um caso novo antes de ser corrigido.
+
 ## Banco
 
 | Migration | O quê | Acesso |
