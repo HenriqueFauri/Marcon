@@ -46,13 +46,7 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
     path: foto.path,
     variacao_id: foto.variacao_id,
     url: assinadas?.[i]?.signedUrl ?? null,
-    naVitrine: foto.na_vitrine !== false,
   }));
-
-  // a view produtos_com_estoque não tem as colunas da vitrine: vêm da tabela. Antes da migration 0042
-  // a consulta falha e a tela segue sem as escolhas da vitrine.
-  const { data: naLoja } = await supabase.from("produtos").select("na_vitrine, vitrine_anuncio_id").eq("id", id).maybeSingle();
-  const vitrine = naLoja?.na_vitrine ? { anuncioId: (naLoja.vitrine_anuncio_id as string | null) ?? null } : null;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -81,7 +75,6 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
         fotos={fotosComUrl}
         variacoes={variacoes}
         maxFotos={uso?.limites.fotosPorItem}
-        vitrine={!!vitrine}
       />
       <AnunciosEditor
         produtoId={p.id}
@@ -89,7 +82,6 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
         anuncios={anuncios}
         variacoes={variacoes}
         iaDisponivel={iaDisponivel()}
-        vitrine={vitrine}
         dados={{
           nome: p.nome,
           marca: p.marca,

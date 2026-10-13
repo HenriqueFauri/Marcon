@@ -4,10 +4,20 @@ import { formatBRL } from "@/lib/format";
 // várias frases descontraídas, em rotação embaralhada que não repete a anterior. O usuário só
 // decide o que receber e quais dados aparecem.
 
-export type Evento = "venda" | "meta" | "nivel_1k" | "nivel_5k" | "nivel_10k" | "cobranca";
+export type Evento =
+  | "venda"
+  | "pedido"
+  | "estoque_baixo"
+  | "estoque_zerado"
+  | "meta"
+  | "nivel_1k"
+  | "nivel_5k"
+  | "nivel_10k"
+  | "cobranca"
+  | "resumo";
 
-// O que o usuário liga/desliga (os três níveis de faturamento andam juntos)
-export type Grupo = "venda" | "meta" | "niveis" | "cobranca";
+// O que o usuário liga/desliga (os três níveis de faturamento andam juntos, e os dois avisos de estoque também)
+export type Grupo = "venda" | "pedido" | "estoque" | "meta" | "niveis" | "cobranca" | "resumo";
 
 export const NIVEIS: { evento: Evento; valor: number }[] = [
   { evento: "nivel_1k", valor: 1000 },
@@ -15,22 +25,40 @@ export const NIVEIS: { evento: Evento; valor: number }[] = [
   { evento: "nivel_10k", valor: 10000 },
 ];
 
-export const EVENTOS: Evento[] = ["venda", "meta", "nivel_1k", "nivel_5k", "nivel_10k", "cobranca"];
+export const EVENTOS: Evento[] = [
+  "venda",
+  "pedido",
+  "estoque_baixo",
+  "estoque_zerado",
+  "meta",
+  "nivel_1k",
+  "nivel_5k",
+  "nivel_10k",
+  "cobranca",
+  "resumo",
+];
 
 const GRUPO_DO_EVENTO: Record<Evento, Grupo> = {
   venda: "venda",
+  pedido: "pedido",
+  estoque_baixo: "estoque",
+  estoque_zerado: "estoque",
   meta: "meta",
   nivel_1k: "niveis",
   nivel_5k: "niveis",
   nivel_10k: "niveis",
   cobranca: "cobranca",
+  resumo: "resumo",
 };
 
 export const GRUPOS: { id: Grupo; rotulo: string; descricao: string }[] = [
   { id: "venda", rotulo: "Vendas", descricao: "Um aviso a cada venda registrada." },
+  { id: "pedido", rotulo: "Pedidos da vitrine", descricao: "Na hora em que um cliente manda um pedido pela sua loja." },
+  { id: "estoque", rotulo: "Estoque acabando", descricao: "Quando uma venda deixa um produto no limite que você definiu ou zerado." },
   { id: "meta", rotulo: "Meta batida", descricao: "Comemora quando você bate a meta do mês." },
   { id: "niveis", rotulo: "Marcos de faturamento", descricao: "Quando o mês passa de R$ 1 mil, R$ 5 mil e R$ 10 mil." },
   { id: "cobranca", rotulo: "Lembrete de cobrança", descricao: "Todo dia às 8h, se houver parcela vencendo ou atrasada." },
+  { id: "resumo", rotulo: "Resumo do dia", descricao: "Por volta das 20h, só nos dias em que você vendeu." },
 ];
 
 // ---------------------------------------------------------------------------
@@ -75,6 +103,52 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "Olha o dinheirinho entrando 🤑" },
     { titulo: "Seguiu o fluxo: vendeu! 🌊" },
     { titulo: "Mais um pedido pra conta 🧾" },
+  ],
+  pedido: [
+    { titulo: "Pedido novo na vitrine! 🛍️" },
+    { titulo: "Chegou pedido 👀" },
+    { titulo: "Tem cliente querendo comprar 🙋" },
+    { titulo: "A vitrine trabalhou por você 😎" },
+    { titulo: "Olha o pedido aí! 📬" },
+    { titulo: "Pedido fresquinho 🔔" },
+    { titulo: "Alguém encheu o carrinho 🛒" },
+    { titulo: "Sua loja recebeu um pedido 🏪" },
+    { titulo: "Corre lá no Zap, tem pedido 📲" },
+    { titulo: "Mais um pedido chegando 🙌" },
+    { titulo: "Pediram pela vitrine! 🎉" },
+    { titulo: "Cliente na porta 🚪" },
+    { titulo: "Pedido novo, bora responder 💬" },
+    { titulo: "A vitrine não para 🔥" },
+    { titulo: "Tem carrinho fechado te esperando 🧾" },
+    { titulo: "Pedido na área ⚡" },
+  ],
+  estoque_baixo: [
+    { titulo: "Tá acabando! ⏳" },
+    { titulo: "Estoque no finalzinho 👀" },
+    { titulo: "Hora de repor 📦" },
+    { titulo: "Vendeu tanto que tá acabando 🔥" },
+    { titulo: "Últimas unidades 🚨" },
+    { titulo: "Bora falar com o fornecedor? 📞" },
+    { titulo: "Estoque pedindo reforço 💪" },
+    { titulo: "Quase no fim 📉" },
+    { titulo: "Olho no estoque 👁️" },
+    { titulo: "Restam poucos ⚠️" },
+    { titulo: "Sucesso de vendas, estoque curto 😅" },
+    { titulo: "Repor antes que acabe 🛒" },
+  ],
+  estoque_zerado: [
+    { titulo: "Acabou! 🚫" },
+    { titulo: "Estoque zerado 📭" },
+    { titulo: "Vendeu tudo! 🎉" },
+    { titulo: "Esse esgotou 🔥" },
+    { titulo: "Prateleira vazia 🕳️" },
+    { titulo: "Zerou o estoque 😮" },
+    { titulo: "Não sobrou nenhum 👏" },
+    { titulo: "Esgotado! Hora de repor 📦" },
+    { titulo: "Foi o último 🏁" },
+    { titulo: "Saiu a última unidade 👋" },
+    { titulo: "Acabou, e isso é bom sinal 😎" },
+    { titulo: "Sem estoque por aqui ⚠️" },
   ],
   meta: [
     { titulo: "Meta batida! 🎯", corpo: "Missão cumprida." },
@@ -151,6 +225,22 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "Uma conversa rápida resolve 😄" },
     { titulo: "Contas a receber chamando 📞" },
     { titulo: "Seu dinheiro quer voltar pra casa 🏠" },
+  ],
+  resumo: [
+    { titulo: "Fechou o dia! 🌙" },
+    { titulo: "Resumo de hoje 📊" },
+    { titulo: "Como foi o seu dia 👇" },
+    { titulo: "Dia encerrado, olha só 👀" },
+    { titulo: "O placar de hoje 🏆" },
+    { titulo: "Hora de ver o resultado 💰" },
+    { titulo: "Seu dia em números 🔢" },
+    { titulo: "Balanço do dia ⚖️" },
+    { titulo: "Mais um dia de vendas 🙌" },
+    { titulo: "Fim de expediente 🌆" },
+    { titulo: "Hoje rendeu! 📈" },
+    { titulo: "O dia passou e deixou isso 💸" },
+    { titulo: "Boa noite, olha o seu dia 😴" },
+    { titulo: "Caixa do dia fechado ✅" },
   ],
 };
 
@@ -277,6 +367,26 @@ export interface ParcelaParaCobrar {
   diasAtraso: number;
 }
 
+export interface DadosPedidoNotificacao {
+  total: number;
+  cliente: string | null;
+  itens: { nome: string; quantidade: number }[];
+}
+
+// produto (ou variação) que uma venda deixou no limite ou zerado
+export interface ItemDeEstoque {
+  nome: string;
+  restam: number;
+}
+
+export interface DadosResumoNotificacao {
+  vendas: number;
+  valor: number;
+  lucro: number;
+  parcelasAmanha: number;
+  valorParcelasAmanha: number;
+}
+
 export function nomeDoMes(mesISO: string) {
   return new Date(`${mesISO}-01T00:00:00`).toLocaleDateString("pt-BR", { month: "long" });
 }
@@ -324,6 +434,45 @@ export function linhaDaCobranca(parcelas: ParcelaParaCobrar[], campos: Record<Ca
   return campos.nomes && quem ? `${primeira}\n${quem}` : primeira;
 }
 
+export function linhaDoPedido(d: DadosPedidoNotificacao) {
+  const primeiro = d.itens[0];
+  const extras = d.itens.length - 1;
+  const partes: (string | null)[] = [
+    primeiro ? `${primeiro.nome}${extras > 0 ? ` +${extras}` : ""}` : null,
+    formatBRL(d.total),
+    d.cliente?.trim() || null,
+  ];
+  return partes.filter(Boolean).join(" · ");
+}
+
+// até 3 produtos, um por linha; o resto vira "e mais N"
+export function linhaDoEstoqueBaixo(itens: ItemDeEstoque[]) {
+  const linhas = itens.slice(0, 3).map((i) => `${i.nome}: ${i.restam === 1 ? "resta 1" : `restam ${i.restam}`}`);
+  const resto = itens.length - linhas.length;
+  return (resto > 0 ? [...linhas, `e mais ${resto}`] : linhas).join("\n");
+}
+
+export function linhaDoEstoqueZerado(itens: ItemDeEstoque[]) {
+  const nomes = itens.slice(0, 3).map((i) => i.nome);
+  const resto = itens.length - nomes.length;
+  return resto > 0 ? `${nomes.join(", ")} e mais ${resto}` : nomes.join(", ");
+}
+
+// O resumo segue o que o vendedor escolheu para o aviso de venda (valor e lucro) e para o
+// lembrete de cobrança (valor total): o que ele escondeu lá não aparece aqui.
+export function linhaDoResumo(d: DadosResumoNotificacao, dados: DadosPreferidos) {
+  const primeira = [
+    `${d.vendas} ${d.vendas === 1 ? "venda" : "vendas"}`,
+    dados.venda.valor ? formatBRL(d.valor) : null,
+    dados.venda.lucro ? `lucro ${formatBRL(d.lucro)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (d.parcelasAmanha <= 0) return primeira;
+  const parcelas = `${d.parcelasAmanha} ${d.parcelasAmanha === 1 ? "parcela vence" : "parcelas vencem"} amanhã`;
+  return `${primeira}\n${dados.cobranca.total ? `${parcelas} · ${formatBRL(d.valorParcelasAmanha)}` : parcelas}`;
+}
+
 // ---------------------------------------------------------------------------
 // Montagem
 // ---------------------------------------------------------------------------
@@ -349,13 +498,25 @@ export function montarExemplo(pref: Preferencias, evento: Evento, posicao: numbe
     { cliente: "Maria", valor: 200, diasAtraso: 3 },
     { cliente: "João", valor: 250, diasAtraso: 0 },
   ];
-  const linha =
-    evento === "venda"
-      ? linhaDaVenda(venda, pref.dados.venda)
-      : evento === "meta"
-        ? linhaDaMeta("vendas", 10120)
-        : evento === "cobranca"
-          ? linhaDaCobranca(parcelas, pref.dados.cobranca)
-          : linhaDoNivel(NIVEIS.find((n) => n.evento === evento)!.valor + 230.5, "2026-09");
+  const linha = (() => {
+    switch (evento) {
+      case "venda":
+        return linhaDaVenda(venda, pref.dados.venda);
+      case "pedido":
+        return linhaDoPedido({ total: venda.valor, cliente: venda.cliente, itens: venda.itens });
+      case "estoque_baixo":
+        return linhaDoEstoqueBaixo([{ nome: "Tênis Casual", restam: 2 }]);
+      case "estoque_zerado":
+        return linhaDoEstoqueZerado([{ nome: "Meia Esportiva", restam: 0 }]);
+      case "meta":
+        return linhaDaMeta("vendas", 10120);
+      case "cobranca":
+        return linhaDaCobranca(parcelas, pref.dados.cobranca);
+      case "resumo":
+        return linhaDoResumo({ vendas: 6, valor: 540, lucro: 210, parcelasAmanha: 2, valorParcelasAmanha: 450 }, pref.dados);
+      default:
+        return linhaDoNivel(NIVEIS.find((n) => n.evento === evento)!.valor + 230.5, "2026-09");
+    }
+  })();
   return montarNotificacao(evento, posicao, linha);
 }

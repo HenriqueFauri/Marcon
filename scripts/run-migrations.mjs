@@ -1,6 +1,8 @@
 // Runs every .sql file in supabase/migrations, in filename order, inside one
 // transaction each. Reads connection info from .env.local so the DB password
 // never has to be typed on the command line or committed anywhere.
+// Uso: node scripts/run-migrations.mjs [arquivo-de-ambiente]
+// Sem argumento usa .env.local; para o Staging: .env.staging.
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -8,7 +10,8 @@ import { Client } from "pg";
 import { sslDoBanco } from "./db-ssl.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const envPath = path.join(root, "..", ".env.local");
+const envFile = process.argv[2] ?? ".env.local";
+const envPath = path.join(root, "..", envFile);
 const env = Object.fromEntries(
   readFileSync(envPath, "utf8")
     .split("\n")
@@ -22,7 +25,7 @@ const env = Object.fromEntries(
 const projectUrl = env.NEXT_PUBLIC_SUPABASE_URL;
 const password = env.SUPABASE_DB_PASSWORD;
 if (!projectUrl || !password) {
-  console.error("Faltam NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_DB_PASSWORD em .env.local");
+  console.error(`Faltam NEXT_PUBLIC_SUPABASE_URL ou SUPABASE_DB_PASSWORD em ${envFile}`);
   process.exit(1);
 }
 const ref = new URL(projectUrl).hostname.split(".")[0];

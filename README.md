@@ -46,6 +46,22 @@ node scripts/run-migrations.mjs   # aplica o que falta em supabase/migrations
 npm run dev
 ```
 
+## Ambientes: produção e Staging
+
+**Regra: tudo é feito primeiro no Staging e depois passado à produção.** Só vai direto à produção se o dono pedir, e nesse caso a mesma mudança volta ao Staging em seguida, para os dois ficarem no mesmo nível.
+
+| | Vercel | Supabase | Branch |
+|---|---|---|---|
+| Produção | `marcon` | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `main` |
+| Staging | `marcon-staging` | `Marcon Staging` (`odgvhqwqyxtnaxgqiynb`) | `staging` |
+
+```bash
+node scripts/run-migrations.mjs .env.staging   # migrations no Staging (sempre primeiro)
+node scripts/run-migrations.mjs                # migrations na produção (.env.local)
+```
+
+Fluxo, variáveis da Vercel, Supabase, webhook do Asaas sandbox e armadilhas: [docs/AMBIENTES.md](docs/AMBIENTES.md).
+
 ## Notificações
 
 Os avisos são descontraídos e **mudam de frase a cada vez** (venda, meta batida, marcos de faturamento de R$ 1 mil, 5 mil e 10 mil no mês, e lembrete de cobrança). As frases ficam em `src/lib/notificacoes.ts` e não aparecem em Configurações, para manter a surpresa. Lá o usuário só escolhe **o que receber** e **quais dados mostrar** (venda: produto, valor, lucro, cliente, canal; cobrança: valor total e quem deve). Um botão manda um aviso de exemplo para conferir se chega.
@@ -77,6 +93,7 @@ Além do mês, aceita os últimos 30, 60, 90 e 120 dias e datas livres (até 2 a
 - **Datas em Brasília:** o banco roda em UTC, então datas geradas no SQL usam `hoje_br()`, nunca `current_date`. Vale para o estorno de venda cancelada, o pagamento de parcela, o "atrasado" das parcelas e o recibo.
 - **Totais no banco:** entradas, saídas e as maiores saídas por categoria vêm de `resumo_caixa()` e valem para o período todo, com ou sem o filtro de tipo. A tela lista só os 300 lançamentos mais recentes, com um aviso quando há mais. O saldo continua em `saldo_caixa()`.
 - **Parcela paga uma vez só:** `pagar_parcela` trava a parcela e `lancamentos_caixa_parcela_uk` impede dois lançamentos para a mesma parcela. O índice só é criado se não houver duplicata antiga (a migration avisa).
+- **Recebimento parcial (migration `0045`):** `receber_parcela(parcela, valor, data)` recebe tudo ou uma parte. Na parte, a parcela é fatiada: nasce uma linha paga com `parcial = true` e o seu lançamento no caixa, e a parcela original continua pendente só com o que falta. Assim "em aberto" segue sendo a soma de `valor` das pendentes, "recebido" a soma das pagas, e `cancelar_venda` estorna o que entrou sem mudança. Uma parcela pode ter mais de uma linha com o mesmo número: o total de parcelas é o maior `numero_parcela`, não a contagem de linhas. Teste em `supabase/tests/recebimento_parcial.sql`.
 - **Estoque que já era seu:** no cadastro de produto e de variação, "Esse estoque já era meu" chama `registrar_entrada_estoque` com `p_afeta_caixa = false`: entra estoque e custo médio, nada sai do caixa. Sem a marca, o estoque inicial continua saindo do caixa como compra.
 
 ## Assinatura (Asaas)

@@ -12,13 +12,8 @@ import { Card, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/componen
 import { IconPlus, IconSparkles } from "@/components/icons";
 import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, type PerguntasIA } from "@/lib/ia-perguntas";
 import { AutoTextarea } from "@/components/auto-textarea";
-import { definirAnuncioDaVitrine, escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
-
-// Produto que está na vitrine: qual versão de anúncio a loja mostra (null = nome e descrição do cadastro).
-// Produto fora da vitrine recebe null no lugar do objeto e a escolha nem aparece.
-export interface VitrineDoProduto {
-  anuncioId: string | null;
-}
+import { Segmentado } from "@/components/ajustes";
+import { escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
 
 
 function useCopiar() {
@@ -181,7 +176,6 @@ function VersaoCard({
   variacoes,
   dados,
   ia,
-  vitrine,
 }: {
   numero: number;
   produtoId: string;
@@ -190,9 +184,7 @@ function VersaoCard({
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
   ia: { disponivel: boolean; perguntas: PerguntasIA };
-  vitrine: VitrineDoProduto | null;
 }) {
-  const naVitrine = vitrine?.anuncioId === versao.id;
   const { isPending, run } = useAction();
   const { escrevendo, escrever } = useEscreverComIA();
   const copiar = useCopiar();
@@ -235,7 +227,6 @@ function VersaoCard({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-ink">Versão {numero}</span>
-          {naVitrine && <span className="text-[13px] font-medium text-positive">Na vitrine</span>}
           {variacoes.length > 0 && (
             <select
               value={variacaoId}
@@ -326,24 +317,6 @@ function VersaoCard({
         </div>
       </div>
 
-      {vitrine && (
-        <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
-          <p className="text-[13px] text-ink-2">
-            {naVitrine ? "Sua vitrine mostra este título e esta descrição." : "A vitrine pode mostrar este texto."}
-          </p>
-          <button
-            type="button"
-            aria-pressed={naVitrine}
-            disabled={isPending || (!naVitrine && alterado)}
-            title={!naVitrine && alterado ? "Salve as alterações antes" : undefined}
-            onClick={() => run(() => definirAnuncioDaVitrine(produtoId, naVitrine ? null : versao.id))}
-            className={`${linkAcao} shrink-0 text-right`}
-          >
-            {naVitrine ? "Tirar da vitrine" : "Usar na vitrine"}
-          </button>
-        </div>
-      )}
-
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
@@ -365,6 +338,75 @@ function VersaoCard({
   );
 }
 
+// Rótulos que cabem lado a lado em 390 px, por quantidade de canais (nome mais o número de versões).
+const CABE_NO_CELULAR: Record<number, number> = { 2: 19, 3: 12, 4: 8 };
+
+// Troca de canal sem rolar de lado: até 4 canais, controle segmentado que divide a largura;
+// com mais (ou com nomes compridos demais para o celular), um seletor.
+function SeletorDeCanal({
+  canais,
+  anuncios,
+  canalId,
+  onMudar,
+}: {
+  canais: CanalVenda[];
+  anuncios: ProdutoAnuncio[];
+  canalId: string;
+  onMudar: (id: string) => void;
+}) {
+  const itens = canais.map((c) => ({ id: c.id, nome: c.nome, qtd: anuncios.filter((a) => a.canal_id === c.id).length }));
+  const versoes = (qtd: number) => (qtd === 1 ? "1 versão" : `${qtd} versões`);
+
+  if (itens.length === 1) {
+    return (
+      <p className="text-[15px] font-semibold text-ink">
+        {itens[0].nome}
+        {itens[0].qtd > 0 && <span className="ml-2 text-[13px] font-normal text-ink-muted">{versoes(itens[0].qtd)}</span>}
+      </p>
+    );
+  }
+
+  const segmentado = itens.length <= 4;
+  const cabe = segmentado && itens.every((i) => i.nome.length + (i.qtd > 0 ? 2 : 0) <= CABE_NO_CELULAR[itens.length]);
+
+  return (
+    <>
+      {segmentado && (
+        <div className={cabe ? "" : "hidden sm:block"}>
+          <Segmentado
+            rotulo="Canal de venda"
+            valor={canalId}
+            onMudar={onMudar}
+            opcoes={itens.map((i) => ({
+              valor: i.id,
+              label: (
+                <>
+                  {i.nome}
+                  {i.qtd > 0 && <span className="ml-1 text-xs font-normal tabular-nums text-ink-muted">{i.qtd}</span>}
+                </>
+              ),
+            }))}
+          />
+        </div>
+      )}
+      {!cabe && (
+        <select
+          value={canalId}
+          onChange={(e) => onMudar(e.target.value)}
+          aria-label="Canal de venda"
+          className={`${inputClass} ${segmentado ? "sm:hidden" : ""}`}
+        >
+          {itens.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.qtd > 0 ? `${i.nome} (${versoes(i.qtd)})` : i.nome}
+            </option>
+          ))}
+        </select>
+      )}
+    </>
+  );
+}
+
 export function AnunciosEditor({
   produtoId,
   canais,
@@ -372,7 +414,6 @@ export function AnunciosEditor({
   variacoes,
   dados,
   iaDisponivel,
-  vitrine,
 }: {
   produtoId: string;
   canais: CanalVenda[];
@@ -380,7 +421,6 @@ export function AnunciosEditor({
   variacoes: ProdutoVariacao[];
   dados: DadosAnuncio;
   iaDisponivel: boolean;
-  vitrine: VitrineDoProduto | null;
 }) {
   const { isPending, run } = useAction();
   const { escrevendo, escrever } = useEscreverComIA();
@@ -428,27 +468,9 @@ export function AnunciosEditor({
 
   return (
     <div className="flex flex-col gap-6">
-      <Card title="Títulos e descrições" description="Uma versão por canal. Ajuste, copie e publique.">
-        <div className="-mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Canais de venda">
-          {canais.map((c) => {
-            const qtd = anuncios.filter((a) => a.canal_id === c.id).length;
-            const ativo = c.id === canal.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                role="tab"
-                aria-selected={ativo}
-                onClick={() => setCanalId(c.id)}
-                className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition ${
-                  ativo ? "bg-brand-fill font-semibold text-on-brand" : "bg-fill text-ink-2 hover:bg-fill-strong"
-                }`}
-              >
-                {c.nome}
-                {qtd > 0 && <span className="ml-1.5 text-xs opacity-80">{qtd}</span>}
-              </button>
-            );
-          })}
+      <Card title="Títulos e descrições">
+        <div className="mb-4">
+          <SeletorDeCanal canais={canais} anuncios={anuncios} canalId={canal.id} onMudar={setCanalId} />
         </div>
 
         {iaDisponivel && (
@@ -473,7 +495,6 @@ export function AnunciosEditor({
               variacoes={variacoes}
               dados={dados}
               ia={{ disponivel: iaDisponivel, perguntas }}
-              vitrine={vitrine}
             />
           ))}
           {versoes.length === 0 && !iaDisponivel && (

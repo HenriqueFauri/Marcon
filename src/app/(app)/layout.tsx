@@ -15,12 +15,13 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     redirect("/login");
   }
 
-  const [{ count: parcelasAbertas }, { data: assinaturaRow }] = await Promise.all([
+  const [{ count: parcelasAbertas }, { count: pedidosNovos }, { data: assinaturaRow }] = await Promise.all([
     supabase.from("parcelas_com_status").select("id", { count: "exact", head: true }).neq("status", "pago"),
+    supabase.from("vitrine_pedidos").select("id", { count: "exact", head: true }).eq("status", "novo"),
     supabase.from("assinaturas").select("plano, status, proximo_vencimento").maybeSingle(),
   ]);
   const plano = rotuloDaSituacao(situacaoDaAssinatura(assinaturaRow, user.created_at));
-  const contagens = { "/contas-a-receber": parcelasAbertas ?? 0 };
+  const contagens = { "/contas-a-receber": parcelasAbertas ?? 0, "/vitrine": pedidosNovos ?? 0 };
   const admin = ehAdmin(user);
 
   const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Meu negócio";

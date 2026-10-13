@@ -100,9 +100,10 @@ export function NotificacoesConfig() {
   }
 
   return (
-    <div>
+    <div id="notificacoes" className="scroll-mt-24">
       <p className="mb-3 text-sm text-ink-muted">
-        Receba um aviso a cada venda registrada e quando uma parcela for recebida. Vale só para este dispositivo.
+        Receba um aviso a cada venda, pedido da vitrine e produto acabando, além do lembrete de cobrança e do resumo do
+        dia. Vale só para este aparelho: ative em cada um que você usa.
       </p>
       {inscrito === null ? (
         <p className="text-sm text-ink-muted">Verificando...</p>

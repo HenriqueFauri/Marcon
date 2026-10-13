@@ -43,12 +43,14 @@ export async function atualizarEmpresa(formData: FormData): Promise<ActionResult
         empresa_email: textoOuNull(formData, "empresa_email"),
         empresa_endereco: textoOuNull(formData, "empresa_endereco"),
         empresa_documento: textoOuNull(formData, "empresa_documento"),
+        empresa_pix: textoOuNull(formData, "empresa_pix")?.slice(0, 140) ?? null,
       },
     });
     if (error) return falha(error);
 
     // o nome do negócio aparece na barra lateral de todas as telas
     revalidatePath("/", "layout");
+    revalidatePath("/contas-a-receber");
     return ok("Dados da empresa salvos.");
   } catch (e) {
     return falha(e);
@@ -190,7 +192,10 @@ export async function enviarNotificacaoTeste(): Promise<ActionResult> {
 
     const evento = EVENTOS[Math.floor(Math.random() * EVENTOS.length)];
     const { titulo, corpo } = montarExemplo(lerPreferencias(user.user_metadata), evento, Math.floor(Math.random() * 1000));
-    await enviarNotificacao(user.id, titulo, corpo, "/");
+    const envio = await enviarNotificacao(user.id, titulo, corpo, "/");
+    if (envio.enviados === 0) {
+      return { ok: false, error: "O teste não saiu. Desative e ative as notificações neste aparelho e tente de novo." };
+    }
     return ok("Teste enviado. Olhe as notificações do aparelho.");
   } catch (e) {
     return falha(e);

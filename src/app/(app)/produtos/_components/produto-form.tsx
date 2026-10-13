@@ -9,6 +9,7 @@ import { lerNumero } from "@/lib/numero";
 import { Margem } from "@/components/margem";
 import { useAction } from "@/components/use-action";
 import { AutoTextarea } from "@/components/auto-textarea";
+import { Grupo, LinhaLink } from "@/components/ajustes";
 import { Card, Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
 
@@ -413,29 +414,8 @@ export function ProdutoForm({
                 />
               )}
             </div>
-            <label className="flex items-start gap-3 rounded-xl bg-fill/60 px-4 py-3">
-              <input
-                type="checkbox"
-                name="na_vitrine"
-                defaultChecked={produto?.na_vitrine ?? false}
-                className="mt-0.5 h-4 w-4 accent-brand"
-              />
-              <span className="text-sm">
-                <span className="font-medium text-ink">Mostrar na vitrine</span>
-                <span className="mt-0.5 block text-xs text-ink-muted">
-                  Aparece na sua loja online (menu Vitrine). Custo e quantidade em estoque nunca aparecem.
-                </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-3 rounded-xl bg-fill/60 px-4 py-3">
-              <input type="checkbox" name="destaque" defaultChecked={produto?.destaque ?? false} className="mt-0.5 h-4 w-4 accent-brand" />
-              <span className="text-sm">
-                <span className="font-medium text-ink">Destaque na vitrine</span>
-                <span className="mt-0.5 block text-xs text-ink-muted">Aparece no carrossel no topo da loja (só vale se estiver na vitrine).</span>
-              </span>
-            </label>
             {editando && (
-              <Field label="Situação"hint="Produtos inativos não aparecem na tela de venda.">
+              <Field label="Situação" hint="Produtos inativos não aparecem na tela de venda.">
                 <select name="status" defaultValue={produto.status} className={inputClass}>
                   <option value="ativo">Ativo</option>
                   <option value="inativo">Inativo</option>
@@ -447,9 +427,20 @@ export function ProdutoForm({
       </Card>
 
       {!editando && temVariacoes && (
-        <Card title="Variações" description="Cada uma tem estoque, e opcionalmente custo e preço próprios.">
+        <Card title="Variações">
           <VariacoesNovas custoPadrao={custoN} precoPadrao={precoN} />
         </Card>
+      )}
+
+      {/* tudo que é da vitrine fica na Vitrine: aqui só o estado e o caminho (no produto novo ainda não há o que mostrar) */}
+      {produto && (
+        <Grupo semPadding rodape="Salve as alterações antes de abrir.">
+          <LinhaLink
+            href={`/vitrine/produtos/${produto.id}`}
+            rotulo="Na vitrine"
+            detalhe={!produto.na_vitrine ? "Não" : produto.destaque ? "Sim, em destaque" : "Sim"}
+          />
+        </Grupo>
       )}
 
       {erro && (

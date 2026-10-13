@@ -27,6 +27,7 @@ export default async function ReciboPage({ params }: PageProps<"/r/[token]">) {
   const recibo = await buscarRecibo(token);
   if (!recibo) notFound();
   const { empresa, venda, itens, parcelas } = recibo;
+  const totalParcelas = parcelas.reduce((m, p) => Math.max(m, p.numero), 0);
 
   // o bucket do logo é privado; a chave de serviço assina um link curto só para esta página
   let logoUrl: string | null = null;
@@ -123,13 +124,13 @@ export default async function ReciboPage({ params }: PageProps<"/r/[token]">) {
               )}
             </div>
             <ul className="divide-y divide-line rounded-2xl bg-fill/60 px-4">
-              {parcelas.map((p) => {
+              {parcelas.map((p, i) => {
                 const status = STATUS_PARCELA[p.status];
                 return (
-                  <li key={p.numero} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <li key={i}className="flex items-center justify-between gap-3 py-2.5 text-sm">
                     <div>
                       <p className="text-ink">
-                        {p.numero}/{parcelas.length} · {formatBRL(p.valor)}
+                        {p.numero}/{totalParcelas} · {formatBRL(p.valor)}
                       </p>
                       <p className="text-xs text-ink-muted">
                         {p.data_pagamento ? `paga em ${formatData(p.data_pagamento)}` : `vence em ${formatData(p.vencimento)}`}

@@ -7,8 +7,14 @@ import { enviarNotificacao } from "@/lib/push/send";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { formatBRL, hojeISO } from "@/lib/format";
 
-export async function marcarParcelaPaga(parcelaId: string): Promise<ActionResult> {
+// Recebe a parcela inteira ou uma parte dela. O valor entra no caixa na data informada;
+// se for parte, o resto continua em aberto (função receber_parcela, migration 0045).
+export async function receberParcela(parcelaId: string, valor: number, data?: string): Promise<ActionResult> {
   try {
+    if (!Number.isFinite(valor) || valor <= 0) return { ok: false, error: "Digite quanto você recebeu." };
+    const dia = data && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : hojeISO();
+    if (dia > hojeISO()) return { ok: false, error: "A data do recebimento não pode ser no futuro." };
+
     const supabase = await createClient();
     const {
       data: { user },
@@ -21,19 +27,24 @@ export async function marcarParcelaPaga(parcelaId: string): Promise<ActionResult
       .eq("id", parcelaId)
       .single();
 
-    const { error } = await supabase.rpc("pagar_parcela", {
+    const { data: resultado, error } = await supabase.rpc("receber_parcela", {
       p_parcela_id: parcelaId,
-      p_data_pagamento: hojeISO(),
+      p_valor: Math.round(valor * 100) / 100,
+      p_data_pagamento: dia,
     });
     if (error) return falha(error);
+
+    const { recebido, restante } = (resultado ?? {}) as { recebido?: number; restante?: number };
+    const entrou = Number(recebido ?? valor);
+    const falta = Number(restante ?? 0);
 
     if (parcela) {
       const clienteNome = (parcela.vendas as unknown as { cliente_nome: string | null } | null)?.cliente_nome;
       after(() =>
         enviarNotificacao(
           user.id,
-          "Parcela recebida",
-          `Parcela ${parcela.numero_parcela} — ${formatBRL(parcela.valor)}${clienteNome ? " — " + clienteNome : ""}`,
+          falta > 0 ? "Parte da parcela recebida" : "Parcela recebida",
+          `Parcela ${parcela.numero_parcela}: ${formatBRL(entrou)}${clienteNome ? ", " + clienteNome : ""}${falta > 0 ? `. Faltam ${formatBRL(falta)}` : ""}`,
           `/vendas/${parcela.venda_id}`,
         ).catch(() => {}),
       );
@@ -42,8 +53,13 @@ export async function marcarParcelaPaga(parcelaId: string): Promise<ActionResult
 
     revalidatePath("/contas-a-receber");
     revalidatePath("/fluxo-de-caixa");
+    revalidatePath("/clientes");
     revalidatePath("/");
-    return ok(parcela ? `Recebido ${formatBRL(parcela.valor)} e lançado no caixa.` : "Parcela marcada como paga.");
+    return ok(
+      falta > 0
+        ? `Recebido ${formatBRL(entrou)} e lançado no caixa. Faltam ${formatBRL(falta)}.`
+        : `Recebido ${formatBRL(entrou)} e lançado no caixa.`,
+    );
   } catch (e) {
     return falha(e);
   }

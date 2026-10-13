@@ -6,7 +6,7 @@ import { formatBRL, formatData } from "@/lib/format";
 import { Badge, Card, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { CancelarVendaButton } from "./cancelar-venda-button";
 import { ReciboCard } from "./recibo-card";
-import { MarcarPagoButton } from "../../contas-a-receber/marcar-pago-button";
+import { ReceberButton } from "../../contas-a-receber/receber-button";
 
 export const metadata: Metadata = { title: "Detalhe da venda" };
 
@@ -23,7 +23,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
   const [{ data: vendaData }, { data: itensData }, { data: parcelasData }] = await Promise.all([
     supabase.from("vendas").select("*").eq("id", id).maybeSingle(),
     supabase.from("venda_itens").select("*").eq("venda_id", id),
-    supabase.from("parcelas_com_status").select("*").eq("venda_id", id).order("numero_parcela"),
+    supabase.from("parcelas_com_status").select("*").eq("venda_id", id).order("numero_parcela").order("created_at"),
   ]);
 
   if (!vendaData) notFound();
@@ -42,6 +42,8 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
     supabase.auth.getUser(),
   ]);
   const nomeNegocio = (user?.user_metadata?.nome_negocio as string | undefined) || null;
+  // uma parcela recebida em partes ocupa mais de uma linha: o total é o maior número
+  const totalParcelas = parcelas.reduce((m, p) => Math.max(m, p.numero_parcela), 0);
   const recebido = parcelas.filter((p) => p.status_efetivo === "pago").reduce((s, p) => s + Number(p.valor), 0);
 
   return (
@@ -83,7 +85,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
           {itens.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0">
-                <p className="truncate text-ink">{item.produto_nome}</p>
+                <p className="break-words leading-snug text-ink">{item.produto_nome}</p>
                 <p className="text-xs text-ink-muted">
                   {item.quantidade} × {formatBRL(item.preco_unitario)}
                 </p>
@@ -170,12 +172,15 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
                 return (
                   <tr key={p.id}>
                     <td className={`${tdClass} text-ink-2`}>
-                      {p.numero_parcela}/{parcelas.length}
+                      {p.numero_parcela}/{totalParcelas}
+                      {p.parcial && <span className="block text-xs text-ink-muted">parte</span>}
                     </td>
                     <td className={`${tdClass} text-ink-2`}>
                       {formatData(p.vencimento)}
                       {p.data_pagamento && (
-                        <span className="block text-xs text-ink-muted">paga em {formatData(p.data_pagamento)}</span>
+                        <span className="block text-xs text-ink-muted">
+                          {p.parcial ? "recebido" : "paga"} em {formatData(p.data_pagamento)}
+                        </span>
                       )}
                     </td>
                     <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(p.valor)}</td>
@@ -183,7 +188,9 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
                       <Badge tone={status.tone}>{status.label}</Badge>
                     </td>
                     <td className={`${tdClass} text-right`}>
-                      {p.status_efetivo !== "pago" && <MarcarPagoButton id={p.id} />}
+                      {p.status_efetivo !== "pago" && (
+                        <ReceberButton id={p.id} valor={Number(p.valor)} numero={p.numero_parcela} cliente={venda.cliente_nome} />
+                      )}
                     </td>
                   </tr>
                 );

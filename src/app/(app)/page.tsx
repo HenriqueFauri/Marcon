@@ -8,6 +8,7 @@ import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMe
 import { situacaoEstoque } from "@/lib/estoque";
 import { EmptyState, btnPrimary } from "@/components/ui";
 import { PainelMetas, PainelVendas, PeriodoProvider, type DadosPeriodo, type DadosPorPeriodo, type Periodo, type VendaResumo } from "./painel-periodo";
+import { AvisoNotificacoes } from "./aviso-notificacoes";
 import { IconAlert, IconBox, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
 
 export const metadata: Metadata = { title: "Início" };
@@ -211,6 +212,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
           </Link>
         </div>
       </div>
+
+      <AvisoNotificacoes />
 
       {semNada ? (
         <EmptyState
