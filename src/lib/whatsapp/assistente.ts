@@ -62,7 +62,14 @@ Como entender o vendedor (frases soltas, enroladas, vindas de áudio: ache o ped
 - "vendi pro João" = campo cliente. "no pix", "no cartão", "em dinheiro" = forma_pagamento.
 - "saiu um", "vendi esse", "vendi a prata" depois de uma consulta = o produto que acabou de ser consultado.
 - Venda e pergunta na mesma mensagem ("vendi um d20 e quanto tenho de carregador?"): chame preparar_venda E a ferramenta da pergunta. O sistema mostra o resumo da venda sozinho, então responda só a pergunta, em uma frase. Se não houver outra pergunta, responda apenas "OK".
-- "errei", "desfaz", "apaga": isso é só pelo Marcon, diga em uma frase.`;
+- "errei", "desfaz", "apaga": isso é só pelo Marcon, diga em uma frase.
+
+Uma confirmação só (o resumo com SIM do sistema já é a confirmação):
+- Nunca pergunte em texto antes de preparar uma venda ("é esse?", "quer que eu lance?", "confirma?"). Se há um candidato claro (o único que combina, o único com estoque), chame preparar_venda direto: o vendedor vê o resumo e responde SIM.
+- Só pergunte antes quando houver DOIS ou mais candidatos plausíveis, e pergunte curto, com as opções, em uma frase ("Foi o Relógio Tomi ou o Smartwatch D20?"). Quando ele responder ("o smartwatch", "esse mesmo", "o primeiro"), chame preparar_venda na hora, sem pedir mais nada.
+- Palavra genérica ("relógio", "fone", "capa", "carregador"): olhe a lista "Produtos do vendedor" e veja tudo o que pode ser, inclusive por sinônimo (smartwatch é relógio). Se for mais de um e não der para saber pela conversa, faça a pergunta curta acima. Se for um só, prepare a venda.
+- Se ele corrigir o produto ("na real foi o smartwatch", "não, o outro"), prepare a venda do produto certo: o rascunho anterior é substituído sozinho.
+- Nas ferramentas, sempre passe o nome do produto como está na lista, nunca a palavra genérica.`;
 
 function instrucoes(escrita: boolean) {
   return `Você é o assistente do Marcon, um app de gestão para quem vende. Responde dentro do WhatsApp, para o dono do negócio, sobre o estoque, os preços e as vendas dele. Ele fala (muitas vezes por áudio) e está ocupado, atendendo cliente: entenda o que ele quer e resolva na hora, em poucas palavras.
@@ -120,6 +127,16 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
   // reaproveita, o que corta tempo e custo. O que muda a cada mensagem vai num bloco separado, depois.
   const sistema: Anthropic.TextBlockParam[] = [
     { type: "text", text: instrucoes(ctx.escrita), cache_control: { type: "ephemeral" } },
+    ...(ctx.catalogo?.length
+      ? [
+          {
+            type: "text" as const,
+            // o catálogo muda pouco: também vai para o cache, entre as regras e o que muda a cada mensagem
+            text: `Produtos do vendedor (nomes exatos do cadastro, os mais vendidos primeiro): ${ctx.catalogo.slice(0, 120).join("; ")}.`,
+            cache_control: { type: "ephemeral" as const },
+          },
+        ]
+      : []),
     { type: "text", text: contextoDoMomento(ctx.fatos) },
   ];
   const todas: Anthropic.Tool[] = ctx.escrita ? [...FERRAMENTAS, FERRAMENTA_VENDA, ...ferramentasDeLancamento()] : FERRAMENTAS;
@@ -140,7 +157,8 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
       max_tokens: 800,
       output_config: { effort: ESFORCO },
       system: sistema,
-      tools: ferramentas,
+      // com o rascunho já aberto, o modelo não pode montar outra venda por cima: só responder o resto
+      tools: rascunho ? ferramentas.filter((t) => !t.name.startsWith("preparar_")) : ferramentas,
       messages: mensagens,
     });
     tokens += resposta.usage.input_tokens + resposta.usage.output_tokens;
@@ -151,6 +169,8 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text)
         .join("\n")
+        // regra de texto do Marcon: nunca travessão. Nome vindo do banco ("Relógio Tomi — Preto") também.
+        .replace(/\s*[—–]\s*/g, ", ")
         .trim();
       fim(volta + 1);
       if (rascunho) {
@@ -173,7 +193,8 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
           return {
             type: "tool_result",
             tool_use_id: u.id,
-            content: "Feito. O sistema já mostra o resumo ao vendedor. Responda só ao que mais ele pediu, ou apenas OK se não pediu mais nada.",
+            content:
+              "Feito. O sistema já mostrou o resumo da venda: NÃO repita nem comente a venda. Responda SOMENTE à outra pergunta dele, com os dados das ferramentas, em uma frase. Se ele não perguntou mais nada, responda apenas OK.",
           };
         }
         return { type: "tool_result", tool_use_id: u.id, content: JSON.stringify(saida) };

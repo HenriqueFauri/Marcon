@@ -53,9 +53,13 @@ export async function confirmarSeDispensado(db: Db, ctx: ContextoAcao, resposta:
 
   const feito = await resolverPendente(db, ctx, "sim");
   if (!feito) return null;
-  // o resumo termina com a linha "Responda SIM..."; some só ela e deixa os detalhes antes do resultado
-  const detalhes = String(acao.resumo).split("\n\nResponda")[0];
-  return `${detalhes}\n\n${feito}`;
+  // o resumo começa com "Confirma esta...?" e termina com "Responda SIM...": nenhuma das duas faz sentido
+  // depois de lançado. Fica o resultado e, abaixo, o que foi lançado.
+  const itens = String(acao.resumo)
+    .split("\n\nResponda")[0]
+    .split("\n")
+    .filter((l) => !/^\*Confirma/.test(l));
+  return [feito, ...itens].join("\n");
 }
 
 // Devolve o texto da resposta, ou null quando a mensagem não é SIM nem NÃO (ou não há rascunho).

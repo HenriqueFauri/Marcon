@@ -119,10 +119,21 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
       const pedida = termo(it.variacao);
       const parecidas = (vars ?? []).filter((v) => pedida && v.nome_combinacao.toLowerCase().includes(pedida.toLowerCase()));
       const exatas = parecidas.filter((v) => igual(v.nome_combinacao, pedida));
-      const escolhidas = exatas.length === 1 ? exatas : parecidas;
+      let escolhidas = exatas.length === 1 ? exatas : parecidas;
+      // Não disse qual variação: só entram na conta as que têm estoque para a venda. Se sobrou uma só,
+      // é ela (a Prata, com o Preto zerado). Fica marcada como inferida: o SIM é pedido uma vez, nunca
+      // dispensado, mas o vendedor não precisa responder a uma pergunta antes.
+      let candidatas = vars ?? [];
+      if (escolhidas.length !== 1 && !pedida) {
+        candidatas = (vars ?? []).filter((v) => Number(v.estoque) >= quantidade);
+        if (candidatas.length === 1) {
+          escolhidas = candidatas;
+          aproximado = true;
+        }
+      }
       if (escolhidas.length !== 1) {
         return {
-          ambiguo: (vars ?? []).map((v) => v.nome_combinacao),
+          ambiguo: (candidatas.length ? candidatas : (vars ?? [])).map((v) => v.nome_combinacao),
           pergunta: `${p.nome} tem variações. Qual foi vendida?`,
         };
       }
