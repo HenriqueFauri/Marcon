@@ -57,6 +57,7 @@ export default async function ConfiguracoesPage() {
             email={(meta.empresa_email as string | undefined) ?? ""}
             endereco={(meta.empresa_endereco as string | undefined) ?? ""}
             documento={(meta.empresa_documento as string | undefined) ?? ""}
+            pix={(meta.empresa_pix as string | undefined) ?? ""}
             logoUrl={logoSignedUrl?.signedUrl ?? null}
           />
         </Card>

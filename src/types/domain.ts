@@ -183,6 +183,8 @@ export interface Parcela {
   status: ParcelaStatus;
   status_efetivo: ParcelaStatus;
   data_pagamento: string | null;
+  // parte recebida de uma parcela (migration 0045): a parcela original segue com o que falta
+  parcial: boolean;
 }
 
 export interface ParcelaComVenda extends Parcela {

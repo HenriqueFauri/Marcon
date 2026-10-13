@@ -17,7 +17,7 @@ import {
   Segmentos,
 } from "@/components/ui";
 import { IconWhatsapp } from "@/components/icons";
-import { MarcarPagoButton } from "./marcar-pago-button";
+import { ReceberButton } from "./receber-button";
 
 export const metadata: Metadata = { title: "Contas a receber" };
 
@@ -41,10 +41,20 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
   const filtro: Filtro = FILTROS.some((f) => f.valor === sp.status) ? (sp.status as Filtro) : "abertas";
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("parcelas_com_status")
-    .select("*, vendas(cliente_nome, cliente_id, clientes(telefone))")
-    .order("vencimento");
+  const [
+    { data, error },
+    {
+      data: { user },
+    },
+  ] = await Promise.all([
+    supabase
+      .from("parcelas_com_status")
+      .select("*, vendas(cliente_nome, cliente_id, clientes(telefone))")
+      .order("vencimento")
+      .order("created_at"),
+    supabase.auth.getUser(),
+  ]);
+  const chavePix = ((user?.user_metadata?.empresa_pix as string | undefined) ?? "").trim();
 
   if (error) {
     return (
@@ -67,6 +77,13 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
     .reduce((s, p) => s + Number(p.valor), 0);
 
   const soma = (lista: ParcelaComVenda[]) => lista.reduce((s, p) => s + Number(p.valor), 0);
+
+  // quanto já entrou de cada parcela recebida em partes (as partes são linhas pagas com parcial = true)
+  const chave = (p: ParcelaComVenda) => `${p.venda_id}:${p.numero_parcela}`;
+  const jaRecebido = new Map<string, number>();
+  for (const p of parcelas) {
+    if (p.parcial && p.status === "pago") jaRecebido.set(chave(p), (jaRecebido.get(chave(p)) ?? 0) + Number(p.valor));
+  }
 
   const visiveis = {
     abertas,
@@ -134,11 +151,17 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
             {visiveis.map((p) => {
               const status = STATUS[p.status_efetivo];
               const cliente = p.vendas?.cliente_nome;
+              const emPartes = p.status_efetivo !== "pago" ? (jaRecebido.get(chave(p)) ?? 0) : 0;
+              const lembrete =
+                emPartes > 0
+                  ? `do que falta da parcela ${p.numero_parcela}: ${formatBRL(p.valor)}`
+                  : `da parcela ${p.numero_parcela} de ${formatBRL(p.valor)}`;
+              const pix = chavePix ? `\n\nPra pagar no PIX, a chave é:\n${chavePix}` : "";
               const whatsapp =
                 p.status_efetivo !== "pago"
                   ? linkWhatsApp(
                       p.vendas?.clientes?.telefone,
-                      `Olá${cliente ? ", " + cliente.split(" ")[0] : ""}! Passando para lembrar da parcela ${p.numero_parcela} de ${formatBRL(p.valor)}, com vencimento em ${formatData(p.vencimento)}.`,
+                      `Olá${cliente ? ", " + cliente.split(" ")[0] : ""}! Passando para lembrar ${lembrete}, com vencimento em ${formatData(p.vencimento)}.${pix}`,
                     )
                   : null;
               return (
@@ -146,7 +169,9 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
                   <td className={`${tdClass} whitespace-nowrap text-ink-2`}>
                     {formatData(p.vencimento)}
                     {p.data_pagamento && (
-                      <span className="block text-xs text-ink-muted">paga em {formatData(p.data_pagamento)}</span>
+                      <span className="block text-xs text-ink-muted">
+                        {p.parcial ? "recebido" : "paga"} em {formatData(p.data_pagamento)}
+                      </span>
                     )}
                     <span className="mt-0.5 block sm:hidden">
                       <Badge tone={status.tone}>{status.label}</Badge>
@@ -156,7 +181,11 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
                     <Link href={`/vendas/${p.venda_id}`} className="text-ink hover:underline">
                       {cliente ?? "Sem nome"}
                     </Link>
-                    <span className="block text-xs text-ink-muted">Parcela {p.numero_parcela}</span>
+                    <span className="block text-xs text-ink-muted">
+                      Parcela {p.numero_parcela}
+                      {p.parcial && p.status === "pago" ? ", parte recebida" : ""}
+                      {emPartes > 0 ? `, já recebeu ${formatBRL(emPartes)}` : ""}
+                    </span>
                   </td>
                   <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(p.valor)}</td>
                   <td className={`${tdClass} hidden sm:table-cell`}>
@@ -176,7 +205,9 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
                           <IconWhatsapp width={16} height={16} />
                         </a>
                       )}
-                      {p.status_efetivo !== "pago" && <MarcarPagoButton id={p.id} />}
+                      {p.status_efetivo !== "pago" && (
+                        <ReceberButton id={p.id} valor={Number(p.valor)} numero={p.numero_parcela} cliente={cliente ?? null} />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -184,6 +215,22 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
             })}
           </tbody>
         </Table>
+      )}
+
+      {abertas.length > 0 && (
+        <p className="mt-3 px-4 text-[13px] text-ink-muted">
+          {chavePix ? (
+            "A cobrança pelo WhatsApp já vai com a sua chave PIX. Em Receber dá para lançar só uma parte da parcela."
+          ) : (
+            <>
+              Em Receber dá para lançar só uma parte da parcela.{" "}
+              <Link href="/configuracoes" className="font-medium text-brand-text hover:underline">
+                Cadastre sua chave PIX
+              </Link>{" "}
+              pra ela ir junto na cobrança pelo WhatsApp.
+            </>
+          )}
+        </p>
       )}
     </div>
   );

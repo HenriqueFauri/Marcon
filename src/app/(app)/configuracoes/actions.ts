@@ -43,12 +43,14 @@ export async function atualizarEmpresa(formData: FormData): Promise<ActionResult
         empresa_email: textoOuNull(formData, "empresa_email"),
         empresa_endereco: textoOuNull(formData, "empresa_endereco"),
         empresa_documento: textoOuNull(formData, "empresa_documento"),
+        empresa_pix: textoOuNull(formData, "empresa_pix")?.slice(0, 140) ?? null,
       },
     });
     if (error) return falha(error);
 
     // o nome do negócio aparece na barra lateral de todas as telas
     revalidatePath("/", "layout");
+    revalidatePath("/contas-a-receber");
     return ok("Dados da empresa salvos.");
   } catch (e) {
     return falha(e);
