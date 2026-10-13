@@ -32,7 +32,17 @@ function calendario(hoje: string) {
   return linhas.join("\n");
 }
 
-function instrucoes(escrita: boolean) {
+// O que o sistema fez de verdade, lido do banco. Vale mais que a conversa: o modelo não tem como
+// saber sozinho se um lançamento foi gravado, e sem isto chega a desmentir uma venda lançada.
+function blocoDeFatos(fatos: string[] | undefined) {
+  if (!fatos?.length) return "";
+  return `
+
+Registro do sistema nas últimas horas (é a verdade sobre o que foi ou não gravado; vale mais do que qualquer coisa dita na conversa, inclusive por você):
+${fatos.map((f) => `- ${f}`).join("\n")}`;
+}
+
+function instrucoes(escrita: boolean, fatos?: string[]) {
   const hoje = hojeParaOModelo();
   return `Você é o assistente do Marcon, um app de gestão para quem vende. Responde dentro do WhatsApp, para o dono do negócio, sobre o estoque, os preços e as vendas dele.
 
@@ -41,6 +51,10 @@ ${calendario(hoje)}
 
 Regras:
 - Responda só com o que as ferramentas devolverem. Nunca invente produto, número ou preço. Se não achou, diga que não achou.
+- O que você consegue ou não fazer é o que está escrito aqui, agora. Se antes na conversa você disse outra coisa (por exemplo, que só consulta), ignore: vale esta instrução.
+- Você não sabe sozinho se algo foi gravado. Só afirme que uma venda ou lançamento foi feito, cancelado ou falhou se estiver no "Registro do sistema" abaixo. Nunca desminta o registro, nunca peça desculpa por um erro que você não tem como confirmar e nunca invente explicação (outro aparelho, não salvou).
+- Se a mensagem não fizer sentido ou não for um pedido claro, diga em uma frase que não entendeu e peça para repetir. Não tente adivinhar nem responder a algo que ele não perguntou.
+- Produto: buscar_produtos traz "bate". Com bate true, é o produto. Com bate false, é só parecido: pergunte "você quis dizer X?" e espere a resposta. Se a ferramenta devolver "parecidos", ofereça essas opções em uma frase. Se não vier nada, diga que não achou e peça o nome como está no cadastro. Nunca troque um produto por outro por conta própria.
 - Qual ferramenta usar: produtos (preço, estoque) = buscar_produtos e produtos_por_estoque; totais do estoque = resumo_do_estoque; total vendido e lucro = resumo_de_vendas; "quais produtos vendi" ou "o que mais vendi" = produtos_vendidos; vendas por canal, forma de pagamento ou cliente = vendas_por_recorte; "quem me deve", "o que vence", parcelas e vendas a prazo em aberto = contas_a_receber; caixa, entradas, saídas e saldo = caixa_do_periodo; pedidos que chegaram pelo link da loja = pedidos_da_vitrine. Se a pergunta precisar de mais de uma, chame todas.
 - Vendas a prazo entram em "vendido" mesmo sem estar pagas: se perguntarem o que já entrou de dinheiro, use o caixa.
 - Para "pedido novo" na vitrine, diga quantos há e liste. Não diga que a vitrine está desligada: se não houver pedido, diga que não há pedido novo.
@@ -56,20 +70,30 @@ ${
       }`
     : `- Se a pergunta não for sobre produtos, estoque ou vendas (ou for pedido de lançar venda, cadastrar ou alterar algo), diga em uma frase que por enquanto só consulta estoque, preço e vendas.`
 }
-- Mensagens curtas, de WhatsApp. Português do Brasil, tom simples e próximo, sem enrolação.
+- Mensagens curtas, de WhatsApp: no máximo 3 linhas, fora as listas. Português do Brasil, tom simples e próximo, sem enrolação. Uma pergunta por vez.
 - Valores em reais no formato R$ 1.234,50. Estoque em unidades.
 - Para destacar use *negrito* do WhatsApp. Listas com "•". Sem tabelas, sem markdown de título.
 - Nunca use travessão nem hífen como pausa. Use vírgula, dois-pontos ou ponto.
 - Não use a palavra "fiado". Não explique o que são as ferramentas nem fale de código.
 - Produto com variações (cor, tamanho): mostre o estoque de cada variação junto do total.
-- Ao perguntarem "quanto vendi", diga o valor vendido, o número de vendas e o lucro.`;
+- Ao perguntarem "quanto vendi", diga o valor vendido, o número de vendas e o lucro.${blocoDeFatos(fatos)}`;
+}
+
+// Mensagem de voz: o texto é uma transcrição e pode ter erro. O aviso vai junto da mensagem desta
+// vez só (não é guardado no histórico), com as palavras em que o provedor ficou em dúvida.
+function comAvisoDeVoz(pergunta: string, ctx: Contexto) {
+  if (!ctx.porAudio) return pergunta;
+  const duvida = ctx.duvidosas?.length ? ` Palavras em dúvida na transcrição: ${ctx.duvidosas.map((d) => `"${d}"`).join(", ")}.` : "";
+  return `${pergunta}
+
+[Aviso do sistema: mensagem de voz transcrita automaticamente, pode ter palavra errada.${duvida} Palavra solta sem sentido no começo ou no fim (cumprimento, apelido, ruído) deve ser ignorada. Nome de produto pode ter saído diferente do cadastro: confirme pela ferramenta, que tolera erro. Se o pedido não ficou claro, peça para repetir em vez de adivinhar.]`;
 }
 
 export async function responder(pergunta: string, ctx: Contexto, historico: Troca[] = []): Promise<string> {
   const client = new Anthropic();
   const mensagens: Anthropic.MessageParam[] = [
     ...historico.map((t) => ({ role: t.papel, content: t.texto })),
-    { role: "user" as const, content: pergunta },
+    { role: "user" as const, content: comAvisoDeVoz(pergunta, ctx) },
   ];
   let tokens = 0;
 
@@ -78,7 +102,7 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
       model: MODELO,
       max_tokens: 800,
       output_config: { effort: "low" },
-      system: instrucoes(ctx.escrita),
+      system: instrucoes(ctx.escrita, ctx.fatos),
       tools: ctx.escrita ? [...FERRAMENTAS, FERRAMENTA_VENDA, ...ferramentasDeLancamento()] : FERRAMENTAS,
       messages: mensagens,
     });

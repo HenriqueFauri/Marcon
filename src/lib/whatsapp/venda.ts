@@ -2,6 +2,7 @@ import "server-only";
 import { avisarVenda } from "@/lib/push/eventos";
 import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
 import { MINUTOS_DO_RASCUNHO, igual, r2, termo, type ContextoAcao, type Db, type Entrada } from "./rascunho";
+import { umProduto } from "./produtos";
 import type { Resultado } from "./acoes";
 
 // Lançar venda pelo WhatsApp. REGRAS QUE NÃO PODEM QUEBRAR:
@@ -70,6 +71,7 @@ interface Rascunho {
   data: string;
   desconto: number;
   total: number;
+  aproximado?: boolean; // algum produto foi achado por semelhança: exige o SIM (ver acoes.ts)
 }
 
 // o que o cadastro do vendedor já tem (forma de pagamento, canal, cliente): usa o nome e o id de lá
@@ -84,6 +86,7 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
 
   const itens: ItemRascunho[] = [];
   const linhas: string[] = [];
+  let aproximado = false;
 
   for (const it of pedidos) {
     const quantidade = Math.trunc(Number(it.quantidade) || 1);
@@ -91,23 +94,11 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
     const t = termo(it.produto);
     if (!t) return { erro: "Faltou o nome do produto." };
 
-    const { data: achados, error } = await db
-      .from("produtos_com_estoque")
-      .select("id, nome, tem_variacoes, estoque_total, preco_varejo")
-      .eq("owner_id", ctx.owner)
-      .eq("status", "ativo")
-      .ilike("nome", `%${t}%`)
-      .order("nome")
-      .limit(6);
-    if (error) throw error;
-    if (!achados?.length) return { erro: `Não achei produto com "${t}" no seu cadastro.` };
-
-    const exatos = achados.filter((p) => igual(p.nome, t));
-    const candidatos = exatos.length === 1 ? exatos : achados;
-    if (candidatos.length > 1) {
-      return { ambiguo: candidatos.map((p) => p.nome), pergunta: "Qual desses produtos foi vendido?" };
-    }
-    const p = candidatos[0];
+    const achado = await umProduto(db, ctx.owner, t);
+    if ("falta" in achado) return achado.falta;
+    const p = achado.produto;
+    // nome só parecido com o que foi dito: o vendedor precisa ver e confirmar, mesmo com o SIM dispensado
+    if (!achado.firme) aproximado = true;
 
     let variacaoId: string | null = null;
     let nomeLinha = p.nome as string;
@@ -188,6 +179,7 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
     data,
     desconto,
     total,
+    aproximado,
   };
 
   const resumo = [

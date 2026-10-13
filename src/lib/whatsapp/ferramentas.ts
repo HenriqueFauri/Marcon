@@ -5,6 +5,7 @@ import { hojeISO, somarDias } from "@/lib/format";
 import { prepararVenda } from "./venda";
 import { prepararCaixa, prepararEstoque, prepararProduto } from "./lancamentos";
 import { tipoLiberado } from "./rascunho";
+import { procurarProdutos } from "./produtos";
 
 // Ferramentas que o assistente pode chamar. REGRA DE SEGURANÇA: o servidor passa o owner (dono da
 // conta, descoberto pelo telefone vinculado) e toda consulta filtra por ele. O modelo nunca escolhe
@@ -15,6 +16,9 @@ export interface Contexto {
   owner: string;
   telefone: string;
   escrita: boolean; // conta liberada para lançar venda
+  porAudio?: boolean; // a mensagem veio de voz (transcrita)
+  duvidosas?: string[]; // palavras em que a transcrição ficou em dúvida
+  fatos?: string[]; // o que o sistema gravou ou deixou de gravar por este número (route.ts)
 }
 
 type Db = NonNullable<ReturnType<typeof createAdminClient>>;
@@ -24,7 +28,7 @@ export const FERRAMENTAS: Anthropic.Tool[] = [
   {
     name: "buscar_produtos",
     description:
-      "Procura produtos do vendedor pelo nome, marca ou código. Devolve estoque, preço de venda e custo, e as variações (cor, tamanho) quando houver.",
+      "Procura produtos do vendedor pelo nome, marca ou código, tolerando erro de digitação e de voz. Devolve estoque, preço de venda e custo, e as variações (cor, tamanho) quando houver. Cada produto vem com 'bate': true quando o termo está no cadastro, false quando é só parecido (aí pergunte se é esse, não afirme).",
     input_schema: {
       type: "object",
       properties: {
@@ -198,16 +202,12 @@ export async function executarFerramenta(nome: string, entrada: Entrada, ctx: Co
     case "buscar_produtos": {
       const t = termo(entrada.busca);
       if (!t) return { erro: "Diga o que procurar" };
-      const { data, error } = await db
-        .from("produtos_com_estoque")
-        .select(COLUNAS)
-        .eq("owner_id", owner)
-        .eq("status", "ativo")
-        .or(`nome.ilike.%${t}%,marca.ilike.%${t}%,sku.ilike.%${t}%`)
-        .order("nome")
-        .limit(limite(entrada.limite, 8));
-      if (error) throw error;
-      return { produtos: await comVariacoes(db, owner, (data ?? []) as LinhaProduto[]) };
+      const achados = await procurarProdutos(db, owner, t, limite(entrada.limite, 8));
+      // parecido fraco não é resposta: melhor dizer que não achou do que chutar outro produto
+      const bons = achados.filter((p) => p.pontos >= 0.45);
+      if (!bons.length) return { produtos: [], aviso: `Nada com "${t}" nem parecido no cadastro.` };
+      const comDetalhe = await comVariacoes(db, owner, bons);
+      return { produtos: comDetalhe.map((p, i) => ({ ...p, bate: bons[i].pontos >= 0.999 })) };
     }
 
     case "produtos_por_estoque": {
