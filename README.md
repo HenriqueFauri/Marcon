@@ -52,7 +52,7 @@ npm run dev
 
 | | Vercel | Supabase | Branch |
 |---|---|---|---|
-| Produção | `marcon` | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `local-work-marcon` |
+| Produção | `marcon` | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `main` |
 | Staging | `marcon-staging` | `Marcon Staging` (`odgvhqwqyxtnaxgqiynb`) | `staging` |
 
 ```bash

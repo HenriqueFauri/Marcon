@@ -15,7 +15,7 @@ Criado em 2026-10-11. Custo: zero (Supabase Free, Vercel Hobby, Asaas sandbox).
 | | Produção | Staging |
 |---|---|---|
 | Vercel | projeto `marcon` | projeto `marcon-staging` |
-| Branch (Production Branch na Vercel) | `local-work-marcon` | `staging` |
+| Branch (Production Branch na Vercel) | `main` | `staging` |
 | Supabase | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `Marcon Staging` (`odgvhqwqyxtnaxgqiynb`) |
 | Asaas | ambiente real (`ASAAS_ENV=producao`) | sandbox (`ASAAS_ENV=sandbox`) |
 | Rotinas diárias (cobrança às 8h, resumo às 20h) | ligadas (`CRON_SECRET`) | desligadas (sem `CRON_SECRET`) |
@@ -31,10 +31,10 @@ O app não sabe em que ambiente está: lê só as variáveis do projeto da Verce
 1. Desenvolver em branch `claude/...` a partir da `staging`.
 2. Abrir PR para `staging`. Ao mergear, a Vercel `marcon-staging` publica.
 3. Aplicar as migrations novas no banco de Staging (abaixo) e testar lá, de preferência no celular.
-4. Passou: abrir PR de `staging` para `local-work-marcon`. Ao mergear, a produção publica.
+4. Passou: abrir PR de `staging` para `main`. Ao mergear, a produção publica.
 5. Aplicar as mesmas migrations na produção, na mesma ordem.
 
-Se algo for feito direto na produção (a pedido do dono), depois levar a mesma mudança para a `staging` (merge de `local-work-marcon` na `staging`) e aplicar a migration no banco de Staging.
+Se algo for feito direto na produção (a pedido do dono), depois levar a mesma mudança para a `staging` (merge de `main` na `staging`) e aplicar a migration no banco de Staging.
 
 ## Migrations
 
@@ -118,3 +118,7 @@ Assinatura e comissão do Indique e ganhe com o Asaas sandbox (os tokens de prod
 
 - Conferir no painel do Supabase Staging o Site URL e as Redirect URLs com a URL do `marcon-staging`.
 - Registrar a `0034_validar_foto_variacao.sql` em `schema_migrations` da produção (a definição é idêntica à que já existe lá).
+
+## Histórico
+
+- 2026-10-13: a branch de produção `local-work-marcon` foi renomeada para `main` (renomeada no GitHub, que redireciona PRs e a branch padrão). O projeto `marcon` na Vercel precisa ter `main` como Production Branch (Settings, Git). Quem ainda tem clone ou worktree com o nome antigo: `git fetch origin --prune` e `git branch -u origin/main`.
