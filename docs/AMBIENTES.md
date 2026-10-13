@@ -18,7 +18,8 @@ Criado em 2026-10-11. Custo: zero (Supabase Free, Vercel Hobby, Asaas sandbox).
 | Branch (Production Branch na Vercel) | `local-work-marcon` | `staging` |
 | Supabase | `UseMarcon` (`ouvxsfebfegqcvwmdume`) | `Marcon Staging` (`odgvhqwqyxtnaxgqiynb`) |
 | Asaas | ambiente real (`ASAAS_ENV=producao`) | sandbox (`ASAAS_ENV=sandbox`) |
-| Cron de cobrança | ligado (`CRON_SECRET`) | desligado (sem `CRON_SECRET`) |
+| Rotinas diárias (cobrança às 8h, resumo às 20h) | ligadas (`CRON_SECRET`) | desligadas (sem `CRON_SECRET`) |
+| Notificações push | ligadas (chaves VAPID) | desligadas (sem `VAPID_*`; ver `docs/NOTIFICACOES.md`) |
 | IA nos anúncios | ligada (`ANTHROPIC_API_KEY`) | desligada (sem a chave) |
 | Assistente do WhatsApp | conforme `WHATSAPP_*` | desligado (sem `EVOLUTION_*` e `WHATSAPP_*`) |
 | Domínio | www.usemarcon.com | URL da Vercel do `marcon-staging` |

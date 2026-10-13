@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CUPOM_REGEX, SLUG_REGEX, type Cupom } from "@/lib/vitrine";
+import { avisarPedidoDaVitrine } from "@/lib/push/eventos";
 
 // Ações da loja pública: rodam sem login. As funções do banco (migrations 0028 e 0034) só aceitam a chave de
 // serviço, então a chamada passa por aqui, onde o limite por IP é aplicado antes. Nada aqui lê ou grava
@@ -117,5 +118,7 @@ export async function registrarPedido(slug: string, pedido: PedidoDaLoja) {
       },
       p_ignorar: user?.id ?? null,
     });
+    // aviso (push) ao dono da loja; opcional, nunca atrapalha o pedido
+    await avisarPedidoDaVitrine(admin, s, pedido.codigo).catch((e) => console.error("[push] aviso de pedido da vitrine", e));
   } catch {}
 }

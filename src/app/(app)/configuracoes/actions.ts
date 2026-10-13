@@ -190,7 +190,10 @@ export async function enviarNotificacaoTeste(): Promise<ActionResult> {
 
     const evento = EVENTOS[Math.floor(Math.random() * EVENTOS.length)];
     const { titulo, corpo } = montarExemplo(lerPreferencias(user.user_metadata), evento, Math.floor(Math.random() * 1000));
-    await enviarNotificacao(user.id, titulo, corpo, "/");
+    const envio = await enviarNotificacao(user.id, titulo, corpo, "/");
+    if (envio.enviados === 0) {
+      return { ok: false, error: "O teste não saiu. Desative e ative as notificações neste aparelho e tente de novo." };
+    }
     return ok("Teste enviado. Olhe as notificações do aparelho.");
   } catch (e) {
     return falha(e);
