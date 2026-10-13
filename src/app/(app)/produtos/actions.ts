@@ -35,7 +35,8 @@ async function resolverFornecedor(supabase: Supabase, formData: FormData) {
   return { fornecedorId, fornecedorNome: data?.nome ?? nomeManual };
 }
 
-// Lê e valida os campos comuns de cadastro/edição de produto.
+// Lê e valida os campos comuns de cadastro/edição de produto. Vitrine e destaque não entram aqui:
+// são mudados só na Vitrine, então salvar o cadastro não tira o produto da loja.
 function camposProduto(formData: FormData) {
   const nome = texto(formData, "nome");
   const custo = numero(formData, "custo") ?? 0;
@@ -63,8 +64,6 @@ function camposProduto(formData: FormData) {
       preco_atacado: precoAtacado,
       alerta_estoque_baixo: alerta,
       unidade_medida: UNIDADES.includes(unidade) ? unidade : "un",
-      na_vitrine: formData.get("na_vitrine") === "on",
-      destaque: formData.get("destaque") === "on",
     },
   } as const;
 }

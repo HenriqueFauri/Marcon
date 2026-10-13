@@ -24,7 +24,7 @@ export function CompartilharCard({ link, mensagem, descricao }: { link: string; 
   }
 
   return (
-    <Card title="Seu link" description={descricao}>
+    <Card title="Seu link" rodape={descricao}>
       <div className="flex items-center gap-2">
         <input readOnly value={link} aria-label="Seu link de indicação" onFocus={(e) => e.currentTarget.select()} className={`${inputClass} font-mono text-[13px]`} />
         <button type="button" onClick={() => copiar(link, "Link copiado.")} className={`${btnSecondary} shrink-0`}>
@@ -80,7 +80,7 @@ export function SaqueCard({
   if (!pode) {
     const andamento = Math.min(100, Math.round((disponivel / SAQUE_MINIMO) * 100));
     return (
-      <Card title="Sacar" description={`Você pode sacar a partir de ${formatBRL(SAQUE_MINIMO)}, por PIX.`}>
+      <Card title="Sacar" rodape={`O saque é por PIX, a partir de ${formatBRL(SAQUE_MINIMO)}.`}>
         <div className="h-2 overflow-hidden rounded-full bg-fill" role="progressbar" aria-valuenow={andamento} aria-valuemin={0} aria-valuemax={100}>
           <div className="h-full rounded-full bg-brand-fill transition-all" style={{ width: `${andamento}%` }} />
         </div>
@@ -92,7 +92,7 @@ export function SaqueCard({
   }
 
   return (
-    <Card title={`Sacar ${formatBRL(disponivel)}`} description="O dinheiro vai por PIX, para a chave que você informar.">
+    <Card title={`Sacar ${formatBRL(disponivel)}`}>
       <form
         className="flex flex-col gap-3 sm:flex-row sm:items-end"
         onSubmit={(e) => {

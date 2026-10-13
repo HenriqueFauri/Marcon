@@ -76,6 +76,11 @@ function Marca({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
 
 type Contagens = Record<string, number>;
 
+// contagens que pedem ação (pedido novo da vitrine) viram selo vermelho; as outras ficam em cinza
+const SELOS: Record<string, (n: number) => string> = {
+  "/vitrine": (n) => (n === 1 ? "1 pedido novo" : `${n} pedidos novos`),
+};
+
 export interface PlanoNav {
   texto: string;
   tom: "neutral" | "positive" | "warning" | "info";
@@ -113,7 +118,16 @@ function ItemNav({ item, pathname, onNavigate, contagem }: { item: NavItem; path
     >
       <Icone className={isAtivo ? "" : "text-brand-text"} />
       <span className="flex-1">{item.label}</span>
-      {contagem ? <span className="text-xs tabular-nums text-ink-muted">{contagem}</span> : null}
+      {contagem && SELOS[item.href] ? (
+        <span
+          aria-label={SELOS[item.href](contagem)}
+          className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-semibold tabular-nums text-on-danger"
+        >
+          {contagem > 99 ? "99+" : contagem}
+        </span>
+      ) : contagem ? (
+        <span className="text-xs tabular-nums text-ink-muted">{contagem}</span>
+      ) : null}
     </Link>
   );
 }
@@ -204,6 +218,8 @@ export function MobileNav({
   // a tela de nova venda ocupa o celular inteiro, sem abas nem cabeçalho
   const emVenda = pathname.startsWith("/vendas/novo");
   const atalhos = NAV.filter((i) => NAV_MOBILE.includes(i.href));
+  // a Vitrine fica dentro do menu: o ponto no avatar avisa que tem pedido novo lá
+  const pedidosNovos = contagens?.["/vitrine"] ?? 0;
 
   return (
     <>
@@ -217,10 +233,13 @@ export function MobileNav({
         </Link>
         <button
           onClick={() => setAberto(true)}
-          aria-label="Abrir menu"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-fill text-[15px] font-semibold text-ink-muted"
+          aria-label={pedidosNovos > 0 ? `Abrir menu, ${SELOS["/vitrine"](pedidosNovos)} na vitrine` : "Abrir menu"}
+          className="relative flex h-11 w-11 items-center justify-center rounded-full bg-fill text-[15px] font-semibold text-ink-muted"
         >
           {(nome || nomeNegocio).trim().charAt(0).toUpperCase() || "M"}
+          {pedidosNovos > 0 && (
+            <span aria-hidden="true" className="absolute right-0 top-0 h-3 w-3 rounded-full bg-danger ring-2 ring-canvas" />
+          )}
         </button>
       </header>
 

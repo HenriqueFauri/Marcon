@@ -12,6 +12,7 @@ import { Card, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/componen
 import { IconPlus, IconSparkles } from "@/components/icons";
 import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, type PerguntasIA } from "@/lib/ia-perguntas";
 import { AutoTextarea } from "@/components/auto-textarea";
+import { Segmentado } from "@/components/ajustes";
 import { escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
 
 
@@ -337,6 +338,75 @@ function VersaoCard({
   );
 }
 
+// Rótulos que cabem lado a lado em 390 px, por quantidade de canais (nome mais o número de versões).
+const CABE_NO_CELULAR: Record<number, number> = { 2: 19, 3: 12, 4: 8 };
+
+// Troca de canal sem rolar de lado: até 4 canais, controle segmentado que divide a largura;
+// com mais (ou com nomes compridos demais para o celular), um seletor.
+function SeletorDeCanal({
+  canais,
+  anuncios,
+  canalId,
+  onMudar,
+}: {
+  canais: CanalVenda[];
+  anuncios: ProdutoAnuncio[];
+  canalId: string;
+  onMudar: (id: string) => void;
+}) {
+  const itens = canais.map((c) => ({ id: c.id, nome: c.nome, qtd: anuncios.filter((a) => a.canal_id === c.id).length }));
+  const versoes = (qtd: number) => (qtd === 1 ? "1 versão" : `${qtd} versões`);
+
+  if (itens.length === 1) {
+    return (
+      <p className="text-[15px] font-semibold text-ink">
+        {itens[0].nome}
+        {itens[0].qtd > 0 && <span className="ml-2 text-[13px] font-normal text-ink-muted">{versoes(itens[0].qtd)}</span>}
+      </p>
+    );
+  }
+
+  const segmentado = itens.length <= 4;
+  const cabe = segmentado && itens.every((i) => i.nome.length + (i.qtd > 0 ? 2 : 0) <= CABE_NO_CELULAR[itens.length]);
+
+  return (
+    <>
+      {segmentado && (
+        <div className={cabe ? "" : "hidden sm:block"}>
+          <Segmentado
+            rotulo="Canal de venda"
+            valor={canalId}
+            onMudar={onMudar}
+            opcoes={itens.map((i) => ({
+              valor: i.id,
+              label: (
+                <>
+                  {i.nome}
+                  {i.qtd > 0 && <span className="ml-1 text-xs font-normal tabular-nums text-ink-muted">{i.qtd}</span>}
+                </>
+              ),
+            }))}
+          />
+        </div>
+      )}
+      {!cabe && (
+        <select
+          value={canalId}
+          onChange={(e) => onMudar(e.target.value)}
+          aria-label="Canal de venda"
+          className={`${inputClass} ${segmentado ? "sm:hidden" : ""}`}
+        >
+          {itens.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.qtd > 0 ? `${i.nome} (${versoes(i.qtd)})` : i.nome}
+            </option>
+          ))}
+        </select>
+      )}
+    </>
+  );
+}
+
 export function AnunciosEditor({
   produtoId,
   canais,
@@ -398,27 +468,9 @@ export function AnunciosEditor({
 
   return (
     <div className="flex flex-col gap-6">
-      <Card title="Títulos e descrições" description="Uma versão por canal. Ajuste, copie e publique.">
-        <div className="-mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Canais de venda">
-          {canais.map((c) => {
-            const qtd = anuncios.filter((a) => a.canal_id === c.id).length;
-            const ativo = c.id === canal.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                role="tab"
-                aria-selected={ativo}
-                onClick={() => setCanalId(c.id)}
-                className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition ${
-                  ativo ? "bg-brand-fill font-semibold text-on-brand" : "bg-fill text-ink-2 hover:bg-fill-strong"
-                }`}
-              >
-                {c.nome}
-                {qtd > 0 && <span className="ml-1.5 text-xs opacity-80">{qtd}</span>}
-              </button>
-            );
-          })}
+      <Card title="Títulos e descrições">
+        <div className="mb-4">
+          <SeletorDeCanal canais={canais} anuncios={anuncios} canalId={canal.id} onMudar={setCanalId} />
         </div>
 
         {iaDisponivel && (

@@ -93,7 +93,7 @@ export function FotosSection({
   return (
     <Card
       title="Fotos"
-      description="A primeira é a capa. Envie aqui, copie e cole direto no anúncio ou baixe."
+      rodape="A primeira foto é a capa. Dá pra copiar e colar direto no anúncio, ou baixar."
       action={
         comUrl.length > 1 ? (
           <button type="button" onClick={levarTodas} disabled={ocupado} className={`${btnSecondary} px-4 py-1.5 text-sm`}>

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { CanalVenda, FormaPagamento } from "@/types/domain";
 import { Card, PageHeader } from "@/components/ui";
@@ -50,7 +49,7 @@ export default async function ConfiguracoesPage() {
           <PerfilForm nome={nome} email={user?.email ?? ""} />
         </Card>
 
-        <Card title="Dados da empresa" description="O nome aparece no menu; o resto é opcional e vai nos recibos.">
+        <Card title="Dados da empresa" rodape="O nome aparece no menu. O resto é opcional e vai nos recibos.">
           <EmpresaForm
             nomeNegocio={nomeNegocio}
             telefone={(meta.empresa_telefone as string | undefined) ?? ""}
@@ -73,13 +72,11 @@ export default async function ConfiguracoesPage() {
           </Grupo>
         )}
 
-        <Card title="Importar dados" description="Trouxe seus produtos, vendas e caixa de outro sistema? Traga tudo de uma vez.">
-          <Link href="/importar" className="text-[14px] font-medium text-brand-text underline-offset-2 hover:underline">
-            Importar de PDF
-          </Link>
-        </Card>
+        <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez.">
+          <LinhaLink href="/importar" rotulo="Importar dados" detalhe="PDF" />
+        </Grupo>
 
-        <Card title="Canais de venda" description="Onde você vende. Aparecem na venda e nos anúncios por canal.">
+        <Card title="Canais de venda" rodape="Onde você vende. Aparecem na venda e nos anúncios.">
           <ListaSimples
             itens={(canais ?? []) as CanalVenda[]}
             placeholder="Ex: Facebook Marketplace, OLX..."

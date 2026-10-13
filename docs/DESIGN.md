@@ -16,14 +16,15 @@ Leia antes de criar ou mudar qualquer tela. O padrão foi definido pelo dono em 
 | Título da página | `PageHeader` (sem `description`, `back` vira "‹ Anterior" na cor da marca) | `src/components/ui.tsx` |
 | Número de destaque | `StatCard` (a dica quebra em 2 linhas, não corta) | `src/components/ui.tsx` |
 | Filtro que muda a URL | `Segmentos` (controle segmentado que divide a largura) | `src/components/ui.tsx` |
-| Escolha dentro de formulário | `Segmentado` | `src/app/(app)/vitrine/campos.tsx` |
-| Grupo de campos ou lista | `Grupo` (título pequeno em cima, rodapé opcional) | `src/app/(app)/vitrine/campos.tsx` |
-| Liga/desliga | `Interruptor` (switch verde do iOS, `bg-positive`) | `src/app/(app)/vitrine/campos.tsx` |
-| Linha que navega | `LinhaLink` (ícone em quadrado colorido, detalhe cinza, `›`) | `src/app/(app)/vitrine/campos.tsx` |
+| Escolha dentro de formulário ou troca de aba sem URL | `Segmentado` | `src/components/ajustes.tsx` |
+| Grupo de campos ou lista | `Grupo` (título pequeno em cima, rodapé opcional) | `src/components/ajustes.tsx` |
+| Liga/desliga | `Interruptor` (switch verde do iOS, `bg-positive`) | `src/components/ajustes.tsx` |
+| Linha que navega | `LinhaLink` (ícone em quadrado colorido, detalhe cinza, `›`) | `src/components/ajustes.tsx` |
 | Botões | `btnPrimary` (pílula terracota), `btnSecondary`, `btnGhost` | `src/components/ui.tsx` |
+| Explicação de um cartão | prop `rodape` do `Card` (texto embaixo, fora do cartão; nunca `description` com frase) | `src/components/ui.tsx` |
 | Borda fina de cartão | utilitário `hairline` (aceita `sm:`) | `src/app/globals.css` |
 
-Se uma peça de `vitrine/campos.tsx` for usada em outra área, mova para `src/components/` em vez de copiar.
+As peças de `ajustes.tsx` nasceram na vitrine (`vitrine/campos.tsx` só reexporta). Peça nova que servir a mais de uma área vai direto para `src/components/`.
 
 ## Regras de layout
 

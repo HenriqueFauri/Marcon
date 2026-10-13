@@ -229,7 +229,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
                     {manual && (
                       <ConfirmButton
                         title="Excluir este lançamento?"
-                        description={`${l.descricao} — ${formatBRL(l.valor)}`}
+                        description={`${l.descricao}: ${formatBRL(l.valor)}`}
                         ariaLabel="Excluir lançamento"
                         onConfirm={excluirLancamento.bind(null, l.id)}
                       />

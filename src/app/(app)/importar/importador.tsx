@@ -368,7 +368,7 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
             />
             Selecionar todas
           </label>
-          <ul className="max-h-[32rem] divide-y divide-line overflow-y-auto rounded-2xl border border-line">
+          <ul className="divide-y divide-line sm:max-h-[32rem] sm:overflow-y-auto rounded-2xl border border-line">
             {analise.itens.map((v) => (
               <li key={v.ref} className="flex items-start gap-3 px-3 py-2.5 text-[14px]">
                 <Marcar
@@ -458,7 +458,7 @@ function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boo
             Entram as compras de estoque e as despesas. Compra de estoque não conta como despesa do mês (o custo entra no lucro quando o
             produto é vendido) e não altera o estoque.
           </p>
-          <ul className="max-h-[32rem] divide-y divide-line overflow-y-auto rounded-2xl border border-line">
+          <ul className="divide-y divide-line sm:max-h-[32rem] sm:overflow-y-auto rounded-2xl border border-line">
             {analise.itens.map((l) => (
               <li key={l.ref} className="flex items-start gap-3 px-3 py-2.5 text-[14px]">
                 <Marcar marcado={selecionados.has(l.ref)} onChange={(m) => alternar(l.ref, m)} rotulo={`Importar ${l.descricao}`} />

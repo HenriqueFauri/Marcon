@@ -115,7 +115,7 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
 
       <div className="flex flex-col gap-6">
         {p.tem_variacoes && (
-          <Card title="Variações" description="Cada variação tem estoque, custo e preço próprios.">
+          <Card title="Variações">
             <VariacoesSection
               produtoId={p.id}
               variacoes={variacoes}
