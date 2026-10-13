@@ -42,6 +42,7 @@ export async function updateSession(request: NextRequest) {
     pathname === "/landing" ||
     pathname === "/marketplace" || // landings por canal, para mandar nos grupos
     pathname === "/whatsapp" ||
+    pathname === "/assistente" || // versão da landing que apresenta o assistente no WhatsApp
     pathname === "/termos" ||
     pathname === "/privacidade" ||
     pathname.startsWith("/r/") || // recibo público, aberto pelo cliente de quem vendeu

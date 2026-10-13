@@ -17,16 +17,38 @@ import {
 } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
 import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
+import { COTA_MES } from "@/lib/whatsapp/uso";
 
-// Uma landing, três portas de entrada: a geral (raiz do site) e uma para cada
+// Uma landing, várias portas de entrada: a geral (raiz do site) e uma para cada
 // canal, para mandar o link certo em cada grupo. Muda só o começo da conversa;
 // o resto da página é o mesmo.
-export type Publico = "geral" | "marketplace" | "whatsapp";
+// "assistente" é a versão alternativa da geral, que também apresenta o assistente
+// no WhatsApp. Fica fora da busca enquanto o assistente não abre para todo mundo.
+export type Publico = "geral" | "marketplace" | "whatsapp" | "assistente";
 
 const PUBLICOS: Record<
   Publico,
-  { titulo: string; descricao: string; selo: string; manchete: [string, string]; apoio: string; canal: string }
+  {
+    titulo: string;
+    descricao: string;
+    selo: string;
+    manchete: [string, string];
+    apoio: string;
+    canal: string;
+    assistente?: boolean;
+  }
 > = {
+  assistente: {
+    titulo: "Marcon | O app de quem vende no Marketplace e no WhatsApp",
+    descricao:
+      "Estoque, custo, lucro e anúncios num lugar só, com um assistente no WhatsApp: você pergunta quanto vendeu e lança a venda por mensagem.",
+    selo: "Pra quem vende no Marketplace e no WhatsApp",
+    manchete: ["Você vende.", "O Marcon faz as contas."],
+    apoio:
+      "Estoque, custo, lucro e anúncios num app só. E um assistente no seu WhatsApp: você pergunta quanto vendeu ou lança a venda por mensagem, entre uma conversa e outra.",
+    canal: "WhatsApp",
+    assistente: true,
+  },
   geral: {
     titulo: "Marcon | O app de quem vende no Marketplace e no WhatsApp",
     descricao:
@@ -61,7 +83,11 @@ const PUBLICOS: Record<
 
 export function metadataDo(publico: Publico): Metadata {
   const p = PUBLICOS[publico];
-  return { title: { absolute: p.titulo }, description: p.descricao };
+  return {
+    title: { absolute: p.titulo },
+    description: p.descricao,
+    ...(p.assistente ? { robots: { index: false } } : {}),
+  };
 }
 
 const SECOES = [
@@ -72,6 +98,13 @@ const SECOES = [
   { id: "lucro", rotulo: "Lucro" },
   { id: "planos", rotulo: "Planos" },
 ];
+
+const SECAO_ASSISTENTE = { id: "assistente", rotulo: "Assistente" };
+
+const PERGUNTA_ASSISTENTE = {
+  p: "Como funciona o assistente no WhatsApp?",
+  r: `Você vincula o seu número em Configurações e conversa com o WhatsApp do Marcon. Ele responde sobre estoque, vendas, caixa, contas a receber e pedidos da vitrine, e lança venda por mensagem, sempre depois do seu SIM. Por enquanto é só texto: áudio e foto ainda não. Vem no plano Marcon, com ${COTA_MES} perguntas por mês.`,
+};
 
 const PERGUNTAS = [
   {
@@ -354,6 +387,41 @@ function Foto({ tom, capa = false }: { tom: string; capa?: boolean }) {
   );
 }
 
+// Conversa com o WhatsApp do Marcon. As respostas seguem o formato real do
+// assistente: curtas, com negrito e, na venda, o pedido de SIM.
+function Balao({ meu = false, hora, children }: { meu?: boolean; hora: string; children: ReactNode }) {
+  return (
+    <div
+      className={`max-w-[86%] px-3 py-2 text-[13px] leading-snug [&_strong]:whitespace-nowrap ${
+        meu
+          ? "self-end rounded-2xl rounded-tr-md bg-[#dcf8c6] text-[#111]"
+          : "hairline self-start rounded-2xl rounded-tl-md bg-surface text-ink"
+      }`}
+    >
+      {children}
+      <span className={`ml-2 inline-block translate-y-0.5 text-[10px] ${meu ? "text-black/45" : "text-ink-muted"}`}>{hora}</span>
+    </div>
+  );
+}
+
+function TelaConversa({ children }: { children: ReactNode }) {
+  return (
+    <Tela>
+      <div className="-mx-3.5 -mt-3.5 flex items-center gap-2.5 rounded-t-[34px] border-b border-line bg-surface px-4 py-3">
+        <Icone tamanho={36} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold tracking-tight text-ink">Marcon</span>
+          <span className="block text-[11px] text-ink-muted">Assistente no WhatsApp</span>
+        </span>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-white">
+          <IconWhatsapp width={15} height={15} />
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5 px-0.5 pb-1 pt-1">{children}</div>
+    </Tela>
+  );
+}
+
 function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="min-w-0">
@@ -554,6 +622,51 @@ function TelaVitrine() {
   );
 }
 
+function TelaPerguntas() {
+  return (
+    <TelaConversa>
+      <Balao meu hora="18:02">quanto vendi hoje?</Balao>
+      <Balao hora="18:02">
+        Hoje foram <strong>3 vendas</strong>, somando <strong>R$ 359,60</strong>. Lucro de <strong>R$ 174,60</strong>.
+      </Balao>
+      <Balao meu hora="18:03">o que está acabando?</Balao>
+      <Balao hora="18:03">
+        3 produtos no alerta:
+        <br />• Fone KZ ZSN Pro (Preto): 2 un.
+        <br />• Carregador turbo 20W: 1 un.
+        <br />• Smartwatch D20: 2 un.
+      </Balao>
+    </TelaConversa>
+  );
+}
+
+function TelaVendaNoZap() {
+  return (
+    <TelaConversa>
+      <Balao meu hora="14:31">vendi 1 fone kz preto por 89,90 no pix</Balao>
+      <Balao hora="14:31">
+        <strong>Confirma esta venda?</strong>
+        <br />• 1x Fone KZ ZSN Pro (Preto) a R$ 89,90
+        <br />
+        Total: <strong>R$ 89,90</strong>
+        <br />
+        Pagamento: Pix
+        <br />
+        <br />
+        Responda <strong>SIM</strong> para lançar ou <strong>NÃO</strong> para cancelar.
+      </Balao>
+      <Balao meu hora="14:32">sim</Balao>
+      <Balao hora="14:32">Venda lançada: R$ 89,90. Estoque e caixa já foram atualizados.</Balao>
+      <Balao meu hora="14:33">quem está me devendo?</Balao>
+      <Balao hora="14:33">
+        <strong>R$ 180,00</strong> a receber, de 2 clientes:
+        <br />• Bruna Alves: R$ 120,00, vence dia 10
+        <br />• Rafael Costa: R$ 60,00, vence dia 15
+      </Balao>
+    </TelaConversa>
+  );
+}
+
 function TelaImportar() {
   return (
     <Tela>
@@ -676,14 +789,21 @@ function PlanoItens({ itens }: { itens: readonly string[] }) {
 
 export function Landing({ publico }: { publico: Publico }) {
   const p = PUBLICOS[publico];
+  const comAssistente = p.assistente === true;
+  // na navegação o assistente entra na ordem em que aparece na página, depois do Lucro
+  const secoes = comAssistente ? [...SECOES.slice(0, -1), SECAO_ASSISTENTE, ...SECOES.slice(-1)] : SECOES;
+  const perguntas = comAssistente ? [PERGUNTAS[0], PERGUNTA_ASSISTENTE, ...PERGUNTAS.slice(1)] : PERGUNTAS;
+  const itensDoPlano = comAssistente
+    ? [...PLANOS.marcon.inclui, `Assistente no WhatsApp, com ${COTA_MES} perguntas por mês`]
+    : PLANOS.marcon.inclui;
   return (
     <div className="flex min-h-dvh flex-col bg-surface text-ink">
-      <header className="glass sticky top-0 z-20 flex h-11 items-center justify-between border-b border-line px-4 text-xs sm:justify-center sm:gap-9">
+      <header className="glass sticky top-0 z-20 flex h-11 items-center justify-between border-b border-line px-4 text-xs sm:justify-center sm:gap-5 md:gap-9">
         <a href="#topo" aria-label="Marcon, voltar ao topo">
           <Icone tamanho={18} />
         </a>
-        <nav aria-label="Seções" className="hidden items-center gap-9 sm:flex">
-          {SECOES.map((s) => (
+        <nav aria-label="Seções" className="hidden items-center gap-4 sm:flex md:gap-9">
+          {secoes.map((s) => (
             <a key={s.id} href={`#${s.id}`} className="text-ink-2 transition hover:text-ink">
               {s.rotulo}
             </a>
@@ -726,9 +846,13 @@ export function Landing({ publico }: { publico: Publico }) {
 
           <div className="relative mx-auto mt-16 w-full max-w-[400px]">
             <Cena giro={-2}>
-              <Tela>
-                <PainelMetas />
-              </Tela>
+              {comAssistente ? (
+                <TelaPerguntas />
+              ) : (
+                <Tela>
+                  <PainelMetas />
+                </Tela>
+              )}
             </Cena>
             <div className="-mt-3 flex flex-col gap-2 px-2 sm:-mt-10 sm:-mr-24 sm:ml-24">
               <Cena giro={1.5} className="flutuar-atrasado">
@@ -911,6 +1035,33 @@ export function Landing({ publico }: { publico: Publico }) {
           <TelaInicio />
         </Recurso>
 
+        {comAssistente && (
+          <Recurso
+            id="assistente"
+            rotulo="Assistente no WhatsApp"
+            fundo="bg-panel"
+            titulo={
+              <>
+                Pergunta no Zap.
+                <br />O Marcon responde.
+              </>
+            }
+            texto="Você conversa com o WhatsApp do Marcon como se fosse um contato. Pergunta quanto vendeu, o que tá acabando ou quem tá devendo, e lança a venda por mensagem. Antes de lançar, ele sempre pede o seu SIM."
+            pontos={[
+              "Estoque, vendas, caixa e contas a receber na conversa",
+              "Venda lançada por mensagem, só depois do seu SIM",
+              `${COTA_MES} perguntas por mês no plano Marcon`,
+            ]}
+            flutuante={
+              <Flutuante className="ml-auto sm:-right-16 sm:-top-16 sm:ml-0">
+                <Notificacao titulo="Vendeu! 🎉" corpo="Fone KZ ZSN Pro · R$ 89,90 · lucro R$ 42,40" />
+              </Flutuante>
+            }
+          >
+            <TelaVendaNoZap />
+          </Recurso>
+        )}
+
         <section aria-labelledby="quem-fez-titulo" className="px-5 py-20 sm:py-28">
           <div className="mx-auto max-w-[720px] text-center">
             <p className="text-[17px] font-semibold text-brand-text">Feito por quem também vende.</p>
@@ -992,7 +1143,7 @@ export function Landing({ publico }: { publico: Publico }) {
                   {formatBRL(PLANOS.marcon.valor)}
                   <span className="text-[15px] font-medium tracking-normal text-ink-muted"> /mês</span>
                 </p>
-                <PlanoItens itens={PLANOS.marcon.inclui} />
+                <PlanoItens itens={itensDoPlano} />
                 <Link
                   href="/login?modo=signup"
                   className="bg-brand-fill mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"
@@ -1011,7 +1162,7 @@ export function Landing({ publico }: { publico: Publico }) {
               Perguntas frequentes
             </h2>
             <div className="hairline mt-10 overflow-hidden rounded-3xl bg-panel">
-              {PERGUNTAS.map((q) => (
+              {perguntas.map((q) => (
                 <details key={q.p} className="group border-t border-line first:border-t-0">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-[17px] font-medium [&::-webkit-details-marker]:hidden">
                     {q.p}
@@ -1056,7 +1207,7 @@ export function Landing({ publico }: { publico: Publico }) {
             Marcon · O app de quem vende no Marketplace e no WhatsApp
           </span>
           <nav aria-label="Rodapé" className="flex flex-wrap justify-center gap-x-6 gap-y-2">
-            {SECOES.map((s) => (
+            {secoes.map((s) => (
               <a key={s.id} href={`#${s.id}`} className="hover:text-ink">
                 {s.rotulo}
               </a>
