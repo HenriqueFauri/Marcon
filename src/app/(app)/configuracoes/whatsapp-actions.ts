@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { assistenteAtivo, contaPodeUsar } from "@/lib/whatsapp/evolution";
 import { MINUTOS_DO_CODIGO, gerarCodigo } from "@/lib/whatsapp/vinculo";
+import { GRUPOS_CONFIRMAVEIS, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
 
 function revalidar() {
   revalidatePath("/configuracoes");
@@ -94,6 +95,37 @@ export async function alterarLancarVenda(ligado: boolean): Promise<ActionResult>
 
     revalidar();
     return ok(ligado ? "Lançar venda pelo Zap ligado." : "Lançar venda pelo Zap desligado.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// "Pedir meu SIM antes de lançar", um interruptor por tipo. Desligado = o servidor lança na hora e avisa.
+// O padrão é pedir (lista vazia); o grant da migration 0046 só deixa mudar esta coluna e a lancar_venda.
+export async function alterarConfirmacaoWhatsapp(grupo: string, pedir: boolean): Promise<ActionResult> {
+  try {
+    if (!(GRUPOS_CONFIRMAVEIS as string[]).includes(grupo)) return { ok: false, error: "Tipo inválido." };
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { data: vinculo } = await supabase.from("whatsapp_vinculos").select("sem_confirmar").eq("owner_id", user.id).maybeSingle();
+    if (!vinculo) return { ok: false, error: "Nenhum WhatsApp vinculado." };
+
+    const atual = new Set((vinculo.sem_confirmar ?? []) as GrupoConfirmavel[]);
+    if (pedir === true) atual.delete(grupo as GrupoConfirmavel);
+    else atual.add(grupo as GrupoConfirmavel);
+
+    const { error } = await supabase
+      .from("whatsapp_vinculos")
+      .update({ sem_confirmar: GRUPOS_CONFIRMAVEIS.filter((g) => atual.has(g)) })
+      .eq("owner_id", user.id);
+    if (error) return falha(error);
+
+    revalidar();
+    return ok(pedir === true ? "Vou pedir o seu SIM antes de lançar." : "Vou lançar na hora e avisar o que fiz.");
   } catch (e) {
     return falha(e);
   }

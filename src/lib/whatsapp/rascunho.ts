@@ -15,6 +15,8 @@ export interface ContextoAcao {
   owner: string;
   telefone: string;
   user?: User; // para o aviso (push) da venda, com as preferências de notificação dele
+  semConfirmar?: GrupoConfirmavel[]; // grupos em que o vendedor dispensou o SIM (Configurações)
+  porAudio?: boolean; // a mensagem veio de voz: a transcrição pode errar, então o SIM nunca é dispensado
 }
 
 export const MINUTOS_DO_RASCUNHO = 10;
@@ -33,6 +35,14 @@ const GRUPO_DO_TIPO: Record<Exclude<TipoAcao, "venda">, GrupoDeLancamento> = {
   caixa_entrada: "caixa",
   caixa_saida: "caixa",
 };
+
+// o que o vendedor pode escolher em Configurações: a venda mais os grupos acima
+export type GrupoConfirmavel = "venda" | GrupoDeLancamento;
+export const GRUPOS_CONFIRMAVEIS: GrupoConfirmavel[] = ["venda", "produto", "estoque", "caixa"];
+
+export function grupoDoTipo(tipo: TipoAcao): GrupoConfirmavel {
+  return tipo === "venda" ? "venda" : GRUPO_DO_TIPO[tipo];
+}
 
 export function gruposLiberados(): GrupoDeLancamento[] {
   const validos: GrupoDeLancamento[] = ["produto", "estoque", "caixa"];
