@@ -126,6 +126,7 @@ As migrations são rastreadas em `public.schema_migrations`. Até a 0041 aplicad
 | `TRANSCRICAO_MODELO` | Opcional. Padrão `gpt-4o-mini-transcribe` (o `gpt-4o-transcribe` erra menos número e nome, custa o dobro) |
 | `WHATSAPP_AUDIO_MAX_SEGUNDOS` | Opcional. Duração máxima do áudio (padrão 60) |
 | `WHATSAPP_AUDIO_CONFIANCA_MINIMA` | Opcional. Confiança média mínima do áudio, de 0 a 1 (padrão 0,3) |
+| `WHATSAPP_ESFORCO` | Opcional. `low` (padrão), `medium` ou `high`: quanto o modelo pensa antes de responder |
 | `WHATSAPP_ORIENTAR` | `1` responde número desconhecido (só em chip dedicado) |
 | `EVOLUTION_API_URL` | `https://evo.usemarcon.com` |
 | `EVOLUTION_API_KEY` | Chave da Evolution |

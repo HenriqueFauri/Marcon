@@ -13,6 +13,8 @@ const MAX_VOLTAS = 5;
 // Modelo mais leve e barato (Haiku 5.5). Consulta de estoque não precisa de raciocínio profundo:
 // esforço baixo. Dá para trocar sem mexer no código com WHATSAPP_MODELO.
 const MODELO = process.env.WHATSAPP_MODELO || "claude-haiku-5-5";
+// quanto o modelo pensa antes de responder: mais esforço entende melhor frase torta, e custa e demora mais
+const ESFORCO = (["low", "medium", "high"] as const).find((e) => e === process.env.WHATSAPP_ESFORCO) ?? "low";
 
 export interface Troca {
   papel: "user" | "assistant";
@@ -58,10 +60,12 @@ Regras:
 - Qual ferramenta usar: produtos (preço, estoque) = buscar_produtos e produtos_por_estoque; totais do estoque = resumo_do_estoque; total vendido e lucro = resumo_de_vendas; "quais produtos vendi" ou "o que mais vendi" = produtos_vendidos; vendas por canal, forma de pagamento ou cliente = vendas_por_recorte; "quem me deve", "o que vence", parcelas e vendas a prazo em aberto = contas_a_receber; caixa, entradas, saídas e saldo = caixa_do_periodo; pedidos que chegaram pelo link da loja = pedidos_da_vitrine. Se a pergunta precisar de mais de uma, chame todas.
 - Vendas a prazo entram em "vendido" mesmo sem estar pagas: se perguntarem o que já entrou de dinheiro, use o caixa.
 - Para "pedido novo" na vitrine, diga quantos há e liste. Não diga que a vitrine está desligada: se não houver pedido, diga que não há pedido novo.
-- Você lembra das mensagens recentes desta conversa: "e a preta?" ou "e ontem?" continuam o assunto anterior.
+- Você lembra das mensagens recentes desta conversa: "e a preta?" ou "e ontem?" continuam o assunto anterior. Mensagem curta ("preto", "vendi", "2", "no pix") completa o que veio antes: junte as duas e aja, sem pedir para ele repetir o que já disse.
+- Aja com o que já tem. Só faça pergunta quando faltar algo sem o qual não dá para seguir. Nunca pergunte o que dá para descobrir pela ferramenta ou pela conversa.
+- Custo, lucro e margem só quando ele perguntar por isso (a exceção é "quanto vendi", abaixo). Ao falar de produto, diga estoque e preço de venda: o cliente pode estar olhando a tela.
 ${
   escrita
-    ? `- Lançar venda: só quando o vendedor disser claramente que vendeu algo ("vendi 2 controles por 80 no pix"). Use preparar_venda com o que ele disse. Nunca invente preço, cliente, forma de pagamento nem canal: deixe vazio o que ele não falou. Se a ferramenta devolver "ambiguo", pergunte qual é em uma frase curta, com as opções. Se devolver "erro", explique em uma frase. Você nunca diz que a venda foi lançada: quem pede o SIM e lança é o sistema.
+    ? `- Lançar venda: só quando o vendedor disser claramente que vendeu algo ("vendi 2 controles por 80 no pix"). Use preparar_venda com o que ele disse, na hora. O produto pode ser o que ele acabou de consultar ("vendi", "vendi esse", "saiu um"): use o último produto da conversa, com a variação que ele escolheu. Nunca pergunte preço, forma de pagamento, cliente nem canal: sem preço o sistema usa o do cadastro, e ele confere tudo no resumo antes do SIM. Nunca invente esses dados: deixe vazio o que ele não falou. Só pergunte antes de preparar se não der para saber qual produto ou qual variação. Se a ferramenta devolver "ambiguo", pergunte qual é em uma frase curta, com as opções. Se devolver "erro", explique em uma frase. Você nunca diz que a venda foi lançada: quem pede o SIM e lança é o sistema.
 ${
         instrucoesDeLancamento()
           ? `${instrucoesDeLancamento()}
@@ -101,7 +105,7 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
     const resposta = await client.messages.create({
       model: MODELO,
       max_tokens: 800,
-      output_config: { effort: "low" },
+      output_config: { effort: ESFORCO },
       system: instrucoes(ctx.escrita, ctx.fatos),
       tools: ctx.escrita ? [...FERRAMENTAS, FERRAMENTA_VENDA, ...ferramentasDeLancamento()] : FERRAMENTAS,
       messages: mensagens,
