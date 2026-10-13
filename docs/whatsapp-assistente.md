@@ -24,7 +24,10 @@ Celular do vendedor ──WhatsApp──> chip do Marcon (Evolution API, Docker 
 | Provedor (único ponto que fala com a Evolution) | `src/lib/whatsapp/evolution.ts` |
 | Assistente (prompt, laço de ferramentas, calendário) | `src/lib/whatsapp/assistente.ts` |
 | Consultas (só leitura) | `src/lib/whatsapp/ferramentas.ts` |
-| Lançar venda (rascunho, SIM ou NÃO, aviso) | `src/lib/whatsapp/venda.ts` |
+| Rascunho comum a tudo que se lança (tipos, SIM e NÃO, `abrirAcao`) | `src/lib/whatsapp/rascunho.ts` |
+| Resolver o SIM ou NÃO e executar o lançamento | `src/lib/whatsapp/acoes.ts` |
+| Lançar venda (preparar, executar, aviso) | `src/lib/whatsapp/venda.ts` |
+| Lançar produto, estoque e caixa (desligado por padrão) | `src/lib/whatsapp/lancamentos.ts` |
 | Código de vínculo | `src/lib/whatsapp/vinculo.ts` |
 | Tela | `src/app/(app)/configuracoes/whatsapp-card.tsx` e `whatsapp-actions.ts` |
 | Teste de segurança do banco | `supabase/tests/whatsapp.sql` |
@@ -52,6 +55,13 @@ Para trocar a Evolution pela API oficial da Meta, reescreva só `enviarMensagem(
 4. `registrar_venda_como()` assume a identidade do dono só dentro da transação e chama a `registrar_venda()` do app: estoque, custo, parcelas, caixa e limites do plano valem igual.
 5. Sai o mesmo aviso (push) do app, com as preferências do vendedor. Falha no aviso não desfaz a venda.
 
+**Outros lançamentos (base pronta, desligada).** Produto novo, entrada e saída de estoque, entrada e saída de caixa seguem o mesmo molde da venda: `preparar_produto`, `preparar_estoque` e `preparar_caixa` só validam e abrem o rascunho; o SIM é resolvido por `resolverPendente()` em `acoes.ts`, que escolhe o executor pelo `tipo` do rascunho. Cada grupo só existe para o modelo quando está em `WHATSAPP_LANCAMENTOS` e a conta tem escrita liberada; se o grupo for desligado entre o rascunho e o SIM, o SIM não executa.
+- Produto: nome e preço obrigatórios; nome igual a um existente é recusado (vira entrada de estoque); estoque inicial entra sem mexer no caixa; categoria só se já existir no cadastro. Insert direto com o dono (o gatilho de limite do plano lê `new.owner_id`).
+- Estoque: entrada usa o valor dito ou o custo do cadastro e sai do caixa, a não ser que o vendedor diga que não pagou; saída exige o motivo (perda, uso ou ajuste) e não mexe no caixa. Usam `registrar_entrada_estoque_como()` e `registrar_saida_estoque_como()`.
+- Caixa: descrição e valor obrigatórios, categoria padrão "Outros", data até 60 dias atrás. Mesmos campos do lançamento manual do app.
+- Limite: 30 lançamentos por dia por conta, somando os três grupos (`WHATSAPP_LIMITE_LANCAMENTOS_DIA`), separado do limite de vendas.
+- **Não testado com o WhatsApp de verdade.** As funções do banco foram testadas no Staging (2026-10-11). Antes de ligar: subir a Evolution apontando para o Staging, ligar `WHATSAPP_LANCAMENTOS` lá e passar por cada tipo. Para lançar algo novo: um tipo em `TipoAcao`, um `preparar` que chame `abrirAcao()` e um executor em `EXECUTORES`.
+
 ## Ferramentas do modelo
 
 | Ferramenta | Responde |
@@ -66,6 +76,7 @@ Para trocar a Evolution pela API oficial da Meta, reescreva só `enviarMensagem(
 | `caixa_do_periodo` | Entradas, saídas, maiores saídas, saldo hoje |
 | `pedidos_da_vitrine` | Pedidos novos, vendidos ou descartados |
 | `preparar_venda` | Só para contas com escrita liberada |
+| `preparar_produto`, `preparar_estoque`, `preparar_caixa` | Escrita liberada e grupo ligado em `WHATSAPP_LANCAMENTOS` |
 
 Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `resumo_caixa` usam `auth.uid()`; as regras espelham as telas.
 
@@ -77,10 +88,11 @@ Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `res
 | `0039_whatsapp_conversas.sql` | `whatsapp_conversas` | RLS sem política: só a chave de serviço |
 | `0040_whatsapp_vendas.sql` | `whatsapp_acoes` e `registrar_venda_como()` | Tabela sem política; função só para `service_role` |
 | `0041_whatsapp_lancar_venda.sql` | `whatsapp_vinculos.lancar_venda` | Dono muda só essa coluna (grant por coluna) |
+| `0044_whatsapp_lancamentos_base.sql` | Tipos novos e `referencia_id` em `whatsapp_acoes`; `registrar_entrada_estoque_como()` e `registrar_saida_estoque_como()` | Funções só para `service_role` |
 
 Retenção (o que a política de privacidade promete), apagada a cada mensagem respondida: conversa 24 horas, código vencido 1 hora depois, `whatsapp_acoes` 90 dias.
 
-As migrations são rastreadas em `public.schema_migrations`. Todas já aplicadas em produção.
+As migrations são rastreadas em `public.schema_migrations`. Até a 0041 aplicadas em produção; a 0044 primeiro no Staging (ver `docs/AMBIENTES.md`).
 
 ## Variáveis de ambiente (Vercel, Production)
 
@@ -95,6 +107,8 @@ As migrations são rastreadas em `public.schema_migrations`. Todas já aplicadas
 | `WHATSAPP_COTA_MES` | Perguntas com IA por conta por mês (padrão 600) |
 | `WHATSAPP_LIMITE_DIA` | Perguntas com IA por conta por dia (padrão 40) |
 | `WHATSAPP_LIMITE_VENDAS_DIA` | Vendas lançadas por conta por dia (padrão 30) |
+| `WHATSAPP_LANCAMENTOS` | Grupos de lançamento além da venda, por vírgula: `produto`, `estoque`, `caixa`. Vazio = só venda (como hoje) |
+| `WHATSAPP_LIMITE_LANCAMENTOS_DIA` | Lançamentos que não são venda por conta por dia (padrão 30) |
 | `WHATSAPP_MODELO` | Opcional. Padrão `claude-haiku-5-5` |
 | `WHATSAPP_ORIENTAR` | `1` responde número desconhecido (só em chip dedicado) |
 | `EVOLUTION_API_URL` | `https://evo.usemarcon.com` |

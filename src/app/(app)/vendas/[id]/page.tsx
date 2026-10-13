@@ -83,7 +83,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
           {itens.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0">
-                <p className="truncate text-ink">{item.produto_nome}</p>
+                <p className="break-words leading-snug text-ink">{item.produto_nome}</p>
                 <p className="text-xs text-ink-muted">
                   {item.quantidade} × {formatBRL(item.preco_unitario)}
                 </p>

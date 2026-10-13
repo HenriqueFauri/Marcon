@@ -14,9 +14,11 @@ import {
   COR_PADRAO,
   COR_REGEX,
   CUPOM_REGEX,
+  DESCRICAO_VITRINE_MAX,
   ENTREGAS,
   INSTAGRAM_REGEX,
   SLUG_REGEX,
+  TITULO_VITRINE_MAX,
   fundoEscuro,
   normalizarWhatsapp,
 } from "@/lib/vitrine";
@@ -207,6 +209,67 @@ export async function definirNaVitrine(ids: string[], valor: boolean): Promise<A
     if (error) return falha(error);
     revalidatePath("/vitrine", "layout");
     return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// Como o produto aparece na loja (Vitrine > Produtos > produto). Nada disto mexe no anúncio nem no
+// cadastro: foto escondida continua no anúncio, a capa da loja não muda a ordem das fotos e o texto
+// da vitrine é próprio (em branco, a loja usa o nome e a descrição do cadastro).
+export async function definirFotoNaVitrine(id: string, produtoId: string, valor: boolean): Promise<ActionResult> {
+  try {
+    if (!UUID.test(id) || !UUID.test(produtoId)) return { ok: false, error: "Foto inválida." };
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("produto_fotos")
+      .update({ na_vitrine: valor === true })
+      .eq("id", id)
+      .eq("produto_id", produtoId);
+    if (error) return falha(error);
+    revalidatePath("/vitrine", "layout");
+    return ok();
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// fotoId nulo volta para a primeira foto da ordem
+export async function definirCapaDaVitrine(produtoId: string, fotoId: string | null): Promise<ActionResult> {
+  try {
+    if (!UUID.test(produtoId) || (fotoId !== null && !UUID.test(fotoId))) return { ok: false, error: "Foto inválida." };
+    const supabase = await createClient();
+    if (fotoId) {
+      const { data: foto } = await supabase.from("produto_fotos").select("id").eq("id", fotoId).eq("produto_id", produtoId).maybeSingle();
+      if (!foto) return { ok: false, error: "Não achei essa foto neste produto." };
+    }
+    const { error } = await supabase
+      .from("produtos")
+      .update({ vitrine_capa_id: fotoId, updated_at: new Date().toISOString() })
+      .eq("id", produtoId);
+    if (error) return falha(error);
+    revalidatePath("/vitrine", "layout");
+    return ok(fotoId ? "Capa da loja atualizada." : "A capa voltou a ser a primeira foto.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function salvarTextosDaVitrine(produtoId: string, titulo: string, descricao: string): Promise<ActionResult> {
+  try {
+    if (!UUID.test(produtoId)) return { ok: false, error: "Produto inválido." };
+    const t = String(titulo ?? "").replace(/\s+/g, " ").trim();
+    const d = String(descricao ?? "").trim();
+    if (t.length > TITULO_VITRINE_MAX) return { ok: false, error: `O título vai até ${TITULO_VITRINE_MAX} caracteres.` };
+    if (d.length > DESCRICAO_VITRINE_MAX) return { ok: false, error: `A descrição vai até ${DESCRICAO_VITRINE_MAX} caracteres.` };
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("produtos")
+      .update({ vitrine_titulo: t || null, vitrine_descricao: d || null, updated_at: new Date().toISOString() })
+      .eq("id", produtoId);
+    if (error) return falha(error);
+    revalidatePath("/vitrine", "layout");
+    return ok(t || d ? "Texto da loja salvo." : "A loja voltou a usar o nome e a descrição do cadastro.");
   } catch (e) {
     return falha(e);
   }

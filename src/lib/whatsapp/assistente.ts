@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { FERRAMENTAS, executarFerramenta, hojeParaOModelo, type Contexto } from "./ferramentas";
 import { FERRAMENTA_VENDA } from "./venda";
+import { ferramentasDeLancamento, instrucoesDeLancamento } from "./lancamentos";
 import { somarDias } from "@/lib/format";
 
 // Assistente de consultas do WhatsApp (só leitura). A memória da conversa vem de fora (route.ts):
@@ -47,7 +48,12 @@ Regras:
 ${
   escrita
     ? `- Lançar venda: só quando o vendedor disser claramente que vendeu algo ("vendi 2 controles por 80 no pix"). Use preparar_venda com o que ele disse. Nunca invente preço, cliente, forma de pagamento nem canal: deixe vazio o que ele não falou. Se a ferramenta devolver "ambiguo", pergunte qual é em uma frase curta, com as opções. Se devolver "erro", explique em uma frase. Você nunca diz que a venda foi lançada: quem pede o SIM e lança é o sistema.
-- Se a pergunta não for sobre produtos, estoque, vendas ou lançar venda (ou for pedido de cadastrar ou alterar algo), diga em uma frase que por enquanto só consulta e lança vendas.`
+${
+        instrucoesDeLancamento()
+          ? `${instrucoesDeLancamento()}
+- Se o pedido for outra coisa (alterar ou apagar algo, cancelar venda), diga em uma frase que isso ainda é só pelo Marcon.`
+          : `- Se a pergunta não for sobre produtos, estoque, vendas ou lançar venda (ou for pedido de cadastrar ou alterar algo), diga em uma frase que por enquanto só consulta e lança vendas.`
+      }`
     : `- Se a pergunta não for sobre produtos, estoque ou vendas (ou for pedido de lançar venda, cadastrar ou alterar algo), diga em uma frase que por enquanto só consulta estoque, preço e vendas.`
 }
 - Mensagens curtas, de WhatsApp. Português do Brasil, tom simples e próximo, sem enrolação.
@@ -73,7 +79,7 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
       max_tokens: 800,
       output_config: { effort: "low" },
       system: instrucoes(ctx.escrita),
-      tools: ctx.escrita ? [...FERRAMENTAS, FERRAMENTA_VENDA] : FERRAMENTAS,
+      tools: ctx.escrita ? [...FERRAMENTAS, FERRAMENTA_VENDA, ...ferramentasDeLancamento()] : FERRAMENTAS,
       messages: mensagens,
     });
     tokens += resposta.usage.input_tokens + resposta.usage.output_tokens;

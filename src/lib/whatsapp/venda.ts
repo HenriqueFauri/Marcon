@@ -1,31 +1,19 @@
 import "server-only";
-import type { User } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { avisarVenda } from "@/lib/push/eventos";
-import { mensagemDeErro } from "@/lib/action";
 import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
+import { MINUTOS_DO_RASCUNHO, igual, r2, termo, type ContextoAcao, type Db, type Entrada } from "./rascunho";
+import type { Resultado } from "./acoes";
 
 // Lançar venda pelo WhatsApp. REGRAS QUE NÃO PODEM QUEBRAR:
-// 1) O modelo só PREPARA (preparar_venda grava um rascunho). Quem LANÇA é resolverPendente(), código
-//    do servidor que só roda quando a mensagem do vendedor é exatamente um SIM.
+// 1) O modelo só PREPARA (preparar_venda grava um rascunho). Quem LANÇA é resolverPendente() em
+//    acoes.ts, código do servidor que só roda quando a mensagem do vendedor é exatamente um SIM.
 // 2) O rascunho guarda produto, variação, quantidade e preço já resolvidos: o SIM executa o que foi
 //    mostrado, não o que o modelo entenderia de novo.
 // 3) O texto de confirmação é montado aqui, não pelo modelo, para o valor mostrado ser o valor gravado.
 
-type Db = NonNullable<ReturnType<typeof createAdminClient>>;
-type Entrada = Record<string, unknown>;
+export type ContextoVenda = ContextoAcao;
 
-export interface ContextoVenda {
-  owner: string;
-  telefone: string;
-  user?: User; // para o aviso (push) da venda, com as preferências de notificação dele
-}
-
-const MINUTOS_DO_RASCUNHO = 10;
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
-
-export const SIM = /^\s*(sim|s|confirmo|confirma|confirmar|pode|pode lan[cç]ar)\s*[.!]?\s*$/i;
-export const NAO = /^\s*(n[aã]o|n|cancela|cancelar)\s*[.!]?\s*$/i;
 
 export const FERRAMENTA_VENDA = {
   name: "preparar_venda",
@@ -60,16 +48,6 @@ export const FERRAMENTA_VENDA = {
     required: ["itens"],
   },
 };
-
-function termo(v: unknown) {
-  return String(v ?? "")
-    .replace(/[%_,()*\\]/g, " ")
-    .trim()
-    .slice(0, 60);
-}
-
-const r2 = (n: number) => Math.round(n * 100) / 100;
-const igual = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 interface ItemRascunho {
   produto_id: string;
@@ -247,49 +225,10 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
   return { __resposta_final: resumo };
 }
 
-// Chamada pela rota ANTES do modelo: se há rascunho aberto neste número e a mensagem é SIM ou NÃO,
-// resolve aqui e devolve o texto da resposta. Devolve null quando a mensagem é outra coisa.
-export async function resolverPendente(db: Db, ctx: ContextoVenda, texto: string, maxPorDia: number): Promise<string | null> {
-  const quer = SIM.test(texto) ? "sim" : NAO.test(texto) ? "nao" : null;
-  if (!quer) return null;
-
-  const { data: acao } = await db
-    .from("whatsapp_acoes")
-    .select("id, owner_id, payload, expira_em")
-    .eq("telefone", ctx.telefone)
-    .eq("status", "pendente")
-    .maybeSingle();
-  if (!acao || acao.owner_id !== ctx.owner) return null;
-
-  const agora = new Date().toISOString();
-
-  if (quer === "nao") {
-    await db.from("whatsapp_acoes").update({ status: "cancelada", resolvida_em: agora }).eq("id", acao.id).eq("status", "pendente");
-    return "Certo, cancelei. Nada foi lançado.";
-  }
-
-  if (new Date(acao.expira_em).getTime() < Date.now()) {
-    await db.from("whatsapp_acoes").update({ status: "expirada", resolvida_em: agora }).eq("id", acao.id).eq("status", "pendente");
-    return "Esse pedido de venda expirou, por segurança. Me conta a venda de novo.";
-  }
-
-  // trava: só uma execução por rascunho, mesmo que o provedor entregue o SIM duas vezes
-  const { data: reservada } = await db
-    .from("whatsapp_acoes")
-    .update({ status: "executando" })
-    .eq("id", acao.id)
-    .eq("status", "pendente")
-    .select("id")
-    .maybeSingle();
-  if (!reservada) return null;
-
-  const { data: dentro } = await db.rpc("consumir_limite", { p_chave: `wa:venda:${ctx.owner}`, p_max: maxPorDia, p_segundos: 86400 });
-  if (dentro !== true) {
-    await db.from("whatsapp_acoes").update({ status: "falhou", erro: "limite diário", resolvida_em: agora }).eq("id", acao.id);
-    return "Você chegou no limite de vendas lançadas por aqui hoje. Lance as outras direto no Marcon.";
-  }
-
-  const r = acao.payload as Rascunho;
+// Executa o rascunho de venda. Só é chamada por resolverPendente() (acoes.ts), depois do SIM do
+// vendedor e com a execução já reservada: nunca pelo modelo.
+export async function executarVenda(db: Db, ctx: ContextoVenda, payload: unknown): Promise<Resultado> {
+  const r = payload as Rascunho;
   const { data: vendaId, error } = await db.rpc("registrar_venda_como", {
     p_owner: ctx.owner,
     p_cliente_id: r.clienteId,
@@ -307,13 +246,7 @@ export async function resolverPendente(db: Db, ctx: ContextoVenda, texto: string
     p_outros_gastos: 0,
   });
 
-  if (error) {
-    console.error("[whatsapp] registrar_venda_como", error.message);
-    await db.from("whatsapp_acoes").update({ status: "falhou", erro: error.message.slice(0, 300), resolvida_em: agora }).eq("id", acao.id);
-    return `Não consegui lançar: ${mensagemDeErro(error)}`;
-  }
-
-  await db.from("whatsapp_acoes").update({ status: "executada", venda_id: vendaId, resolvida_em: agora }).eq("id", acao.id);
+  if (error) throw error;
 
   // o mesmo aviso que o app manda quando a venda sai pela tela. Opcional: falhar aqui não desfaz a venda
   if (ctx.user) {
@@ -341,5 +274,5 @@ export async function resolverPendente(db: Db, ctx: ContextoVenda, texto: string
     }
   }
 
-  return `Venda lançada: ${formatBRL(r.total)}. Estoque e caixa já foram atualizados.`;
+  return { vendaId: String(vendaId), mensagem: `Venda lançada: ${formatBRL(r.total)}. Estoque e caixa já foram atualizados.` };
 }

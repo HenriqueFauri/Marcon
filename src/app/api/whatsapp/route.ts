@@ -10,7 +10,8 @@ import {
   extrairMensagem,
   type MensagemRecebida,
 } from "@/lib/whatsapp/evolution";
-import { resolverPendente } from "@/lib/whatsapp/venda";
+import { resolverPendente } from "@/lib/whatsapp/acoes";
+import { gruposLiberados } from "@/lib/whatsapp/rascunho";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
 import { AVISO_EM, COTA_MES, TETO_DIA, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
@@ -148,9 +149,17 @@ const TEXTO_AJUDA = [
 
 function textoAjuda(escrita: boolean) {
   if (!escrita) return TEXTO_AJUDA;
-  return TEXTO_AJUDA.replace("*Loja online*", "*Lançar venda*\n• vendi 2 controle PS4 por 80 no PIX\n\n*Loja online*").replace(
+  // os exemplos acompanham o que está ligado no servidor (WHATSAPP_LANCAMENTOS)
+  const grupos = gruposLiberados();
+  const outros = [
+    grupos.includes("produto") ? "• cadastra fone bluetooth a 60" : null,
+    grupos.includes("estoque") ? "• chegaram 10 panelas a 40 cada" : null,
+    grupos.includes("caixa") ? "• paguei 50 de frete" : null,
+  ].filter(Boolean);
+  const lancar = [outros.length ? "*Lançar*" : "*Lançar venda*", "• vendi 2 controle PS4 por 80 no PIX", ...outros].join("\n");
+  return TEXTO_AJUDA.replace("*Loja online*", `${lancar}\n\n*Loja online*`).replace(
     "Por enquanto só consulto, não lanço nada.",
-    "Antes de lançar uma venda eu sempre peço o seu SIM.",
+    outros.length ? "Antes de lançar qualquer coisa eu sempre peço o seu SIM." : "Antes de lançar uma venda eu sempre peço o seu SIM.",
   );
 }
 
@@ -206,9 +215,9 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
 
   const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined };
 
-  // SIM ou NÃO de um rascunho de venda aberto: resolvido aqui, pelo servidor, sem passar pelo modelo
+  // SIM ou NÃO de um rascunho aberto (venda ou outro lançamento): resolvido aqui, pelo servidor, sem passar pelo modelo
   if (escrita) {
-    const feito = await resolverPendente(admin, ctx, msg.texto, Number(process.env.WHATSAPP_LIMITE_VENDAS_DIA ?? 30));
+    const feito = await resolverPendente(admin, ctx, msg.texto);
     if (feito) {
       await enviarMensagem(msg.telefone, feito);
       await guardarTroca(admin, msg.telefone, msg.texto, feito);

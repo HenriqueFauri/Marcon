@@ -12,6 +12,9 @@ export const BANNER_MAX_IMAGENS = 3;
 export const BANNER_TITULO_MAX = 60;
 export const BANNER_SUBTITULO_MAX = 120;
 export const BANNER_BOTAO_MAX = 24;
+// texto próprio do produto na loja (migration 0043); os limites também estão no banco
+export const TITULO_VITRINE_MAX = 120;
+export const DESCRICAO_VITRINE_MAX = 3000;
 export const INSTAGRAM_REGEX = /^[A-Za-z0-9._]{1,30}$/;
 
 export type Entrega = "ambos" | "entrega" | "retirada";

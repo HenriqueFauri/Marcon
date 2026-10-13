@@ -147,7 +147,7 @@ function Seletor({
           podeAdicionar ? "bg-brand-fill text-on-brand shadow-sm shadow-brand/30" : "bg-fill text-ink-muted"
         }`}
       >
-        <span className="min-w-0 truncate">
+        <span className="min-w-0 break-words">
           {!escolhida
             ? escolhas.every((e) => e !== null)
               ? "Combinação indisponível"
@@ -208,8 +208,9 @@ export function ListaProdutos({
         const cabecalho = (
           <>
             <span className="min-w-0">
-              <span className="block truncate text-ink">{g.nome}</span>
-              <span className="block truncate text-xs text-ink-muted">
+              {/* nome inteiro, dobrando: com nomes parecidos, o corte escondia justamente a diferença */}
+              <span className="block break-words text-[15px] leading-snug text-ink">{g.nome}</span>
+              <span className="mt-0.5 block text-xs leading-snug text-ink-muted">
                 {g.temVariacoes ? `${g.itens.length} ${g.itens.length === 1 ? "opção" : "opções"} · ` : ""}
                 {emCarrinho > 0
                   ? `${emCarrinho} no carrinho · ${disponivel === 0 ? "sem mais estoque" : `${disponivel} restante${disponivel === 1 ? "" : "s"}`}`
@@ -218,8 +219,8 @@ export function ListaProdutos({
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-2">
-              <span className="tabular-nums text-ink-2">
-                {menor === maior ? formatBRL(menor) : `${formatBRL(menor)} – ${formatBRL(maior)}`}
+              <span className="whitespace-nowrap tabular-nums text-ink-2">
+                {menor === maior ? formatBRL(menor) : `${formatBRL(menor)} a ${formatBRL(maior)}`}
               </span>
               <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-brand-tint px-1 text-brand-text">
                 {emCarrinho > 0 ? (

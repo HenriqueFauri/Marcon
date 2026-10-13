@@ -148,7 +148,8 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <Link href={`/produtos/${p.id}`} className="line-clamp-2 text-[15px] leading-snug text-ink hover:underline">
+                {/* abre como o produto aparece na loja (capa, fotos, texto), não o cadastro */}
+                <Link href={`/vitrine/produtos/${p.id}`} className="line-clamp-2 text-[15px] leading-snug text-ink hover:underline">
                   {p.nome}
                 </Link>
                 <p className="mt-0.5 text-[13px] text-ink-muted">
@@ -188,6 +189,13 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                 rotulo={`Mostrar ${p.nome} na vitrine`}
                 onMudar={() => aplicar([p.id], { naVitrine: !p.naVitrine }, () => definirNaVitrine([p.id], !p.naVitrine))}
               />
+              <Link
+                href={`/vitrine/produtos/${p.id}`}
+                aria-label={`Ajustar como ${p.nome} aparece na loja`}
+                className="-mr-2 flex h-9 w-6 shrink-0 items-center justify-center text-lg text-ink-faint"
+              >
+                ›
+              </Link>
             </li>
           ))}
         </ul>

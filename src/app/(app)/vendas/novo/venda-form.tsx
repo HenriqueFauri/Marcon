@@ -489,9 +489,9 @@ export function VendaForm({
                     <IconBox width={22} height={22} strokeWidth={1.9} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[17px] text-ink">{produto.produto_nome}</p>
+                    <p className="break-words text-[15px] font-medium leading-snug text-ink">{produto.produto_nome}</p>
                     {produto.rotulo && (
-                      <p className="mt-0.5 inline-block max-w-full truncate rounded-full bg-fill px-2.5 py-0.5 text-xs font-medium text-ink-2">
+                      <p className="mt-1 inline-block max-w-full break-words rounded-xl bg-fill px-2.5 py-0.5 text-xs font-medium text-ink-2">
                         {produto.rotulo}
                       </p>
                     )}
