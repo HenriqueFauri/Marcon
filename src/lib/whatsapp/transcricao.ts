@@ -34,9 +34,18 @@ export interface Transcricao {
   confianca: number | null;
   // palavras em que o provedor ficou em dúvida (quase sempre ruído, nome próprio ou número)
   duvidosas: string[];
+  // quantas palavras ficaram em dúvida, de QUALQUER tamanho (inclui número curto como "80")
+  incertas: number;
 }
 
 const DUVIDA = 0.5; // palavra abaixo disso é marcada como duvidosa
+
+// Por voz, o vendedor que desligou o SIM só é atendido sem ele quando a transcrição está segura:
+// confiança média alta e nenhuma palavra em dúvida, número incluso. Sem dado do provedor, não é segura.
+const CONFIANCA_SEM_SIM = Number(process.env.WHATSAPP_AUDIO_CONFIANCA_SEM_SIM ?? 0.85);
+export function vozSegura(t: Pick<Transcricao, "confianca" | "incertas">) {
+  return t.confianca !== null && t.confianca >= CONFIANCA_SEM_SIM && t.incertas === 0;
+}
 // abaixo disso o áudio inteiro é ruído: melhor pedir de novo do que responder a uma frase inventada
 export const CONFIANCA_MINIMA = Number(process.env.WHATSAPP_AUDIO_CONFIANCA_MINIMA ?? 0.3);
 
@@ -47,9 +56,9 @@ interface Pedaco {
 
 // O provedor devolve a probabilidade de cada pedaço de palavra. Junta os pedaços em palavras
 // (um pedaço que começa com espaço abre palavra nova) e fica com o pior pedaço de cada uma.
-function lerConfianca(pedacos: Pedaco[] | undefined): Pick<Transcricao, "confianca" | "duvidosas"> {
+function lerConfianca(pedacos: Pedaco[] | undefined): Pick<Transcricao, "confianca" | "duvidosas" | "incertas"> {
   const validos = (pedacos ?? []).filter((p): p is Required<Pedaco> => typeof p.token === "string" && typeof p.logprob === "number");
-  if (!validos.length) return { confianca: null, duvidosas: [] };
+  if (!validos.length) return { confianca: null, duvidosas: [], incertas: 0 };
 
   const palavras: { texto: string; p: number }[] = [];
   for (const { token, logprob } of validos) {
@@ -66,7 +75,8 @@ function lerConfianca(pedacos: Pedaco[] | undefined): Pick<Transcricao, "confian
     .filter((w) => w.p < DUVIDA)
     .map((w) => w.texto.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
     .filter((w) => w.length >= 3);
-  return { confianca: Math.round(media * 100) / 100, duvidosas: [...new Set(duvidosas)].slice(0, 8) };
+  const incertas = palavras.filter((w) => w.p < DUVIDA && /[\p{L}\p{N}]/u.test(w.texto)).length;
+  return { confianca: Math.round(media * 100) / 100, duvidosas: [...new Set(duvidosas)].slice(0, 8), incertas };
 }
 
 async function pedir(chave: string, audio: Blob, nome: string, modelo: string, dica: string, comConfianca: boolean) {
@@ -118,6 +128,6 @@ export async function transcrever(audio: AudioRecebido, produtos: string[] = [])
 
   const lido = lerConfianca(corpo.logprobs);
   // sem o texto (é do cliente): só o que serve para calibrar os cortes de confiança
-  console.info(`[whatsapp] voz: ${modelo}, ${audio.segundos}s, confiança ${lido.confianca ?? "sem dado"}, ${lido.duvidosas.length} palavra(s) em dúvida`);
+  console.info(`[whatsapp] voz: ${modelo}, ${audio.segundos}s, confiança ${lido.confianca ?? "sem dado"}, ${lido.incertas} palavra(s) em dúvida, ${vozSegura(lido) ? "segura" : "não segura"} para dispensar o SIM`);
   return { texto, ...lido };
 }

@@ -111,7 +111,7 @@ export default async function AssistenteWhatsappPage() {
           <Grupo
             titulo="Pedir meu SIM antes de lançar"
             semPadding
-            rodape="Desligado, o assistente lança na hora e conta o que fez. Mensagem de voz sempre pede o SIM, porque a transcrição pode errar um número."
+            rodape="Desligado, o assistente lança na hora e conta o que fez. Por voz, só lanço sem o SIM quando entendo o áudio com segurança; se ficar qualquer dúvida, peço o SIM."
           >
             {confirmacoes.map((c) => (
               <InterruptorConfirmacao key={c.grupo} grupo={c.grupo} titulo={c.titulo} pedir={!semConfirmar.includes(c.grupo)} />
