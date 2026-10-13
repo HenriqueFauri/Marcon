@@ -1,6 +1,6 @@
 # Notificações do Marcon: todos os modelos
 
-Gerado a partir de `src/lib/notificacoes.ts` em 2026-10-11. Se as frases mudarem lá, este arquivo precisa ser gerado de novo.
+Gerado a partir de `src/lib/notificacoes.ts` em 2026-10-12. Se as frases mudarem lá, este arquivo precisa ser gerado de novo.
 
 ## Como funciona
 
@@ -9,20 +9,26 @@ Gerado a partir de `src/lib/notificacoes.ts` em 2026-10-11. Se as frases mudarem
 - As frases giram: dentro de uma rodada nenhuma se repete, a ordem muda a cada rodada e por conta, e a primeira de uma rodada nunca é a última da anterior.
 - O vendedor não escolhe a frase. Em Configurações ele só liga ou desliga cada grupo e escolhe quais dados aparecem.
 - Tocar no aviso abre a tela indicada em cada grupo.
-- Hoje **não há** aviso para: pedido novo da vitrine, estoque baixo, estoque zerado, resumo do dia, fim do teste grátis, assinatura atrasada. Estão no plano de melhorias de funções.
+- Hoje **não há** aviso para: fim do teste grátis e assinatura atrasada.
+- A inscrição é **por aparelho e por endereço do app**. Se o endereço muda (foi o caso de usemarcon.vercel.app para www.usemarcon.com) ou o app é reinstalado, é preciso ativar de novo. O Início mostra um lembrete discreto ("Os avisos estão desligados neste aparelho") em aparelho que suporta push e está sem inscrição; dá para dispensar, e ele volta se a inscrição for feita e sumir depois.
+- Falha de envio vai para o log do servidor (Vercel, Logs, busca por `[push]`): código de resposta, serviço (Apple, Google, Mozilla) e a conta. Inscrição que o serviço diz não existir mais (404 ou 410) é apagada e também fica registrada. Sem as chaves VAPID no ambiente, sai um aviso `[push] chaves VAPID ausentes` e nada é enviado.
 
 ## Resumo
 
 | Grupo (o que o vendedor liga) | Aviso | Quando sai | Frases |
 |---|---|---|---|
 | Vendas | Venda registrada | Na hora, a cada venda registrada (pela tela ou pelo assistente do WhatsApp) | 30 |
+| Pedidos da vitrine | Pedido novo da vitrine | Na hora, quando o cliente envia um pedido pela loja | 16 |
+| Estoque acabando | Estoque acabando | Uma vez, quando uma venda faz o produto cruzar o limite "avisar quando tiver até" | 12 |
+| Estoque acabando | Estoque zerado | Uma vez, quando uma venda zera o produto ou uma variação | 12 |
 | Meta batida | Meta batida | Uma vez, quando uma venda faz o mês cruzar a meta de vendas ou a meta de lucro | 14 |
 | Marcos de faturamento | Marco de R$ 1 mil no mês | Uma vez, quando o faturamento do mês passa de R$ 1 | 12 |
 | Marcos de faturamento | Marco de R$ 5 mil no mês | Uma vez, quando o faturamento do mês passa de R$ 5 | 12 |
 | Marcos de faturamento | Marco de R$ 10 mil no mês | Uma vez, quando o faturamento do mês passa de R$ 10 | 12 |
 | Lembrete de cobrança | Lembrete de cobrança | Todo dia às 8h (Brasília), só se houver parcela vencendo hoje ou atrasada | 16 |
+| Resumo do dia | Resumo do dia | Todo dia entre 20h e 20h59 (Brasília), só para quem vendeu no dia | 14 |
 
-Total: **96 frases** em 6 tipos de aviso, 4 grupos.
+Total: **150 frases** em 10 tipos de aviso, 7 grupos.
 
 ## Venda registrada
 
@@ -64,6 +70,80 @@ Total: **96 frases** em 6 tipos de aviso, 4 grupos.
 | 28 | Olha o dinheirinho entrando 🤑 |  |
 | 29 | Seguiu o fluxo: vendeu! 🌊 |  |
 | 30 | Mais um pedido pra conta 🧾 |  |
+
+## Pedido novo da vitrine
+
+- **Quando:** Na hora em que o cliente toca em "Enviar pedido" na loja e o pedido é gravado. Pedido recusado pelo banco (loja fora do ar, itens sem estoque) não avisa. O pedido de teste feito pelo próprio dono também avisa.
+- **Corpo (dados):** Uma linha: primeiro produto (com `+N` se houver mais itens), total do pedido e nome do cliente, se ele informou.
+- **Exemplo de corpo:** Tênis Casual +1 · R$ 189,90 · Maria Souza
+- **Ao tocar, abre:** O pedido (`/vitrine/pedidos/<id>`)
+- **Liga e desliga em:** Configurações, grupo "Pedidos da vitrine"
+
+| # | Título | Linha extra antes dos dados |
+|---|---|---|
+| 1 | Pedido novo na vitrine! 🛍️ |  |
+| 2 | Chegou pedido 👀 |  |
+| 3 | Tem cliente querendo comprar 🙋 |  |
+| 4 | A vitrine trabalhou por você 😎 |  |
+| 5 | Olha o pedido aí! 📬 |  |
+| 6 | Pedido fresquinho 🔔 |  |
+| 7 | Alguém encheu o carrinho 🛒 |  |
+| 8 | Sua loja recebeu um pedido 🏪 |  |
+| 9 | Corre lá no Zap, tem pedido 📲 |  |
+| 10 | Mais um pedido chegando 🙌 |  |
+| 11 | Pediram pela vitrine! 🎉 |  |
+| 12 | Cliente na porta 🚪 |  |
+| 13 | Pedido novo, bora responder 💬 |  |
+| 14 | A vitrine não para 🔥 |  |
+| 15 | Tem carrinho fechado te esperando 🧾 |  |
+| 16 | Pedido na área ⚡ |  |
+
+## Estoque acabando
+
+- **Quando:** Uma vez, logo depois de uma venda (pela tela ou pelo assistente do WhatsApp) que faz o estoque do produto cruzar o limite do campo "avisar quando tiver até". Produto sem limite preenchido não avisa. Em produto com variações o limite vale para a soma das variações.
+- **Como não repete:** não há nada guardado. O aviso compara o estoque de antes da venda (o de agora mais o que ela tirou) com o de depois, e só sai se foi aquela venda que cruzou o limite. As vendas seguintes já partem de baixo do limite e não avisam. Se o estoque for reposto acima do limite, o próximo cruzamento avisa de novo. Saída manual de estoque e ajuste não avisam.
+- **Corpo (dados):** Um produto por linha com quanto resta, até 3, e `e mais N`.
+- **Exemplo de corpo:** Tênis Casual: restam 2
+- **Ao tocar, abre:** O produto (`/produtos/<id>`) ou, com mais de um, a lista filtrada em Acabando (`/produtos?filtro=baixo`)
+- **Liga e desliga em:** Configurações, grupo "Estoque acabando"
+
+| # | Título | Linha extra antes dos dados |
+|---|---|---|
+| 1 | Tá acabando! ⏳ |  |
+| 2 | Estoque no finalzinho 👀 |  |
+| 3 | Hora de repor 📦 |  |
+| 4 | Vendeu tanto que tá acabando 🔥 |  |
+| 5 | Últimas unidades 🚨 |  |
+| 6 | Bora falar com o fornecedor? 📞 |  |
+| 7 | Estoque pedindo reforço 💪 |  |
+| 8 | Quase no fim 📉 |  |
+| 9 | Olho no estoque 👁️ |  |
+| 10 | Restam poucos ⚠️ |  |
+| 11 | Sucesso de vendas, estoque curto 😅 |  |
+| 12 | Repor antes que acabe 🛒 |  |
+
+## Estoque zerado
+
+- **Quando:** Uma vez, logo depois de uma venda que zera o produto ou uma variação dele. Mesma regra de não repetir do aviso de estoque acabando. Se o produto zera, sai só este aviso (não o de acabando). Não depende do limite preenchido.
+- **Corpo (dados):** Os nomes dos produtos, até 3, e `e mais N`. Variação aparece como `Produto (Variação)`.
+- **Exemplo de corpo:** Meia Esportiva
+- **Ao tocar, abre:** O produto (`/produtos/<id>`) ou, com mais de um, a lista filtrada em Zerados (`/produtos?filtro=sem`)
+- **Liga e desliga em:** Configurações, grupo "Estoque acabando"
+
+| # | Título | Linha extra antes dos dados |
+|---|---|---|
+| 1 | Acabou! 🚫 |  |
+| 2 | Estoque zerado 📭 |  |
+| 3 | Vendeu tudo! 🎉 |  |
+| 4 | Esse esgotou 🔥 |  |
+| 5 | Prateleira vazia 🕳️ |  |
+| 6 | Zerou o estoque 😮 |  |
+| 7 | Não sobrou nenhum 👏 |  |
+| 8 | Esgotado! Hora de repor 📦 |  |
+| 9 | Foi o último 🏁 |  |
+| 10 | Saiu a última unidade 👋 |  |
+| 11 | Acabou, e isso é bom sinal 😎 |  |
+| 12 | Sem estoque por aqui ⚠️ |  |
 
 ## Meta batida
 
@@ -186,10 +266,45 @@ Total: **96 frases** em 6 tipos de aviso, 4 grupos.
 | 15 | Contas a receber chamando 📞 |  |
 | 16 | Seu dinheiro quer voltar pra casa 🏠 |  |
 
+## Resumo do dia
+
+- **Quando:** Todo dia às 20h de Brasília (`/api/cron/resumo`, 23h UTC), só para quem registrou pelo menos uma venda com a data de hoje. No plano Hobby da Vercel a rotina sai em qualquer minuto entre 20h e 20h59. Dia sem venda não tem resumo, mesmo com parcela vencendo amanhã (o lembrete de cobrança da manhã seguinte cobre).
+- **Corpo (dados):** Primeira linha: quantidade de vendas, valor e lucro do dia. Segunda linha, só se houver: parcelas que vencem amanhã e o valor. Segue o que o vendedor escolheu esconder: valor e lucro seguem os dados do aviso de venda, e o valor das parcelas segue o "Valor total" do lembrete de cobrança.
+- **Exemplo de corpo:** 6 vendas · R$ 540,00 · lucro R$ 210,00 / 2 parcelas vencem amanhã · R$ 450,00
+- **Ao tocar, abre:** O Início (`/`)
+- **Liga e desliga em:** Configurações, grupo "Resumo do dia"
+
+| # | Título | Linha extra antes dos dados |
+|---|---|---|
+| 1 | Fechou o dia! 🌙 |  |
+| 2 | Resumo de hoje 📊 |  |
+| 3 | Como foi o seu dia 👇 |  |
+| 4 | Dia encerrado, olha só 👀 |  |
+| 5 | O placar de hoje 🏆 |  |
+| 6 | Hora de ver o resultado 💰 |  |
+| 7 | Seu dia em números 🔢 |  |
+| 8 | Balanço do dia ⚖️ |  |
+| 9 | Mais um dia de vendas 🙌 |  |
+| 10 | Fim de expediente 🌆 |  |
+| 11 | Hoje rendeu! 📈 |  |
+| 12 | O dia passou e deixou isso 💸 |  |
+| 13 | Boa noite, olha o seu dia 😴 |  |
+| 14 | Caixa do dia fechado ✅ |  |
+
+## Rotinas agendadas
+
+| Rota | Horário (UTC) | Horário (Brasília) | O que faz |
+|---|---|---|---|
+| `/api/cron/cobrancas` | `0 11 * * *` | 8h | Lembrete de cobrança |
+| `/api/cron/resumo` | `0 23 * * *` | 20h | Resumo do dia |
+
+Ficam em `vercel.json` e exigem `CRON_SECRET` (sem ele respondem 401). Plano Hobby da Vercel, conferido na documentação em 2026-10-12: até 100 rotinas por projeto, cada uma no máximo uma vez por dia, com precisão de uma hora (a das 20h sai entre 20h e 20h59). Expressão que rode mais de uma vez por dia derruba o deploy.
+
 ## Outras mensagens que o Marcon manda
 
 Não são push, mas chegam ao vendedor:
 
+- **Parcela recebida:** ao marcar uma parcela como paga sai um push fixo "Parcela recebida" (em `src/app/(app)/contas-a-receber/actions.ts`). Não tem frases em rotação nem grupo para desligar.
 - **Aviso de exemplo:** o botão em Configurações manda um push de teste com dados fictícios (Tênis Casual, Maria Souza), usando uma frase do grupo escolhido.
 - **Assistente do WhatsApp:** mensagens fixas de vínculo, ajuda, cota (80% e limite), confirmação com SIM e NÃO e resultado do lançamento. Ficam em `src/app/api/whatsapp/route.ts` e `src/lib/whatsapp/`.
 - **E-mails de conta:** confirmação de cadastro e redefinição de senha saem pelo Supabase Auth, com os modelos configurados no painel do Supabase (não estão no código).
