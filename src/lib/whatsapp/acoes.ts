@@ -1,6 +1,6 @@
 import "server-only";
 import { mensagemDeErro } from "@/lib/action";
-import { NAO, SIM, grupoDoTipo, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
+import { NAO, SIM, SIM_SUAVE, grupoDoTipo, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
 import { executarVenda } from "./venda";
 import { executarCaixa, executarEstoque, executarProduto } from "./lancamentos";
 
@@ -60,16 +60,29 @@ export async function confirmarSeDispensado(db: Db, ctx: ContextoAcao, resposta:
 
 // Devolve o texto da resposta, ou null quando a mensagem não é SIM nem NÃO (ou não há rascunho).
 export async function resolverPendente(db: Db, ctx: ContextoAcao, texto: string): Promise<string | null> {
-  const quer = SIM.test(texto) ? "sim" : NAO.test(texto) ? "nao" : null;
+  const quer = SIM.test(texto) ? "sim" : NAO.test(texto) ? "nao" : SIM_SUAVE.test(texto) ? "sim_suave" : null;
   if (!quer) return null;
 
   const { data: acao } = await db
     .from("whatsapp_acoes")
-    .select("id, owner_id, tipo, payload, expira_em")
+    .select("id, owner_id, tipo, payload, expira_em, resumo")
     .eq("telefone", ctx.telefone)
     .eq("status", "pendente")
     .maybeSingle();
   if (!acao || acao.owner_id !== ctx.owner) return null;
+
+  // "ok", "isso", "fechou": só confirma se o resumo ainda é a última coisa que o assistente disse
+  if (quer === "sim_suave") {
+    const { data: ultima } = await db
+      .from("whatsapp_conversas")
+      .select("texto")
+      .eq("telefone", ctx.telefone)
+      .eq("papel", "assistant")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!ultima || !String(ultima.texto).startsWith(String(acao.resumo))) return null;
+  }
 
   const agora = new Date().toISOString();
   const fechar = (campos: Record<string, unknown>) =>

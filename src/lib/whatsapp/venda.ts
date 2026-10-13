@@ -32,7 +32,12 @@ export const FERRAMENTA_VENDA = {
             produto: { type: "string", description: "Nome ou parte do nome do produto, como o vendedor falou" },
             variacao: { type: "string", description: "Cor, tamanho ou variação, só se o vendedor disse" },
             quantidade: { type: "integer", description: "Quantidade vendida (padrão 1)" },
-            preco_unitario: { type: "number", description: "Preço de cada unidade em reais, só se o vendedor disse" },
+            preco_unitario: { type: "number", description: "Preço de CADA unidade em reais, só se o vendedor disse 'cada', 'a X cada' ou vendeu 1 unidade" },
+            valor_total_item: {
+              type: "number",
+              description:
+                "Valor TOTAL deste item em reais, quando o vendedor disse 'N por X' sem 'cada' (ex.: 'vendi 2 carregadores por 80' é valor_total_item 80). Use este campo OU preco_unitario, nunca os dois",
+            },
           },
           required: ["produto", "quantidade"],
         },
@@ -130,7 +135,17 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
 
     if (estoque < quantidade) return { erro: `${nomeLinha} tem só ${estoque} em estoque.` };
 
-    const dito = it.preco_unitario == null ? NaN : Number(it.preco_unitario);
+    // "2 por 80" é o total do item: o servidor divide, e só aceita se a conta fechar em centavos
+    const totalDito = it.valor_total_item == null ? NaN : Number(it.valor_total_item);
+    let dito = it.preco_unitario == null ? NaN : Number(it.preco_unitario);
+    if (Number.isFinite(totalDito)) {
+      if (totalDito < 0 || totalDito > 1_000_000) return { erro: "Confira o valor informado." };
+      const porUnidade = r2(totalDito / quantidade);
+      if (r2(porUnidade * quantidade) !== r2(totalDito)) {
+        return { erro: `R$ ${totalDito} em ${quantidade} unidades não divide igual. Pergunte o valor de cada unidade.` };
+      }
+      dito = porUnidade;
+    }
     if (Number.isFinite(dito)) {
       if (dito < 0 || dito > 1_000_000) return { erro: "Confira o preço informado." };
       preco = dito;

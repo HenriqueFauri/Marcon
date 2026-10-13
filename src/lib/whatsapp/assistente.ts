@@ -13,6 +13,8 @@ const MAX_VOLTAS = 5;
 // Modelo mais leve e barato (Haiku 5.5). Consulta de estoque não precisa de raciocínio profundo:
 // esforço baixo. Dá para trocar sem mexer no código com WHATSAPP_MODELO.
 const MODELO = process.env.WHATSAPP_MODELO || "claude-haiku-5-5";
+// quanto o modelo pensa antes de responder: mais esforço entende melhor frase torta, e custa e demora mais
+const ESFORCO = (["low", "medium", "high"] as const).find((e) => e === process.env.WHATSAPP_ESFORCO) ?? "low";
 
 export interface Troca {
   papel: "user" | "assistant";
@@ -42,12 +44,28 @@ Registro do sistema nas últimas horas (é a verdade sobre o que foi ou não gra
 ${fatos.map((f) => `- ${f}`).join("\n")}`;
 }
 
-function instrucoes(escrita: boolean, fatos?: string[]) {
+// O que muda a cada mensagem (data, calendário, registro do sistema) fica FORA do bloco fixo, para o
+// bloco fixo poder ser reaproveitado do cache da API: mais rápido e mais barato a cada pergunta.
+function contextoDoMomento(fatos?: string[]) {
   const hoje = hojeParaOModelo();
-  return `Você é o assistente do Marcon, um app de gestão para quem vende. Responde dentro do WhatsApp, para o dono do negócio, sobre o estoque, os preços e as vendas dele.
+  return `Hoje é ${hoje} (fuso de Brasília). Calendário dos últimos 14 dias, para converter dia da semana em data (a semana começa na segunda; "de sexta a domingo" é a sexta e o domingo mais recentes que já passaram):
+${calendario(hoje)}${blocoDeFatos(fatos)}`;
+}
 
-Hoje é ${hoje} (fuso de Brasília). Calendário dos últimos 14 dias, para converter dia da semana em data (a semana começa na segunda; "de sexta a domingo" é a sexta e o domingo mais recentes que já passaram):
-${calendario(hoje)}
+// Como o vendedor realmente fala, e o que fazer. Exemplo vale mais que regra solta.
+const EXEMPLOS_DE_VENDA = `
+Como entender o vendedor (frases soltas, enroladas, vindas de áudio: ache o pedido no meio e ignore "então", "olha", "tipo" e cumprimento):
+- "vendi 2 carregador por 80" = preparar_venda com quantidade 2 e valor_total_item 80 (sem "cada", 80 é o total). "vendi 2 a 80 cada" = preco_unitario 80.
+- Número por extenso vira dígito: "dois" é 2, "oitenta reais" é 80, "cento e vinte" é 120.
+- "vendi o d20 e um carregador" = UM preparar_venda com os 2 itens. Nunca faça duas vendas quando é uma frase só.
+- "vendi ontem" ou "foi sexta" = campo data, pelo calendário acima.
+- "vendi pro João" = campo cliente. "no pix", "no cartão", "em dinheiro" = forma_pagamento.
+- "saiu um", "vendi esse", "vendi a prata" depois de uma consulta = o produto que acabou de ser consultado.
+- Venda e pergunta na mesma mensagem ("vendi um d20 e quanto tenho de carregador?"): chame preparar_venda E a ferramenta da pergunta. O sistema mostra o resumo da venda sozinho, então responda só a pergunta, em uma frase. Se não houver outra pergunta, responda apenas "OK".
+- "errei", "desfaz", "apaga": isso é só pelo Marcon, diga em uma frase.`;
+
+function instrucoes(escrita: boolean) {
+  return `Você é o assistente do Marcon, um app de gestão para quem vende. Responde dentro do WhatsApp, para o dono do negócio, sobre o estoque, os preços e as vendas dele. Ele fala (muitas vezes por áudio) e está ocupado, atendendo cliente: entenda o que ele quer e resolva na hora, em poucas palavras.
 
 Regras:
 - Responda só com o que as ferramentas devolverem. Nunca invente produto, número ou preço. Se não achou, diga que não achou.
@@ -58,10 +76,12 @@ Regras:
 - Qual ferramenta usar: produtos (preço, estoque) = buscar_produtos e produtos_por_estoque; totais do estoque = resumo_do_estoque; total vendido e lucro = resumo_de_vendas; "quais produtos vendi" ou "o que mais vendi" = produtos_vendidos; vendas por canal, forma de pagamento ou cliente = vendas_por_recorte; "quem me deve", "o que vence", parcelas e vendas a prazo em aberto = contas_a_receber; caixa, entradas, saídas e saldo = caixa_do_periodo; pedidos que chegaram pelo link da loja = pedidos_da_vitrine. Se a pergunta precisar de mais de uma, chame todas.
 - Vendas a prazo entram em "vendido" mesmo sem estar pagas: se perguntarem o que já entrou de dinheiro, use o caixa.
 - Para "pedido novo" na vitrine, diga quantos há e liste. Não diga que a vitrine está desligada: se não houver pedido, diga que não há pedido novo.
-- Você lembra das mensagens recentes desta conversa: "e a preta?" ou "e ontem?" continuam o assunto anterior.
+- Você lembra das mensagens recentes desta conversa: "e a preta?" ou "e ontem?" continuam o assunto anterior. Mensagem curta ("preto", "vendi", "2", "no pix") completa o que veio antes: junte as duas e aja, sem pedir para ele repetir o que já disse.
+- Aja com o que já tem. Só faça pergunta quando faltar algo sem o qual não dá para seguir. Nunca pergunte o que dá para descobrir pela ferramenta ou pela conversa.
+- Custo, lucro e margem só quando ele perguntar por isso (a exceção é "quanto vendi", abaixo). Ao falar de produto, diga estoque e preço de venda: o cliente pode estar olhando a tela.
 ${
   escrita
-    ? `- Lançar venda: só quando o vendedor disser claramente que vendeu algo ("vendi 2 controles por 80 no pix"). Use preparar_venda com o que ele disse. Nunca invente preço, cliente, forma de pagamento nem canal: deixe vazio o que ele não falou. Se a ferramenta devolver "ambiguo", pergunte qual é em uma frase curta, com as opções. Se devolver "erro", explique em uma frase. Você nunca diz que a venda foi lançada: quem pede o SIM e lança é o sistema.
+    ? `- Lançar venda: só quando o vendedor disser claramente que vendeu algo ("vendi 2 controles por 80 no pix"). Use preparar_venda com o que ele disse, na hora. O produto pode ser o que ele acabou de consultar ("vendi", "vendi esse", "saiu um"): use o último produto da conversa, com a variação que ele escolheu. Nunca pergunte preço, forma de pagamento, cliente nem canal: sem preço o sistema usa o do cadastro, e ele confere tudo no resumo antes do SIM. Nunca invente esses dados: deixe vazio o que ele não falou. Só pergunte antes de preparar se não der para saber qual produto ou qual variação. Se a ferramenta devolver "ambiguo", pergunte qual é em uma frase curta, com as opções. Se devolver "erro", explique em uma frase. Você nunca diz que a venda foi lançada: quem pede o SIM e lança é o sistema.
 ${
         instrucoesDeLancamento()
           ? `${instrucoesDeLancamento()}
@@ -76,7 +96,7 @@ ${
 - Nunca use travessão nem hífen como pausa. Use vírgula, dois-pontos ou ponto.
 - Não use a palavra "fiado". Não explique o que são as ferramentas nem fale de código.
 - Produto com variações (cor, tamanho): mostre o estoque de cada variação junto do total.
-- Ao perguntarem "quanto vendi", diga o valor vendido, o número de vendas e o lucro.${blocoDeFatos(fatos)}`;
+- Ao perguntarem "quanto vendi", diga o valor vendido, o número de vendas e o lucro.${escrita ? EXEMPLOS_DE_VENDA : ""}`;
 }
 
 // Mensagem de voz: o texto é uma transcrição e pode ter erro. O aviso vai junto da mensagem desta
@@ -95,18 +115,36 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
     ...historico.map((t) => ({ role: t.papel, content: t.texto })),
     { role: "user" as const, content: comAvisoDeVoz(pergunta, ctx) },
   ];
+
+  // O bloco fixo (regras e ferramentas) é marcado para cache: a partir da segunda pergunta a API o
+  // reaproveita, o que corta tempo e custo. O que muda a cada mensagem vai num bloco separado, depois.
+  const sistema: Anthropic.TextBlockParam[] = [
+    { type: "text", text: instrucoes(ctx.escrita), cache_control: { type: "ephemeral" } },
+    { type: "text", text: contextoDoMomento(ctx.fatos) },
+  ];
+  const todas: Anthropic.Tool[] = ctx.escrita ? [...FERRAMENTAS, FERRAMENTA_VENDA, ...ferramentasDeLancamento()] : FERRAMENTAS;
+  const ferramentas = todas.map((t, i) => (i === todas.length - 1 ? { ...t, cache_control: { type: "ephemeral" as const } } : t));
+
   let tokens = 0;
+  let cacheados = 0;
+  // texto pronto do servidor (resumo da venda a confirmar): vai ao vendedor sem o modelo reescrever
+  let rascunho: string | null = null;
+  const fim = (voltas: number) => {
+    if (ctx.rastro) Object.assign(ctx.rastro, { voltas, tokens, cacheados });
+    console.info(`[whatsapp] resposta em ${voltas} volta(s), ${tokens} tokens (${cacheados} do cache), ${historico.length} msgs de histórico`);
+  };
 
   for (let volta = 0; volta < MAX_VOLTAS; volta++) {
     const resposta = await client.messages.create({
       model: MODELO,
       max_tokens: 800,
-      output_config: { effort: "low" },
-      system: instrucoes(ctx.escrita, ctx.fatos),
-      tools: ctx.escrita ? [...FERRAMENTAS, FERRAMENTA_VENDA, ...ferramentasDeLancamento()] : FERRAMENTAS,
+      output_config: { effort: ESFORCO },
+      system: sistema,
+      tools: ferramentas,
       messages: mensagens,
     });
     tokens += resposta.usage.input_tokens + resposta.usage.output_tokens;
+    cacheados += resposta.usage.cache_read_input_tokens ?? 0;
 
     if (resposta.stop_reason !== "tool_use") {
       const texto = resposta.content
@@ -114,28 +152,51 @@ export async function responder(pergunta: string, ctx: Contexto, historico: Troc
         .map((b) => b.text)
         .join("\n")
         .trim();
-      console.info(`[whatsapp] resposta em ${volta + 1} volta(s), ${tokens} tokens, ${historico.length} msgs de histórico`);
+      fim(volta + 1);
+      if (rascunho) {
+        // o modelo só acrescenta a resposta à OUTRA parte do pedido; "OK" não acrescenta nada
+        const extra = /^ok[.!]?$/i.test(texto) ? "" : texto;
+        return extra ? `${rascunho}\n\n${extra}` : rascunho;
+      }
       return texto || "Não consegui responder agora. Pode perguntar de outro jeito?";
     }
 
     mensagens.push({ role: "assistant", content: resposta.content });
-    const resultados: Anthropic.ToolResultBlockParam[] = [];
-    for (const bloco of resposta.content) {
-      if (bloco.type !== "tool_use") continue;
+    const usos = resposta.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+    for (const u of usos) ctx.rastro?.ferramentas.push(u.name);
+
+    const rodar = async (u: Anthropic.ToolUseBlock): Promise<Anthropic.ToolResultBlockParam> => {
       try {
-        const saida = await executarFerramenta(bloco.name, (bloco.input ?? {}) as Record<string, unknown>, ctx);
-        // texto pronto do servidor (confirmação de venda): vai direto ao vendedor, sem o modelo reescrever
+        const saida = await executarFerramenta(u.name, (u.input ?? {}) as Record<string, unknown>, ctx);
         if (saida && typeof saida === "object" && "__resposta_final" in saida) {
-          return String((saida as { __resposta_final: string }).__resposta_final);
+          rascunho = String((saida as { __resposta_final: string }).__resposta_final);
+          return {
+            type: "tool_result",
+            tool_use_id: u.id,
+            content: "Feito. O sistema já mostra o resumo ao vendedor. Responda só ao que mais ele pediu, ou apenas OK se não pediu mais nada.",
+          };
         }
-        resultados.push({ type: "tool_result", tool_use_id: bloco.id, content: JSON.stringify(saida) });
+        return { type: "tool_result", tool_use_id: u.id, content: JSON.stringify(saida) };
       } catch (e) {
-        console.error("[whatsapp] ferramenta falhou", bloco.name, e);
-        resultados.push({ type: "tool_result", tool_use_id: bloco.id, content: "Falha ao consultar", is_error: true });
+        console.error("[whatsapp] ferramenta falhou", u.name, e);
+        return { type: "tool_result", tool_use_id: u.id, content: "Falha ao consultar", is_error: true };
       }
+    };
+
+    // consultas não dependem umas das outras: rodam juntas. Rascunhos gravam, então vão em ordem.
+    const resultados: Anthropic.ToolResultBlockParam[] = [];
+    if (usos.some((u) => u.name.startsWith("preparar_"))) for (const u of usos) resultados.push(await rodar(u));
+    else resultados.push(...(await Promise.all(usos.map(rodar))));
+
+    // venda sozinha: o resumo já é a resposta, sem gastar mais uma volta. Se houve outra pergunta
+    // (mais de uma ferramenta, ou "?" na mensagem), o modelo ainda precisa respondê-la.
+    if (rascunho && usos.length === 1 && !pergunta.includes("?")) {
+      fim(volta + 1);
+      return rascunho;
     }
     mensagens.push({ role: "user", content: resultados });
   }
 
+  if (rascunho) return rascunho;
   return "Essa pergunta ficou grande demais pra mim. Tenta perguntar de um jeito mais direto?";
 }
