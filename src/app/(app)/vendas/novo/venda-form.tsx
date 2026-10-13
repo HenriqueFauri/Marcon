@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { useAction } from "@/components/use-action";
-import { Card, Field, btnPrimary, inputClass } from "@/components/ui";
-import { IconBox, IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { Card, Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
+import { IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { Modal } from "@/components/modal";
 import { registrarVenda } from "../actions";
-import { ListaProdutos, agruparVendaveis } from "./produto-seletor";
+import { FotoProduto, ListaProdutos, agruparVendaveis } from "./produto-seletor";
 
 export interface Vendavel {
   chave: string;
@@ -22,6 +23,7 @@ export interface Vendavel {
   preco_atacado: number | null;
   custo: number;
   estoque: number;
+  foto: string | null; // link assinado da capa do produto
 }
 
 // pedido da vitrine virando venda (Registrar venda, em Vitrine > Pedidos)
@@ -59,6 +61,11 @@ function emTexto(n: number) {
 function mascaraDinheiro(digitado: string) {
   const digitos = digitado.replace(/\D/g, "").replace(/^0+/, "").slice(0, 11);
   return digitos ? emTexto(Number(digitos) / 100) : "";
+}
+
+// nome para mostrar em texto corrido: "Camiseta (Azul / M)"
+function nomeCompleto(v: Vendavel) {
+  return v.rotulo ? `${v.produto_nome} (${v.rotulo})` : v.produto_nome;
 }
 
 function somarMeses(dataISO: string, meses: number) {
@@ -294,6 +301,7 @@ export function VendaForm({
   const [data, setData] = useState(hoje);
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarMeses(hoje, 1));
   const [erro, setErro] = useState<string | null>(null);
+  const [confirmarZero, setConfirmarZero] = useState(false);
 
   const porChave = useMemo(() => new Map(vendaveis.map((v) => [v.chave, v])), [vendaveis]);
   const temAtacado = vendaveis.some((v) => v.preco_atacado != null);
@@ -311,6 +319,7 @@ export function VendaForm({
   const linhas = carrinho
     .map((item) => ({ item, produto: porChave.get(item.chave)! }))
     .filter((l) => l.produto);
+  const semPreco = linhas.filter((l) => paraNumero(l.item.preco) === 0);
   const subtotal = linhas.reduce((s, l) => s + l.item.quantidade * paraNumero(l.item.preco), 0);
   const custo = linhas.reduce((s, l) => s + l.item.quantidade * l.produto.custo, 0);
   const valorDesconto = paraNumero(desconto);
@@ -374,12 +383,15 @@ export function VendaForm({
     const problema = validar();
     setErro(problema);
     if (problema) return;
-    if (
-      linhas.some((l) => paraNumero(l.item.preco) === 0) &&
-      !window.confirm("Há item com preço R$ 0,00. Registrar a venda assim mesmo?")
-    )
+    // preço zerado pode ser brinde ou esquecimento: pergunta antes de registrar
+    if (semPreco.length > 0) {
+      setConfirmarZero(true);
       return;
+    }
+    registrar();
+  }
 
+  function registrar() {
     run(
       () =>
         registrarVenda({
@@ -456,17 +468,20 @@ export function VendaForm({
             )
           }
         >
-          <div className="relative mb-3">
-            <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" width={16} height={16} />
-            <input
-              type="search"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar produto, marca ou SKU..."
-              aria-label="Buscar produto"
-              id="buscar-produto"
-              className={`${inputClass} pl-9`}
-            />
+          {/* a busca gruda no topo enquanto a lista rola com a página (sem rolagem dentro da rolagem) */}
+          <div className="sticky top-[env(safe-area-inset-top)] z-10 mb-1 bg-surface py-2">
+            <div className="relative">
+              <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" width={16} height={16} />
+              <input
+                type="search"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar produto, marca ou SKU..."
+                aria-label="Buscar produto"
+                id="buscar-produto"
+                className={`${inputClass} pl-9`}
+              />
+            </div>
           </div>
 
           <ListaProdutos
@@ -484,73 +499,75 @@ export function VendaForm({
           ) : (
             <ul className="-mx-1 divide-y divide-line">
               {linhas.map(({ item, produto }) => (
-                <li key={item.chave} className="flex items-center gap-3 px-1 py-2.5">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-brand-text">
-                    <IconBox width={22} height={22} strokeWidth={1.9} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words text-[15px] font-medium leading-snug text-ink">{produto.produto_nome}</p>
-                    {produto.rotulo && (
-                      <p className="mt-1 inline-block max-w-full break-words rounded-xl bg-fill px-2.5 py-0.5 text-xs font-medium text-ink-2">
-                        {produto.rotulo}
-                      </p>
-                    )}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <label
-                        className="flex w-[8.5rem] items-center gap-1.5 rounded-xl border border-line bg-fill px-2.5 py-1 text-ink-muted focus-within:border-brand focus-within:bg-surface focus-within:ring-4 focus-within:ring-brand/15"
-                        title="Toque para mudar o preço desta venda"
-                      >
-                        <span className="text-[15px]">R$</span>
-                        <input
-                          inputMode="numeric"
-                          value={item.preco}
-                          onChange={(e) =>
-                            setCarrinho((prev) =>
-                              prev.map((i) =>
-                                i.chave === item.chave ? { ...i, preco: mascaraDinheiro(e.target.value) || "0,00" } : i,
-                              ),
-                            )
-                          }
-                          aria-label={`Preço unitário de ${produto.nome}`}
-                          className="w-full min-w-0 bg-transparent font-semibold tabular-nums text-ink outline-none"
-                        />
-                        <IconPencil width={14} height={14} className="shrink-0 text-ink-faint" aria-hidden="true" />
-                      </label>
+                // duas linhas: foto e nome em cima; preço e quantidade embaixo, com a largura toda
+                // (ao lado do nome, os botões de 44 px não cabiam em 390 px)
+                <li key={item.chave} className="flex flex-col gap-2 px-1 py-3">
+                  <div className="flex items-center gap-3">
+                    <FotoProduto url={produto.foto} />
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-[15px] font-medium leading-snug text-ink">{produto.produto_nome}</p>
+                      {produto.rotulo && (
+                        <p className="mt-1 inline-block max-w-full break-words rounded-xl bg-fill px-2.5 py-0.5 text-xs font-medium text-ink-2">
+                          {produto.rotulo}
+                        </p>
+                      )}
                       {item.quantidade > 1 && (
-                        <span className="text-[13px] tabular-nums text-ink-muted">
-                          × {item.quantidade} = {formatBRL(item.quantidade * paraNumero(item.preco))}
-                        </span>
+                        <p className="mt-0.5 text-[13px] tabular-nums text-ink-muted">
+                          {item.quantidade} × {formatBRL(paraNumero(item.preco))} = {formatBRL(item.quantidade * paraNumero(item.preco))}
+                        </p>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center rounded-full bg-canvas">
-                    <button
-                      type="button"
-                      className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
-                      aria-label="Diminuir quantidade"
-                      onClick={() =>
-                        item.quantidade <= 1
-                          ? setCarrinho((prev) => prev.filter((i) => i.chave !== item.chave))
-                          : alterarQuantidade(item.chave, item.quantidade - 1)
-                      }
+                  <div className="flex items-center justify-between gap-3">
+                    <label
+                      className="flex h-11 w-[9rem] min-w-0 items-center gap-1.5 rounded-xl border border-line bg-fill px-2.5 text-ink-muted focus-within:border-brand focus-within:bg-surface focus-within:ring-4 focus-within:ring-brand/15"
+                      title="Toque para mudar o preço desta venda"
                     >
-                      {item.quantidade <= 1 ? <IconTrash width={16} height={16} /> : "−"}
-                    </button>
-                    <CampoQuantidade
-                      valor={item.quantidade}
-                      max={produto.estoque}
-                      label={`Quantidade de ${produto.nome}`}
-                      onChange={(q) => alterarQuantidade(item.chave, q)}
-                    />
-                    <button
-                      type="button"
-                      className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
-                      aria-label="Aumentar quantidade"
-                      onClick={() => alterarQuantidade(item.chave, item.quantidade + 1)}
-                      disabled={item.quantidade >= produto.estoque}
-                    >
-                      +
-                    </button>
+                      <span className="text-[15px]">R$</span>
+                      <input
+                        inputMode="numeric"
+                        value={item.preco}
+                        onChange={(e) =>
+                          setCarrinho((prev) =>
+                            prev.map((i) =>
+                              i.chave === item.chave ? { ...i, preco: mascaraDinheiro(e.target.value) || "0,00" } : i,
+                            ),
+                          )
+                        }
+                        aria-label={`Preço unitário de ${produto.nome}`}
+                        className="w-full min-w-0 bg-transparent font-semibold tabular-nums text-ink outline-none"
+                      />
+                      <IconPencil width={14} height={14} className="shrink-0 text-ink-faint" aria-hidden="true" />
+                    </label>
+                    <div className="flex shrink-0 items-center rounded-full bg-canvas">
+                      <button
+                        type="button"
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
+                        aria-label="Diminuir quantidade"
+                        onClick={() =>
+                          item.quantidade <= 1
+                            ? setCarrinho((prev) => prev.filter((i) => i.chave !== item.chave))
+                            : alterarQuantidade(item.chave, item.quantidade - 1)
+                        }
+                      >
+                        {item.quantidade <= 1 ? <IconTrash width={16} height={16} /> : "−"}
+                      </button>
+                      <CampoQuantidade
+                        valor={item.quantidade}
+                        max={produto.estoque}
+                        label={`Quantidade de ${produto.nome}`}
+                        onChange={(q) => alterarQuantidade(item.chave, q)}
+                      />
+                      <button
+                        type="button"
+                        className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
+                        aria-label="Aumentar quantidade"
+                        onClick={() => alterarQuantidade(item.chave, item.quantidade + 1)}
+                        disabled={item.quantidade >= produto.estoque}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -754,6 +771,33 @@ export function VendaForm({
           </div>
         </Card>
       </div>
+      <Modal
+        open={confirmarZero}
+        onClose={() => setConfirmarZero(false)}
+        title="Registrar com preço R$ 0,00?"
+        description={
+          semPreco.length === 1
+            ? `${nomeCompleto(semPreco[0].produto)} está com preço zerado.`
+            : `${semPreco.length} itens estão com preço zerado: ${semPreco.map((l) => nomeCompleto(l.produto)).join(", ")}.`
+        }
+        size="sm"
+      >
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={() => setConfirmarZero(false)} className={btnGhost}>
+            Voltar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmarZero(false);
+              registrar();
+            }}
+            className={btnPrimary}
+          >
+            Registrar assim mesmo
+          </button>
+        </div>
+      </Modal>
     </form>
   );
 }
