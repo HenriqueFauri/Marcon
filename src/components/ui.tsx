@@ -59,17 +59,20 @@ export function Card({
   title,
   description,
   action,
+  rodape,
   children,
   className = "",
 }: {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  // explicação curta fora do cartão, embaixo (como o rodapé do Grupo); no lugar de frase sob o título
+  rodape?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
-  return (
-    <section className={`hairline rounded-3xl bg-surface p-5 sm:p-6 ${className}`}>
+  const cartao = (
+    <section className={`hairline rounded-3xl bg-surface p-5 sm:p-6 ${rodape ? "" : className}`}>
       {(title || action) && (
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -81,6 +84,13 @@ export function Card({
       )}
       {children}
     </section>
+  );
+  if (!rodape) return cartao;
+  return (
+    <div className={className}>
+      {cartao}
+      <p className="mt-1.5 px-4 text-[13px] leading-snug text-ink-muted">{rodape}</p>
+    </div>
   );
 }
 

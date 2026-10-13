@@ -49,15 +49,17 @@ function UsoCard({ uso }: { uso: Uso }) {
   const limiteVendas = uso.limites.vendasMes ?? PLANO_GRATIS.limites.vendasPorMes;
   const limiteProdutos = uso.limites.produtos ?? PLANO_GRATIS.limites.produtos;
   return (
-    <Card title="Seu uso" description={emTeste ? "No teste não há limite. Depois dele, vale o do plano grátis." : "Limites do plano grátis."}>
+    <Card
+      title="Seu uso"
+      rodape={
+        emTeste
+          ? "No teste não há limite. Depois dele, vale o do plano grátis."
+          : "Limites do plano grátis. Chegou no limite? Nada é apagado nem escondido: você continua vendo tudo, só não cria novos até assinar ou o mês virar (vendas)."
+      }
+    >
       <div className="flex flex-col gap-4">
         <Barra rotulo="Vendas este mês" usado={uso.vendasMes} limite={limiteVendas} />
         <Barra rotulo="Produtos cadastrados" usado={uso.produtos} limite={limiteProdutos} />
-        {!emTeste && (
-          <p className="text-[13px] text-ink-muted">
-            Chegou no limite? Nada é apagado nem escondido: você continua vendo tudo, só não cria novos até assinar ou o mês virar (vendas).
-          </p>
-        )}
       </div>
     </Card>
   );
