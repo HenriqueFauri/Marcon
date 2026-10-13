@@ -28,8 +28,65 @@ function dicaComProdutos(produtos: string[]) {
   return texto;
 }
 
-// Devolve o texto falado, ou null quando não deu para entender.
-export async function transcrever(audio: AudioRecebido, produtos: string[] = []): Promise<string | null> {
+export interface Transcricao {
+  texto: string;
+  // de 0 a 1: quão seguro o provedor está do que ouviu, na média. null = o provedor não informou
+  confianca: number | null;
+  // palavras em que o provedor ficou em dúvida (quase sempre ruído, nome próprio ou número)
+  duvidosas: string[];
+}
+
+const DUVIDA = 0.5; // palavra abaixo disso é marcada como duvidosa
+// abaixo disso o áudio inteiro é ruído: melhor pedir de novo do que responder a uma frase inventada
+export const CONFIANCA_MINIMA = Number(process.env.WHATSAPP_AUDIO_CONFIANCA_MINIMA ?? 0.3);
+
+interface Pedaco {
+  token?: string;
+  logprob?: number;
+}
+
+// O provedor devolve a probabilidade de cada pedaço de palavra. Junta os pedaços em palavras
+// (um pedaço que começa com espaço abre palavra nova) e fica com o pior pedaço de cada uma.
+function lerConfianca(pedacos: Pedaco[] | undefined): Pick<Transcricao, "confianca" | "duvidosas"> {
+  const validos = (pedacos ?? []).filter((p): p is Required<Pedaco> => typeof p.token === "string" && typeof p.logprob === "number");
+  if (!validos.length) return { confianca: null, duvidosas: [] };
+
+  const palavras: { texto: string; p: number }[] = [];
+  for (const { token, logprob } of validos) {
+    const p = Math.exp(logprob);
+    const ultima = palavras[palavras.length - 1];
+    if (!ultima || /^\s/.test(token)) palavras.push({ texto: token.trim(), p });
+    else {
+      ultima.texto += token;
+      ultima.p = Math.min(ultima.p, p);
+    }
+  }
+  const media = Math.exp(validos.reduce((soma, v) => soma + v.logprob, 0) / validos.length);
+  const duvidosas = palavras
+    .filter((w) => w.p < DUVIDA)
+    .map((w) => w.texto.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
+    .filter((w) => w.length >= 3);
+  return { confianca: Math.round(media * 100) / 100, duvidosas: [...new Set(duvidosas)].slice(0, 8) };
+}
+
+async function pedir(chave: string, audio: Blob, nome: string, modelo: string, dica: string, comConfianca: boolean) {
+  const form = new FormData();
+  form.append("file", audio, nome);
+  form.append("model", modelo);
+  form.append("language", "pt");
+  form.append("prompt", dica);
+  form.append("response_format", "json");
+  if (comConfianca) form.append("include[]", "logprobs");
+  return fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${chave}` },
+    body: form,
+    signal: AbortSignal.timeout(25000),
+  });
+}
+
+// Devolve o que foi falado e o quanto dá para confiar, ou null quando não veio nada.
+export async function transcrever(audio: AudioRecebido, produtos: string[] = []): Promise<Transcricao | null> {
   const chave = process.env.TRANSCRICAO_API_KEY;
   if (!chave || !audio.base64) return null;
 
@@ -39,26 +96,28 @@ export async function transcrever(audio: AudioRecebido, produtos: string[] = [])
   // o WhatsApp manda "audio/ogg; codecs=opus": o provedor quer só o tipo e uma extensão que conheça
   const tipo = audio.mimetype.split(";")[0].trim() || "audio/ogg";
   const extensao = tipo.includes("mp4") || tipo.includes("m4a") ? "m4a" : tipo.includes("mpeg") ? "mp3" : "ogg";
+  const arquivo = new Blob([new Uint8Array(bytes)], { type: tipo });
+  const modelo = process.env.TRANSCRICAO_MODELO || "gpt-4o-mini-transcribe";
+  const dica = dicaComProdutos(produtos);
 
-  const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(bytes)], { type: tipo }), `audio.${extensao}`);
-  form.append("model", process.env.TRANSCRICAO_MODELO || "gpt-4o-mini-transcribe");
-  form.append("language", "pt");
-  form.append("prompt", dicaComProdutos(produtos));
-  form.append("response_format", "json");
-
-  const resposta = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${chave}` },
-    body: form,
-    signal: AbortSignal.timeout(25000),
-  });
+  // a confiança por palavra só existe nos modelos gpt-4o; se o provedor recusar o pedido, vai sem ela
+  let comConfianca = modelo.startsWith("gpt-4o");
+  let resposta = await pedir(chave, arquivo, `audio.${extensao}`, modelo, dica, comConfianca);
+  if (resposta.status === 400 && comConfianca) {
+    comConfianca = false;
+    resposta = await pedir(chave, arquivo, `audio.${extensao}`, modelo, dica, false);
+  }
   if (!resposta.ok) {
     // o corpo do erro não tem dado do cliente: ajuda a achar saldo, permissão ou modelo errado
     const detalhe = (await resposta.text().catch(() => "")).slice(0, 300);
     throw new Error(`Transcrição respondeu ${resposta.status}: ${detalhe}`);
   }
-  const { text } = (await resposta.json()) as { text?: string };
-  const limpo = (text ?? "").trim().slice(0, 1000);
-  return limpo || null;
+  const corpo = (await resposta.json()) as { text?: string; logprobs?: Pedaco[] };
+  const texto = (corpo.text ?? "").trim().slice(0, 1000);
+  if (!texto) return null;
+
+  const lido = lerConfianca(corpo.logprobs);
+  // sem o texto (é do cliente): só o que serve para calibrar os cortes de confiança
+  console.info(`[whatsapp] voz: ${modelo}, ${audio.segundos}s, confiança ${lido.confianca ?? "sem dado"}, ${lido.duvidosas.length} palavra(s) em dúvida`);
+  return { texto, ...lido };
 }

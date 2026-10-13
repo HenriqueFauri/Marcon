@@ -82,7 +82,13 @@ Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `res
 
 **Confirmação por tipo (migration 0046).** Em Configurações > Assistente no WhatsApp, "Pedir meu SIM antes de lançar" tem um interruptor para venda e para cada grupo de `WHATSAPP_LANCAMENTOS`. O padrão é pedir (coluna `whatsapp_vinculos.sem_confirmar` vazia). Com o tipo desligado, o modelo continua só preparando o rascunho; logo depois, `confirmarSeDispensado()` (`acoes.ts`) chama `resolverPendente()` como se fosse um SIM e responde com os detalhes e o resultado. Todas as travas valem igual (limite do dia, rascunho único, tipo liberado). Só age se a resposta do modelo for exatamente o resumo do rascunho recém-aberto.
 
-**Mensagem de voz.** A Evolution manda `audioMessage`; com `base64: true` no webhook da instância (`POST /webhook/set/usemarcon`, o mesmo que já leva o segredo; recriar a instância apaga isso), o áudio vem no próprio evento (`data.message.base64`), sem abrir mais nenhuma rota no túnel. `extrairMensagem()` devolve `audio`; a rota transcreve (`transcricao.ts`, OpenAI `gpt-4o-mini-transcribe`, trocável por `TRANSCRICAO_MODELO`) só depois do vínculo e da conta liberada, e o resto do fluxo é o do texto. A resposta começa com "🎤 _\"o que entendi\"_", para o vendedor ver se a transcrição errou um número. Por voz o SIM nunca é dispensado (`ctx.porAudio`), mesmo com a confirmação desligada. O SIM ou NÃO falado vale, porque o rascunho aparece escrito. Os nomes (e marcas) de até 100 produtos ativos do dono vão no campo `prompt` da transcrição, para acertar o que ele vende (limite de 800 caracteres). O áudio não é guardado: só o texto transcrito, na conversa de 24 horas. Limite de duração em `WHATSAPP_AUDIO_MAX_SEGUNDOS` (padrão 60). Cada áudio entendido conta como pergunta na cota, como o texto.
+**Mensagem de voz.** A Evolution manda `audioMessage`; com `base64: true` no webhook da instância (`POST /webhook/set/usemarcon`, o mesmo que já leva o segredo; recriar a instância apaga isso), o áudio vem no próprio evento (`data.message.base64`), sem abrir mais nenhuma rota no túnel. `extrairMensagem()` devolve `audio`; a rota transcreve (`transcricao.ts`, OpenAI `gpt-4o-mini-transcribe`, trocável por `TRANSCRICAO_MODELO`) só depois do vínculo e da conta liberada, e o resto do fluxo é o do texto. A resposta começa com "🎤 _\"o que entendi\"_", para o vendedor ver se a transcrição errou um número. Por voz o SIM nunca é dispensado (`ctx.porAudio`), mesmo com a confirmação desligada. O SIM ou NÃO falado vale, porque o rascunho aparece escrito. Limite de duração em `WHATSAPP_AUDIO_MAX_SEGUNDOS` (padrão 60). Cada áudio entendido conta como pergunta na cota, como o texto.
+
+**Entender certo com muitos vendedores (migration 0047).** Três peças, nenhuma depende de ajuste por cliente:
+- *Busca de produto tolerante a erro.* `buscar_produtos_parecidos()` dá a cada produto ativo do dono uma nota de 0 a 1 (sem acento, sem pontuação, trigramas, palavras em qualquer ordem). `produtos.ts` decide com regra fixa: um vencedor (nota 0,55 ou mais e 0,15 à frente do segundo), vários (pergunta qual) ou nenhum (sugere os de 0,45 ou mais). É o único lugar que escolhe produto, usado por `buscar_produtos`, `preparar_venda` e `preparar_estoque`. Produto achado só por semelhança marca o rascunho com `aproximado`, e aí o SIM nunca é dispensado.
+- *Registro do sistema.* A cada pergunta, `carregarFatos()` lê `whatsapp_acoes` das últimas 6 horas e entrega ao modelo o que foi gravado, cancelado ou falhou. O modelo só afirma lançamento que está nesse registro. Sem isso ele desmentia uma venda lançada, porque não distingue o que o servidor gravou do que ele mesmo disse.
+- *Confiança da voz.* A transcrição pede `logprobs` (só nos modelos `gpt-4o`; se o provedor recusar, segue sem). Palavra com probabilidade abaixo de 0,5 vai ao modelo como "em dúvida", junto de um aviso de que o texto veio de voz. Áudio com confiança média abaixo de `WHATSAPP_AUDIO_CONFIANCA_MINIMA` (padrão 0,3) nem chega ao modelo: pede para repetir. O log `[whatsapp] voz:` traz modelo, duração e confiança (nunca o texto), para calibrar esses cortes com uso real.
+- O vocabulário enviado à transcrição prioriza o que o dono mais vendeu em 90 dias e depois o resto do cadastro (`vocabularioDoDono()`), até 800 caracteres.
 
 ## Banco
 
@@ -93,6 +99,7 @@ Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `res
 | `0040_whatsapp_vendas.sql` | `whatsapp_acoes` e `registrar_venda_como()` | Tabela sem política; função só para `service_role` |
 | `0041_whatsapp_lancar_venda.sql` | `whatsapp_vinculos.lancar_venda` | Dono muda só essa coluna (grant por coluna) |
 | `0046_whatsapp_sem_confirmar.sql` | `whatsapp_vinculos.sem_confirmar` (grupos sem SIM) | Dono muda só `lancar_venda` e `sem_confirmar` (grant por coluna) |
+| `0047_buscar_produtos_parecidos.sql` | Extensões `pg_trgm` e `unaccent`; `buscar_produtos_parecidos()` | Função só para `service_role` |
 | `0044_whatsapp_lancamentos_base.sql` | Tipos novos e `referencia_id` em `whatsapp_acoes`; `registrar_entrada_estoque_como()` e `registrar_saida_estoque_como()` | Funções só para `service_role` |
 
 Retenção (o que a política de privacidade promete), apagada a cada mensagem respondida: conversa 24 horas, código vencido 1 hora depois, `whatsapp_acoes` 90 dias.
@@ -118,6 +125,7 @@ As migrations são rastreadas em `public.schema_migrations`. Até a 0041 aplicad
 | `TRANSCRICAO_API_KEY` | Chave da OpenAI para transcrever voz. Sem ela o assistente responde "ainda não entendo áudio" |
 | `TRANSCRICAO_MODELO` | Opcional. Padrão `gpt-4o-mini-transcribe` (o `gpt-4o-transcribe` erra menos número e nome, custa o dobro) |
 | `WHATSAPP_AUDIO_MAX_SEGUNDOS` | Opcional. Duração máxima do áudio (padrão 60) |
+| `WHATSAPP_AUDIO_CONFIANCA_MINIMA` | Opcional. Confiança média mínima do áudio, de 0 a 1 (padrão 0,3) |
 | `WHATSAPP_ORIENTAR` | `1` responde número desconhecido (só em chip dedicado) |
 | `EVOLUTION_API_URL` | `https://evo.usemarcon.com` |
 | `EVOLUTION_API_KEY` | Chave da Evolution |

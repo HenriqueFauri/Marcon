@@ -34,19 +34,22 @@ function limiteDoDia(tipo: TipoAcao, owner: string) {
 
 // Vendedor que desligou a confirmação de um tipo (Configurações): logo depois de o modelo abrir o
 // rascunho, o SERVIDOR resolve como se fosse um SIM. O modelo continua sem gravar nada, e as travas
-// (limite do dia, rascunho único, tipo liberado) valem igual. Nunca vale para mensagem de voz.
+// (limite do dia, rascunho único, tipo liberado) valem igual. Nunca vale para mensagem de voz nem
+// para rascunho em que o produto foi achado por semelhança (payload.aproximado).
 // `resposta` é o que o modelo devolveu: só age se for exatamente o resumo do rascunho recém-aberto.
 export async function confirmarSeDispensado(db: Db, ctx: ContextoAcao, resposta: string): Promise<string | null> {
   if (ctx.porAudio || !ctx.semConfirmar?.length) return null;
 
   const { data: acao } = await db
     .from("whatsapp_acoes")
-    .select("owner_id, tipo, resumo")
+    .select("owner_id, tipo, resumo, payload")
     .eq("telefone", ctx.telefone)
     .eq("status", "pendente")
     .maybeSingle();
   if (!acao || acao.owner_id !== ctx.owner || acao.resumo !== resposta) return null;
   if (!ctx.semConfirmar.includes(grupoDoTipo(acao.tipo as TipoAcao))) return null;
+  // produto achado só por semelhança com o que foi dito: o vendedor precisa ver antes de gravar
+  if ((acao.payload as { aproximado?: boolean } | null)?.aproximado) return null;
 
   const feito = await resolverPendente(db, ctx, "sim");
   if (!feito) return null;

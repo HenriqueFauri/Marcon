@@ -12,7 +12,9 @@ import {
 } from "@/lib/whatsapp/evolution";
 import { confirmarSeDispensado, resolverPendente } from "@/lib/whatsapp/acoes";
 import { GRUPOS_CONFIRMAVEIS, gruposLiberados, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
-import { SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva } from "@/lib/whatsapp/transcricao";
+import { CONFIANCA_MINIMA, SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva } from "@/lib/whatsapp/transcricao";
+import { vocabularioDoDono } from "@/lib/whatsapp/produtos";
+import { hojeISO, somarDias } from "@/lib/format";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
 import { AVISO_EM, COTA_MES, TETO_DIA, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
@@ -101,6 +103,45 @@ async function carregarHistorico(admin: Admin, telefone: string): Promise<Troca[
   const lista = ((data ?? []) as Troca[]).reverse();
   while (lista.length && lista[0].papel !== "user") lista.shift(); // a API exige começar por pergunta
   return lista;
+}
+
+// O que o SISTEMA fez de verdade por este número nas últimas horas, lido do registro de lançamentos.
+// O modelo recebe isto como fato: sem isso ele não distingue o que foi gravado do que ele só disse,
+// e chega a desmentir uma venda que foi lançada.
+const SITUACAO: Record<string, string> = {
+  executada: "GRAVADO no Marcon",
+  pendente: "aguardando o SIM do vendedor, ainda NÃO gravado",
+  executando: "sendo gravado agora",
+  cancelada: "cancelado, nada foi gravado",
+  expirada: "expirou sem SIM, nada foi gravado",
+  falhou: "deu erro, nada foi gravado",
+};
+
+async function carregarFatos(admin: Admin, owner: string, telefone: string): Promise<string[]> {
+  const desde = new Date(Date.now() - HORAS_DE_MEMORIA * 3600_000).toISOString();
+  const { data, error } = await admin
+    .from("whatsapp_acoes")
+    .select("status, resumo, criado_em")
+    .eq("owner_id", owner)
+    .eq("telefone", telefone)
+    .gte("criado_em", desde)
+    .order("criado_em", { ascending: false })
+    .limit(6);
+  if (error) {
+    console.error("[whatsapp] fatos", error.message);
+    return [];
+  }
+  return (data ?? []).reverse().map((a) => {
+    const hora = new Date(a.criado_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+    // do resumo saem o título com pergunta e a linha do SIM: ficam só os dados do lançamento
+    const dados = String(a.resumo)
+      .split("\n\nResponda")[0]
+      .split("\n")
+      .filter((l) => l.trim() && !l.includes("Confirma"))
+      .map((l) => l.replace(/[*•]/g, "").trim())
+      .join("; ");
+    return `${hora}: ${dados} (${SITUACAO[a.status] ?? a.status})`;
+  });
 }
 
 async function guardarTroca(admin: Admin, telefone: string, pergunta: string, resposta: string) {
@@ -207,6 +248,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   // mensagem de voz: vira texto aqui, só para quem já está vinculado e liberado (não gasta transcrição
   // com número desconhecido). O resto do fluxo é o mesmo do texto.
   let eco = "";
+  let duvidosas: string[] = [];
   if (msg.audio) {
     if (!transcricaoAtiva()) {
       await enviarMensagem(msg.telefone, "Ainda não entendo áudio por aqui. Pode escrever?");
@@ -216,25 +258,18 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
       await enviarMensagem(msg.telefone, `Esse áudio ficou longo (limite de ${SEGUNDOS_MAXIMOS} segundos). Manda um menor ou escreve.`);
       return;
     }
-    // os nomes dos produtos dele ajudam a transcrição a acertar marca e modelo (só nome, só do dono)
-    const { data: itens } = await admin
-      .from("produtos_com_estoque")
-      .select("nome, marca")
-      .eq("owner_id", owner)
-      .eq("status", "ativo")
-      .order("nome")
-      .limit(100);
-    const produtos = (itens ?? []).map((p) => [p.marca, p.nome].filter(Boolean).join(" ").slice(0, 50));
-    const texto = await transcrever(msg.audio, produtos);
-    if (!texto) {
-      await enviarMensagem(msg.telefone, "Não consegui entender o áudio. Pode mandar de novo ou escrever?");
+    // o vocabulário dele (o que mais vende primeiro) ajuda a transcrição a acertar marca e modelo
+    const vocabulario = await vocabularioDoDono(admin, owner, somarDias(hojeISO(), -90)).catch(() => []);
+    const voz = await transcrever(msg.audio, vocabulario);
+    // sem texto, ou o provedor quase não entendeu nada: pedir de novo é melhor que responder a ruído
+    if (!voz || (voz.confianca !== null && voz.confianca < CONFIANCA_MINIMA)) {
+      await enviarMensagem(msg.telefone, "Não consegui entender o áudio. Pode mandar de novo, mais perto do microfone, ou escrever?");
       return;
     }
-    msg = { ...msg, texto };
+    msg = { ...msg, texto: voz.texto };
+    duvidosas = voz.duvidosas;
     // mostra o que foi entendido: se a transcrição errou um número, o vendedor vê antes de confirmar
-    eco = `🎤 _"${texto}"_
-
-`;
+    eco = `🎤 _"${voz.texto}"_\n\n`;
   }
   const porAudio = !!msg.audio;
 
@@ -252,7 +287,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   const semConfirmar = ((vinculo.sem_confirmar ?? []) as string[]).filter((g): g is GrupoConfirmavel =>
     (GRUPOS_CONFIRMAVEIS as string[]).includes(g),
   );
-  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio };
+  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, duvidosas };
 
   // SIM ou NÃO de um rascunho aberto (venda ou outro lançamento): resolvido aqui, pelo servidor, sem passar pelo modelo
   if (escrita) {
@@ -282,8 +317,8 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
     return;
   }
 
-  const historico = await carregarHistorico(admin, msg.telefone);
-  const respostaDoModelo = await responder(msg.texto, ctx, historico);
+  const [historico, fatos] = await Promise.all([carregarHistorico(admin, msg.telefone), carregarFatos(admin, owner, msg.telefone)]);
+  const respostaDoModelo = await responder(msg.texto, { ...ctx, fatos }, historico);
   await registrarUso(admin, owner);
   // tipo com confirmação desligada em Configurações: o servidor resolve o rascunho na hora (nunca por voz)
   const resposta = (escrita && (await confirmarSeDispensado(admin, ctx, respostaDoModelo))) || respostaDoModelo;
