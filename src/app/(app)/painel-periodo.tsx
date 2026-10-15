@@ -237,11 +237,11 @@ export function PainelVendas() {
           <p className="py-8 text-center text-[15px] text-ink-muted">{titulo.vazio}</p>
         ) : (
           <>
-            <table className="w-full text-[13px]">
+            <table className="w-full table-fixed text-[13px]">
               <thead>
                 <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-ink-muted">
                   <th className="w-24 py-2 pl-2 font-semibold">{periodo === "hoje" ? "Hora" : "Data"}</th>
-                  <th className="py-2 font-semibold">Cliente</th>
+                  <th className="w-[24%] py-2 font-semibold">Cliente</th>
                   <th className="py-2 font-semibold">Itens</th>
                   <th className="w-32 py-2 font-semibold">Pagamento</th>
                   <th className="w-28 py-2 text-right font-semibold">Lucro</th>
@@ -256,9 +256,11 @@ export function PainelVendas() {
                         {periodo === "hoje" ? v.hora : v.dataCurta}
                       </Link>
                     </td>
-                    <td className="py-2.5 font-medium text-ink">{v.cliente ?? <span className="font-normal text-ink-muted">Venda avulsa</span>}</td>
-                    <td className="max-w-0 truncate py-2.5 pr-3 text-ink-2" title={v.itens}>
-                      {v.itens}
+                    <td className="truncate py-2.5 pr-3 font-medium text-ink" title={v.cliente ?? undefined}>
+                      {v.cliente ?? <span className="font-normal text-ink-muted">Venda avulsa</span>}
+                    </td>
+                    <td className="py-2.5 pr-3 text-ink-2" title={v.itens}>
+                      <span className="line-clamp-2">{v.itens}</span>
                     </td>
                     <td className="py-2.5">
                       <Badge tone={v.aPrazo ? "warning" : "neutral"}>{v.pagamento}</Badge>

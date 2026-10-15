@@ -1,5 +1,7 @@
 "use server";
 
+import { formatData } from "@/lib/format";
+import { cortesiaVale } from "@/lib/assinatura";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { falha, ok, type ActionResult } from "@/lib/action";
@@ -54,8 +56,10 @@ export async function assinarPlano(documento: string): Promise<ResultadoAssinar>
     if (atual?.status === "ativa" || atual?.status === "atrasada") {
       return { ok: false, error: "Você já tem uma assinatura. Cancele a atual para trocar de plano." };
     }
-    if (atual?.status === "cortesia") {
-      return { ok: false, error: "Sua conta já tem o plano Marcon liberado, sem cobrança." };
+    // cortesia dentro do prazo: nada a cobrar agora; vencida (ainda que a rotina não tenha rodado), pode assinar
+    if (cortesiaVale(atual)) {
+      const ate = atual?.cortesia_ate ? ` Ela vale até ${formatData(atual.cortesia_ate)}; depois disso você pode assinar.` : "";
+      return { ok: false, error: `Sua conta já tem o plano Marcon liberado, sem cobrança.${ate}` };
     }
 
     // assinatura ainda não paga: reaproveita o mesmo link em vez de criar outra cobrança

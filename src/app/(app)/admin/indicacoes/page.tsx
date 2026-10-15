@@ -6,6 +6,7 @@ import { adminConfirmado } from "@/lib/admin";
 import { formatBRL, formatData } from "@/lib/format";
 import { COMISSAO_MAXIMA, COMISSAO_PERCENTUAL, resumoDoAfiliado } from "@/lib/indicacao";
 import { Badge, EmptyState, ErrorMessage, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { AbasAdmin } from "../abas";
 import { AcoesSaque } from "./acoes-saque";
 import { PercentualAfiliado } from "./percentual-afiliado";
 
@@ -91,10 +92,8 @@ export default async function IndicacoesAdminPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader
-        back={{ href: "/admin", label: "Administração" }}
-        title="Indicações"
-      />
+      <PageHeader title="Administração" />
+      <AbasAdmin ativa="indicacoes" />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard

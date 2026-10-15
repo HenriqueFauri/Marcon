@@ -59,7 +59,7 @@ async function carregarIndicados(ids: string[], desde: Map<string, string>): Pro
   }
   const [contas, { data: assinaturas }] = await Promise.all([
     Promise.all(ids.map((id) => admin.auth.admin.getUserById(id))),
-    admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento").in("owner_id", ids),
+    admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento, cortesia_ate, cortesia_em").in("owner_id", ids),
   ]);
   const assinaturaPorConta = new Map((assinaturas ?? []).map((a) => [a.owner_id as string, a]));
 
