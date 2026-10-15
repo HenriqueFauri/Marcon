@@ -10,12 +10,15 @@ export const PLANOS = {
     valor: 15.9,
     resumo: "Tudo liberado, sem limite.",
     inclui: [
-      "Tudo do plano grátis",
+      // na mesma ordem do plano grátis, para dar para comparar linha a linha; a vitrine, que só o
+      // plano Marcon tem, vem por último. Sem "tudo do grátis": a lista já é completa.
       "Vendas e produtos ilimitados",
-      "Vitrine com link: o cliente monta o pedido e ele chega pronto no seu WhatsApp",
       "Até 10 fotos por produto e por variação",
+      "Estoque, vendas a prazo e fluxo de caixa",
+      "Anúncios por canal e lembrete de cobrança",
       "30 anúncios escritos com IA por mês",
-      "Importar vendas e caixa de outro sistema",
+      "Importar produtos, vendas e caixa de outro sistema",
+      "Vitrine com link: o cliente monta o pedido e ele chega pronto no seu WhatsApp",
     ],
   },
 } as const;
