@@ -227,6 +227,13 @@ export const IconPalette = (p: P) => (
     <circle cx="15" cy="7.8" r="1" fill="currentColor" stroke="none" />
   </Icon>
 );
+export const IconEllipsis = (p: P) => (
+  <Icon {...p}>
+    <circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    <circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+  </Icon>
+);
 export const IconTicket = (p: P) => (
   <Icon {...p}>
     <path d="M4 8.5V6.8A1.8 1.8 0 0 1 5.8 5h12.4A1.8 1.8 0 0 1 20 6.8v1.7a2.5 2.5 0 0 0 0 7v1.7a1.8 1.8 0 0 1-1.8 1.8H5.8A1.8 1.8 0 0 1 4 17.2v-1.7a2.5 2.5 0 0 0 0-7Z" />

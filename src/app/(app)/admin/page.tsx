@@ -11,8 +11,9 @@ import { PLANOS } from "@/lib/planos";
 import { rotuloDoMotivo } from "@/lib/cortesia";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
-import { bloqueada, type ResumoConta } from "./dados";
+import { bloqueada, contaGerenciavel, type ResumoConta } from "./dados";
 import { AbasAdmin } from "./abas";
+import { AcoesRapidas } from "./gerenciar-conta";
 
 export const metadata: Metadata = { title: "Administração" };
 
@@ -53,14 +54,16 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const busca = (typeof sp.q === "string" ? sp.q : "").trim().toLowerCase();
   const grupo = ["pagantes", "cortesia", "teste"].includes(String(sp.situacao)) ? String(sp.situacao) : "todas";
 
-  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }] = await Promise.all([
+  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }] = await Promise.all([
     todasAsContas(admin),
     admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
     admin.rpc("admin_resumo_por_conta"),
-    admin.from("whatsapp_liberados").select("owner_id"),
+    admin.from("whatsapp_liberados").select("owner_id, lancar"),
+    admin.from("whatsapp_vinculos").select("owner_id, telefone"),
   ]);
   // contas com o assistente no WhatsApp liberado no painel (o admin tem sempre)
-  const comAssistente = new Set((liberados ?? []).map((l) => l.owner_id as string));
+  const liberadoPorConta = new Map((liberados ?? []).map((l) => [l.owner_id as string, l as { lancar: boolean | null }]));
+  const telefonePorConta = new Map((vinculos ?? []).map((v) => [v.owner_id as string, v.telefone as string]));
   const assinaturaPorConta = new Map((assinaturas ?? []).map((a) => [a.owner_id as string, a]));
   const resumoPorConta = new Map(((resumos ?? []) as ResumoConta[]).map((r) => [r.owner_id, r]));
 
@@ -69,17 +72,28 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       const situacao = situacaoDaAssinatura(assinaturaPorConta.get(u.id) ?? null, u.created_at);
       const negocio = (u.user_metadata?.nome_negocio as string | undefined) || null;
       const nome = (u.user_metadata?.nome as string | undefined) ?? (u.user_metadata?.full_name as string | undefined) ?? null;
+      const titulo = negocio ?? nome ?? u.email ?? "Sem nome";
+      const eAdmin = ehAdmin(u);
       return {
         u,
         situacao,
         rotulo: rotuloDaSituacao(situacao),
         resumo: resumoPorConta.get(u.id),
-        titulo: negocio ?? nome ?? u.email ?? "Sem nome",
+        titulo,
         negocio,
         nome,
-        eAdmin: ehAdmin(u),
-        assistente: comAssistente.has(u.id),
+        eAdmin,
+        assistente: liberadoPorConta.has(u.id),
         motivo: situacao.tipo === "cortesia" ? rotuloDoMotivo(assinaturaPorConta.get(u.id)?.cortesia_motivo) : null,
+        // a lista marca o admin pelo primeiro fator; as ações no servidor conferem os dois
+        gerenciavel: contaGerenciavel(u, {
+          titulo,
+          situacao,
+          motivo: assinaturaPorConta.get(u.id)?.cortesia_motivo,
+          admin: eAdmin,
+          liberado: liberadoPorConta.get(u.id),
+          telefone: telefonePorConta.get(u.id),
+        }),
       };
     })
     .sort((a, b) => b.u.created_at.localeCompare(a.u.created_at));
@@ -144,9 +158,12 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         <>
           {/* celular: lista agrupada, cada conta abre o detalhe */}
           <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface sm:hidden">
-            {filtradas.map(({ u, rotulo, resumo, titulo, assistente }) => (
-              <li key={u.id}>
-                <Link href={`/admin/contas/${u.id}`} className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${bloqueada(u) ? "opacity-60" : ""}`}>
+            {filtradas.map(({ u, rotulo, resumo, titulo, assistente, gerenciavel }) => (
+              <li key={u.id} className="flex items-center pr-2">
+                <Link
+                  href={`/admin/contas/${u.id}`}
+                  className={`flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 transition active:bg-fill ${bloqueada(u) ? "opacity-60" : ""}`}
+                >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[17px] text-ink">
                       {titulo}
@@ -160,10 +177,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <span className="block text-[17px] tabular-nums text-ink">{formatBRL(Number(resumo?.valor_mes ?? 0))}</span>
                     <span className="block text-[13px] tabular-nums text-ink-muted">no mês</span>
                   </span>
-                  <span aria-hidden className="text-[20px] text-ink-muted">
-                    ›
-                  </span>
                 </Link>
+                <AcoesRapidas conta={gerenciavel} />
               </li>
             ))}
           </ul>
@@ -180,10 +195,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                   <th className={`${thClass} whitespace-nowrap text-right`}>Lucro</th>
                   <th className={`${thClass} whitespace-nowrap text-right`}>Total</th>
                   <th className={`${thClass} whitespace-nowrap`}>Acesso</th>
+                  <th className={`${thClass} w-12`}>
+                    <span className="sr-only">Ações</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className={tbodyClass}>
-                {filtradas.map(({ u, rotulo, resumo, titulo, eAdmin, assistente, motivo }) => (
+                {filtradas.map(({ u, rotulo, resumo, titulo, eAdmin, assistente, motivo, gerenciavel }) => (
                   <tr key={u.id} className={bloqueada(u) ? "opacity-60" : ""}>
                     <td className={tdClass}>
                       <Link href={`/admin/contas/${u.id}`} className="flex flex-wrap items-center gap-2 font-medium text-ink hover:underline">
@@ -215,6 +233,9 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <td className={`${tdClass} text-right tabular-nums`}>{formatBRL(Number(resumo?.valor_total ?? 0))}</td>
                     <td className={`${tdClass} whitespace-nowrap text-ink-2`}>
                       {u.last_sign_in_at ? formatDataCurta(u.last_sign_in_at.slice(0, 10)) : "Nunca"}
+                    </td>
+                    <td className={`${tdClass} py-1 pr-2`}>
+                      <AcoesRapidas conta={gerenciavel} />
                     </td>
                   </tr>
                 ))}
