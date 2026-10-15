@@ -8,6 +8,7 @@ import { adminConfirmado, ehAdmin } from "@/lib/admin";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
 import { PLANOS } from "@/lib/planos";
+import { rotuloDoMotivo } from "@/lib/cortesia";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
 import { bloqueada, type ResumoConta } from "./dados";
@@ -50,11 +51,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   const sp = await searchParams;
   const busca = (typeof sp.q === "string" ? sp.q : "").trim().toLowerCase();
-  const grupo = ["pagantes", "teste", "outras"].includes(String(sp.situacao)) ? String(sp.situacao) : "todas";
+  const grupo = ["pagantes", "cortesia", "teste"].includes(String(sp.situacao)) ? String(sp.situacao) : "todas";
 
   const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }] = await Promise.all([
     todasAsContas(admin),
-    admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento"),
+    admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
     admin.rpc("admin_resumo_por_conta"),
     admin.from("whatsapp_liberados").select("owner_id"),
   ]);
@@ -78,12 +79,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         nome,
         eAdmin: ehAdmin(u),
         assistente: comAssistente.has(u.id),
+        motivo: situacao.tipo === "cortesia" ? rotuloDoMotivo(assinaturaPorConta.get(u.id)?.cortesia_motivo) : null,
       };
     })
     .sort((a, b) => b.u.created_at.localeCompare(a.u.created_at));
 
-  // pagantes = assinatura ativa ou atrasada; teste = os 14 dias; outras = grátis e cortesia
-  const doGrupo = (tipo: string) => (tipo === "ativa" || tipo === "atrasada" ? "pagantes" : tipo === "teste" ? "teste" : "outras");
+  // pagantes = assinatura ativa ou atrasada; cortesia = plano dado pelo admin; teste = os 14 dias.
+  // Quem está no grátis aparece em "Todas" e na busca (4 filtros é o que cabe no celular).
+  const doGrupo = (tipo: string) => (tipo === "ativa" || tipo === "atrasada" ? "pagantes" : tipo === "cortesia" ? "cortesia" : tipo === "teste" ? "teste" : "outras");
   const filtradas = linhas
     .filter((l) => grupo === "todas" || doGrupo(l.situacao.tipo) === grupo)
     .filter((l) => !busca || [l.u.email, l.negocio, l.nome].some((t) => t?.toLowerCase().includes(busca)));
@@ -127,8 +130,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         itens={[
           { href: hrefDoFiltro("todas"), label: "Todas", ativo: grupo === "todas" },
           { href: hrefDoFiltro("pagantes"), label: "Pagantes", ativo: grupo === "pagantes" },
+          { href: hrefDoFiltro("cortesia"), label: "Cortesia", ativo: grupo === "cortesia" },
           { href: hrefDoFiltro("teste"), label: "Teste", ativo: grupo === "teste" },
-          { href: hrefDoFiltro("outras"), label: "Outras", ativo: grupo === "outras" },
         ]}
       />
       <div className="mb-4 sm:max-w-sm">
@@ -141,7 +144,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         <>
           {/* celular: lista agrupada, cada conta abre o detalhe */}
           <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface sm:hidden">
-            {filtradas.map(({ u, situacao, rotulo, resumo, titulo, assistente }) => (
+            {filtradas.map(({ u, rotulo, resumo, titulo, assistente }) => (
               <li key={u.id}>
                 <Link href={`/admin/contas/${u.id}`} className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${bloqueada(u) ? "opacity-60" : ""}`}>
                   <span className="min-w-0 flex-1">
@@ -150,7 +153,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       {u.id === user!.id && <span className="text-ink-muted"> (você)</span>}
                     </span>
                     <span className="block truncate text-[13px] text-ink-muted">
-                      {[bloqueada(u) ? "Bloqueada" : situacao.tipo === "cortesia" ? "Cortesia" : rotulo.texto, `${resumo?.vendas_mes ?? 0} vendas no mês`, assistente ? "Assistente" : null].filter(Boolean).join(" · ")}
+                      {[bloqueada(u) ? "Bloqueada" : rotulo.texto, `${resumo?.vendas_mes ?? 0} vendas no mês`, assistente ? "Assistente" : null].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                   <span className="shrink-0 text-right">
@@ -180,7 +183,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                 </tr>
               </thead>
               <tbody className={tbodyClass}>
-                {filtradas.map(({ u, situacao, rotulo, resumo, titulo, eAdmin, assistente }) => (
+                {filtradas.map(({ u, rotulo, resumo, titulo, eAdmin, assistente, motivo }) => (
                   <tr key={u.id} className={bloqueada(u) ? "opacity-60" : ""}>
                     <td className={tdClass}>
                       <Link href={`/admin/contas/${u.id}`} className="flex flex-wrap items-center gap-2 font-medium text-ink hover:underline">
@@ -196,7 +199,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       </p>
                     </td>
                     <td className={tdClass}>
-                      <Badge tone={rotulo.tom}>{situacao.tipo === "cortesia" ? "Cortesia" : rotulo.texto}</Badge>
+                      <Badge tone={rotulo.tom}>{rotulo.texto}</Badge>
+                      {motivo && <span className="mt-0.5 block text-[12px] text-ink-muted">{motivo}</span>}
                     </td>
                     <td className={`${tdClass} text-right tabular-nums`}>{resumo?.produtos ?? 0}</td>
                     <td className={`${tdClass} text-right tabular-nums`}>

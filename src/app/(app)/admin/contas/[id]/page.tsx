@@ -9,6 +9,8 @@ import { ErrorMessage, PageHeader, StatCard } from "@/components/ui";
 import { Grupo, LinhaInfo } from "@/components/ajustes";
 import { AcoesConta } from "../../acoes-conta";
 import { AssistenteDaConta } from "../../assistente-da-conta";
+import { CortesiaDaConta } from "../../cortesia-da-conta";
+import { rotuloDoMotivo } from "@/lib/cortesia";
 import { assistenteAtivo } from "@/lib/whatsapp/evolution";
 import { telefoneMascarado } from "@/lib/whatsapp/vinculo";
 import { bloqueada, type DetalheConta } from "../../dados";
@@ -42,7 +44,7 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
 
   const [{ data: alvo }, { data: assinatura }, { data, error }, { data: liberado }, { data: vinculo }] = await Promise.all([
     admin.auth.admin.getUserById(id),
-    admin.from("assinaturas").select("plano, status, proximo_vencimento").eq("owner_id", id).maybeSingle(),
+    admin.from("assinaturas").select("plano, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo").eq("owner_id", id).maybeSingle(),
     admin.rpc("admin_conta_detalhe", { p_owner: id }),
     admin.from("whatsapp_liberados").select("lancar").eq("owner_id", id).maybeSingle(),
     admin.from("whatsapp_vinculos").select("telefone").eq("owner_id", id).maybeSingle(),
@@ -87,7 +89,7 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
           </div>
 
           <Grupo titulo="Conta" semPadding>
-            <LinhaInfo rotulo="Plano" valor={bloqueada(conta) ? "Bloqueada" : situacao.tipo === "cortesia" ? "Cortesia" : rotulo.texto} />
+            <LinhaInfo rotulo="Plano" valor={bloqueada(conta) ? "Bloqueada" : rotulo.texto} />
             <LinhaInfo rotulo="Desde" valor={formatData(conta.created_at.slice(0, 10))} />
             <LinhaInfo rotulo="Último acesso" valor={conta.last_sign_in_at ? formatDataCurta(conta.last_sign_in_at.slice(0, 10)) : "Nunca"} />
             <LinhaInfo rotulo="Última venda" valor={r?.ultima_venda ? formatDataCurta(r.ultima_venda) : "Nenhuma"} />
@@ -165,6 +167,32 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
           </Grupo>
 
           <Grupo
+            titulo="Cortesia"
+            semPadding
+            rodape={
+              pagante
+                ? "Essa conta paga pelo Asaas. Para dar cortesia, cancele a assinatura dela antes."
+                : "O prazo conta o dia de hoje. O cliente é avisado na hora e 3 dias antes de acabar."
+            }
+          >
+            {situacao.tipo === "cortesia" && (
+              <>
+                <LinhaInfo
+                  rotulo="Vale até"
+                  valor={situacao.cortesiaAte ? `${formatData(situacao.cortesiaAte)}, ${situacao.diasRestantes === 1 ? "último dia" : `${situacao.diasRestantes} dias`}` : "Sem prazo (antiga)"}
+                />
+                <LinhaInfo rotulo="Motivo" valor={rotuloDoMotivo(assinatura?.cortesia_motivo) ?? "Sem motivo"} />
+                {situacao.cortesiaEm && <LinhaInfo rotulo="Dada em" valor={formatData(situacao.cortesiaEm.slice(0, 10))} />}
+              </>
+            )}
+            {!pagante && (
+              <div className="border-t border-line px-4 py-3 first:border-t-0">
+                <CortesiaDaConta id={conta.id} email={conta.email ?? ""} ativa={situacao.tipo === "cortesia"} />
+              </div>
+            )}
+          </Grupo>
+
+          <Grupo
             titulo="Assistente no WhatsApp"
             semPadding
             rodape={
@@ -183,16 +211,9 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
           </Grupo>
 
           {/* ações sobre a conta no fim da tela, como manda o padrão */}
-          {(!pagante || !eAdmin) && (
+          {!eAdmin && (
             <Grupo titulo="Ações">
-              <AcoesConta
-                id={conta.id}
-                email={conta.email ?? ""}
-                bloqueada={bloqueada(conta)}
-                cortesia={situacao.tipo === "cortesia"}
-                pagante={pagante}
-                podeBloquear={!eAdmin}
-              />
+              <AcoesConta id={conta.id} email={conta.email ?? ""} bloqueada={bloqueada(conta)} />
             </Grupo>
           )}
         </div>
