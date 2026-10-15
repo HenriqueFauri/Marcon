@@ -17,7 +17,8 @@ import { catalogoDoDono } from "@/lib/whatsapp/produtos";
 import { hojeISO, somarDias } from "@/lib/format";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
-import { AVISO_EM, COTA_MES, TETO_DIA, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
+import { AVISO_EM, cotasDa, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
+import { adminConfirmado } from "@/lib/admin";
 
 // Webhook do assistente no WhatsApp. A Evolution chama aqui a cada mensagem recebida.
 // Configuração do webhook (cabeçalho com WHATSAPP_WEBHOOK_SECRET): docs/whatsapp-assistente.md.
@@ -238,6 +239,9 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   const owner = vinculo.owner_id as string;
   const { data: conta } = await admin.auth.admin.getUserById(owner);
   if (!contaPodeUsar(conta.user?.email)) return;
+  // o admin do Marcon (dois fatores) tem cotas e limites do dia maiores
+  const ehAdminDoMarcon = await adminConfirmado(conta.user);
+  const { mes: COTA_MES, dia: TETO_DIA } = cotasDa(ehAdminDoMarcon);
   estado.vinculado = true;
   // liberado pelo Marcon E ligado pelo vendedor (interruptor em Configurações)
   const escrita = escritaAtiva() && contaPodeEscrever(conta.user?.email) && vinculo.lancar_venda !== false;
@@ -289,7 +293,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   const semConfirmar = ((vinculo.sem_confirmar ?? []) as string[]).filter((g): g is GrupoConfirmavel =>
     (GRUPOS_CONFIRMAVEIS as string[]).includes(g),
   );
-  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, vozSegura: seguraParaDispensarSim, duvidosas };
+  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, vozSegura: seguraParaDispensarSim, duvidosas, admin: ehAdminDoMarcon };
 
   // SIM ou NÃO de um rascunho aberto (venda ou outro lançamento): resolvido aqui, pelo servidor, sem passar pelo modelo
   if (escrita) {

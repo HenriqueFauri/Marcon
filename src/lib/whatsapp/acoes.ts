@@ -2,6 +2,7 @@ import "server-only";
 import { mensagemDeErro } from "@/lib/action";
 import { NAO, SIM, SIM_SUAVE, grupoDoTipo, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
 import { executarVenda } from "./venda";
+import { MULTIPLICADOR_ADMIN } from "./uso";
 import { executarCaixa, executarEstoque, executarProduto } from "./lancamentos";
 
 // Resolve o SIM ou o NÃO de um rascunho aberto. É chamado pela rota ANTES do modelo, e é o único
@@ -26,10 +27,11 @@ const EXECUTORES: Record<TipoAcao, Executor> = {
 };
 
 // teto por dia: vendas têm o próprio (decisão antiga); os outros lançamentos dividem um
-function limiteDoDia(tipo: TipoAcao, owner: string) {
+function limiteDoDia(tipo: TipoAcao, owner: string, admin = false) {
+  const m = admin ? MULTIPLICADOR_ADMIN : 1;
   return tipo === "venda"
-    ? { chave: `wa:venda:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_VENDAS_DIA ?? 30), oQue: "vendas lançadas" }
-    : { chave: `wa:lanc:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_LANCAMENTOS_DIA ?? 30), oQue: "lançamentos" };
+    ? { chave: `wa:venda:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_VENDAS_DIA ?? 30) * m, oQue: "vendas lançadas" }
+    : { chave: `wa:lanc:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_LANCAMENTOS_DIA ?? 30) * m, oQue: "lançamentos" };
 }
 
 // Vendedor que desligou a confirmação de um tipo (Configurações): logo depois de o modelo abrir o
@@ -120,7 +122,7 @@ export async function resolverPendente(db: Db, ctx: ContextoAcao, texto: string)
     .maybeSingle();
   if (!reservada) return null;
 
-  const limite = limiteDoDia(tipo, ctx.owner);
+  const limite = limiteDoDia(tipo, ctx.owner, ctx.admin);
   const { data: dentro } = await db.rpc("consumir_limite", { p_chave: limite.chave, p_max: limite.max, p_segundos: 86400 });
   if (dentro !== true) {
     await fechar({ status: "falhou", erro: "limite diário" });

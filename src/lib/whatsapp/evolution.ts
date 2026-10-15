@@ -7,7 +7,7 @@ export function whatsappConfigurado() {
   return !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE);
 }
 
-// Liga e desliga o assistente inteiro. Se WHATSAPP_EMAILS existir, só essas contas enxergam.
+// Liga e desliga o assistente inteiro. Só as contas em WHATSAPP_EMAILS enxergam.
 export function assistenteAtivo() {
   return process.env.WHATSAPP_ASSISTENTE_ATIVO === "1" && whatsappConfigurado();
 }
@@ -17,7 +17,7 @@ export function contaPodeUsar(email: string | null | undefined) {
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  if (!lista.length) return true;
+  // lista vazia = ninguém: esquecer a variável nunca abre o assistente para todas as contas
   return !!email && lista.includes(email.toLowerCase());
 }
 

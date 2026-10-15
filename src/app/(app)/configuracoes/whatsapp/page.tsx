@@ -7,7 +7,8 @@ import { PageHeader } from "@/components/ui";
 import { Grupo, LinhaInfo, LinhaLink } from "@/components/ajustes";
 import { assistenteAtivo, contaPodeEscrever, contaPodeUsar, escritaAtiva } from "@/lib/whatsapp/evolution";
 import { PREFIXO, telefoneMascarado } from "@/lib/whatsapp/vinculo";
-import { AVISO_EM, COTA_MES, usoDoMes } from "@/lib/whatsapp/uso";
+import { AVISO_EM, cotasDa, usoDoMes } from "@/lib/whatsapp/uso";
+import { adminConfirmado } from "@/lib/admin";
 import { gruposLiberados } from "@/lib/whatsapp/rascunho";
 import { ApagarConversa, Desvincular, InterruptorConfirmacao, InterruptorVenda, Vincular } from "./controles";
 
@@ -53,6 +54,7 @@ export default async function AssistenteWhatsappPage() {
 
   const admin = createAdminClient();
   const usados = admin ? await usoDoMes(admin, user.id).catch(() => 0) : 0;
+  const COTA_MES = cotasDa(await adminConfirmado(user)).mes;
   const pct = Math.min(100, Math.round((usados / COTA_MES) * 100));
   const noLimite = usados >= COTA_MES;
   const perto = !noLimite && usados >= COTA_MES * AVISO_EM;

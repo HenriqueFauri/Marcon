@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ehAdmin } from "@/lib/admin";
+import { adminConfirmado, ehAdmin, registrarAdmin } from "@/lib/admin";
 import { cancelarAssinatura as cancelarNoAsaas } from "@/lib/asaas";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { PLANO_PADRAO } from "@/lib/planos";
@@ -16,7 +16,7 @@ async function contextoAdmin(alvoId: string, opcoes: { permitirAdmin?: boolean }
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!ehAdmin(user)) throw new Error("Acesso restrito.");
+  if (!(await adminConfirmado(user))) throw new Error("Acesso restrito.");
 
   const admin = createAdminClient();
   if (!admin) throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.");
@@ -26,15 +26,16 @@ async function contextoAdmin(alvoId: string, opcoes: { permitirAdmin?: boolean }
   // bloquear a própria conta ou a de outro admin não é permitido; a cortesia é, porque o banco não conhece ADMIN_EMAILS
   if (!opcoes.permitirAdmin && (data.user.id === user!.id || ehAdmin(data.user))) throw new Error("Contas de admin não podem ser bloqueadas.");
 
-  return { admin, alvo: data.user };
+  return { admin, alvo: data.user, adminId: user!.id };
 }
 
 // bloqueio pelo Supabase Auth: a pessoa não entra mais, e os dados ficam intactos
 export async function bloquearConta(id: string, bloquear: boolean): Promise<ActionResult> {
   try {
-    const { admin } = await contextoAdmin(id);
+    const { admin, adminId } = await contextoAdmin(id);
     const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: bloquear ? "876000h" : "none" });
     if (error) throw error;
+    await registrarAdmin(adminId, bloquear ? "bloquear_conta" : "desbloquear_conta", id);
     revalidatePath("/admin");
     return ok(bloquear ? "Conta bloqueada. Os dados continuam guardados." : "Conta desbloqueada.");
   } catch (e) {
@@ -44,7 +45,7 @@ export async function bloquearConta(id: string, bloquear: boolean): Promise<Acti
 
 export async function definirCortesia(id: string, liberar: boolean): Promise<ActionResult> {
   try {
-    const { admin } = await contextoAdmin(id, { permitirAdmin: true });
+    const { admin, adminId } = await contextoAdmin(id, { permitirAdmin: true });
     const { data: atual, error: erroLeitura } = await admin
       .from("assinaturas")
       .select("status, asaas_subscription_id")
@@ -81,6 +82,7 @@ export async function definirCortesia(id: string, liberar: boolean): Promise<Act
       if (error) throw error;
     }
 
+    await registrarAdmin(adminId, liberar ? "dar_cortesia" : "tirar_cortesia", id);
     revalidatePath("/admin");
     return ok(liberar ? "Plano Marcon liberado como cortesia." : "Cortesia retirada.");
   } catch (e) {
@@ -95,7 +97,7 @@ async function resolverSaque(id: string, status: "pago" | "recusado"): Promise<A
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!ehAdmin(user)) throw new Error("Acesso restrito.");
+    if (!(await adminConfirmado(user))) throw new Error("Acesso restrito.");
     const admin = createAdminClient();
     if (!admin) throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.");
 
@@ -108,6 +110,7 @@ async function resolverSaque(id: string, status: "pago" | "recusado"): Promise<A
       .select("id");
     if (error) throw error;
     if (!data?.length) return { ok: false, error: "Esse saque já foi resolvido." };
+    await registrarAdmin(user!.id, status === "pago" ? "pagar_saque" : "recusar_saque", null, { saque: id });
 
     revalidatePath("/admin/indicacoes");
     return ok(status === "pago" ? "Saque marcado como pago." : "Saque recusado. O valor volta para o saldo.");
@@ -132,7 +135,7 @@ export async function definirPercentualAfiliado(afiliadoId: string, percentual: 
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!ehAdmin(user)) throw new Error("Acesso restrito.");
+    if (!(await adminConfirmado(user))) throw new Error("Acesso restrito.");
     const admin = createAdminClient();
     if (!admin) throw new Error("SUPABASE_SERVICE_ROLE_KEY não configurada no servidor.");
 
@@ -146,6 +149,7 @@ export async function definirPercentualAfiliado(afiliadoId: string, percentual: 
     const { data, error } = await admin.from("afiliados").update({ percentual }).eq("owner_id", afiliadoId).select("owner_id");
     if (error) throw error;
     if (!data?.length) return { ok: false, error: "Afiliado não encontrado." };
+    await registrarAdmin(user!.id, "comissao_afiliado", afiliadoId, { percentual });
 
     revalidatePath("/admin/indicacoes");
     revalidatePath("/indique");

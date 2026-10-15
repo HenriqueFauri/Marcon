@@ -126,7 +126,7 @@ As migrations são rastreadas em `public.schema_migrations`. Até a 0041 aplicad
 | Variável | Para quê |
 | --- | --- |
 | `WHATSAPP_ASSISTENTE_ATIVO` | `1` liga. Sem isso o webhook responde 200 e ignora, e o cartão não aparece |
-| `WHATSAPP_EMAILS` | Contas que podem usar (vírgula). Vazio = qualquer conta |
+| `WHATSAPP_EMAILS` | Contas que podem usar (vírgula). Vazio = **ninguém** (desde 2026-10-15: esquecer a variável nunca abre o assistente para todas as contas). O admin do Marcon tem 5 vezes as cotas e os limites do dia |
 | `WHATSAPP_ESCRITA` | `1` liga o lançamento de venda |
 | `WHATSAPP_EMAILS_ESCRITA` | Contas que podem lançar. Vazio = ninguém |
 | `WHATSAPP_NUMERO` | Número do chip, só dígitos, para o link `wa.me` |
