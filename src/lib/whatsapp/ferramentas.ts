@@ -27,6 +27,7 @@ export interface Contexto {
   porAudio?: boolean; // a mensagem veio de voz (transcrita)
   duvidosas?: string[]; // palavras em que a transcrição ficou em dúvida
   fatos?: string[]; // o que o sistema gravou ou deixou de gravar por este número (route.ts)
+  catalogo?: string[]; // nomes dos produtos do vendedor (os mais vendidos primeiro), para entender "relógio" ou "fone"
   rastro?: Rastro; // preenchido por responder() quando alguém quer medir
 }
 

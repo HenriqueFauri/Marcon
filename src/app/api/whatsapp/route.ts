@@ -13,7 +13,7 @@ import {
 import { confirmarSeDispensado, resolverPendente } from "@/lib/whatsapp/acoes";
 import { GRUPOS_CONFIRMAVEIS, gruposLiberados, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
 import { CONFIANCA_MINIMA, SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva, vozSegura } from "@/lib/whatsapp/transcricao";
-import { vocabularioDoDono } from "@/lib/whatsapp/produtos";
+import { catalogoDoDono } from "@/lib/whatsapp/produtos";
 import { hojeISO, somarDias } from "@/lib/format";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
@@ -260,7 +260,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
       return;
     }
     // o vocabulário dele (o que mais vende primeiro) ajuda a transcrição a acertar marca e modelo
-    const vocabulario = await vocabularioDoDono(admin, owner, somarDias(hojeISO(), -90)).catch(() => []);
+    const vocabulario = await catalogoDoDono(admin, owner, somarDias(hojeISO(), -90)).catch(() => []);
     const voz = await transcrever(msg.audio, vocabulario);
     // sem texto, ou o provedor quase não entendeu nada: pedir de novo é melhor que responder a ruído
     if (!voz || (voz.confianca !== null && voz.confianca < CONFIANCA_MINIMA)) {
@@ -319,8 +319,12 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
     return;
   }
 
-  const [historico, fatos] = await Promise.all([carregarHistorico(admin, msg.telefone), carregarFatos(admin, owner, msg.telefone)]);
-  const respostaDoModelo = await responder(msg.texto, { ...ctx, fatos }, historico);
+  const [historico, fatos, catalogo] = await Promise.all([
+    carregarHistorico(admin, msg.telefone),
+    carregarFatos(admin, owner, msg.telefone),
+    catalogoDoDono(admin, owner, somarDias(hojeISO(), -90)).catch(() => [] as string[]),
+  ]);
+  const respostaDoModelo = await responder(msg.texto, { ...ctx, fatos, catalogo }, historico);
   await registrarUso(admin, owner);
   // tipo com confirmação desligada em Configurações: o servidor resolve o rascunho na hora (nunca por voz)
   const resposta = (escrita && (await confirmarSeDispensado(admin, ctx, respostaDoModelo))) || respostaDoModelo;

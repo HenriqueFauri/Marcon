@@ -39,18 +39,35 @@ export async function vocabularioDoDono(db: Db, owner: string, desde: string): P
   const [{ data: vendidos }, { data: cadastro }] = await Promise.all([
     db
       .from("venda_itens")
-      .select("produto_nome, quantidade, vendas!inner(data, status)")
+      .select("produto_id, quantidade, vendas!inner(data, status)")
       .eq("owner_id", owner)
       .eq("vendas.status", "concluida")
       .gte("vendas.data", desde)
       .limit(2000),
-    db.from("produtos_com_estoque").select("nome, marca").eq("owner_id", owner).eq("status", "ativo").order("nome").limit(300),
+    db.from("produtos_com_estoque").select("id, nome, marca").eq("owner_id", owner).eq("status", "ativo").order("nome").limit(300),
   ]);
+  // só nomes de produtos que existem no cadastro (nunca o rótulo gravado na linha da venda, que traz
+  // a variação e pode confundir: "Relógio Tomi — Preto" não é outro produto). Os mais vendidos vão primeiro.
   const saida = new Map<string, number>();
-  for (const i of vendidos ?? []) saida.set(i.produto_nome, (saida.get(i.produto_nome) ?? 0) + Number(i.quantidade));
-  const maisVendidos = [...saida.entries()].sort((a, b) => b[1] - a[1]).map(([nome]) => nome);
-  const doCadastro = (cadastro ?? []).map((p) => [p.nome, p.marca].filter(Boolean).join(" "));
-  return [...new Set([...maisVendidos, ...doCadastro])].map((n) => n.slice(0, 50));
+  for (const i of vendidos ?? []) if (i.produto_id) saida.set(i.produto_id, (saida.get(i.produto_id) ?? 0) + Number(i.quantidade));
+  return (cadastro ?? [])
+    .map((p, ordem) => ({ nome: [p.marca, p.nome].filter(Boolean).join(" ").slice(0, 50), vendidos: saida.get(p.id) ?? 0, ordem }))
+    .sort((a, b) => b.vendidos - a.vendidos || a.ordem - b.ordem)
+    .map((p) => p.nome);
+}
+
+// Catálogo do dono guardado alguns minutos na memória da instância: serve a transcrição por voz e o
+// prompt do assistente, e evita refazer as duas consultas a cada mensagem de uma conversa.
+const MINUTOS_DO_CATALOGO = 5;
+const catalogos = new Map<string, { ate: number; nomes: string[] }>();
+
+export async function catalogoDoDono(db: Db, owner: string, desde: string): Promise<string[]> {
+  const guardado = catalogos.get(owner);
+  if (guardado && guardado.ate > Date.now()) return guardado.nomes;
+  const nomes = await vocabularioDoDono(db, owner, desde);
+  if (catalogos.size > 500) catalogos.clear();
+  catalogos.set(owner, { ate: Date.now() + MINUTOS_DO_CATALOGO * 60_000, nomes });
+  return nomes;
 }
 
 export type Escolha =

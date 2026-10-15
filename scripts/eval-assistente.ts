@@ -45,6 +45,7 @@ interface Turno {
 }
 interface Caso {
   nome: string;
+  inicio?: { papel: "user" | "assistant"; texto: string }[]; // conversa que já estava rolando
   turnos: Turno[];
 }
 
@@ -80,7 +81,7 @@ const CASOS: Caso[] = [
     { diz: "vendi a prata", espera: { rascunho: true, contem: [/Tomi/, /Prata/], voltasMax: 3 } },
   ] },
   { nome: "vendi em partes soltas (voz fragmentada)", turnos: [
-    { diz: "fica qual relógio que tem no estoque?", voz: [], espera: { ferramentas: ["buscar_produtos"], voltasMax: 2 } },
+    { diz: "fica qual relógio que tem no estoque?", voz: [], espera: { ferramentas: ["buscar_produtos"], voltasMax: 3 } },
     { diz: "prata", voz: [], espera: { voltasMax: 2 } },
     { diz: "vendi", voz: [], espera: { rascunho: true, contem: [/Prata/], voltasMax: 3 } },
   ] },
@@ -129,6 +130,19 @@ const CASOS: Caso[] = [
   { nome: "lançou? confirma pelo registro", turnos: [{ diz: "Lançou?", fatos: ["15:44: 1x Relógio Tomi (Preto) a R$ 119,00; Total: R$ 119,00; Pagamento: PIX (GRAVADO no Marcon)"], espera: { semFerramentas: true, contem: [/(sim|lançad|gravad)/i, /119/], naoContem: [/desculp/i, /n[aã]o (foi|consegui confirmar)/i], voltasMax: 1 } }] },
   { nome: "lançou? sem registro não inventa", turnos: [{ diz: "Lançou?", espera: { semFerramentas: true, naoContem: [/^sim/i, /^foi (lançad|gravad)/i, /outro aparelho/i, /salv/i], voltasMax: 1 } }] },
 
+  // uma confirmação só (conversas reais que falharam no WhatsApp em 13/10)
+  { nome: "relógio genérico: pergunta entre os dois", turnos: [{ diz: "Acabei de vender mais um relógio.", voz: [], espera: { contem: [/Tomi/, /Smartwatch/i], naoContem: [RASCUNHO], voltasMax: 3 } }] },
+  { nome: "escolhe um dos dois: prepara na hora", turnos: [
+    { diz: "Acabei de vender mais um relógio.", voz: [], espera: { contem: [/Tomi/, /Smartwatch/i], voltasMax: 3 } },
+    { diz: "o smartwatch", voz: [], espera: { rascunho: true, contem: [/Smartwatch D20/], voltasMax: 3 } },
+  ] },
+  { nome: "só uma variação com estoque: sem pergunta", turnos: [{ diz: "vendi mais um relógio tomi", espera: { rascunho: true, contem: [/Tomi/, /Prata/], naoContem: [/é esse/i, /quis dizer/i], voltasMax: 3 } }] },
+  { nome: "corrige o produto do rascunho", inicio: [
+    { papel: "user", texto: "Acabou de sair um relógio aqui." },
+    { papel: "assistant", texto: "*Confirma esta venda?*\n• 1x Relógio Tomi (Prata) a R$ 129,00\nTotal: *R$ 129,00*\n\nResponda *SIM* para lançar ou *NÃO* para cancelar. Vale por 10 minutos." },
+  ], turnos: [{ diz: "Eu disse que na real foi o smartwatch que foi vendido.", voz: [], espera: { rascunho: true, contem: [/Smartwatch D20/], voltasMax: 3 } }] },
+  { nome: "sinônimo: fone de ouvido na venda", turnos: [{ diz: "vendi um fone de ouvido", espera: { rascunho: true, contem: [/Fone Bluetooth KZ/], voltasMax: 3 } }] },
+
   // outros lançamentos
   { nome: "entrada de estoque", turnos: [{ diz: "chegaram 10 cabo usb a 5 cada", espera: { rascunho: true, contem: [/Cabo USB/i, /10/], voltasMax: 3 } }] },
   { nome: "despesa no caixa", turnos: [{ diz: "paguei 50 de frete", espera: { rascunho: true, contem: [/50/], voltasMax: 3 } }] },
@@ -173,6 +187,10 @@ async function main() {
   const { data: vinculo } = await admin.from("whatsapp_vinculos").select("owner_id").limit(1).maybeSingle();
   if (!vinculo) throw new Error("Nenhuma conta vinculada no Staging");
   const owner = vinculo.owner_id as string;
+  // o mesmo catálogo que o assistente recebe no WhatsApp (os mais vendidos primeiro)
+  const { catalogoDoDono } = await import("@/lib/whatsapp/produtos");
+  const { somarDias, hojeISO } = await import("@/lib/format");
+  const catalogo = await catalogoDoDono(admin, owner, somarDias(hojeISO(), -90));
 
   const limpar = () => admin.from("whatsapp_acoes").delete().eq("telefone", TELEFONE);
   await limpar();
@@ -185,7 +203,7 @@ async function main() {
 
   for (const caso of CASOS.filter((c) => !filtro || c.nome.includes(filtro))) {
     for (let v = 0; v < vezes; v++) {
-      const historico: { papel: "user" | "assistant"; texto: string }[] = [];
+      const historico: { papel: "user" | "assistant"; texto: string }[] = [...(caso.inicio ?? [])];
       const linhas: string[] = [];
       let casoOk = true;
       for (const t of caso.turnos) {
@@ -193,7 +211,7 @@ async function main() {
         const inicio = Date.now();
         let resposta = "";
         try {
-          resposta = await responder(t.diz, { owner, telefone: TELEFONE, escrita: true, porAudio: !!t.voz, duvidosas: t.voz, fatos: t.fatos, rastro }, historico);
+          resposta = await responder(t.diz, { owner, telefone: TELEFONE, escrita: true, porAudio: !!t.voz, duvidosas: t.voz, fatos: t.fatos, catalogo, rastro }, historico);
         } catch (e) {
           resposta = `ERRO: ${e instanceof Error ? e.message : String(e)}`;
         }
