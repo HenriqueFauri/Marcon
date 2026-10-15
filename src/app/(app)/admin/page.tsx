@@ -8,9 +8,10 @@ import { adminConfirmado, ehAdmin } from "@/lib/admin";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
 import { PLANOS } from "@/lib/planos";
-import { Badge, EmptyState, ErrorMessage, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
 import { bloqueada, type ResumoConta } from "./dados";
+import { AbasAdmin } from "./abas";
 
 export const metadata: Metadata = { title: "Administração" };
 
@@ -49,6 +50,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   const sp = await searchParams;
   const busca = (typeof sp.q === "string" ? sp.q : "").trim().toLowerCase();
+  const grupo = ["pagantes", "teste", "outras"].includes(String(sp.situacao)) ? String(sp.situacao) : "todas";
 
   const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }] = await Promise.all([
     todasAsContas(admin),
@@ -80,9 +82,18 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     })
     .sort((a, b) => b.u.created_at.localeCompare(a.u.created_at));
 
-  const filtradas = busca
-    ? linhas.filter((l) => [l.u.email, l.negocio, l.nome].some((t) => t?.toLowerCase().includes(busca)))
-    : linhas;
+  // pagantes = assinatura ativa ou atrasada; teste = os 14 dias; outras = grátis e cortesia
+  const doGrupo = (tipo: string) => (tipo === "ativa" || tipo === "atrasada" ? "pagantes" : tipo === "teste" ? "teste" : "outras");
+  const filtradas = linhas
+    .filter((l) => grupo === "todas" || doGrupo(l.situacao.tipo) === grupo)
+    .filter((l) => !busca || [l.u.email, l.negocio, l.nome].some((t) => t?.toLowerCase().includes(busca)));
+  const hrefDoFiltro = (g: string) => {
+    const p = new URLSearchParams();
+    if (g !== "todas") p.set("situacao", g);
+    if (busca) p.set("q", busca);
+    const qs = p.toString();
+    return qs ? `/admin?${qs}` : "/admin";
+  };
 
   const pagantes = linhas.filter((l) => l.situacao.tipo === "ativa" || l.situacao.tipo === "atrasada").length;
   const receitaMensal = pagantes * PLANOS.marcon.valor;
@@ -90,14 +101,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader
-        title="Administração"
-        action={
-          <Link href="/admin/indicacoes" className={btnSecondary}>
-            Saques de indicação
-          </Link>
-        }
-      />
+      <PageHeader title="Administração" />
+      <AbasAdmin ativa="contas" />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Contas" value={linhas.length} hint={`${linhas.filter((l) => criadaNaUltimaSemana(l.u)).length} nos últimos 7 dias`} />
@@ -116,6 +121,16 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         </div>
       )}
 
+      <Segmentos
+        rotulo="Filtrar contas"
+        className="mb-3"
+        itens={[
+          { href: hrefDoFiltro("todas"), label: "Todas", ativo: grupo === "todas" },
+          { href: hrefDoFiltro("pagantes"), label: "Pagantes", ativo: grupo === "pagantes" },
+          { href: hrefDoFiltro("teste"), label: "Teste", ativo: grupo === "teste" },
+          { href: hrefDoFiltro("outras"), label: "Outras", ativo: grupo === "outras" },
+        ]}
+      />
       <div className="mb-4 sm:max-w-sm">
         <SearchInput placeholder="Buscar por e-mail ou negócio" />
       </div>
@@ -158,10 +173,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                   <th className={thClass}>Conta</th>
                   <th className={thClass}>Plano</th>
                   <th className={`${thClass} text-right`}>Produtos</th>
-                  <th className={`${thClass} text-right`}>Vendido no mês</th>
-                  <th className={`${thClass} text-right`}>Lucro no mês</th>
-                  <th className={`${thClass} text-right`}>Total vendido</th>
-                  <th className={thClass}>Último acesso</th>
+                  <th className={`${thClass} whitespace-nowrap text-right`}>No mês</th>
+                  <th className={`${thClass} whitespace-nowrap text-right`}>Lucro</th>
+                  <th className={`${thClass} whitespace-nowrap text-right`}>Total</th>
+                  <th className={`${thClass} whitespace-nowrap`}>Acesso</th>
                 </tr>
               </thead>
               <tbody className={tbodyClass}>
