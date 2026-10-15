@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { avisarContaNova } from "@/lib/push/contas-novas";
 import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
 import { ToastProvider } from "@/components/toaster";
@@ -15,6 +17,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   if (!user) {
     redirect("/login");
   }
+  // conta nova abrindo o app pela primeira vez: avisa o admin (depois da resposta, sem atrasar a tela)
+  after(() => avisarContaNova(user));
 
   const [{ count: parcelasAbertas }, { count: pedidosNovos }, { data: assinaturaRow }] = await Promise.all([
     supabase.from("parcelas_com_status").select("id", { count: "exact", head: true }).neq("status", "pago"),
