@@ -15,15 +15,25 @@ export interface ContextoAcao {
   owner: string;
   telefone: string;
   user?: User; // para o aviso (push) da venda, com as preferências de notificação dele
+  semConfirmar?: GrupoConfirmavel[]; // grupos em que o vendedor dispensou o SIM (Configurações)
+  porAudio?: boolean; // a mensagem veio de voz: a transcrição pode errar
+  admin?: boolean; // admin do Marcon: limites do dia maiores (acoes.ts)
+  vozSegura?: boolean; // transcrição com confiança alta e nenhuma palavra em dúvida: só então o SIM pode ser dispensado por voz
 }
 
 export const MINUTOS_DO_RASCUNHO = 10;
 
 export const SIM = /^\s*(sim|s|confirmo|confirma|confirmar|pode|pode lan[cç]ar)\s*[.!]?\s*$/i;
-export const NAO = /^\s*(n[aã]o|n|cancela|cancelar)\s*[.!]?\s*$/i;
+// Jeito natural de dizer sim. Só vale quando a ÚLTIMA mensagem do assistente foi o resumo a confirmar
+// (acoes.ts): um "ok" dito para outra coisa nunca pode lançar uma venda.
+export const SIM_SUAVE =
+  /^\s*(isso|isso mesmo|isso a[ií]|ok|okay|beleza|blz|fechou|fechado|certo|t[aá] certo|est[aá] certo|pode mandar|pode registrar|manda ver|lan[cç]a|lan[cç]a a[ií]|registra|confirmado|aham|uhum|positivo|bora)\s*[.!]?\s*$/i;
+// Cancelar é o lado seguro: qualquer um destes descarta o rascunho.
+export const NAO =
+  /^\s*(n[aã]o|n|cancela|cancelar|cancela essa|cancela a venda|deixa|deixa pra l[aá]|deixa quieto|esquece|esque[cç]a|desisti|desisto|n[aã]o quero|melhor n[aã]o|errei|para|nada)\s*[.!]?\s*$/i;
 
-// Grupos que o Marcon liga no servidor com WHATSAPP_LANCAMENTOS (ex.: "produto,estoque,caixa").
-// Vazio = só venda, como sempre foi. Venda não entra aqui: ela depende de WHATSAPP_ESCRITA.
+// Grupos de lançamento além da venda. Quem pode lançar é decidido conta por conta no /admin
+// (acesso.ts, permissão "lancar"): com ela, a conta lança venda e todos os grupos.
 export type GrupoDeLancamento = "produto" | "estoque" | "caixa";
 
 const GRUPO_DO_TIPO: Record<Exclude<TipoAcao, "venda">, GrupoDeLancamento> = {
@@ -34,14 +44,21 @@ const GRUPO_DO_TIPO: Record<Exclude<TipoAcao, "venda">, GrupoDeLancamento> = {
   caixa_saida: "caixa",
 };
 
-export function gruposLiberados(): GrupoDeLancamento[] {
-  const validos: GrupoDeLancamento[] = ["produto", "estoque", "caixa"];
-  const pedidos = (process.env.WHATSAPP_LANCAMENTOS ?? "").split(",").map((g) => g.trim().toLowerCase());
-  return validos.filter((g) => pedidos.includes(g));
+// o que o vendedor pode escolher em Configurações: a venda mais os grupos acima
+export type GrupoConfirmavel = "venda" | GrupoDeLancamento;
+export const GRUPOS_CONFIRMAVEIS: GrupoConfirmavel[] = ["venda", "produto", "estoque", "caixa"];
+
+export function grupoDoTipo(tipo: TipoAcao): GrupoConfirmavel {
+  return tipo === "venda" ? "venda" : GRUPO_DO_TIPO[tipo];
 }
 
+export function gruposLiberados(): GrupoDeLancamento[] {
+  return ["produto", "estoque", "caixa"];
+}
+
+// todo tipo conhecido; a permissão de lançar é da conta (a rota só resolve rascunho de quem pode lançar)
 export function tipoLiberado(tipo: TipoAcao) {
-  return tipo === "venda" || gruposLiberados().includes(GRUPO_DO_TIPO[tipo]);
+  return tipo === "venda" || tipo in GRUPO_DO_TIPO;
 }
 
 // tira o que atrapalha o filtro do PostgREST e limita o tamanho do que veio do modelo

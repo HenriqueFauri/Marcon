@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ehAdmin } from "@/lib/admin";
+import { adminConfirmado } from "@/lib/admin";
 import { formatBRL, formatData } from "@/lib/format";
 import { COMISSAO_MAXIMA, COMISSAO_PERCENTUAL, resumoDoAfiliado } from "@/lib/indicacao";
 import { Badge, EmptyState, ErrorMessage, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
@@ -26,7 +26,7 @@ export default async function IndicacoesAdminPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!ehAdmin(user)) notFound();
+  if (!(await adminConfirmado(user))) notFound();
 
   const admin = createAdminClient();
   if (!admin) {

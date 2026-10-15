@@ -7,31 +7,9 @@ export function whatsappConfigurado() {
   return !!(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY && process.env.EVOLUTION_INSTANCE);
 }
 
-// Liga e desliga o assistente inteiro. Se WHATSAPP_EMAILS existir, só essas contas enxergam.
+// Chave geral do assistente inteiro. Quem pode usar é decidido conta por conta no /admin (acesso.ts).
 export function assistenteAtivo() {
   return process.env.WHATSAPP_ASSISTENTE_ATIVO === "1" && whatsappConfigurado();
-}
-
-export function contaPodeUsar(email: string | null | undefined) {
-  const lista = (process.env.WHATSAPP_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  if (!lista.length) return true;
-  return !!email && lista.includes(email.toLowerCase());
-}
-
-// Escrever (lançar venda) tem chave própria e lista própria. Lista vazia = ninguém escreve.
-export function escritaAtiva() {
-  return process.env.WHATSAPP_ESCRITA === "1";
-}
-
-export function contaPodeEscrever(email: string | null | undefined) {
-  const lista = (process.env.WHATSAPP_EMAILS_ESCRITA ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return !!email && lista.includes(email.toLowerCase());
 }
 
 export async function enviarMensagem(telefone: string, texto: string) {
@@ -48,10 +26,19 @@ export async function enviarMensagem(telefone: string, texto: string) {
   if (!resposta.ok) throw new Error(`Evolution respondeu ${resposta.status}`);
 }
 
+// Mensagem de voz. O áudio chega dentro do evento quando a instância da Evolution está com
+// webhook base64 ligado (docs/whatsapp-assistente.md); sem ele, base64 vem vazio.
+export interface AudioRecebido {
+  base64?: string;
+  mimetype: string;
+  segundos: number;
+}
+
 export interface MensagemRecebida {
   id: string;
   telefone: string; // só dígitos
-  texto: string;
+  texto: string; // vazio quando é áudio: a rota transcreve e preenche
+  audio?: AudioRecebido;
 }
 
 interface Chave {
@@ -72,7 +59,7 @@ function digitos(jid: string | undefined) {
 }
 
 // Payload do evento MESSAGES_UPSERT da Evolution v2. Devolve null para o que não é texto de uma
-// conversa direta (grupo, mensagem enviada por nós, mídia, status).
+// conversa direta, de texto ou de voz (grupo, mensagem enviada por nós, outras mídias e status viram null).
 export function extrairMensagem(corpo: unknown): MensagemRecebida | null {
   const c = corpo as { event?: string; data?: { key?: Chave; message?: Record<string, unknown> } } | null;
   if (!c || typeof c !== "object") return null;
@@ -89,6 +76,15 @@ export function extrairMensagem(corpo: unknown): MensagemRecebida | null {
   const texto =
     (typeof msg.conversation === "string" && msg.conversation) ||
     ((msg.extendedTextMessage as { text?: string } | undefined)?.text ?? "");
-  if (!texto.trim()) return null;
-  return { id: chave.id, telefone, texto: texto.trim().slice(0, 1000) };
+  if (texto.trim()) return { id: chave.id, telefone, texto: texto.trim().slice(0, 1000) };
+
+  const voz = msg.audioMessage as { mimetype?: string; seconds?: number; base64?: string } | undefined;
+  if (!voz) return null;
+  const base64 = [msg.base64, voz.base64].find((b): b is string => typeof b === "string" && b.length > 0);
+  return {
+    id: chave.id,
+    telefone,
+    texto: "",
+    audio: { base64, mimetype: voz.mimetype || "audio/ogg", segundos: Number(voz.seconds) || 0 },
+  };
 }

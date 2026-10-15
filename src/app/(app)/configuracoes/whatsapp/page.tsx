@@ -5,10 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PageHeader } from "@/components/ui";
 import { Grupo, LinhaInfo, LinhaLink } from "@/components/ajustes";
-import { assistenteAtivo, contaPodeEscrever, contaPodeUsar, escritaAtiva } from "@/lib/whatsapp/evolution";
+import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { PREFIXO, telefoneMascarado } from "@/lib/whatsapp/vinculo";
-import { AVISO_EM, COTA_MES, usoDoMes } from "@/lib/whatsapp/uso";
-import { ApagarConversa, Desvincular, InterruptorVenda, Vincular } from "./controles";
+import { AVISO_EM, cotasDa, usoDoMes } from "@/lib/whatsapp/uso";
+import { gruposLiberados } from "@/lib/whatsapp/rascunho";
+import { ApagarConversa, Desvincular, InterruptorConfirmacao, InterruptorVenda, Vincular } from "./controles";
 
 export const metadata: Metadata = { title: "Assistente no WhatsApp" };
 
@@ -27,10 +28,11 @@ export default async function AssistenteWhatsappPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || !assistenteAtivo() || !contaPodeUsar(user.email)) redirect("/configuracoes");
+  const acesso = await acessoDoAssistente(user);
+  if (!user || !acesso.usar) redirect("/configuracoes");
 
-  const { data: vinculo } = await supabase.from("whatsapp_vinculos").select("telefone, lancar_venda").maybeSingle();
-  const liberadoLancar = escritaAtiva() && contaPodeEscrever(user.email);
+  const { data: vinculo } = await supabase.from("whatsapp_vinculos").select("telefone, lancar_venda, sem_confirmar").maybeSingle();
+  const liberadoLancar = acesso.lancar;
   const numero = (process.env.WHATSAPP_NUMERO ?? "").replace(/\D/g, "");
   const voltar = { href: "/configuracoes", label: "Configurações" };
 
@@ -52,9 +54,18 @@ export default async function AssistenteWhatsappPage() {
 
   const admin = createAdminClient();
   const usados = admin ? await usoDoMes(admin, user.id).catch(() => 0) : 0;
+  const COTA_MES = cotasDa(acesso.admin).mes;
   const pct = Math.min(100, Math.round((usados / COTA_MES) * 100));
   const noLimite = usados >= COTA_MES;
   const perto = !noLimite && usados >= COTA_MES * AVISO_EM;
+  // um interruptor por tipo que o servidor liberou; a venda some junto com o interruptor "Lançar vendas"
+  const semConfirmar = (vinculo.sem_confirmar ?? []) as string[];
+  const confirmacoes = [
+    liberadoLancar && vinculo.lancar_venda !== false ? { grupo: "venda", titulo: "Vendas" } : null,
+    ...(liberadoLancar
+      ? gruposLiberados().map((g) => ({ grupo: g, titulo: { produto: "Produtos novos", estoque: "Estoque", caixa: "Caixa" }[g] }))
+      : []),
+  ].filter((c): c is { grupo: string; titulo: string } => c !== null);
   const corDaBarra = noLimite ? "bg-danger" : perto ? "bg-warning" : "bg-positive";
 
   return (
@@ -97,6 +108,18 @@ export default async function AssistenteWhatsappPage() {
             <LinhaLink key={e} href={`https://wa.me/${numero}?text=${encodeURIComponent(e)}`} externo rotulo={e} />
           ))}
         </Grupo>
+
+        {confirmacoes.length > 0 && (
+          <Grupo
+            titulo="Pedir meu SIM antes de lançar"
+            semPadding
+            rodape="Desligado, o assistente lança na hora e conta o que fez. Por voz, só lanço sem o SIM quando entendo o áudio com segurança; se ficar qualquer dúvida, peço o SIM."
+          >
+            {confirmacoes.map((c) => (
+              <InterruptorConfirmacao key={c.grupo} grupo={c.grupo} titulo={c.titulo} pedir={!semConfirmar.includes(c.grupo)} />
+            ))}
+          </Grupo>
+        )}
 
         <Grupo
           titulo="Ajustes"

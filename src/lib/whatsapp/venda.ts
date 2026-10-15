@@ -2,6 +2,7 @@ import "server-only";
 import { avisarVenda } from "@/lib/push/eventos";
 import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
 import { MINUTOS_DO_RASCUNHO, igual, r2, termo, type ContextoAcao, type Db, type Entrada } from "./rascunho";
+import { umProduto } from "./produtos";
 import type { Resultado } from "./acoes";
 
 // Lançar venda pelo WhatsApp. REGRAS QUE NÃO PODEM QUEBRAR:
@@ -31,7 +32,12 @@ export const FERRAMENTA_VENDA = {
             produto: { type: "string", description: "Nome ou parte do nome do produto, como o vendedor falou" },
             variacao: { type: "string", description: "Cor, tamanho ou variação, só se o vendedor disse" },
             quantidade: { type: "integer", description: "Quantidade vendida (padrão 1)" },
-            preco_unitario: { type: "number", description: "Preço de cada unidade em reais, só se o vendedor disse" },
+            preco_unitario: { type: "number", description: "Preço de CADA unidade em reais, só se o vendedor disse 'cada', 'a X cada' ou vendeu 1 unidade" },
+            valor_total_item: {
+              type: "number",
+              description:
+                "Valor TOTAL deste item em reais, quando o vendedor disse 'N por X' sem 'cada' (ex.: 'vendi 2 carregadores por 80' é valor_total_item 80). Use este campo OU preco_unitario, nunca os dois",
+            },
           },
           required: ["produto", "quantidade"],
         },
@@ -70,6 +76,7 @@ interface Rascunho {
   data: string;
   desconto: number;
   total: number;
+  aproximado?: boolean; // algum produto foi achado por semelhança: exige o SIM (ver acoes.ts)
 }
 
 // o que o cadastro do vendedor já tem (forma de pagamento, canal, cliente): usa o nome e o id de lá
@@ -84,6 +91,7 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
 
   const itens: ItemRascunho[] = [];
   const linhas: string[] = [];
+  let aproximado = false;
 
   for (const it of pedidos) {
     const quantidade = Math.trunc(Number(it.quantidade) || 1);
@@ -91,23 +99,11 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
     const t = termo(it.produto);
     if (!t) return { erro: "Faltou o nome do produto." };
 
-    const { data: achados, error } = await db
-      .from("produtos_com_estoque")
-      .select("id, nome, tem_variacoes, estoque_total, preco_varejo")
-      .eq("owner_id", ctx.owner)
-      .eq("status", "ativo")
-      .ilike("nome", `%${t}%`)
-      .order("nome")
-      .limit(6);
-    if (error) throw error;
-    if (!achados?.length) return { erro: `Não achei produto com "${t}" no seu cadastro.` };
-
-    const exatos = achados.filter((p) => igual(p.nome, t));
-    const candidatos = exatos.length === 1 ? exatos : achados;
-    if (candidatos.length > 1) {
-      return { ambiguo: candidatos.map((p) => p.nome), pergunta: "Qual desses produtos foi vendido?" };
-    }
-    const p = candidatos[0];
+    const achado = await umProduto(db, ctx.owner, t);
+    if ("falta" in achado) return achado.falta;
+    const p = achado.produto;
+    // nome só parecido com o que foi dito: o vendedor precisa ver e confirmar, mesmo com o SIM dispensado
+    if (!achado.firme) aproximado = true;
 
     let variacaoId: string | null = null;
     let nomeLinha = p.nome as string;
@@ -123,10 +119,21 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
       const pedida = termo(it.variacao);
       const parecidas = (vars ?? []).filter((v) => pedida && v.nome_combinacao.toLowerCase().includes(pedida.toLowerCase()));
       const exatas = parecidas.filter((v) => igual(v.nome_combinacao, pedida));
-      const escolhidas = exatas.length === 1 ? exatas : parecidas;
+      let escolhidas = exatas.length === 1 ? exatas : parecidas;
+      // Não disse qual variação: só entram na conta as que têm estoque para a venda. Se sobrou uma só,
+      // é ela (a Prata, com o Preto zerado). Fica marcada como inferida: o SIM é pedido uma vez, nunca
+      // dispensado, mas o vendedor não precisa responder a uma pergunta antes.
+      let candidatas = vars ?? [];
+      if (escolhidas.length !== 1 && !pedida) {
+        candidatas = (vars ?? []).filter((v) => Number(v.estoque) >= quantidade);
+        if (candidatas.length === 1) {
+          escolhidas = candidatas;
+          aproximado = true;
+        }
+      }
       if (escolhidas.length !== 1) {
         return {
-          ambiguo: (vars ?? []).map((v) => v.nome_combinacao),
+          ambiguo: (candidatas.length ? candidatas : (vars ?? [])).map((v) => v.nome_combinacao),
           pergunta: `${p.nome} tem variações. Qual foi vendida?`,
         };
       }
@@ -139,7 +146,17 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
 
     if (estoque < quantidade) return { erro: `${nomeLinha} tem só ${estoque} em estoque.` };
 
-    const dito = it.preco_unitario == null ? NaN : Number(it.preco_unitario);
+    // "2 por 80" é o total do item: o servidor divide, e só aceita se a conta fechar em centavos
+    const totalDito = it.valor_total_item == null ? NaN : Number(it.valor_total_item);
+    let dito = it.preco_unitario == null ? NaN : Number(it.preco_unitario);
+    if (Number.isFinite(totalDito)) {
+      if (totalDito < 0 || totalDito > 1_000_000) return { erro: "Confira o valor informado." };
+      const porUnidade = r2(totalDito / quantidade);
+      if (r2(porUnidade * quantidade) !== r2(totalDito)) {
+        return { erro: `R$ ${totalDito} em ${quantidade} unidades não divide igual. Pergunte o valor de cada unidade.` };
+      }
+      dito = porUnidade;
+    }
     if (Number.isFinite(dito)) {
       if (dito < 0 || dito > 1_000_000) return { erro: "Confira o preço informado." };
       preco = dito;
@@ -188,6 +205,7 @@ export async function prepararVenda(db: Db, ctx: ContextoVenda, entrada: Entrada
     data,
     desconto,
     total,
+    aproximado,
   };
 
   const resumo = [

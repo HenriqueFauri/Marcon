@@ -1,20 +1,16 @@
 import { timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  assistenteAtivo,
-  contaPodeEscrever,
-  contaPodeUsar,
-  enviarMensagem,
-  escritaAtiva,
-  extrairMensagem,
-  type MensagemRecebida,
-} from "@/lib/whatsapp/evolution";
-import { resolverPendente } from "@/lib/whatsapp/acoes";
-import { gruposLiberados } from "@/lib/whatsapp/rascunho";
+import { assistenteAtivo, enviarMensagem, extrairMensagem, type MensagemRecebida } from "@/lib/whatsapp/evolution";
+import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
+import { confirmarSeDispensado, resolverPendente } from "@/lib/whatsapp/acoes";
+import { GRUPOS_CONFIRMAVEIS, gruposLiberados, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
+import { CONFIANCA_MINIMA, SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva, vozSegura } from "@/lib/whatsapp/transcricao";
+import { catalogoDoDono } from "@/lib/whatsapp/produtos";
+import { hojeISO, somarDias } from "@/lib/format";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
-import { AVISO_EM, COTA_MES, TETO_DIA, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
+import { AVISO_EM, cotasDa, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
 
 // Webhook do assistente no WhatsApp. A Evolution chama aqui a cada mensagem recebida.
 // Configuração do webhook (cabeçalho com WHATSAPP_WEBHOOK_SECRET): docs/whatsapp-assistente.md.
@@ -102,6 +98,45 @@ async function carregarHistorico(admin: Admin, telefone: string): Promise<Troca[
   return lista;
 }
 
+// O que o SISTEMA fez de verdade por este número nas últimas horas, lido do registro de lançamentos.
+// O modelo recebe isto como fato: sem isso ele não distingue o que foi gravado do que ele só disse,
+// e chega a desmentir uma venda que foi lançada.
+const SITUACAO: Record<string, string> = {
+  executada: "GRAVADO no Marcon",
+  pendente: "aguardando o SIM do vendedor, ainda NÃO gravado",
+  executando: "sendo gravado agora",
+  cancelada: "cancelado, nada foi gravado",
+  expirada: "expirou sem SIM, nada foi gravado",
+  falhou: "deu erro, nada foi gravado",
+};
+
+async function carregarFatos(admin: Admin, owner: string, telefone: string): Promise<string[]> {
+  const desde = new Date(Date.now() - HORAS_DE_MEMORIA * 3600_000).toISOString();
+  const { data, error } = await admin
+    .from("whatsapp_acoes")
+    .select("status, resumo, criado_em")
+    .eq("owner_id", owner)
+    .eq("telefone", telefone)
+    .gte("criado_em", desde)
+    .order("criado_em", { ascending: false })
+    .limit(6);
+  if (error) {
+    console.error("[whatsapp] fatos", error.message);
+    return [];
+  }
+  return (data ?? []).reverse().map((a) => {
+    const hora = new Date(a.criado_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+    // do resumo saem o título com pergunta e a linha do SIM: ficam só os dados do lançamento
+    const dados = String(a.resumo)
+      .split("\n\nResponda")[0]
+      .split("\n")
+      .filter((l) => l.trim() && !l.includes("Confirma"))
+      .map((l) => l.replace(/[*•]/g, "").trim())
+      .join("; ");
+    return `${hora}: ${dados} (${SITUACAO[a.status] ?? a.status})`;
+  });
+}
+
 async function guardarTroca(admin: Admin, telefone: string, pergunta: string, resposta: string) {
   const { error } = await admin.from("whatsapp_conversas").insert([
     { telefone, papel: "user", texto: pergunta },
@@ -149,7 +184,7 @@ const TEXTO_AJUDA = [
 
 function textoAjuda(escrita: boolean) {
   if (!escrita) return TEXTO_AJUDA;
-  // os exemplos acompanham o que está ligado no servidor (WHATSAPP_LANCAMENTOS)
+  // quem pode lançar lança todos os grupos: os exemplos mostram todos
   const grupos = gruposLiberados();
   const outros = [
     grupos.includes("produto") ? "• cadastra fone bluetooth a 60" : null,
@@ -159,13 +194,14 @@ function textoAjuda(escrita: boolean) {
   const lancar = [outros.length ? "*Lançar*" : "*Lançar venda*", "• vendi 2 controle PS4 por 80 no PIX", ...outros].join("\n");
   return TEXTO_AJUDA.replace("*Loja online*", `${lancar}\n\n*Loja online*`).replace(
     "Por enquanto só consulto, não lanço nada.",
-    outros.length ? "Antes de lançar qualquer coisa eu sempre peço o seu SIM." : "Antes de lançar uma venda eu sempre peço o seu SIM.",
+    outros.length ? "Antes de lançar qualquer coisa eu peço o seu SIM, a não ser que você tenha desligado isso em Configurações." : "Antes de lançar uma venda eu peço o seu SIM, a não ser que você tenha desligado isso em Configurações.",
   );
 }
 
 const LIMPAR = /^\s*(limpar|nova conversa|reiniciar|recome[cç]ar)\s*[.!]?\s*$/i;
 
-async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) {
+async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean }) {
+  let msg = entrada;
   const admin = createAdminClient();
   if (!admin) {
     console.error("[whatsapp] SUPABASE_SERVICE_ROLE_KEY não configurada");
@@ -180,7 +216,7 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
 
   const { data: vinculo } = await admin
     .from("whatsapp_vinculos")
-    .select("owner_id, lancar_venda")
+    .select("owner_id, lancar_venda, sem_confirmar")
     .eq("telefone", msg.telefone)
     .maybeSingle();
   if (!vinculo) {
@@ -194,13 +230,47 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
 
   const owner = vinculo.owner_id as string;
   const { data: conta } = await admin.auth.admin.getUserById(owner);
-  if (!contaPodeUsar(conta.user?.email)) return;
+  // liberado no /admin (conta por conta) ou admin do Marcon; o admin tem cotas e limites do dia maiores
+  const acesso = await acessoDoAssistente(conta.user);
+  if (!acesso.usar) return;
+  const ehAdminDoMarcon = acesso.admin;
+  const { mes: COTA_MES, dia: TETO_DIA } = cotasDa(ehAdminDoMarcon);
   estado.vinculado = true;
-  // liberado pelo Marcon E ligado pelo vendedor (interruptor em Configurações)
-  const escrita = escritaAtiva() && contaPodeEscrever(conta.user?.email) && vinculo.lancar_venda !== false;
+  // liberado no /admin E ligado pelo vendedor (interruptor em Configurações)
+  const escrita = acesso.lancar && vinculo.lancar_venda !== false;
 
   // freio geral contra excesso, inclusive de ajuda, limpar, SIM e NÃO (que não contam na cota)
   if (!(await dentroDoLimite(admin, `wa:geral:${owner}`, 150, 86400))) return;
+
+  // mensagem de voz: vira texto aqui, só para quem já está vinculado e liberado (não gasta transcrição
+  // com número desconhecido). O resto do fluxo é o mesmo do texto.
+  let eco = "";
+  let duvidosas: string[] = [];
+  let seguraParaDispensarSim = false;
+  if (msg.audio) {
+    if (!transcricaoAtiva()) {
+      await enviarMensagem(msg.telefone, "Ainda não entendo áudio por aqui. Pode escrever?");
+      return;
+    }
+    if (msg.audio.segundos > SEGUNDOS_MAXIMOS) {
+      await enviarMensagem(msg.telefone, `Esse áudio ficou longo (limite de ${SEGUNDOS_MAXIMOS} segundos). Manda um menor ou escreve.`);
+      return;
+    }
+    // o vocabulário dele (o que mais vende primeiro) ajuda a transcrição a acertar marca e modelo
+    const vocabulario = await catalogoDoDono(admin, owner, somarDias(hojeISO(), -90)).catch(() => []);
+    const voz = await transcrever(msg.audio, vocabulario);
+    // sem texto, ou o provedor quase não entendeu nada: pedir de novo é melhor que responder a ruído
+    if (!voz || (voz.confianca !== null && voz.confianca < CONFIANCA_MINIMA)) {
+      await enviarMensagem(msg.telefone, "Não consegui entender o áudio. Pode mandar de novo, mais perto do microfone, ou escrever?");
+      return;
+    }
+    msg = { ...msg, texto: voz.texto };
+    duvidosas = voz.duvidosas;
+    seguraParaDispensarSim = vozSegura(voz);
+    // mostra o que foi entendido: se a transcrição errou um número, o vendedor vê antes de confirmar
+    eco = `🎤 _"${voz.texto}"_\n\n`;
+  }
+  const porAudio = !!msg.audio;
 
   if (AJUDA.test(msg.texto)) {
     await enviarMensagem(msg.telefone, textoAjuda(escrita));
@@ -213,13 +283,16 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
     return;
   }
 
-  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined };
+  const semConfirmar = ((vinculo.sem_confirmar ?? []) as string[]).filter((g): g is GrupoConfirmavel =>
+    (GRUPOS_CONFIRMAVEIS as string[]).includes(g),
+  );
+  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, vozSegura: seguraParaDispensarSim, duvidosas, admin: ehAdminDoMarcon };
 
   // SIM ou NÃO de um rascunho aberto (venda ou outro lançamento): resolvido aqui, pelo servidor, sem passar pelo modelo
   if (escrita) {
     const feito = await resolverPendente(admin, ctx, msg.texto);
     if (feito) {
-      await enviarMensagem(msg.telefone, feito);
+      await enviarMensagem(msg.telefone, eco + feito);
       await guardarTroca(admin, msg.telefone, msg.texto, feito);
       return;
     }
@@ -243,16 +316,22 @@ async function processar(msg: MensagemRecebida, estado: { vinculado: boolean }) 
     return;
   }
 
-  const historico = await carregarHistorico(admin, msg.telefone);
-  const resposta = await responder(msg.texto, ctx, historico);
+  const [historico, fatos, catalogo] = await Promise.all([
+    carregarHistorico(admin, msg.telefone),
+    carregarFatos(admin, owner, msg.telefone),
+    catalogoDoDono(admin, owner, somarDias(hojeISO(), -90)).catch(() => [] as string[]),
+  ]);
+  const respostaDoModelo = await responder(msg.texto, { ...ctx, fatos, catalogo }, historico);
   await registrarUso(admin, owner);
+  // tipo com confirmação desligada em Configurações: o servidor resolve o rascunho na hora (nunca por voz)
+  const resposta = (escrita && (await confirmarSeDispensado(admin, ctx, respostaDoModelo))) || respostaDoModelo;
   // aviso único ao passar de 80% da cota, para o limite não pegar de surpresa
   const agora = usados + 1;
   const aviso =
     usados < COTA_MES * AVISO_EM && agora >= COTA_MES * AVISO_EM
       ? `\n\n_Você já usou ${agora} de ${COTA_MES} perguntas deste mês._`
       : "";
-  await enviarMensagem(msg.telefone, resposta + aviso);
+  await enviarMensagem(msg.telefone, eco + resposta + aviso);
   await guardarTroca(admin, msg.telefone, msg.texto, resposta);
 }
 

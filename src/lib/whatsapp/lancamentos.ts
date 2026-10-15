@@ -14,10 +14,11 @@ import {
   type TipoAcao,
 } from "./rascunho";
 import type { Resultado } from "./acoes";
+import { umProduto } from "./produtos";
 
 // Lançamentos além da venda: produto novo, entrada e saída de estoque, entrada e saída de caixa.
-// DESLIGADOS por padrão. Cada grupo só existe para o modelo quando está em WHATSAPP_LANCAMENTOS
-// (ex.: "produto,estoque,caixa") e a conta tem escrita liberada. Seguem as mesmas três regras da
+// Só existem para o modelo quando a conta tem permissão de lançar, dada no /admin (acesso.ts).
+// Seguem as mesmas três regras da
 // venda (venda.ts): o modelo só prepara, o rascunho guarda tudo já resolvido e o texto de
 // confirmação é montado aqui.
 
@@ -226,6 +227,7 @@ interface RascunhoEstoque {
   pago: boolean;
   motivo: "perda" | "uso" | "ajuste" | null;
   observacao: string | null;
+  aproximado?: boolean; // produto achado por semelhança: exige o SIM (ver acoes.ts)
 }
 
 const MOTIVOS = { perda: "perda ou quebra", uso: "uso próprio ou brinde", ajuste: "ajuste de contagem" } as const;
@@ -234,26 +236,15 @@ const MOTIVOS = { perda: "perda ou quebra", uso: "uso próprio ou brinde", ajust
 // a pergunta para o modelo fazer, sem gravar nada.
 async function acharProduto(db: Db, owner: string, entrada: Entrada) {
   const t = termo(entrada.produto);
-  if (!t) return { erro: "Faltou o nome do produto." } as const;
+  if (!t) return { falta: { erro: "Faltou o nome do produto." } } as const;
 
-  const { data: achados, error } = await db
-    .from("produtos_com_estoque")
-    .select("id, nome, tem_variacoes, estoque_total, custo")
-    .eq("owner_id", owner)
-    .eq("status", "ativo")
-    .ilike("nome", `%${t}%`)
-    .order("nome")
-    .limit(6);
-  if (error) throw error;
-  if (!achados?.length) return { erro: `Não achei produto com "${t}" no seu cadastro.` } as const;
-
-  const exatos = achados.filter((p) => igual(p.nome, t));
-  const candidatos = exatos.length === 1 ? exatos : achados;
-  if (candidatos.length > 1) return { ambiguo: candidatos.map((p) => p.nome), pergunta: "Qual desses produtos?" } as const;
-  const p = candidatos[0];
+  const achado = await umProduto(db, owner, t);
+  if ("falta" in achado) return { falta: achado.falta } as const;
+  const p = achado.produto;
+  const aproximado = !achado.firme;
 
   if (!p.tem_variacoes) {
-    return { produtoId: p.id as string, variacaoId: null, nome: p.nome as string, estoque: Number(p.estoque_total), custo: Number(p.custo) } as const;
+    return { produtoId: p.id, variacaoId: null, nome: p.nome, estoque: p.estoque_total, custo: p.custo, aproximado } as const;
   }
 
   const { data: vars } = await db
@@ -266,7 +257,7 @@ async function acharProduto(db: Db, owner: string, entrada: Entrada) {
   const exatas = parecidas.filter((v) => igual(v.nome_combinacao, pedida));
   const escolhidas = exatas.length === 1 ? exatas : parecidas;
   if (escolhidas.length !== 1) {
-    return { ambiguo: (vars ?? []).map((v) => v.nome_combinacao), pergunta: `${p.nome} tem variações. Qual delas?` } as const;
+    return { falta: { ambiguo: (vars ?? []).map((v) => v.nome_combinacao), pergunta: `${p.nome} tem variações. Qual delas?` } } as const;
   }
   const v = escolhidas[0];
   return {
@@ -275,6 +266,7 @@ async function acharProduto(db: Db, owner: string, entrada: Entrada) {
     nome: `${p.nome} (${v.nome_combinacao})`,
     estoque: Number(v.estoque),
     custo: Number(v.custo ?? p.custo),
+    aproximado,
   } as const;
 }
 
@@ -285,14 +277,14 @@ export async function prepararEstoque(db: Db, ctx: ContextoAcao, entrada: Entrad
   if (quantidade < 1 || quantidade > 100_000) return { erro: "Confira a quantidade." };
 
   const p = await acharProduto(db, ctx.owner, entrada);
-  if ("erro" in p || "ambiguo" in p) return p;
+  if ("falta" in p) return p.falta;
   const observacao = String(entrada.observacao ?? "").trim().slice(0, 200) || null;
 
   if (tipo === "saida") {
     const motivo = entrada.motivo === "perda" || entrada.motivo === "uso" || entrada.motivo === "ajuste" ? entrada.motivo : null;
     if (!motivo) return { erro: "Pergunte o motivo da saída: perda ou quebra, uso próprio ou brinde, ou ajuste de contagem." };
     if (p.estoque < quantidade) return { erro: `${p.nome} tem só ${p.estoque} em estoque.` };
-    const rascunho: RascunhoEstoque = { tipo, produtoId: p.produtoId, variacaoId: p.variacaoId, nome: p.nome, quantidade, valorUnitario: 0, pago: false, motivo, observacao };
+    const rascunho: RascunhoEstoque = { tipo, produtoId: p.produtoId, variacaoId: p.variacaoId, nome: p.nome, quantidade, valorUnitario: 0, pago: false, motivo, observacao, aproximado: p.aproximado };
     return abrirAcao(db, ctx, "estoque_saida", rascunho, [
       "*Confirma esta saída de estoque?*",
       `• ${quantidade}x ${p.nome}`,
@@ -307,7 +299,7 @@ export async function prepararEstoque(db: Db, ctx: ContextoAcao, entrada: Entrad
   const valorUnitario = Number.isFinite(dito) ? dito : r2(p.custo);
   const pago = entrada.pago !== false;
   const total = r2(valorUnitario * quantidade);
-  const rascunho: RascunhoEstoque = { tipo, produtoId: p.produtoId, variacaoId: p.variacaoId, nome: p.nome, quantidade, valorUnitario, pago, motivo: null, observacao };
+  const rascunho: RascunhoEstoque = { tipo, produtoId: p.produtoId, variacaoId: p.variacaoId, nome: p.nome, quantidade, valorUnitario, pago, motivo: null, observacao, aproximado: p.aproximado };
   return abrirAcao(db, ctx, "estoque_entrada", rascunho, [
     "*Confirma esta entrada de estoque?*",
     `• ${quantidade}x ${p.nome} a ${formatBRL(valorUnitario)}${Number.isFinite(dito) ? "" : " (custo do cadastro)"}`,

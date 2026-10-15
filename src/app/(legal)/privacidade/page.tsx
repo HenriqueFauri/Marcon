@@ -31,7 +31,7 @@ export default function PrivacidadePage() {
           </li>
           <li>
             <strong>Do assistente no WhatsApp, se você vincular o seu número:</strong> o número vinculado, as mensagens que você
-            troca com o WhatsApp do Marcon e o registro das vendas que você lança por lá.
+            troca com o WhatsApp do Marcon, incluindo as mensagens de voz (que viram texto na hora e não são guardadas), e o registro das vendas que você lança por lá.
           </li>
         </ul>
       </Secao>
@@ -60,6 +60,9 @@ export default function PrivacidadePage() {
           <li>
             Anthropic: inteligência artificial que escreve os anúncios e responde no assistente do WhatsApp. Recebe só o necessário
             para cada pedido, como os dados do produto ou o resultado da consulta que você fez.
+          </li>
+          <li>
+            OpenAI: transforma em texto as mensagens de voz que você manda ao assistente do WhatsApp. Recebe só o áudio de cada mensagem e, para acertar melhor, os nomes dos seus produtos.
           </li>
           <li>WhatsApp (Meta): entrega as mensagens do assistente, se você vincular o seu número.</li>
           <li>Cloudflare: rede e conexão segura do domínio do Marcon.</li>

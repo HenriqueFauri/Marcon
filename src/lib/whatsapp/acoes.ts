@@ -1,7 +1,8 @@
 import "server-only";
 import { mensagemDeErro } from "@/lib/action";
-import { NAO, SIM, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
+import { NAO, SIM, SIM_SUAVE, grupoDoTipo, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
 import { executarVenda } from "./venda";
+import { MULTIPLICADOR_ADMIN } from "./uso";
 import { executarCaixa, executarEstoque, executarProduto } from "./lancamentos";
 
 // Resolve o SIM ou o NÃO de um rascunho aberto. É chamado pela rota ANTES do modelo, e é o único
@@ -26,24 +27,68 @@ const EXECUTORES: Record<TipoAcao, Executor> = {
 };
 
 // teto por dia: vendas têm o próprio (decisão antiga); os outros lançamentos dividem um
-function limiteDoDia(tipo: TipoAcao, owner: string) {
+function limiteDoDia(tipo: TipoAcao, owner: string, admin = false) {
+  const m = admin ? MULTIPLICADOR_ADMIN : 1;
   return tipo === "venda"
-    ? { chave: `wa:venda:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_VENDAS_DIA ?? 30), oQue: "vendas lançadas" }
-    : { chave: `wa:lanc:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_LANCAMENTOS_DIA ?? 30), oQue: "lançamentos" };
+    ? { chave: `wa:venda:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_VENDAS_DIA ?? 30) * m, oQue: "vendas lançadas" }
+    : { chave: `wa:lanc:${owner}`, max: Number(process.env.WHATSAPP_LIMITE_LANCAMENTOS_DIA ?? 30) * m, oQue: "lançamentos" };
+}
+
+// Vendedor que desligou a confirmação de um tipo (Configurações): logo depois de o modelo abrir o
+// rascunho, o SERVIDOR resolve como se fosse um SIM. O modelo continua sem gravar nada, e as travas
+// (limite do dia, rascunho único, tipo liberado) valem igual. Por voz só vale com a transcrição segura
+// (ctx.vozSegura), e nunca para rascunho em que o produto foi achado por semelhança (payload.aproximado).
+// `resposta` é o que o modelo devolveu: só age se for exatamente o resumo do rascunho recém-aberto.
+export async function confirmarSeDispensado(db: Db, ctx: ContextoAcao, resposta: string): Promise<string | null> {
+  if ((ctx.porAudio && !ctx.vozSegura) || !ctx.semConfirmar?.length) return null;
+
+  const { data: acao } = await db
+    .from("whatsapp_acoes")
+    .select("owner_id, tipo, resumo, payload")
+    .eq("telefone", ctx.telefone)
+    .eq("status", "pendente")
+    .maybeSingle();
+  if (!acao || acao.owner_id !== ctx.owner || acao.resumo !== resposta) return null;
+  if (!ctx.semConfirmar.includes(grupoDoTipo(acao.tipo as TipoAcao))) return null;
+  // produto achado só por semelhança com o que foi dito: o vendedor precisa ver antes de gravar
+  if ((acao.payload as { aproximado?: boolean } | null)?.aproximado) return null;
+
+  const feito = await resolverPendente(db, ctx, "sim");
+  if (!feito) return null;
+  // o resumo começa com "Confirma esta...?" e termina com "Responda SIM...": nenhuma das duas faz sentido
+  // depois de lançado. Fica o resultado e, abaixo, o que foi lançado.
+  const itens = String(acao.resumo)
+    .split("\n\nResponda")[0]
+    .split("\n")
+    .filter((l) => !/^\*Confirma/.test(l));
+  return [feito, ...itens].join("\n");
 }
 
 // Devolve o texto da resposta, ou null quando a mensagem não é SIM nem NÃO (ou não há rascunho).
 export async function resolverPendente(db: Db, ctx: ContextoAcao, texto: string): Promise<string | null> {
-  const quer = SIM.test(texto) ? "sim" : NAO.test(texto) ? "nao" : null;
+  const quer = SIM.test(texto) ? "sim" : NAO.test(texto) ? "nao" : SIM_SUAVE.test(texto) ? "sim_suave" : null;
   if (!quer) return null;
 
   const { data: acao } = await db
     .from("whatsapp_acoes")
-    .select("id, owner_id, tipo, payload, expira_em")
+    .select("id, owner_id, tipo, payload, expira_em, resumo")
     .eq("telefone", ctx.telefone)
     .eq("status", "pendente")
     .maybeSingle();
   if (!acao || acao.owner_id !== ctx.owner) return null;
+
+  // "ok", "isso", "fechou": só confirma se o resumo ainda é a última coisa que o assistente disse
+  if (quer === "sim_suave") {
+    const { data: ultima } = await db
+      .from("whatsapp_conversas")
+      .select("texto")
+      .eq("telefone", ctx.telefone)
+      .eq("papel", "assistant")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!ultima || !String(ultima.texto).startsWith(String(acao.resumo))) return null;
+  }
 
   const agora = new Date().toISOString();
   const fechar = (campos: Record<string, unknown>) =>
@@ -77,7 +122,7 @@ export async function resolverPendente(db: Db, ctx: ContextoAcao, texto: string)
     .maybeSingle();
   if (!reservada) return null;
 
-  const limite = limiteDoDia(tipo, ctx.owner);
+  const limite = limiteDoDia(tipo, ctx.owner, ctx.admin);
   const { data: dentro } = await db.rpc("consumir_limite", { p_chave: limite.chave, p_max: limite.max, p_segundos: 86400 });
   if (dentro !== true) {
     await fechar({ status: "falhou", erro: "limite diário" });
