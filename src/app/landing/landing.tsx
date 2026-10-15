@@ -103,7 +103,7 @@ const SECAO_ASSISTENTE = { id: "assistente", rotulo: "Assistente" };
 
 const PERGUNTA_ASSISTENTE = {
   p: "Como funciona o assistente no WhatsApp?",
-  r: `Você vincula o seu número em Configurações e conversa com o WhatsApp do Marcon. Ele responde sobre estoque, vendas, caixa, contas a receber e pedidos da vitrine, e lança venda por mensagem, sempre depois do seu SIM. Por enquanto é só texto: áudio e foto ainda não. Vem no plano Marcon, com ${COTA_MES} perguntas por mês.`,
+  r: `Você vincula o seu número em Configurações e conversa com o WhatsApp do Marcon. Ele responde sobre estoque, vendas, caixa, contas a receber e pedidos da vitrine, e lança venda por mensagem ou por áudio, mostrando o resumo antes de gravar. Foto ainda não. Vem no plano Marcon, com ${COTA_MES} perguntas por mês.`,
 };
 
 const PERGUNTAS = [

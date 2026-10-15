@@ -11,7 +11,7 @@ import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 import { Grupo, LinhaLink } from "@/components/ajustes";
 import { IconWhatsapp } from "@/components/icons";
-import { assistenteAtivo, contaPodeUsar } from "@/lib/whatsapp/evolution";
+import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -29,7 +29,7 @@ export default async function ConfiguracoesPage() {
     supabase.from("formas_pagamento").select("*").order("nome"),
   ]);
 
-  const whatsappLiberado = assistenteAtivo() && contaPodeUsar(user?.email);
+  const whatsappLiberado = (await acessoDoAssistente(user)).usar;
   const { data: vinculoWhatsapp } = whatsappLiberado ? await supabase.from("whatsapp_vinculos").select("owner_id").maybeSingle() : { data: null };
 
   const meta = user?.user_metadata ?? {};

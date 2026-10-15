@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
 import { ToastProvider } from "@/components/toaster";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
-import { ehAdmin } from "@/lib/admin";
+import { adminConfirmado } from "@/lib/admin";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const supabase = await createClient();
@@ -22,7 +22,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   ]);
   const plano = rotuloDaSituacao(situacaoDaAssinatura(assinaturaRow, user.created_at));
   const contagens = { "/contas-a-receber": parcelasAbertas ?? 0, "/vitrine": pedidosNovos ?? 0 };
-  const admin = ehAdmin(user);
+  const admin = await adminConfirmado(user);
 
   const nomeNegocio = (user.user_metadata?.nome_negocio as string | undefined) || "Meu negócio";
   const nome =

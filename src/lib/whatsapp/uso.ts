@@ -13,6 +13,13 @@ export const COTA_MES = Number(process.env.WHATSAPP_COTA_MES ?? 600);
 export const TETO_DIA = Number(process.env.WHATSAPP_LIMITE_DIA ?? 40);
 export const AVISO_EM = 0.8; // avisa uma vez ao passar de 80% da cota
 
+// Admin do Marcon (os dois fatores de src/lib/admin.ts) tem 5 vezes a cota: é o dono testando e usando na loja.
+export const MULTIPLICADOR_ADMIN = 5;
+export function cotasDa(admin: boolean) {
+  const m = admin ? MULTIPLICADOR_ADMIN : 1;
+  return { mes: COTA_MES * m, dia: TETO_DIA * m };
+}
+
 const chave = (owner: string) => `wa:uso:${owner}`;
 
 // as janelas do contador são dias em UTC; o mês começa no dia 1º (diferença de 3 horas na virada, aceitável)

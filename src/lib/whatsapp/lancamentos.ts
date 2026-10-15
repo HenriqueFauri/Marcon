@@ -17,8 +17,8 @@ import type { Resultado } from "./acoes";
 import { umProduto } from "./produtos";
 
 // Lançamentos além da venda: produto novo, entrada e saída de estoque, entrada e saída de caixa.
-// DESLIGADOS por padrão. Cada grupo só existe para o modelo quando está em WHATSAPP_LANCAMENTOS
-// (ex.: "produto,estoque,caixa") e a conta tem escrita liberada. Seguem as mesmas três regras da
+// Só existem para o modelo quando a conta tem permissão de lançar, dada no /admin (acesso.ts).
+// Seguem as mesmas três regras da
 // venda (venda.ts): o modelo só prepara, o rascunho guarda tudo já resolvido e o texto de
 // confirmação é montado aqui.
 

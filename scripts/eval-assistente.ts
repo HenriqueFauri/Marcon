@@ -25,7 +25,6 @@ if (!process.env.ANTHROPIC_API_KEY) {
   console.error("Falta ANTHROPIC_API_KEY no .env.staging.");
   process.exit(1);
 }
-process.env.WHATSAPP_LANCAMENTOS = process.env.WHATSAPP_LANCAMENTOS || "produto,estoque,caixa";
 
 const TELEFONE = "5500000000000"; // número de mentira: o rascunho nasce e morre nele
 

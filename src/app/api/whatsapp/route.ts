@@ -1,15 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  assistenteAtivo,
-  contaPodeEscrever,
-  contaPodeUsar,
-  enviarMensagem,
-  escritaAtiva,
-  extrairMensagem,
-  type MensagemRecebida,
-} from "@/lib/whatsapp/evolution";
+import { assistenteAtivo, enviarMensagem, extrairMensagem, type MensagemRecebida } from "@/lib/whatsapp/evolution";
+import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { confirmarSeDispensado, resolverPendente } from "@/lib/whatsapp/acoes";
 import { GRUPOS_CONFIRMAVEIS, gruposLiberados, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
 import { CONFIANCA_MINIMA, SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva, vozSegura } from "@/lib/whatsapp/transcricao";
@@ -17,7 +10,7 @@ import { catalogoDoDono } from "@/lib/whatsapp/produtos";
 import { hojeISO, somarDias } from "@/lib/format";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
-import { AVISO_EM, COTA_MES, TETO_DIA, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
+import { AVISO_EM, cotasDa, registrarUso, usoDoMes } from "@/lib/whatsapp/uso";
 
 // Webhook do assistente no WhatsApp. A Evolution chama aqui a cada mensagem recebida.
 // Configuração do webhook (cabeçalho com WHATSAPP_WEBHOOK_SECRET): docs/whatsapp-assistente.md.
@@ -191,7 +184,7 @@ const TEXTO_AJUDA = [
 
 function textoAjuda(escrita: boolean) {
   if (!escrita) return TEXTO_AJUDA;
-  // os exemplos acompanham o que está ligado no servidor (WHATSAPP_LANCAMENTOS)
+  // quem pode lançar lança todos os grupos: os exemplos mostram todos
   const grupos = gruposLiberados();
   const outros = [
     grupos.includes("produto") ? "• cadastra fone bluetooth a 60" : null,
@@ -237,10 +230,14 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
 
   const owner = vinculo.owner_id as string;
   const { data: conta } = await admin.auth.admin.getUserById(owner);
-  if (!contaPodeUsar(conta.user?.email)) return;
+  // liberado no /admin (conta por conta) ou admin do Marcon; o admin tem cotas e limites do dia maiores
+  const acesso = await acessoDoAssistente(conta.user);
+  if (!acesso.usar) return;
+  const ehAdminDoMarcon = acesso.admin;
+  const { mes: COTA_MES, dia: TETO_DIA } = cotasDa(ehAdminDoMarcon);
   estado.vinculado = true;
-  // liberado pelo Marcon E ligado pelo vendedor (interruptor em Configurações)
-  const escrita = escritaAtiva() && contaPodeEscrever(conta.user?.email) && vinculo.lancar_venda !== false;
+  // liberado no /admin E ligado pelo vendedor (interruptor em Configurações)
+  const escrita = acesso.lancar && vinculo.lancar_venda !== false;
 
   // freio geral contra excesso, inclusive de ajuda, limpar, SIM e NÃO (que não contam na cota)
   if (!(await dentroDoLimite(admin, `wa:geral:${owner}`, 150, 86400))) return;
@@ -289,7 +286,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   const semConfirmar = ((vinculo.sem_confirmar ?? []) as string[]).filter((g): g is GrupoConfirmavel =>
     (GRUPOS_CONFIRMAVEIS as string[]).includes(g),
   );
-  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, vozSegura: seguraParaDispensarSim, duvidosas };
+  const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, vozSegura: seguraParaDispensarSim, duvidosas, admin: ehAdminDoMarcon };
 
   // SIM ou NÃO de um rascunho aberto (venda ou outro lançamento): resolvido aqui, pelo servidor, sem passar pelo modelo
   if (escrita) {

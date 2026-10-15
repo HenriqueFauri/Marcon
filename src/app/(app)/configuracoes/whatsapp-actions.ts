@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { falha, ok, type ActionResult } from "@/lib/action";
-import { assistenteAtivo, contaPodeUsar } from "@/lib/whatsapp/evolution";
+import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { MINUTOS_DO_CODIGO, gerarCodigo } from "@/lib/whatsapp/vinculo";
 import { GRUPOS_CONFIRMAVEIS, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
 
@@ -29,7 +29,7 @@ export async function gerarCodigoWhatsapp(): Promise<ActionResult> {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
-    if (!assistenteAtivo() || !contaPodeUsar(user.email)) return { ok: false, error: "O assistente ainda não está liberado para a sua conta." };
+    if (!(await acessoDoAssistente(user)).usar) return { ok: false, error: "O assistente ainda não está liberado para a sua conta." };
 
     // um código aberto por vez: o anterior deixa de valer
     await supabase.from("whatsapp_codigos").delete().eq("owner_id", user.id);
