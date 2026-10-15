@@ -35,9 +35,18 @@ async function chamar<T>(caminho: string, init?: { method?: string; body?: unkno
     const corpo = (await resposta.json().catch(() => null)) as { errors?: { description?: string }[] } | null;
     const detalhe = corpo?.errors?.[0]?.description;
     console.error("Asaas", resposta.status, caminho, JSON.stringify(corpo));
-    throw new Error(detalhe ?? "Não foi possível falar com o serviço de cobrança. Tente de novo.");
+    throw new AsaasErro(resposta.status, detalhe ?? "Não foi possível falar com o serviço de cobrança. Tente de novo.");
   }
   return (await resposta.json()) as T;
+}
+
+export class AsaasErro extends Error {
+  constructor(
+    readonly status: number,
+    mensagem: string,
+  ) {
+    super(mensagem);
+  }
 }
 
 export function criarCliente(dados: { nome: string; email: string; cpfCnpj: string; ownerId: string }) {
@@ -97,6 +106,16 @@ export async function linkDaCobrancaEmAberto(assinaturaId: string) {
   return null;
 }
 
-export function cancelarAssinatura(assinaturaId: string) {
-  return chamar<{ deleted: boolean }>(`/subscriptions/${assinaturaId}`, { method: "DELETE" });
+// Cancela no Asaas. Se o Asaas diz que a assinatura não existe (criada em teste, em outro ambiente ou
+// já apagada no painel), não há mais nada a cancelar lá e o cancelamento segue no banco. Mas "não existe"
+// também é o que o Asaas responde quando a chave é de outro ambiente, e aí a cobrança continuaria viva:
+// por isso só aceita o 404 depois de provar que a chave funciona neste ambiente. Qualquer outro erro sobe.
+export async function cancelarAssinatura(assinaturaId: string) {
+  try {
+    return await chamar<{ deleted: boolean }>(`/subscriptions/${assinaturaId}`, { method: "DELETE" });
+  } catch (e) {
+    if (!(e instanceof AsaasErro) || e.status !== 404) throw e;
+    await chamar("/customers?limit=1"); // chave de outro ambiente ou inválida: falha aqui e o cancelamento não finge ter dado certo
+    return { deleted: true };
+  }
 }
