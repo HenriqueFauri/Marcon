@@ -2,26 +2,25 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { adminConfirmado, ehAdmin, registrarAdmin } from "@/lib/admin";
+import { adminConfirmado, registrarAdmin } from "@/lib/admin";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
 import { ErrorMessage, PageHeader, StatCard } from "@/components/ui";
 import { Grupo, LinhaInfo } from "@/components/ajustes";
 import { AcoesConta } from "../../acoes-conta";
-import { AssistenteDaConta } from "../../assistente-da-conta";
-import { CortesiaDaConta } from "../../cortesia-da-conta";
-import { rotuloDoMotivo } from "@/lib/cortesia";
-import { assistenteAtivo } from "@/lib/whatsapp/evolution";
-import { telefoneMascarado } from "@/lib/whatsapp/vinculo";
-import { bloqueada, type DetalheConta } from "../../dados";
+import { GerenciarConta } from "../../gerenciar-conta";
+import { bloqueada, contaGerenciavel, type DetalheConta } from "../../dados";
+import { VendasDaConta } from "./vendas-da-conta";
 
 export const metadata: Metadata = { title: "Conta" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PRODUTOS_NA_TELA = 50;
+// a lista de produtos vai inteira para o navegador; acima disso, corta
+const PRODUTOS_NO_MAXIMO = 300;
 
-// Detalhe de uma conta para o admin. Só leitura: números, produtos e últimas vendas. Não mostra
-// nome de cliente de ninguém: o admin não precisa disso. Cada abertura fica no admin_registro.
+// Detalhe de uma conta para o admin, na ordem: o que se muda (cortesia, assistente), a conta, os
+// números de venda e, no fim, bloquear. Não mostra nome de cliente de ninguém: o admin não precisa
+// disso. Cada abertura fica no admin_registro.
 export default async function ContaAdminPage({ params }: PageProps<"/admin/contas/[id]">) {
   const supabase = await createClient();
   const {
@@ -64,160 +63,65 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
     "Sem nome";
   const r = detalhe?.resumo;
   const lucroMes = Number(r?.lucro_mes ?? 0);
-  const eAdmin = ehAdmin(conta);
-  // admin do Marcon nos dois fatores: tem o assistente liberado sem interruptor
-  const contaAdmin = await adminConfirmado(conta);
-  const pagante = situacao.tipo === "ativa" || situacao.tipo === "atrasada";
+  const gerenciavel = contaGerenciavel(conta, {
+    titulo,
+    situacao,
+    motivo: assinatura?.cortesia_motivo,
+    // admin do Marcon nos dois fatores: assistente liberado sem interruptor, e não se bloqueia
+    admin: await adminConfirmado(conta),
+    liberado,
+    telefone: vinculo?.telefone,
+  });
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title={titulo} description={conta.email} back={{ href: "/admin", label: "Administração" }} />
 
-      {error || !detalhe ? (
-        <ErrorMessage>Não consegui ler os dados desta conta. Rode a migration 0048_admin_seguro.sql.</ErrorMessage>
-      ) : (
-        <div className="flex flex-col gap-7">
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Vendido no mês" value={formatBRL(Number(r?.valor_mes ?? 0))} hint={`${r?.vendas_mes ?? 0} vendas`} />
-            <StatCard label="Lucro no mês" value={formatBRL(lucroMes)} tone={lucroMes < 0 ? "negative" : "positive"} />
-            <StatCard label="Total vendido" value={formatBRL(Number(r?.valor_total ?? 0))} hint={`${r?.vendas_total ?? 0} vendas desde o início`} />
-            <StatCard
-              label="Estoque parado"
-              value={formatBRL(Number(detalhe.estoque.valor_custo))}
-              hint={`${detalhe.estoque.unidades} unidades em ${detalhe.estoque.produtos_ativos} produtos`}
+      <div className="flex flex-col gap-7">
+        {/* primeiro o que o admin muda; os números vêm depois */}
+        <GerenciarConta conta={gerenciavel} />
+
+        <Grupo titulo="Conta" semPadding>
+          <LinhaInfo rotulo="Plano" valor={bloqueada(conta) ? "Bloqueada" : rotulo.texto} />
+          <LinhaInfo rotulo="Desde" valor={formatData(conta.created_at.slice(0, 10))} />
+          <LinhaInfo rotulo="Último acesso" valor={conta.last_sign_in_at ? formatDataCurta(conta.last_sign_in_at.slice(0, 10)) : "Nunca"} />
+          {detalhe && <LinhaInfo rotulo="Última venda" valor={r?.ultima_venda ? formatDataCurta(r.ultima_venda) : "Nenhuma"} />}
+          {detalhe && <LinhaInfo rotulo="Clientes" valor={detalhe.clientes} />}
+        </Grupo>
+
+        {error || !detalhe ? (
+          <ErrorMessage>Não consegui ler as vendas desta conta. Rode a migration 0048_admin_seguro.sql.</ErrorMessage>
+        ) : (
+          <section className="flex flex-col gap-3">
+            <h2 className="px-4 text-[13px] uppercase text-ink-muted">Vendas</h2>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard label="No mês" value={formatBRL(Number(r?.valor_mes ?? 0))} hint={`${r?.vendas_mes ?? 0} vendas`} />
+              <StatCard label="Lucro no mês" value={formatBRL(lucroMes)} tone={lucroMes < 0 ? "negative" : "positive"} />
+              <StatCard label="Desde o início" value={formatBRL(Number(r?.valor_total ?? 0))} hint={`${r?.vendas_total ?? 0} vendas`} />
+              <StatCard
+                label="Estoque parado"
+                value={formatBRL(Number(detalhe.estoque.valor_custo))}
+                hint={`${detalhe.estoque.unidades} un. em ${detalhe.estoque.produtos_ativos} produtos`}
+              />
+            </div>
+            <VendasDaConta
+              detalhe={{
+                mais_vendidos: detalhe.mais_vendidos,
+                ultimas_vendas: detalhe.ultimas_vendas,
+                produtos: detalhe.produtos.slice(0, PRODUTOS_NO_MAXIMO),
+                estoque: detalhe.estoque,
+              }}
             />
-          </div>
+          </section>
+        )}
 
-          <Grupo titulo="Conta" semPadding>
-            <LinhaInfo rotulo="Plano" valor={bloqueada(conta) ? "Bloqueada" : rotulo.texto} />
-            <LinhaInfo rotulo="Desde" valor={formatData(conta.created_at.slice(0, 10))} />
-            <LinhaInfo rotulo="Último acesso" valor={conta.last_sign_in_at ? formatDataCurta(conta.last_sign_in_at.slice(0, 10)) : "Nunca"} />
-            <LinhaInfo rotulo="Última venda" valor={r?.ultima_venda ? formatDataCurta(r.ultima_venda) : "Nenhuma"} />
-            <LinhaInfo rotulo="Clientes" valor={detalhe.clientes} />
+        {/* bloquear no fim da tela, como manda o padrão */}
+        {gerenciavel.podeBloquear && (
+          <Grupo>
+            <AcoesConta id={conta.id} email={conta.email ?? ""} bloqueada={gerenciavel.bloqueada} />
           </Grupo>
-
-          {detalhe.mais_vendidos.length > 0 && (
-            <Grupo titulo="Mais vendidos em 90 dias" semPadding>
-              <ul className="divide-y divide-line">
-                {detalhe.mais_vendidos.map((p) => (
-                  <li key={p.nome} className="flex items-center gap-3 px-4 py-3">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[17px] text-ink">{p.nome}</span>
-                      <span className="block text-[13px] text-ink-muted">{p.unidades} unidades</span>
-                    </span>
-                    <span className="shrink-0 text-[17px] tabular-nums text-ink">{formatBRL(Number(p.valor))}</span>
-                  </li>
-                ))}
-              </ul>
-            </Grupo>
-          )}
-
-          <Grupo titulo="Últimas vendas" semPadding>
-            {detalhe.ultimas_vendas.length === 0 ? (
-              <p className="px-4 py-3 text-[15px] text-ink-muted">Nenhuma venda ainda.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {detalhe.ultimas_vendas.map((v, i) => {
-                  const cancelada = v.status === "cancelada";
-                  return (
-                    <li key={`${v.criada}-${i}`}className={`flex items-center gap-3 px-4 py-3 ${cancelada ? "opacity-50" : ""}`}>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[17px] text-ink">{formatDataCurta(v.data)}</span>
-                        <span className="block truncate text-[13px] text-ink-muted">
-                          {cancelada ? "Cancelada" : [`${v.itens} ${v.itens === 1 ? "item" : "itens"}`, v.pagamento].filter(Boolean).join(" · ")}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-right">
-                        <span className={`block text-[17px] tabular-nums text-ink ${cancelada ? "line-through" : ""}`}>{formatBRL(Number(v.valor))}</span>
-                        {!cancelada && (
-                          <span className={`block text-[13px] tabular-nums ${Number(v.lucro) < 0 ? "text-danger" : "text-positive"}`}>
-                            lucro {formatBRL(Number(v.lucro))}
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Grupo>
-
-          <Grupo
-            titulo={`Produtos (${detalhe.estoque.produtos_ativos})`}
-            semPadding
-            rodape={detalhe.produtos.length > PRODUTOS_NA_TELA ? `Mostrando os ${PRODUTOS_NA_TELA} primeiros, em ordem alfabética.` : undefined}
-          >
-            {detalhe.produtos.length === 0 ? (
-              <p className="px-4 py-3 text-[15px] text-ink-muted">Nenhum produto ativo.</p>
-            ) : (
-              <ul className="divide-y divide-line">
-                {detalhe.produtos.slice(0, PRODUTOS_NA_TELA).map((p, i) => (
-                  <li key={`${p.nome}-${i}`} className="flex items-center gap-3 px-4 py-3">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[17px] text-ink">{p.nome}</span>
-                      <span className={`block text-[13px] ${Number(p.estoque) <= 0 ? "text-danger" : "text-ink-muted"}`}>
-                        {Number(p.estoque) <= 0 ? "Sem estoque" : `${p.estoque} em estoque`}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-[17px] tabular-nums text-ink">{formatBRL(Number(p.preco))}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Grupo>
-
-          <Grupo
-            titulo="Cortesia"
-            semPadding
-            rodape={
-              pagante
-                ? "Essa conta paga pelo Asaas. Para dar cortesia, cancele a assinatura dela antes."
-                : "O prazo conta o dia de hoje. O cliente é avisado na hora e 3 dias antes de acabar."
-            }
-          >
-            {situacao.tipo === "cortesia" && (
-              <>
-                <LinhaInfo
-                  rotulo="Vale até"
-                  valor={situacao.cortesiaAte ? `${formatData(situacao.cortesiaAte)}, ${situacao.diasRestantes === 1 ? "último dia" : `${situacao.diasRestantes} dias`}` : "Sem prazo (antiga)"}
-                />
-                <LinhaInfo rotulo="Motivo" valor={rotuloDoMotivo(assinatura?.cortesia_motivo) ?? "Sem motivo"} />
-                {situacao.cortesiaEm && <LinhaInfo rotulo="Dada em" valor={formatData(situacao.cortesiaEm.slice(0, 10))} />}
-              </>
-            )}
-            {!pagante && (
-              <div className="border-t border-line px-4 py-3 first:border-t-0">
-                <CortesiaDaConta id={conta.id} email={conta.email ?? ""} ativa={situacao.tipo === "cortesia"} />
-              </div>
-            )}
-          </Grupo>
-
-          <Grupo
-            titulo="Assistente no WhatsApp"
-            semPadding
-            rodape={
-              !assistenteAtivo()
-                ? "A chave geral está desligada (WHATSAPP_ASSISTENTE_ATIVO): ninguém usa agora."
-                : vinculo
-                  ? `Número vinculado: final ${telefoneMascarado(vinculo.telefone).replace("...", "")}.`
-                  : "Nenhum número vinculado ainda. A pessoa vincula em Configurações."
-            }
-          >
-            {contaAdmin ? (
-              <LinhaInfo rotulo="Liberado" valor="Tudo, por ser admin" />
-            ) : (
-              <AssistenteDaConta id={conta.id} usar={!!liberado} lancar={liberado?.lancar === true} />
-            )}
-          </Grupo>
-
-          {/* ações sobre a conta no fim da tela, como manda o padrão */}
-          {!eAdmin && (
-            <Grupo titulo="Ações">
-              <AcoesConta id={conta.id} email={conta.email ?? ""} bloqueada={bloqueada(conta)} />
-            </Grupo>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
