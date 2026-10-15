@@ -158,3 +158,32 @@ export async function definirPercentualAfiliado(afiliadoId: string, percentual: 
     return falha(e);
   }
 }
+
+// Assistente no WhatsApp, conta por conta (tabela whatsapp_liberados, migration 0049):
+// "nenhum" tira, "usar" libera as perguntas, "lancar" libera também lançar pelo WhatsApp.
+export type NivelAssistente = "nenhum" | "usar" | "lancar";
+
+export async function definirAssistente(id: string, nivel: NivelAssistente): Promise<ActionResult> {
+  try {
+    if (nivel !== "nenhum" && nivel !== "usar" && nivel !== "lancar") return { ok: false, error: "Opção inválida." };
+    const { admin, adminId } = await contextoAdmin(id, { permitirAdmin: true });
+
+    if (nivel === "nenhum") {
+      // o vínculo do número fica guardado: liberar de novo volta a funcionar sem novo código
+      const { error } = await admin.from("whatsapp_liberados").delete().eq("owner_id", id);
+      if (error) throw error;
+    } else {
+      const { error } = await admin
+        .from("whatsapp_liberados")
+        .upsert({ owner_id: id, lancar: nivel === "lancar", liberado_por: adminId, liberado_em: new Date().toISOString() }, { onConflict: "owner_id" });
+      if (error) throw error;
+    }
+
+    await registrarAdmin(adminId, `assistente_${nivel}`, id);
+    revalidatePath("/admin");
+    revalidatePath(`/admin/contas/${id}`);
+    return ok(nivel === "nenhum" ? "Assistente desligado para esta conta." : nivel === "lancar" ? "Assistente liberado, com lançamentos." : "Assistente liberado, só perguntas.");
+  } catch (e) {
+    return falha(e);
+  }
+}

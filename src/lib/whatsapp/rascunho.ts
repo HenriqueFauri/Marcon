@@ -32,8 +32,8 @@ export const SIM_SUAVE =
 export const NAO =
   /^\s*(n[aã]o|n|cancela|cancelar|cancela essa|cancela a venda|deixa|deixa pra l[aá]|deixa quieto|esquece|esque[cç]a|desisti|desisto|n[aã]o quero|melhor n[aã]o|errei|para|nada)\s*[.!]?\s*$/i;
 
-// Grupos que o Marcon liga no servidor com WHATSAPP_LANCAMENTOS (ex.: "produto,estoque,caixa").
-// Vazio = só venda, como sempre foi. Venda não entra aqui: ela depende de WHATSAPP_ESCRITA.
+// Grupos de lançamento além da venda. Quem pode lançar é decidido conta por conta no /admin
+// (acesso.ts, permissão "lancar"): com ela, a conta lança venda e todos os grupos.
 export type GrupoDeLancamento = "produto" | "estoque" | "caixa";
 
 const GRUPO_DO_TIPO: Record<Exclude<TipoAcao, "venda">, GrupoDeLancamento> = {
@@ -53,13 +53,12 @@ export function grupoDoTipo(tipo: TipoAcao): GrupoConfirmavel {
 }
 
 export function gruposLiberados(): GrupoDeLancamento[] {
-  const validos: GrupoDeLancamento[] = ["produto", "estoque", "caixa"];
-  const pedidos = (process.env.WHATSAPP_LANCAMENTOS ?? "").split(",").map((g) => g.trim().toLowerCase());
-  return validos.filter((g) => pedidos.includes(g));
+  return ["produto", "estoque", "caixa"];
 }
 
+// todo tipo conhecido; a permissão de lançar é da conta (a rota só resolve rascunho de quem pode lançar)
 export function tipoLiberado(tipo: TipoAcao) {
-  return tipo === "venda" || gruposLiberados().includes(GRUPO_DO_TIPO[tipo]);
+  return tipo === "venda" || tipo in GRUPO_DO_TIPO;
 }
 
 // tira o que atrapalha o filtro do PostgREST e limita o tamanho do que veio do modelo

@@ -55,12 +55,12 @@ Para trocar a Evolution pela API oficial da Meta, reescreva só `enviarMensagem(
 4. `registrar_venda_como()` assume a identidade do dono só dentro da transação e chama a `registrar_venda()` do app: estoque, custo, parcelas, caixa e limites do plano valem igual.
 5. Sai o mesmo aviso (push) do app, com as preferências do vendedor. Falha no aviso não desfaz a venda.
 
-**Outros lançamentos (base pronta, desligada).** Produto novo, entrada e saída de estoque, entrada e saída de caixa seguem o mesmo molde da venda: `preparar_produto`, `preparar_estoque` e `preparar_caixa` só validam e abrem o rascunho; o SIM é resolvido por `resolverPendente()` em `acoes.ts`, que escolhe o executor pelo `tipo` do rascunho. Cada grupo só existe para o modelo quando está em `WHATSAPP_LANCAMENTOS` e a conta tem escrita liberada; se o grupo for desligado entre o rascunho e o SIM, o SIM não executa.
+**Outros lançamentos (base pronta, desligada).** Produto novo, entrada e saída de estoque, entrada e saída de caixa seguem o mesmo molde da venda: `preparar_produto`, `preparar_estoque` e `preparar_caixa` só validam e abrem o rascunho; o SIM é resolvido por `resolverPendente()` em `acoes.ts`, que escolhe o executor pelo `tipo` do rascunho. Cada grupo só existe para o modelo quando a conta tem "Lançar pelo WhatsApp" ligado no `/admin`; se o grupo for desligado entre o rascunho e o SIM, o SIM não executa.
 - Produto: nome e preço obrigatórios; nome igual a um existente é recusado (vira entrada de estoque); estoque inicial entra sem mexer no caixa; categoria só se já existir no cadastro. Insert direto com o dono (o gatilho de limite do plano lê `new.owner_id`).
 - Estoque: entrada usa o valor dito ou o custo do cadastro e sai do caixa, a não ser que o vendedor diga que não pagou; saída exige o motivo (perda, uso ou ajuste) e não mexe no caixa. Usam `registrar_entrada_estoque_como()` e `registrar_saida_estoque_como()`.
 - Caixa: descrição e valor obrigatórios, categoria padrão "Outros", data até 60 dias atrás. Mesmos campos do lançamento manual do app.
 - Limite: 30 lançamentos por dia por conta, somando os três grupos (`WHATSAPP_LIMITE_LANCAMENTOS_DIA`), separado do limite de vendas.
-- **Não testado com o WhatsApp de verdade.** As funções do banco foram testadas no Staging (2026-10-11). Antes de ligar: subir a Evolution apontando para o Staging, ligar `WHATSAPP_LANCAMENTOS` lá e passar por cada tipo. Para lançar algo novo: um tipo em `TipoAcao`, um `preparar` que chame `abrirAcao()` e um executor em `EXECUTORES`.
+- **Não testado com o WhatsApp de verdade.** As funções do banco foram testadas no Staging (2026-10-11). Antes de ligar: subir a Evolution apontando para o Staging, ligar "Lançar pelo WhatsApp" na conta de teste e passar por cada tipo. Para lançar algo novo: um tipo em `TipoAcao`, um `preparar` que chame `abrirAcao()` e um executor em `EXECUTORES`.
 
 ## Ferramentas do modelo
 
@@ -76,11 +76,11 @@ Para trocar a Evolution pela API oficial da Meta, reescreva só `enviarMensagem(
 | `caixa_do_periodo` | Entradas, saídas, maiores saídas, saldo hoje |
 | `pedidos_da_vitrine` | Pedidos novos, vendidos ou descartados |
 | `preparar_venda` | Só para contas com escrita liberada |
-| `preparar_produto`, `preparar_estoque`, `preparar_caixa` | Escrita liberada e grupo ligado em `WHATSAPP_LANCAMENTOS` |
+| `preparar_produto`, `preparar_estoque`, `preparar_caixa` | Conta com "Lançar pelo WhatsApp" ligado no `/admin` |
 
 Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `resumo_caixa` usam `auth.uid()`; as regras espelham as telas.
 
-**Confirmação por tipo (migration 0046).** Em Configurações > Assistente no WhatsApp, "Pedir meu SIM antes de lançar" tem um interruptor para venda e para cada grupo de `WHATSAPP_LANCAMENTOS`. O padrão é pedir (coluna `whatsapp_vinculos.sem_confirmar` vazia). Com o tipo desligado, o modelo continua só preparando o rascunho; logo depois, `confirmarSeDispensado()` (`acoes.ts`) chama `resolverPendente()` como se fosse um SIM e responde com os detalhes e o resultado. Todas as travas valem igual (limite do dia, rascunho único, tipo liberado). Só age se a resposta do modelo for exatamente o resumo do rascunho recém-aberto.
+**Confirmação por tipo (migration 0046).** Em Configurações > Assistente no WhatsApp, "Pedir meu SIM antes de lançar" tem um interruptor para venda, produto, estoque e caixa. O padrão é pedir (coluna `whatsapp_vinculos.sem_confirmar` vazia). Com o tipo desligado, o modelo continua só preparando o rascunho; logo depois, `confirmarSeDispensado()` (`acoes.ts`) chama `resolverPendente()` como se fosse um SIM e responde com os detalhes e o resultado. Todas as travas valem igual (limite do dia, rascunho único, tipo liberado). Só age se a resposta do modelo for exatamente o resumo do rascunho recém-aberto.
 
 **Mensagem de voz.** A Evolution manda `audioMessage`; com `base64: true` no webhook da instância (`POST /webhook/set/usemarcon`, o mesmo que já leva o segredo; recriar a instância apaga isso), o áudio vem no próprio evento (`data.message.base64`), sem abrir mais nenhuma rota no túnel. `extrairMensagem()` devolve `audio`; a rota transcreve (`transcricao.ts`, OpenAI `gpt-4o-mini-transcribe`, trocável por `TRANSCRICAO_MODELO`) só depois do vínculo e da conta liberada, e o resto do fluxo é o do texto. A resposta começa com "🎤 _\"o que entendi\"_", para o vendedor ver se a transcrição errou um número. Por voz, com a confirmação desligada em Configurações, o SIM só é dispensado se a transcrição estiver segura (`vozSegura()`: confiança média de 0,85 ou mais, ajustável em `WHATSAPP_AUDIO_CONFIANCA_SEM_SIM`, e nenhuma palavra em dúvida, número curto incluso). Sem dado de confiança do provedor, ou com qualquer dúvida, o SIM é pedido; produto achado só por semelhança também sempre pede. O SIM ou NÃO falado vale, porque o rascunho aparece escrito. Limite de duração em `WHATSAPP_AUDIO_MAX_SEGUNDOS` (padrão 60). Cada áudio entendido conta como pergunta na cota, como o texto.
 
@@ -105,6 +105,8 @@ npx --yes tsx --conditions=react-server scripts/eval-assistente.ts [filtro] [--v
 
 Precisa do `.env.staging` na raiz. Regra de trabalho: todo ajuste de prompt ou de busca só entra se o placar não piorar; todo erro novo visto no WhatsApp vira um caso novo antes de ser corrigido.
 
+**Quem usa (desde 2026-10-15, migration 0049).** Não há mais listas de e-mail na Vercel. No `/admin`, na página de cada conta, o grupo "Assistente no WhatsApp" tem dois interruptores: **Usar o assistente** e **Lançar pelo WhatsApp** (venda, produto, estoque e caixa). Ficam na tabela `whatsapp_liberados` (só a chave de serviço), e cada mudança vai para o `admin_registro`. O padrão é desligado para todo mundo. O admin do Marcon (dois fatores, migration 0048) tem tudo, sem interruptor, e 5 vezes as cotas. A decisão mora em `src/lib/whatsapp/acesso.ts` (`acessoDoAssistente`), usada pelo webhook, por Configurações e pela geração do código de vínculo. `WHATSAPP_ASSISTENTE_ATIVO` segue como chave geral: vazia, ninguém usa, nem o admin. Desligar uma conta mantém o vínculo do número: religar volta a funcionar sem novo código.
+
 ## Banco
 
 | Migration | O quê | Acesso |
@@ -114,6 +116,8 @@ Precisa do `.env.staging` na raiz. Regra de trabalho: todo ajuste de prompt ou d
 | `0040_whatsapp_vendas.sql` | `whatsapp_acoes` e `registrar_venda_como()` | Tabela sem política; função só para `service_role` |
 | `0041_whatsapp_lancar_venda.sql` | `whatsapp_vinculos.lancar_venda` | Dono muda só essa coluna (grant por coluna) |
 | `0046_whatsapp_sem_confirmar.sql` | `whatsapp_vinculos.sem_confirmar` (grupos sem SIM) | Dono muda só `lancar_venda` e `sem_confirmar` (grant por coluna) |
+| `0048_admin_seguro.sql` | `admins`, `admin_registro`, `eh_admin()`, números por conta para o `/admin`, admin sem teto de IA | Tudo só para `service_role` |
+| `0049_whatsapp_liberados.sql` | `whatsapp_liberados` (quem usa e quem lança, decidido no `/admin`) | Só `service_role` |
 | `0047_buscar_produtos_parecidos.sql` | Extensões `pg_trgm` e `unaccent`; `buscar_produtos_parecidos()` | Função só para `service_role` |
 | `0044_whatsapp_lancamentos_base.sql` | Tipos novos e `referencia_id` em `whatsapp_acoes`; `registrar_entrada_estoque_como()` e `registrar_saida_estoque_como()` | Funções só para `service_role` |
 
@@ -126,15 +130,11 @@ As migrations são rastreadas em `public.schema_migrations`. Até a 0041 aplicad
 | Variável | Para quê |
 | --- | --- |
 | `WHATSAPP_ASSISTENTE_ATIVO` | `1` liga. Sem isso o webhook responde 200 e ignora, e o cartão não aparece |
-| `WHATSAPP_EMAILS` | Contas que podem usar (vírgula). Vazio = **ninguém** (desde 2026-10-15: esquecer a variável nunca abre o assistente para todas as contas). O admin do Marcon tem 5 vezes as cotas e os limites do dia |
-| `WHATSAPP_ESCRITA` | `1` liga o lançamento de venda |
-| `WHATSAPP_EMAILS_ESCRITA` | Contas que podem lançar. Vazio = ninguém |
 | `WHATSAPP_NUMERO` | Número do chip, só dígitos, para o link `wa.me` |
 | `WHATSAPP_WEBHOOK_SECRET` | Segredo do cabeçalho `x-whatsapp-secret` |
 | `WHATSAPP_COTA_MES` | Perguntas com IA por conta por mês (padrão 600) |
 | `WHATSAPP_LIMITE_DIA` | Perguntas com IA por conta por dia (padrão 40) |
 | `WHATSAPP_LIMITE_VENDAS_DIA` | Vendas lançadas por conta por dia (padrão 30) |
-| `WHATSAPP_LANCAMENTOS` | Grupos de lançamento além da venda, por vírgula: `produto`, `estoque`, `caixa`. Vazio = só venda (como hoje) |
 | `WHATSAPP_LIMITE_LANCAMENTOS_DIA` | Lançamentos que não são venda por conta por dia (padrão 30) |
 | `WHATSAPP_MODELO` | Opcional. Padrão `claude-haiku-5-5` |
 | `TRANSCRICAO_API_KEY` | Chave da OpenAI para transcrever voz. Sem ela o assistente responde "ainda não entendo áudio" |
@@ -185,6 +185,6 @@ Variável nova só vale depois de um Redeploy.
 - **Reconectar o chip:** painel local `http://localhost:8080/manager`, instância `usemarcon`, QR.
 - **Recriar a instância apaga o webhook:** configure de novo (`POST /webhook/set/usemarcon`, evento `MESSAGES_UPSERT`, URL `https://www.usemarcon.com/api/whatsapp`, cabeçalho `x-whatsapp-secret`) e confira com `/webhook/find/usemarcon`.
 - **Trocar o segredo do webhook:** gere um novo, atualize na Vercel (Redeploy) e no webhook da Evolution.
-- **Desligar tudo:** `WHATSAPP_ASSISTENTE_ATIVO` vazio na Vercel e Redeploy. Só a escrita: `WHATSAPP_ESCRITA` vazio.
+- **Desligar tudo:** `WHATSAPP_ASSISTENTE_ATIVO` vazio na Vercel e Redeploy. Uma conta só: no `/admin`, página da conta, desligar "Usar o assistente" (ou só "Lançar pelo WhatsApp"), sem Redeploy.
 - **Teste do banco:** rodar `supabase/tests/whatsapp.sql` (desfaz tudo; espera `WHATSAPP OK`).
 - **Logs:** Vercel, função `/api/whatsapp`, prefixo `[whatsapp]` (voltas, tokens e tamanho do histórico).

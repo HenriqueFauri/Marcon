@@ -459,7 +459,7 @@ export async function executarFerramenta(nome: string, entrada: Entrada, ctx: Co
       return prepararVenda(db, ctx, entrada);
     }
 
-    // lançamentos além da venda: conta com escrita E grupo ligado no servidor (WHATSAPP_LANCAMENTOS)
+    // lançamentos além da venda: só para conta com permissão de lançar (acesso.ts)
     case "preparar_produto": {
       if (!ctx.escrita || !tipoLiberado("produto")) return { erro: "Cadastrar produto por aqui ainda não está liberado." };
       return prepararProduto(db, ctx, entrada);

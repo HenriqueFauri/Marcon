@@ -5,10 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PageHeader } from "@/components/ui";
 import { Grupo, LinhaInfo, LinhaLink } from "@/components/ajustes";
-import { assistenteAtivo, contaPodeEscrever, contaPodeUsar, escritaAtiva } from "@/lib/whatsapp/evolution";
+import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { PREFIXO, telefoneMascarado } from "@/lib/whatsapp/vinculo";
 import { AVISO_EM, cotasDa, usoDoMes } from "@/lib/whatsapp/uso";
-import { adminConfirmado } from "@/lib/admin";
 import { gruposLiberados } from "@/lib/whatsapp/rascunho";
 import { ApagarConversa, Desvincular, InterruptorConfirmacao, InterruptorVenda, Vincular } from "./controles";
 
@@ -29,10 +28,11 @@ export default async function AssistenteWhatsappPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user || !assistenteAtivo() || !contaPodeUsar(user.email)) redirect("/configuracoes");
+  const acesso = await acessoDoAssistente(user);
+  if (!user || !acesso.usar) redirect("/configuracoes");
 
   const { data: vinculo } = await supabase.from("whatsapp_vinculos").select("telefone, lancar_venda, sem_confirmar").maybeSingle();
-  const liberadoLancar = escritaAtiva() && contaPodeEscrever(user.email);
+  const liberadoLancar = acesso.lancar;
   const numero = (process.env.WHATSAPP_NUMERO ?? "").replace(/\D/g, "");
   const voltar = { href: "/configuracoes", label: "Configurações" };
 
@@ -54,7 +54,7 @@ export default async function AssistenteWhatsappPage() {
 
   const admin = createAdminClient();
   const usados = admin ? await usoDoMes(admin, user.id).catch(() => 0) : 0;
-  const COTA_MES = cotasDa(await adminConfirmado(user)).mes;
+  const COTA_MES = cotasDa(acesso.admin).mes;
   const pct = Math.min(100, Math.round((usados / COTA_MES) * 100));
   const noLimite = usados >= COTA_MES;
   const perto = !noLimite && usados >= COTA_MES * AVISO_EM;

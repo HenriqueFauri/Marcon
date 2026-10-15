@@ -50,11 +50,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const sp = await searchParams;
   const busca = (typeof sp.q === "string" ? sp.q : "").trim().toLowerCase();
 
-  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }] = await Promise.all([
+  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }] = await Promise.all([
     todasAsContas(admin),
     admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento"),
     admin.rpc("admin_resumo_por_conta"),
+    admin.from("whatsapp_liberados").select("owner_id"),
   ]);
+  // contas com o assistente no WhatsApp liberado no painel (o admin tem sempre)
+  const comAssistente = new Set((liberados ?? []).map((l) => l.owner_id as string));
   const assinaturaPorConta = new Map((assinaturas ?? []).map((a) => [a.owner_id as string, a]));
   const resumoPorConta = new Map(((resumos ?? []) as ResumoConta[]).map((r) => [r.owner_id, r]));
 
@@ -72,6 +75,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         negocio,
         nome,
         eAdmin: ehAdmin(u),
+        assistente: comAssistente.has(u.id),
       };
     })
     .sort((a, b) => b.u.created_at.localeCompare(a.u.created_at));
@@ -122,7 +126,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         <>
           {/* celular: lista agrupada, cada conta abre o detalhe */}
           <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface sm:hidden">
-            {filtradas.map(({ u, situacao, rotulo, resumo, titulo }) => (
+            {filtradas.map(({ u, situacao, rotulo, resumo, titulo, assistente }) => (
               <li key={u.id}>
                 <Link href={`/admin/contas/${u.id}`} className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${bloqueada(u) ? "opacity-60" : ""}`}>
                   <span className="min-w-0 flex-1">
@@ -131,7 +135,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       {u.id === user!.id && <span className="text-ink-muted"> (você)</span>}
                     </span>
                     <span className="block truncate text-[13px] text-ink-muted">
-                      {[bloqueada(u) ? "Bloqueada" : situacao.tipo === "cortesia" ? "Cortesia" : rotulo.texto, `${resumo?.vendas_mes ?? 0} vendas no mês`].join(" · ")}
+                      {[bloqueada(u) ? "Bloqueada" : situacao.tipo === "cortesia" ? "Cortesia" : rotulo.texto, `${resumo?.vendas_mes ?? 0} vendas no mês`, assistente ? "Assistente" : null].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                   <span className="shrink-0 text-right">
@@ -161,12 +165,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                 </tr>
               </thead>
               <tbody className={tbodyClass}>
-                {filtradas.map(({ u, situacao, rotulo, resumo, titulo, eAdmin }) => (
+                {filtradas.map(({ u, situacao, rotulo, resumo, titulo, eAdmin, assistente }) => (
                   <tr key={u.id} className={bloqueada(u) ? "opacity-60" : ""}>
                     <td className={tdClass}>
                       <Link href={`/admin/contas/${u.id}`} className="flex flex-wrap items-center gap-2 font-medium text-ink hover:underline">
                         {titulo}
                         {eAdmin && <Badge tone="info">Admin</Badge>}
+                        {assistente && <Badge>Assistente</Badge>}
                         {u.id === user!.id && <Badge>Você</Badge>}
                         {bloqueada(u) && <Badge tone="negative">Bloqueada</Badge>}
                         {!u.email_confirmed_at && <Badge tone="warning">E-mail não confirmado</Badge>}

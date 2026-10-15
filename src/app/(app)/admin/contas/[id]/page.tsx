@@ -8,6 +8,9 @@ import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
 import { ErrorMessage, PageHeader, StatCard } from "@/components/ui";
 import { Grupo, LinhaInfo } from "@/components/ajustes";
 import { AcoesConta } from "../../acoes-conta";
+import { AssistenteDaConta } from "../../assistente-da-conta";
+import { assistenteAtivo } from "@/lib/whatsapp/evolution";
+import { telefoneMascarado } from "@/lib/whatsapp/vinculo";
 import { bloqueada, type DetalheConta } from "../../dados";
 
 export const metadata: Metadata = { title: "Conta" };
@@ -37,10 +40,12 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
     );
   }
 
-  const [{ data: alvo }, { data: assinatura }, { data, error }] = await Promise.all([
+  const [{ data: alvo }, { data: assinatura }, { data, error }, { data: liberado }, { data: vinculo }] = await Promise.all([
     admin.auth.admin.getUserById(id),
     admin.from("assinaturas").select("plano, status, proximo_vencimento").eq("owner_id", id).maybeSingle(),
     admin.rpc("admin_conta_detalhe", { p_owner: id }),
+    admin.from("whatsapp_liberados").select("lancar").eq("owner_id", id).maybeSingle(),
+    admin.from("whatsapp_vinculos").select("telefone").eq("owner_id", id).maybeSingle(),
   ]);
   const conta = alvo?.user;
   if (!conta) notFound();
@@ -58,6 +63,8 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
   const r = detalhe?.resumo;
   const lucroMes = Number(r?.lucro_mes ?? 0);
   const eAdmin = ehAdmin(conta);
+  // admin do Marcon nos dois fatores: tem o assistente liberado sem interruptor
+  const contaAdmin = await adminConfirmado(conta);
   const pagante = situacao.tipo === "ativa" || situacao.tipo === "atrasada";
 
   return (
@@ -154,6 +161,24 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
                   </li>
                 ))}
               </ul>
+            )}
+          </Grupo>
+
+          <Grupo
+            titulo="Assistente no WhatsApp"
+            semPadding
+            rodape={
+              !assistenteAtivo()
+                ? "A chave geral está desligada (WHATSAPP_ASSISTENTE_ATIVO): ninguém usa agora."
+                : vinculo
+                  ? `Número vinculado: final ${telefoneMascarado(vinculo.telefone).replace("...", "")}.`
+                  : "Nenhum número vinculado ainda. A pessoa vincula em Configurações."
+            }
+          >
+            {contaAdmin ? (
+              <LinhaInfo rotulo="Liberado" valor="Tudo, por ser admin" />
+            ) : (
+              <AssistenteDaConta id={conta.id} usar={!!liberado} lancar={liberado?.lancar === true} />
             )}
           </Grupo>
 
