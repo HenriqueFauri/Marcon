@@ -32,10 +32,14 @@ async function chamar<T>(caminho: string, init?: { method?: string; body?: unkno
   });
 
   if (!resposta.ok) {
-    const corpo = (await resposta.json().catch(() => null)) as { errors?: { description?: string }[] } | null;
+    const corpo = (await resposta.json().catch(() => null)) as { errors?: { code?: string; description?: string }[] } | null;
     const detalhe = corpo?.errors?.[0]?.description;
     console.error("Asaas", resposta.status, caminho, JSON.stringify(corpo));
-    throw new AsaasErro(resposta.status, detalhe ?? "Não foi possível falar com o serviço de cobrança. Tente de novo.");
+    throw new AsaasErro(
+      resposta.status,
+      detalhe ?? "Não foi possível falar com o serviço de cobrança. Tente de novo.",
+      corpo?.errors?.[0]?.code,
+    );
   }
   return (await resposta.json()) as T;
 }
@@ -44,6 +48,7 @@ export class AsaasErro extends Error {
   constructor(
     readonly status: number,
     mensagem: string,
+    readonly codigo?: string,
   ) {
     super(mensagem);
   }
