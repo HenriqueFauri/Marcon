@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import {
+  AsaasErro,
   asaasConfigurado,
   cancelarAssinatura as cancelarNoAsaas,
   criarAssinatura,
@@ -77,24 +78,37 @@ export async function assinarPlano(documento: string): Promise<ResultadoAssinar>
       user.email ||
       "Cliente Marcon";
 
-    const clienteId =
-      atual?.asaas_customer_id ??
-      (await criarCliente({ nome, email: user.email ?? "", cpfCnpj, ownerId: user.id })).id;
+    const novoCliente = async () => (await criarCliente({ nome, email: user.email ?? "", cpfCnpj, ownerId: user.id })).id;
+    const reaproveitado = atual?.asaas_customer_id ?? null;
+    let clienteId = reaproveitado ?? (await novoCliente());
 
     const dadosPlano = PLANOS[plano];
-    const dadosAssinatura = {
-      clienteId,
-      valor: dadosPlano.valor,
-      descricao: `Marcon, plano ${dadosPlano.nome}`,
-      ownerId: user.id,
-      primeiroVencimento: hojeEmBrasilia(),
-    };
     const retornoUrl = await urlDeRetorno();
-    // o Asaas recusa o retorno se o domínio não bater com o cadastrado na conta;
-    // nesse caso cria sem redirecionamento em vez de impedir a assinatura
-    const assinatura = retornoUrl
-      ? await criarAssinatura({ ...dadosAssinatura, retornoUrl }).catch(() => criarAssinatura(dadosAssinatura))
-      : await criarAssinatura(dadosAssinatura);
+    const criar = (cliente: string) => {
+      const dados = {
+        clienteId: cliente,
+        valor: dadosPlano.valor,
+        descricao: `Marcon, plano ${dadosPlano.nome}`,
+        ownerId: user.id,
+        primeiroVencimento: hojeEmBrasilia(),
+      };
+      // o Asaas recusa o retorno se o domínio não bater com o cadastrado na conta;
+      // nesse caso cria sem redirecionamento em vez de impedir a assinatura
+      return retornoUrl ? criarAssinatura({ ...dados, retornoUrl }).catch(() => criarAssinatura(dados)) : criarAssinatura(dados);
+    };
+
+    let assinatura;
+    try {
+      assinatura = await criar(clienteId);
+    } catch (e) {
+      // o cliente guardado é de outra conta do Asaas (teste, chave trocada): cria um novo e tenta uma vez
+      if (reaproveitado && e instanceof AsaasErro && e.codigo === "invalid_customer") {
+        clienteId = await novoCliente();
+        assinatura = await criar(clienteId);
+      } else {
+        throw e;
+      }
+    }
 
     const { error } = await admin.from("assinaturas").upsert(
       {
