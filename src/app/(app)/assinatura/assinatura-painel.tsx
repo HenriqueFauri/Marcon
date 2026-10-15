@@ -180,7 +180,11 @@ export function AssinaturaPainel({
           <p className="text-[17px] font-semibold text-ink">Plano {PLANO.nome}</p>
           <Badge tone="positive">Cortesia</Badge>
         </div>
-        <p className="mt-1 text-[14px] text-ink-2">Tudo liberado, sem cobrança. Nenhum cartão foi cadastrado.</p>
+        <p className="mt-1 text-[14px] text-ink-2">
+          {situacao.cortesiaAte
+            ? `Tudo liberado, sem cobrança, até ${formatData(situacao.cortesiaAte)} (${situacao.diasRestantes === 1 ? "último dia" : `${situacao.diasRestantes} dias`}). Depois disso você pode assinar.`
+            : "Tudo liberado, sem cobrança. Nenhum cartão foi cadastrado."}
+        </p>
       </Card>
     );
   } else if (ativa) {

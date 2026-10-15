@@ -3,8 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { PageHeader } from "@/components/ui";
-import { Grupo, LinhaInfo, LinhaLink } from "@/components/ajustes";
+import { Badge, PageHeader, btnPrimary } from "@/components/ui";
+import { Grupo, LinhaLink } from "@/components/ajustes";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { PREFIXO, telefoneMascarado } from "@/lib/whatsapp/vinculo";
 import { AVISO_EM, cotasDa, usoDoMes } from "@/lib/whatsapp/uso";
@@ -39,7 +39,14 @@ export default async function AssistenteWhatsappPage() {
   if (!vinculo) {
     return (
       <div className="mx-auto max-w-2xl">
-        <PageHeader title="Assistente no WhatsApp" back={voltar} />
+        <PageHeader
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              Assistente <Badge>Não vinculado</Badge>
+            </span>
+          }
+          back={voltar}
+        />
         <Grupo rodape="Você manda um código para o WhatsApp do Marcon e pronto. Dá para desvincular quando quiser.">
           <p className="text-[15px] text-ink">
             {liberadoLancar
@@ -70,14 +77,17 @@ export default async function AssistenteWhatsappPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <PageHeader title="Assistente no WhatsApp" back={voltar} />
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            Assistente <Badge tone="positive">Ativo</Badge>
+          </span>
+        }
+        description={`WhatsApp final ${telefoneMascarado(vinculo.telefone).replace("...", "")}`}
+        back={voltar}
+      />
 
       <div className="flex flex-col gap-7">
-        <Grupo titulo="Conexão" semPadding>
-          <LinhaInfo rotulo="Número" valor={`final ${telefoneMascarado(vinculo.telefone).replace("...", "")}`} />
-          <LinhaInfo rotulo="Situação" valor="Ativo" />
-        </Grupo>
-
         <Grupo titulo="Uso do mês" rodape="Só as perguntas contam. Ajuda, limpar, SIM e NÃO não contam. Recomeça no dia 1º.">
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-3">
@@ -101,6 +111,11 @@ export default async function AssistenteWhatsappPage() {
               <div className={`h-full rounded-full ${corDaBarra}`} style={{ width: `${pct}%` }} />
             </div>
           </div>
+          {numero && (
+            <a href={`https://wa.me/${numero}`} target="_blank" rel="noopener noreferrer" className={`${btnPrimary} w-full sm:w-auto sm:self-start`}>
+              Abrir o WhatsApp
+            </a>
+          )}
         </Grupo>
 
         <Grupo titulo="Experimente" semPadding rodape="Toque para abrir o WhatsApp com a pergunta pronta. Mande ajuda para ver mais.">

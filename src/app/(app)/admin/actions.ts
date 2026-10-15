@@ -7,6 +7,9 @@ import { adminConfirmado, ehAdmin, registrarAdmin } from "@/lib/admin";
 import { cancelarAssinatura as cancelarNoAsaas } from "@/lib/asaas";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { PLANO_PADRAO } from "@/lib/planos";
+import { ehMotivoCortesia, ehPrazoCortesia } from "@/lib/cortesia";
+import { formatData, hojeISO, somarDias } from "@/lib/format";
+import { enviarNotificacao } from "@/lib/push/send";
 import { COMISSAO_MAXIMA, COMISSAO_PERCENTUAL } from "@/lib/indicacao";
 
 // Toda ação confere de novo se quem chama é admin: server actions são rotas
@@ -43,7 +46,13 @@ export async function bloquearConta(id: string, bloquear: boolean): Promise<Acti
   }
 }
 
-export async function definirCortesia(id: string, liberar: boolean): Promise<ActionResult> {
+// Cortesia: o plano Marcon sem cobrança, por 7, 15 ou 30 dias (contando o dia de hoje) e com um motivo.
+// Dar de novo a quem já tem cortesia renova o prazo a partir de hoje. Tirar encerra na hora.
+export async function definirCortesia(
+  id: string,
+  liberar: boolean,
+  opcoes?: { dias: number; motivo: string },
+): Promise<ActionResult> {
   try {
     const { admin, adminId } = await contextoAdmin(id, { permitirAdmin: true });
     const { data: atual, error: erroLeitura } = await admin
@@ -53,7 +62,10 @@ export async function definirCortesia(id: string, liberar: boolean): Promise<Act
       .maybeSingle();
     if (erroLeitura) throw erroLeitura;
 
+    let ate: string | null = null;
     if (liberar) {
+      if (!opcoes || !ehPrazoCortesia(opcoes.dias)) return { ok: false, error: "Escolha o prazo: 7, 15 ou 30 dias." };
+      if (!ehMotivoCortesia(opcoes.motivo)) return { ok: false, error: "Escolha o motivo da cortesia." };
       if (atual?.status === "ativa" || atual?.status === "atrasada") {
         return { ok: false, error: "Essa conta paga pelo Asaas. Cancele a assinatura dela antes de dar cortesia." };
       }
@@ -61,6 +73,8 @@ export async function definirCortesia(id: string, liberar: boolean): Promise<Act
       if (atual?.status === "pendente" && atual.asaas_subscription_id) {
         await cancelarNoAsaas(atual.asaas_subscription_id).catch(() => null);
       }
+      // "7 dias" conta o dia de hoje: vale até daqui a 6 dias, esse dia incluído
+      ate = somarDias(hojeISO(), opcoes.dias - 1);
       const { error } = await admin.from("assinaturas").upsert(
         {
           owner_id: id,
@@ -68,6 +82,10 @@ export async function definirCortesia(id: string, liberar: boolean): Promise<Act
           status: "cortesia",
           asaas_subscription_id: null,
           proximo_vencimento: null,
+          cortesia_ate: ate,
+          cortesia_motivo: opcoes.motivo,
+          cortesia_por: adminId,
+          cortesia_em: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
         { onConflict: "owner_id" },
@@ -82,9 +100,22 @@ export async function definirCortesia(id: string, liberar: boolean): Promise<Act
       if (error) throw error;
     }
 
-    await registrarAdmin(adminId, liberar ? "dar_cortesia" : "tirar_cortesia", id);
+    await registrarAdmin(adminId, liberar ? "dar_cortesia" : "tirar_cortesia", id, liberar ? { dias: opcoes?.dias, motivo: opcoes?.motivo, ate } : undefined);
+
+    // o cliente fica sabendo na hora (se tiver notificações ligadas); a falha do aviso não desfaz a cortesia
+    if (liberar && ate && opcoes) {
+      await enviarNotificacao(
+        id,
+        "Plano Marcon liberado",
+        `Você ganhou ${opcoes.dias} dias do plano Marcon, sem cobrança. Vale até ${formatData(ate)}.`,
+        "/assinatura",
+        admin,
+      ).catch(() => null);
+    }
+
     revalidatePath("/admin");
-    return ok(liberar ? "Plano Marcon liberado como cortesia." : "Cortesia retirada.");
+    revalidatePath(`/admin/contas/${id}`);
+    return ok(liberar ? `Cortesia de ${opcoes?.dias} dias liberada, até ${formatData(ate!)}.` : "Cortesia retirada.");
   } catch (e) {
     return falha(e);
   }
