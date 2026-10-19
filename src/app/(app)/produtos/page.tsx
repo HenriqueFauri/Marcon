@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { ProdutoComEstoque } from "@/types/domain";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, hojeISO, somarDias } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
 import { SearchInput } from "@/components/search-input";
 import {
@@ -27,6 +27,7 @@ const FILTROS = [
   { valor: "", label: "Ativos" },
   { valor: "baixo", label: "Acabando" },
   { valor: "sem", label: "Zerados" },
+  { valor: "parados", label: "Parados" },
   { valor: "inativos", label: "Inativos" },
 ] as const;
 
@@ -54,6 +55,24 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
   }
 
   const todos = (data ?? []) as ProdutoComEstoque[];
+
+  // Parados: com estoque e sem venda (não cancelada) há 30 dias. Lê em páginas porque o banco devolve no máximo 1000 linhas por consulta.
+  const vendidos = new Set<string>();
+  if (filtro === "parados") {
+    const desde = somarDias(hojeISO(), -30);
+    for (let de = 0; de < 20000; de += 1000) {
+      const { data: itens } = await supabase
+        .from("venda_itens")
+        .select("produto_id, vendas!inner(data, status)")
+        .gte("vendas.data", desde)
+        .neq("vendas.status", "cancelada")
+        .order("id")
+        .range(de, de + 999);
+      for (const i of itens ?? []) if (i.produto_id) vendidos.add(i.produto_id as string);
+      if ((itens?.length ?? 0) < 1000) break;
+    }
+  }
+  const parado = (p: ProdutoComEstoque) => p.estoque_total > 0 && !vendidos.has(p.id);
   const ativos = todos.filter((p) => p.status !== "inativo");
   const valorEstoque = ativos.reduce(
     (s, p) => s + Number(p.valor_estoque ?? Math.max(p.estoque_total, 0) * Number(p.custo_min)),
@@ -69,7 +88,9 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
       if (p.status !== "inativo") return false;
     } else {
       if (p.status === "inativo") return false;
-      if (filtro && situacaoEstoque(p) !== filtro) return false;
+      if (filtro === "parados") {
+        if (!parado(p)) return false;
+      } else if (filtro && situacaoEstoque(p) !== filtro) return false;
     }
     if (!q) return true;
     return [p.nome, p.marca, p.sku, p.categorias?.nome].some((v) => v?.toLowerCase().includes(q));
@@ -108,10 +129,16 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
         <SearchInput placeholder="Buscar por nome, marca, SKU..." />
         <Segmentos
           rotulo="Filtrar produtos"
-          className="sm:w-[26rem]"
+          className="sm:w-[32rem]"
           itens={FILTROS.map((f) => ({ href: filtroHref(f.valor), label: f.label, ativo: filtro === f.valor }))}
         />
       </div>
+
+      {filtro === "parados" && lista.length > 0 && (
+        <p className="mb-3 text-[13px] text-ink-muted">
+          Sem venda há 30 dias, com {formatBRL(lista.reduce((s, p) => s + Number(p.valor_estoque ?? Math.max(p.estoque_total, 0) * Number(p.custo_min)), 0))} parados em estoque (a custo).
+        </p>
+      )}
 
       {todos.length === 0 ? (
         <EmptyState
