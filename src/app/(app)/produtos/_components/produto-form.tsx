@@ -184,22 +184,26 @@ export function ProdutoForm({
   fornecedores,
   categorias,
   produto,
+  modelo,
   onSave,
 }: {
   fornecedores: Fornecedor[];
   categorias: string[];
   produto?: ProdutoComEstoque;
+  // "Duplicar": começa o cadastro com os dados de outro produto (sem SKU nem variações)
+  modelo?: ProdutoComEstoque;
   onSave: (formData: FormData) => Promise<ActionResult>;
 }) {
   const router = useRouter();
   const editando = !!produto;
+  const base = produto ?? modelo;
   const { isPending, run } = useAction();
   const [erro, setErro] = useState<string | null>(null);
   const [temVariacoes, setTemVariacoes] = useState(produto?.tem_variacoes ?? false);
   const [estoqueJaPago, setEstoqueJaPago] = useState(false);
-  const [fornecedorId, setFornecedorId] = useState(produto?.fornecedor_id ?? "");
-  const [custo, setCusto] = useState(valorInicial(produto?.custo));
-  const [preco, setPreco] = useState(valorInicial(produto?.preco_varejo));
+  const [fornecedorId, setFornecedorId] = useState(base?.fornecedor_id ?? "");
+  const [custo, setCusto] = useState(valorInicial(base?.custo));
+  const [preco, setPreco] = useState(valorInicial(base?.preco_varejo));
 
   const custoN = paraNumero(custo);
   const precoN = paraNumero(preco);
@@ -231,16 +235,16 @@ export function ProdutoForm({
               name="nome"
               required
               autoFocus={!editando}
-              defaultValue={produto?.nome}
+              defaultValue={modelo ? `${modelo.nome} (cópia)` : base?.nome}
               className={inputClass}
               placeholder="Ex: Smartwatch Pro X"
             />
           </Field>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <CategoriaCampo categorias={categorias} inicial={produto?.categorias?.nome ?? ""} />
+            <CategoriaCampo categorias={categorias} inicial={base?.categorias?.nome ?? ""} />
             <Field label="Marca">
-              <input name="marca" defaultValue={produto?.marca ?? ""} className={inputClass} placeholder="Opcional" />
+              <input name="marca" defaultValue={base?.marca ?? ""} className={inputClass} placeholder="Opcional" />
             </Field>
             <Field label="SKU / código">
               <input name="sku" defaultValue={produto?.sku ?? ""} className={inputClass} placeholder="Opcional" />
@@ -251,7 +255,7 @@ export function ProdutoForm({
             <AutoTextarea
               name="descricao"
               rows={3}
-              defaultValue={produto?.descricao ?? ""}
+              defaultValue={base?.descricao ?? ""}
               className={inputClass}
               placeholder="Estado, medidas, o que acompanha. A IA usa isso no anúncio"
             />
@@ -290,7 +294,7 @@ export function ProdutoForm({
             <input
               name="preco_atacado"
               inputMode="decimal"
-              defaultValue={valorInicial(produto?.preco_atacado)}
+              defaultValue={valorInicial(base?.preco_atacado)}
               className={inputClass}
               placeholder="Opcional"
             />
@@ -371,13 +375,13 @@ export function ProdutoForm({
                 inputMode="numeric"
                 min="0"
                 step="1"
-                defaultValue={produto?.alerta_estoque_baixo ?? ""}
+                defaultValue={base?.alerta_estoque_baixo ?? ""}
                 className={inputClass}
                 placeholder="Ex: 3"
               />
             </Field>
             <Field label="Unidade">
-              <select name="unidade_medida" defaultValue={produto?.unidade_medida ?? "un"} className={inputClass}>
+              <select name="unidade_medida" defaultValue={base?.unidade_medida ?? "un"} className={inputClass}>
                 {UNIDADES.map(([valor, rotulo]) => (
                   <option key={valor} value={valor}>
                     {rotulo}
@@ -408,7 +412,7 @@ export function ProdutoForm({
                 <input
                   name="fornecedor_nome"
                   aria-label="Nome do fornecedor"
-                  defaultValue={produto?.fornecedor_id ? "" : (produto?.fornecedor_nome ?? "")}
+                  defaultValue={base?.fornecedor_id ? "" : (base?.fornecedor_nome ?? "")}
                   className={inputClass}
                   placeholder="Nome do fornecedor (opcional)"
                 />
