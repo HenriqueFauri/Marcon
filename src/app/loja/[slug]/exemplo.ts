@@ -39,6 +39,11 @@ export const VITRINE_EXEMPLO: Vitrine = {
     anuncio: "Frete grátis acima de R$ 150",
     entrega: "ambos",
     frete_fixo: 10,
+    regioes_frete: [
+      { id: "11111111-1111-4111-8111-111111111111", nome: "Centro", valor: 0 },
+      { id: "22222222-2222-4222-8222-222222222222", nome: "Zona Norte", valor: 8 },
+      { id: "33333333-3333-4333-8333-333333333333", nome: "Zona Sul", valor: 12 },
+    ],
     instagram: "lojaexemplo",
     endereco: "Rua das Flores, 123, Centro, São Paulo",
     formas_pagamento: ["Cartão de crédito", "Dinheiro", "PIX"],

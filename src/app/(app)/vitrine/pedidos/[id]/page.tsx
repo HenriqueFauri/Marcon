@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatBRL } from "@/lib/format";
 import { btnPrimary, btnSecondary } from "@/components/ui";
-import type { PedidoRecebido } from "@/lib/vitrine";
+import { rotuloDoAndamento, rotuloDoFrete, type PedidoRecebido } from "@/lib/vitrine";
 import { Grupo } from "../../campos";
 import { quandoFoi } from "../linha-do-pedido";
 import { AcaoDeStatus } from "./acoes-do-pedido";
+import { AndamentoDoPedidoControle } from "./andamento-do-pedido";
 
 export const metadata: Metadata = { title: "Vitrine | Pedido" };
 
@@ -41,7 +42,7 @@ export default async function PedidoPage({ params }: PageProps<"/vitrine/pedidos
           <p className="text-[22px] font-bold tracking-tight text-ink">Pedido #{p.codigo}</p>
           <p className="text-[13px] text-ink-muted">
             {quando} ({quandoFoi(p.created_at)})
-            {p.status === "vendido" ? " · Virou venda" : p.status === "descartado" ? " · Descartado" : ""}
+            {p.status === "vendido" ? " · Virou venda" : p.status === "descartado" ? " · Descartado" : ` · ${rotuloDoAndamento(p.andamento, p.entrega)}`}
           </p>
         </div>
         {p.status === "novo" && (
@@ -55,6 +56,15 @@ export default async function PedidoPage({ params }: PageProps<"/vitrine/pedidos
           </Link>
         )}
       </Grupo>
+
+      {p.status === "novo" && (
+        <Grupo
+          titulo="Andamento"
+          rodape="O cliente acompanha pelo link Seu pedido na loja. Separado e a caminho seguram as unidades até virar venda; sem isso a reserva vale 48 horas."
+        >
+          <AndamentoDoPedidoControle id={p.id} andamento={p.andamento} entrega={p.entrega} />
+        </Grupo>
+      )}
 
       <Grupo titulo="Cliente">
         <Linha rotulo="Nome" valor={p.cliente_nome || "Não informou"} />
@@ -83,7 +93,7 @@ export default async function PedidoPage({ params }: PageProps<"/vitrine/pedidos
         <div className="flex flex-col gap-1.5 border-t border-line px-4 py-3">
           <Linha rotulo="Produtos" valor={formatBRL(p.subtotal)} />
           {Number(p.desconto) > 0 && <Linha rotulo={`Cupom ${p.cupom ?? ""}`.trim()} valor={`−${formatBRL(p.desconto)}`} />}
-          {p.entrega === "entrega" && <Linha rotulo="Frete" valor={p.frete ? formatBRL(p.frete) : "A combinar"} />}
+          {p.entrega === "entrega" && <Linha rotulo={p.regiao_frete ? `Frete (${p.regiao_frete})` : "Frete"} valor={rotuloDoFrete(p.frete)} />}
           <Linha rotulo="Total" valor={formatBRL(p.total)} forte />
         </div>
       </Grupo>
