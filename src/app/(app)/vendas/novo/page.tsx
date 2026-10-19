@@ -77,7 +77,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
           nome: p.nome,
           produto_nome: p.nome,
           rotulo: null,
-          detalhe: [p.marca, p.sku].filter(Boolean).join(" · "),
+          detalhe: [p.marca, p.sku, p.codigo_barras].filter(Boolean).join(" · "),
           preco_varejo: Number(p.preco_varejo),
           preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
           custo: Number(p.custo),

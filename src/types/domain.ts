@@ -21,6 +21,7 @@ export interface Produto {
   alerta_estoque_baixo: number | null;
   unidade_medida: string;
   sku: string | null;
+  codigo_barras: string | null;
   fornecedor_nome: string | null;
   fornecedor_id: string | null;
   na_vitrine: boolean;

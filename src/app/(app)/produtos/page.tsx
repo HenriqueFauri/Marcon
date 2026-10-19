@@ -20,6 +20,7 @@ import {
   Segmentos,
 } from "@/components/ui";
 import { IconPlus } from "@/components/icons";
+import { LerCodigoBusca } from "./_components/ler-codigo-busca";
 
 export const metadata: Metadata = { title: "Produtos" };
 
@@ -72,7 +73,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
       if (filtro && situacaoEstoque(p) !== filtro) return false;
     }
     if (!q) return true;
-    return [p.nome, p.marca, p.sku, p.categorias?.nome].some((v) => v?.toLowerCase().includes(q));
+    return [p.nome, p.marca, p.sku, p.codigo_barras, p.categorias?.nome].some((v) => v?.toLowerCase().includes(q));
   });
 
   const filtroHref = (valor: string) => {
@@ -105,7 +106,11 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SearchInput placeholder="Buscar por nome, marca, SKU..." />
+        <div className="flex min-w-0 items-center gap-2">
+          {/* key: ao ler um código, o campo recomeça com o termo novo da URL */}
+          <SearchInput key={q} placeholder="Buscar por nome, marca, SKU ou código..." />
+          <LerCodigoBusca />
+        </div>
         <Segmentos
           rotulo="Filtrar produtos"
           className="sm:w-[26rem]"
