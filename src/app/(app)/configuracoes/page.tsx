@@ -77,6 +77,13 @@ export default async function ConfiguracoesPage() {
           <LinhaLink href="/importar" rotulo="Importar dados" detalhe="PDF" />
         </Grupo>
 
+        <Grupo semPadding titulo="Exportar" rodape="Planilha pra abrir no Excel ou guardar uma cópia.">
+          <LinhaLink href="/api/exportar/produtos" externo rotulo="Produtos" detalhe="CSV" />
+          <LinhaLink href="/api/exportar/vendas" externo rotulo="Vendas" detalhe="CSV" />
+          <LinhaLink href="/api/exportar/clientes" externo rotulo="Clientes" detalhe="CSV" />
+          <LinhaLink href="/api/exportar/caixa" externo rotulo="Caixa" detalhe="CSV" />
+        </Grupo>
+
         <Card title="Canais de venda" rodape="Onde você vende. Aparecem na venda e nos anúncios.">
           <ListaSimples
             itens={(canais ?? []) as CanalVenda[]}

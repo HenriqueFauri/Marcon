@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Parcela, Venda, VendaItem } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
-import { Badge, Card, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Badge, Card, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { CancelarVendaButton } from "./cancelar-venda-button";
 import { ReciboCard } from "./recibo-card";
 import { ReceberButton } from "../../contas-a-receber/receber-button";
@@ -57,6 +58,11 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
           </span>
         }
         description={venda.cliente_nome ? `Cliente: ${venda.cliente_nome}` : "Venda avulsa"}
+        action={
+          <Link href={`/vendas/novo?repetir=${venda.id}`} className={`${btnSecondary} px-4 py-2 text-sm`}>
+            Repetir venda
+          </Link>
+        }
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
