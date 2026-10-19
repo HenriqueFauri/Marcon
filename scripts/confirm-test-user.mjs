@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { Client } from "pg";
+import { sslDoBanco } from "./db-ssl.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const env = Object.fromEntries(
@@ -28,7 +29,7 @@ const client = new Client({
   user: "postgres",
   password: env.SUPABASE_DB_PASSWORD,
   database: "postgres",
-  ssl: { rejectUnauthorized: false },
+  ssl: sslDoBanco(root, env),
 });
 await client.connect();
 const res = await client.query(
