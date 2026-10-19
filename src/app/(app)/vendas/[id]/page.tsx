@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Parcela, Venda, VendaItem } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
-import { Badge, Card, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Badge, Card, PageHeader, StatCard, btnSecondary, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import Link from "next/link";
 import { CancelarVendaButton } from "./cancelar-venda-button";
+import { DevolverItemButton } from "./devolver-item-button";
 import { ReciboCard } from "./recibo-card";
 import { ReceberButton } from "../../contas-a-receber/receber-button";
 
@@ -34,6 +36,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
   const cancelada = venda.status === "cancelada";
   const lucro = Number(venda.valor_total) - Number(venda.custo_total);
   const outrosGastos = Number(venda.outros_gastos ?? 0);
+  const unidadesNaVenda = itens.reduce((s, i) => s + i.quantidade, 0);
   const subtotal = itens.reduce((s, i) => s + i.quantidade * Number(i.preco_unitario), 0);
   const [{ data: cliente }, { data: { user } }] = await Promise.all([
     venda.cliente_id
@@ -90,9 +93,19 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
                   {item.quantidade} × {formatBRL(item.preco_unitario)}
                 </p>
               </div>
-              <span className="shrink-0 tabular-nums text-ink">
-                {formatBRL(item.quantidade * Number(item.preco_unitario))}
-              </span>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span className="tabular-nums text-ink">{formatBRL(item.quantidade * Number(item.preco_unitario))}</span>
+                {!cancelada && (
+                  <DevolverItemButton
+                    vendaId={venda.id}
+                    itemId={item.id}
+                    nome={item.produto_nome}
+                    quantidade={item.quantidade}
+                    precoUnitario={Number(item.preco_unitario)}
+                    unidadesNaVenda={unidadesNaVenda}
+                  />
+                )}
+              </div>
             </li>
           ))}
         </ul>
@@ -123,6 +136,9 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
       </Card>
 
       <Card title="Pagamento" className="mb-6">
+        {venda.observacoes && (
+          <p className="mb-3 whitespace-pre-line border-b border-line pb-3 text-[13px] text-ink-muted">{venda.observacoes}</p>
+        )}
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-xs text-ink-muted">Tipo</dt>
@@ -173,6 +189,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
                   <tr key={p.id}>
                     <td className={`${tdClass} text-ink-2`}>
                       {p.numero_parcela}/{totalParcelas}
+                      {p.entrada && <span className="block text-xs text-ink-muted">entrada</span>}
                       {p.parcial && <span className="block text-xs text-ink-muted">parte</span>}
                     </td>
                     <td className={`${tdClass} text-ink-2`}>
@@ -198,6 +215,14 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
             </tbody>
           </Table>
         </Card>
+      )}
+
+      {!cancelada && (
+        <div className="mt-6 flex justify-center">
+          <Link href={`/vendas/${venda.id}/editar`} className={btnSecondary}>
+            Editar venda
+          </Link>
+        </div>
       )}
 
       {/* ação destrutiva no fim da tela */}
