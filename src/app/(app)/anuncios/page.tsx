@@ -8,7 +8,7 @@ import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/compon
 import { IconBox } from "@/components/icons";
 import { hojeISO } from "@/lib/format";
 import { situacaoDaPublicacao } from "@/lib/publicacao";
-import { FotoProduto } from "../vendas/novo/produto-seletor";
+import { FotoProduto } from "@/components/foto-produto";
 import { VistaToggle, type Vista } from "./vista-toggle";
 
 export const metadata: Metadata = { title: "Anúncios" };

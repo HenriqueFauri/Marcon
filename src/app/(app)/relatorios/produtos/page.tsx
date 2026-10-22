@@ -9,7 +9,7 @@ import { Grupo } from "@/components/ajustes";
 import { ErrorMessage, PageHeader, Segmentos, btnPrimary } from "@/components/ui";
 import { LinhaBarra } from "@/components/graficos/barras";
 import { EstadoVazio } from "@/components/graficos/vazio";
-import { FotoProduto } from "../../vendas/novo/produto-seletor";
+import { FotoProduto } from "@/components/foto-produto";
 import { AbasRelatorios } from "../abas";
 import { SeletorPeriodo } from "../seletor-periodo";
 
