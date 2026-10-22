@@ -87,13 +87,14 @@ export default async function FechamentoPage({ searchParams }: PageProps<"/relat
           }
         />
       ) : (
-        <div className="flex flex-col gap-7">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="graf-secoes flex flex-col gap-7">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
             <Kpi
-              className="col-span-2 lg:col-span-1"
+              className="col-span-2"
               destaque
               rotulo="Faturamento"
               valor={formatBRL(atual.vendas.receita)}
+                numero={{ v: atual.vendas.receita, tipo: "brl" }}
               atual={atual.vendas.receita}
               anterior={anterior.vendas.receita}
               antes={`Antes ${formatBRL(anterior.vendas.receita)}`}
@@ -101,12 +102,13 @@ export default async function FechamentoPage({ searchParams }: PageProps<"/relat
             <Kpi
               rotulo="Lucro"
               valor={formatBRL(atual.vendas.lucro)}
+                numero={{ v: atual.vendas.lucro, tipo: "brl" }}
               tom={atual.vendas.lucro >= 0 ? "text-positive" : "text-danger"}
               atual={atual.vendas.lucro}
               anterior={anterior.vendas.lucro}
               antes={`Antes ${formatBRL(anterior.vendas.lucro)}`}
             />
-            <Kpi rotulo="Margem" valor={formatPct(mg)} atual={mg} anterior={mgAnt} pontos antes={`Antes ${formatPct(mgAnt)}`} />
+            <Kpi rotulo="Margem" valor={formatPct(mg)} numero={{ v: mg, tipo: "pct" }} atual={mg} anterior={mgAnt} pontos antes={`Antes ${formatPct(mgAnt)}`} />
             <Kpi
               rotulo="Ticket médio"
               valor={formatBRL(ticketMedio(atual.vendas))}
@@ -114,7 +116,7 @@ export default async function FechamentoPage({ searchParams }: PageProps<"/relat
               anterior={ticketMedio(anterior.vendas)}
               antes={`Antes ${formatBRL(ticketMedio(anterior.vendas))}`}
             />
-            <Kpi rotulo="Vendas" valor={String(atual.vendas.vendas)} atual={atual.vendas.vendas} anterior={anterior.vendas.vendas} antes={`Antes ${anterior.vendas.vendas}`} />
+            <Kpi rotulo="Vendas" valor={String(atual.vendas.vendas)} numero={{ v: atual.vendas.vendas, tipo: "int" }} atual={atual.vendas.vendas} anterior={anterior.vendas.vendas} antes={`Antes ${anterior.vendas.vendas}`} />
           </div>
 
           <Grupo titulo={`Dia a dia em ${nomeDoMes(mes)}`}>

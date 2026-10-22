@@ -79,7 +79,7 @@ export function Rosca({
   const inicios = fatias.map((_, i) => fatias.slice(0, i).reduce((s, f) => s + (total > 0 ? (f.valor / total) * C : 0), 0));
   return (
     <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-8">
-      <div className="relative h-40 w-40 shrink-0">
+      <div className="graf-girar relative h-40 w-40 shrink-0">
         <svg viewBox="0 0 100 100" className="graf-fade h-full w-full -rotate-90" role="img" aria-label={descricao}>
           <circle cx="50" cy="50" r={R} fill="none" strokeWidth="13" className="stroke-fill" />
           {fatias.map((f, i) => {
@@ -104,7 +104,7 @@ export function Rosca({
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           <span className="text-[12px] text-ink-muted">{centroRotulo}</span>
-          <span className="max-w-full truncate text-[17px] font-bold tabular-nums leading-tight text-ink">{centroValor}</span>
+          <span className="max-w-full break-words text-[15px] font-bold tabular-nums leading-tight text-ink">{centroValor}</span>
         </div>
       </div>
       <div className="w-full min-w-0 flex-1">

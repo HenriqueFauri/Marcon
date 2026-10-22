@@ -74,7 +74,7 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
         <SeletorPeriodo periodo={periodo} basePath="/relatorios" />
       </div>
 
-      <div className="flex flex-col gap-7">
+      <div className="graf-secoes flex flex-col gap-7">
         {semVendas ? (
           <EstadoVazio
             titulo="Nenhuma venda nesse período"
@@ -94,12 +94,13 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
           />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
               <Kpi
-                className="col-span-2 lg:col-span-1"
+                className="col-span-2"
                 destaque
                 rotulo="Faturamento"
                 valor={formatBRL(totais.receita)}
+                numero={{ v: totais.receita, tipo: "brl" }}
                 atual={totais.receita}
                 anterior={ant.receita}
                 antes={`Antes ${formatBRL(ant.receita)}`}
@@ -107,16 +108,17 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
               <Kpi
                 rotulo="Lucro"
                 valor={formatBRL(totais.lucro)}
+                numero={{ v: totais.lucro, tipo: "brl" }}
                 tom={totais.lucro >= 0 ? "text-positive" : "text-danger"}
                 atual={totais.lucro}
                 anterior={ant.lucro}
                 antes={`Antes ${formatBRL(ant.lucro)}`}
               />
-              <Kpi rotulo="Margem" valor={formatPct(mg)} atual={mg} anterior={mgAnt} pontos antes={`Antes ${formatPct(mgAnt)}`} />
+              <Kpi rotulo="Margem" valor={formatPct(mg)} numero={{ v: mg, tipo: "pct" }} atual={mg} anterior={mgAnt} pontos antes={`Antes ${formatPct(mgAnt)}`} />
               <Kpi rotulo="Ticket médio" valor={formatBRL(ticketMedio(totais))} atual={ticketMedio(totais)} anterior={ticketMedio(ant)} antes={`Antes ${formatBRL(ticketMedio(ant))}`} />
               <Kpi
                 rotulo="Vendas"
-                valor={String(totais.vendas)}
+                valor={String(totais.vendas)} numero={{ v: totais.vendas, tipo: "int" }}
                 atual={totais.vendas}
                 anterior={ant.vendas}
                 antes={`Antes ${ant.vendas}`}

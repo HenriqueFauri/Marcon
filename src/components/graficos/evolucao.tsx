@@ -50,13 +50,13 @@ export function GraficoEvolucao({ pontos, tituloTotal }: { pontos: PontoEvolucao
       <div className="mb-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-2" aria-live="polite">
         <div className="min-w-0">
           <p className="text-[13px] text-ink-muted">{destaque ? destaque.titulo : tituloTotal}</p>
-          <p className="truncate text-[26px] font-bold leading-tight tracking-tight tabular-nums text-ink">
+          <p className="break-words text-[26px] font-bold leading-tight tracking-tight tabular-nums text-ink">
             {formatBRL(destaque ? destaque.faturamento : totalFat)}
           </p>
         </div>
         <div className="min-w-0 text-right">
           <p className="text-[13px] text-ink-muted">Lucro</p>
-          <p className={`truncate text-[20px] font-semibold tabular-nums ${(destaque ? destaque.lucro : totalLucro) < 0 ? "text-danger" : "text-ink"}`}>
+          <p className={`break-words text-[20px] font-semibold tabular-nums ${(destaque ? destaque.lucro : totalLucro) < 0 ? "text-danger" : "text-ink"}`}>
             {formatBRL(destaque ? destaque.lucro : totalLucro)}
           </p>
         </div>
