@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatBRL } from "@/lib/format";
 import { IconBox, IconPlus } from "@/components/icons";
+import { BotaoLerCodigo } from "@/components/leitor-codigo";
+import { btnSecondary } from "@/components/ui";
 import type { Vendavel } from "./venda-form";
 
 // Um produto na lista de venda. Produto com variações vira um só item, com um
@@ -224,12 +226,58 @@ export function ListaProdutos({
 }) {
   const [aberto, setAberto] = useState<string | null>(abertoInicial ?? null);
   const [limite, setLimite] = useState(PRIMEIROS);
+  // código lido pela câmera: vira o termo da busca e, quando sobra um produto só, ele já entra na venda
+  const codigoLido = useRef<string | null>(null);
+
+  function buscarPorCodigo(codigo: string) {
+    const campo = document.getElementById("buscar-produto") as HTMLInputElement | null;
+    if (!campo) return;
+    codigoLido.current = codigo;
+    // o campo é do formulário de venda: escreve pelo setter nativo e avisa o React como se tivesse sido digitado
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(campo, codigo);
+    campo.dispatchEvent(new Event("input", { bubbles: true }));
+    // se a busca não mudar a lista, o código não fica pendente para adicionar algo depois sem querer
+    setTimeout(() => {
+      codigoLido.current = null;
+    }, 1500);
+  }
+
+  useEffect(() => {
+    const codigo = codigoLido.current;
+    if (!codigo) return;
+    codigoLido.current = null;
+    const campo = document.getElementById("buscar-produto") as HTMLInputElement | null;
+    if (grupos.length === 1) {
+      const g = grupos[0];
+      if (!g.temVariacoes && g.itens[0].estoque - (noCarrinho.get(g.itens[0].chave) ?? 0) > 0) {
+        onAdicionar(g.itens[0]);
+        // venda seguida: limpa a busca para o próximo código
+        if (campo) {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(campo, "");
+          campo.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }
+    }
+  }, [grupos, noCarrinho, onAdicionar]);
+
+  const leitor = (
+    <div className="mb-2">
+      <BotaoLerCodigo rotulo="Ler código de barras" className={`${btnSecondary} min-h-11 w-full`} onCodigo={buscarPorCodigo} />
+    </div>
+  );
 
   if (grupos.length === 0) {
-    return <p className="px-3 py-6 text-center text-sm text-ink-muted">Nada encontrado.</p>;
+    return (
+      <>
+        {leitor}
+        <p className="px-3 py-6 text-center text-sm text-ink-muted">Nada encontrado.</p>
+      </>
+    );
   }
 
   return (
+    <>
+    {leitor}
     <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
       {grupos.slice(0, limite).map((g) => {
         const emCarrinho = g.itens.reduce((s, v) => s + (noCarrinho.get(v.chave) ?? 0), 0);
@@ -301,5 +349,6 @@ export function ListaProdutos({
         </li>
       )}
     </ul>
+    </>
   );
 }
