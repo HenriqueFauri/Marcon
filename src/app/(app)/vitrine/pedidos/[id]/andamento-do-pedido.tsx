@@ -7,7 +7,7 @@ import { rotuloDoAndamento, type AndamentoDoPedido } from "@/lib/vitrine";
 import { Segmentado } from "../../campos";
 import { mudarAndamentoDoPedido } from "../../actions";
 
-// O cliente vê isto no link "Seu pedido" da loja. Separado e saiu seguram a reserva das unidades.
+// O cliente vê isto no link "Seu pedido" da loja.
 export function AndamentoDoPedidoControle({
   id,
   andamento,
