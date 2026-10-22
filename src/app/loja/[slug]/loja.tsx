@@ -117,7 +117,6 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
   // "" = ainda não escolheu, "outra" = região fora da lista (vale o frete fixo), senão o id da região
   const [regiaoId, setRegiaoId] = useState("");
   const [enviando, setEnviando] = useState(false);
-  const [erroPedido, setErroPedido] = useState<string | null>(null);
   const [ultimoPedido, setUltimoPedido] = useState<{ codigo: string; token: string } | null>(null);
   const [cupom, setCupom] = useState<Cupom | null>(null);
   const [codigoCupom, setCodigoCupom] = useState("");
@@ -258,13 +257,12 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
   const total = subtotal - desconto + (frete ?? 0);
   const faltaEndereco = modoFinal === "entrega" && !endereco.trim();
 
-  // Grava o pedido (e reserva as unidades) antes de abrir o WhatsApp. A janela abre já no toque para o
-  // navegador não bloquear; só falta de estoque segura o envio, qualquer outra falha segue como antes.
+  // Grava o pedido antes de abrir o WhatsApp. A janela abre já no toque para o navegador não bloquear;
+  // se não gravar, o pedido segue pelo WhatsApp do mesmo jeito.
   async function enviarPedido(e: MouseEvent<HTMLAnchorElement>, url: string) {
     e.preventDefault();
     if (enviando || !codigo) return;
     setEnviando(true);
-    setErroPedido(null);
     const janela = window.open("", "_blank");
     if (janela) janela.opener = null;
     try {
@@ -281,19 +279,6 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
         cupom: cupom && desconto > 0 ? cupom.codigo : null,
         regiaoId: regiao?.id ?? null,
       }).catch(() => null);
-      if (r && !r.ok && r.motivo === "estoque") {
-        janela?.close();
-        const falta = new Map(r.itens.map((i) => [chaveDe(i.produtoId, i.variacaoId), i.disponivel]));
-        setItens((atual) =>
-          atual.flatMap((i) => {
-            const disponivel = falta.get(i.chave);
-            if (disponivel === undefined || disponivel >= i.quantidade) return [i];
-            return disponivel > 0 ? [{ ...i, quantidade: disponivel }] : [];
-          }),
-        );
-        setErroPedido("Outro cliente acabou de pedir e não sobrou tudo. Ajustei seu pedido com o que restou; confira e envie de novo.");
-        return;
-      }
       if (r && r.ok) {
         const novo = { codigo, token: r.token };
         setUltimoPedido(novo);
@@ -757,17 +742,12 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
                 className={`${botao} mt-4 w-full gap-2`}
               >
                 <IconeWhatsapp />
-                {enviando ? "Reservando..." : "Enviar pedido pelo WhatsApp"}
+                {enviando ? "Enviando..." : "Enviar pedido pelo WhatsApp"}
               </a>
-            )}
-            {erroPedido && (
-              <p role="alert" className="mt-2 text-center text-xs text-danger">
-                {erroPedido}
-              </p>
             )}
             {ultimoPedido?.codigo === codigo && (
               <p className="mt-2 text-center text-[13px] text-ink-muted">
-                Pedido #{codigo} reservado.{" "}
+                Pedido #{codigo} enviado.{" "}
                 <a href={`/loja/${slug}/pedido/${ultimoPedido.token}`} className="font-medium text-ink-2 underline">
                   Acompanhar
                 </a>

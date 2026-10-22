@@ -375,8 +375,7 @@ export async function mudarStatusDoPedido(id: string, status: "novo" | "descarta
   }
 }
 
-// Andamento do pedido para o cliente (migration 0052): recebido, separado, saiu. Separar ou despachar
-// também segura a reserva das unidades até virar venda ou ser descartado (sem isso ela vale 48 horas).
+// Andamento do pedido para o cliente (migration 0054): recebido, separado, saiu. Só informa o cliente.
 export async function mudarAndamentoDoPedido(id: string, andamento: string): Promise<ActionResult> {
   try {
     if (!UUID.test(id) || !ANDAMENTOS.includes(andamento as AndamentoDoPedido)) return { ok: false, error: "Andamento inválido." };

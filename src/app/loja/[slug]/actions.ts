@@ -86,16 +86,13 @@ export interface PedidoDaLoja {
   regiaoId?: string | null;
 }
 
-// "estoque": algum item não cabe mais (outro cliente reservou antes); "erro": não deu para gravar
-// (limite, banco fora do ar), e o pedido segue pelo WhatsApp como antes.
-export type ResultadoDoPedido =
-  | { ok: true; token: string }
-  | { ok: false; motivo: "estoque"; itens: { produtoId: string; variacaoId: string | null; disponivel: number }[] }
-  | { ok: false; motivo: "erro" };
+// "erro": não deu para gravar (limite, banco fora do ar), e o pedido segue pelo WhatsApp como antes.
+export type ResultadoDoPedido = { ok: true; token: string } | { ok: false; motivo: "erro" };
 
-// Grava o pedido em vitrine_pedidos (migrations 0037 e 0052), reserva as unidades e conta na métrica de
-// pedidos. O banco refaz preço, cupom, frete e total a partir dos ids; daqui só vão ids, quantidades e
-// os dados de entrega. Só o motivo "estoque" segura o pedido; qualquer outra falha deixa seguir pelo WhatsApp.
+// Grava o pedido em vitrine_pedidos (migrations 0037 e 0061) e conta na métrica de pedidos. Não recusa
+// por falta de estoque e não reserva nada: o vendedor resolve ao ver o pedido. O banco refaz preço, cupom,
+// frete e total a partir dos ids; daqui só vão ids, quantidades e os dados de entrega. Qualquer falha
+// deixa o pedido seguir pelo WhatsApp.
 export async function registrarPedido(slug: string, pedido: PedidoDaLoja): Promise<ResultadoDoPedido> {
   const erro = { ok: false, motivo: "erro" } as const;
   try {
@@ -133,20 +130,12 @@ export async function registrarPedido(slug: string, pedido: PedidoDaLoja): Promi
       ok: boolean;
       repetido?: boolean;
       token?: string;
-      motivo?: string;
-      itens?: { produto_id: string; variacao_id: string | null; disponivel: number }[];
     };
     if (r.ok && r.token) {
       // aviso (push) ao dono da loja; opcional, nunca atrapalha o pedido
       if (!r.repetido) await avisarPedidoDaVitrine(admin, s, pedido.codigo).catch((e) => console.error("[push] aviso de pedido da vitrine", e));
       return { ok: true, token: r.token };
     }
-    if (r.motivo === "estoque")
-      return {
-        ok: false,
-        motivo: "estoque",
-        itens: (r.itens ?? []).map((i) => ({ produtoId: i.produto_id, variacaoId: i.variacao_id, disponivel: Number(i.disponivel) })),
-      };
     return erro;
   } catch {
     return erro;

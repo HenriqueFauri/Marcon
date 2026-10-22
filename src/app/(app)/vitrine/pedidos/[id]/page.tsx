@@ -60,7 +60,7 @@ export default async function PedidoPage({ params }: PageProps<"/vitrine/pedidos
       {p.status === "novo" && (
         <Grupo
           titulo="Andamento"
-          rodape="O cliente acompanha pelo link Seu pedido na loja. Separado e a caminho seguram as unidades até virar venda; sem isso a reserva vale 48 horas."
+          rodape="O cliente acompanha pelo link Seu pedido na loja."
         >
           <AndamentoDoPedidoControle id={p.id} andamento={p.andamento} entrega={p.entrega} />
         </Grupo>
