@@ -15,7 +15,7 @@ import { Rosca, dobrarEmOutros } from "@/components/graficos/rosca";
 import { Kpi } from "@/components/graficos/kpi";
 import { Variacao } from "@/components/graficos/variacao";
 import { EstadoVazio } from "@/components/graficos/vazio";
-import { FotoProduto } from "../../vendas/novo/produto-seletor";
+import { FotoProduto } from "@/components/foto-produto";
 import { AbasRelatorios } from "../abas";
 
 export const metadata: Metadata = { title: "Fechamento do mês" };
