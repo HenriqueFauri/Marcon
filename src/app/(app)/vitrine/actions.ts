@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, numero, ok, texto, textoOuNull, type ActionResult } from "@/lib/action";
 import {
+  ANDAMENTOS,
   ANUNCIO_MAX,
   BANNER_BOTAO_MAX,
   BANNER_MAX_IMAGENS,
@@ -18,6 +19,7 @@ import {
   ENTREGAS,
   INSTAGRAM_REGEX,
   SLUG_REGEX,
+  type AndamentoDoPedido,
   TITULO_VITRINE_MAX,
   fundoEscuro,
   normalizarWhatsapp,
@@ -368,6 +370,75 @@ export async function mudarStatusDoPedido(id: string, status: "novo" | "descarta
     if (!data) return { ok: false, error: "Não achei esse pedido, ou ele já virou venda." };
     revalidatePath("/vitrine", "layout");
     return ok(status === "descartado" ? "Pedido descartado." : "Pedido de volta para os novos.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// Andamento do pedido para o cliente (migration 0052): recebido, separado, saiu. Separar ou despachar
+// também segura a reserva das unidades até virar venda ou ser descartado (sem isso ela vale 48 horas).
+export async function mudarAndamentoDoPedido(id: string, andamento: string): Promise<ActionResult> {
+  try {
+    if (!UUID.test(id) || !ANDAMENTOS.includes(andamento as AndamentoDoPedido)) return { ok: false, error: "Andamento inválido." };
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("vitrine_pedidos")
+      .update({ andamento, andamento_em: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "novo")
+      .select("id")
+      .maybeSingle();
+    if (error) return falha(error);
+    if (!data) return { ok: false, error: "Não achei esse pedido, ou ele já foi encerrado." };
+    revalidatePath("/vitrine", "layout");
+    return ok("Andamento atualizado.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// Frete por região (migration 0052): o cliente escolhe a região no pedido. Quem não escolhe uma da lista
+// usa o frete fixo das configurações (ou "a combinar").
+const REGIOES_MAX = 40;
+
+export async function criarRegiaoDeFrete(formData: FormData): Promise<ActionResult> {
+  try {
+    const nome = texto(formData, "nome").replace(/\s+/g, " ");
+    const valor = numero(formData, "valor") ?? 0;
+    if (!nome || nome.length > 60) return { ok: false, error: "Informe o bairro ou a região (até 60 letras)." };
+    if (Number.isNaN(valor) || valor < 0 || valor > 9999) return { ok: false, error: "Confira o valor do frete." };
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    const { count } = await supabase.from("vitrine_regioes_frete").select("id", { count: "exact", head: true });
+    if ((count ?? 0) >= REGIOES_MAX) return { ok: false, error: `Você pode ter até ${REGIOES_MAX} regiões.` };
+
+    const { error } = await supabase.from("vitrine_regioes_frete").insert({ owner_id: user.id, nome, valor });
+    if (error) {
+      if (/duplicate key|unique constraint/i.test(error.message)) return { ok: false, error: "Você já tem uma região com esse nome." };
+      return falha(error);
+    }
+    revalidatePath("/vitrine", "layout");
+    revalidatePath("/loja/[slug]", "page");
+    return ok(`${nome} adicionada.`);
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export async function excluirRegiaoDeFrete(id: string): Promise<ActionResult> {
+  try {
+    if (!UUID.test(id)) return { ok: false, error: "Região inválida." };
+    const supabase = await createClient();
+    const { error } = await supabase.from("vitrine_regioes_frete").delete().eq("id", id);
+    if (error) return falha(error);
+    revalidatePath("/vitrine", "layout");
+    revalidatePath("/loja/[slug]", "page");
+    return ok("Região removida.");
   } catch (e) {
     return falha(e);
   }

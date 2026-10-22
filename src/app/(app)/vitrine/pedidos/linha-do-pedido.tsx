@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatBRL } from "@/lib/format";
-import { quantidadeDeItens, type PedidoRecebido } from "@/lib/vitrine";
+import { quantidadeDeItens, rotuloDoAndamento, type PedidoRecebido } from "@/lib/vitrine";
 
 // "agora", "há 5 min", "há 3 h", "ontem", "12/10"
 export function quandoFoi(iso: string, agora = Date.now()) {
@@ -21,7 +21,7 @@ export function LinhaDoPedido({ pedido: p }: { pedido: PedidoRecebido }) {
     `${n} ${n === 1 ? "item" : "itens"}`,
     p.entrega === "entrega" ? "Entrega" : "Retirada",
     quandoFoi(p.created_at),
-    STATUS[p.status],
+    p.status === "novo" && p.andamento !== "recebido" ? rotuloDoAndamento(p.andamento, p.entrega) : STATUS[p.status],
   ].filter(Boolean);
   return (
     <Link

@@ -6,6 +6,8 @@ import type { ProdutoComEstoque } from "@/types/domain";
 import { SearchInput } from "@/components/search-input";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/components/ui";
 import { IconBox } from "@/components/icons";
+import { hojeISO } from "@/lib/format";
+import { situacaoDaPublicacao } from "@/lib/publicacao";
 import { VistaToggle, type Vista } from "./vista-toggle";
 
 export const metadata: Metadata = { title: "Anúncios" };
@@ -26,10 +28,11 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   const vista: Vista = vistaParam === "galeria" ? "galeria" : "lista";
 
   const supabase = await createClient();
-  const [{ data, error }, { data: anunciosData }, { data: fotosData }] = await Promise.all([
+  const [{ data, error }, { data: anunciosData }, { data: fotosData }, { data: publicacoesData }] = await Promise.all([
     supabase.from("produtos_com_estoque").select("*, categorias(nome)").neq("status", "inativo").order("nome"),
     supabase.from("produto_anuncios").select("produto_id, titulo, descricao"),
     supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
+    supabase.from("anuncio_publicacoes").select("produto_id, publicado_em, renovar_dias"),
   ]);
 
   if (error) {
@@ -46,6 +49,12 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   for (const a of anunciosData ?? []) {
     if (!a.titulo && !a.descricao) continue;
     versoesPorProduto.set(a.produto_id, (versoesPorProduto.get(a.produto_id) ?? 0) + 1);
+  }
+  // produtos com algum anúncio publicado que já passou do prazo de renovar
+  const hoje = hojeISO();
+  const paraRenovar = new Set<string>();
+  for (const pb of publicacoesData ?? []) {
+    if (situacaoDaPublicacao(pb.publicado_em, pb.renovar_dias, hoje).tipo === "vencido") paraRenovar.add(pb.produto_id);
   }
   const capaPorProduto = new Map<string, string>();
   const capaGeral = new Map<string, string>();
@@ -126,6 +135,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                   )}
                   <div className="absolute left-2 top-2 flex flex-wrap gap-1">
                     {versoes > 0 && <Badge tone="positive">{versoes === 1 ? "1 versão" : `${versoes} versões`}</Badge>}
+                    {paraRenovar.has(p.id) && <Badge tone="warning">Renovar</Badge>}
                   </div>
                   {fotos > 1 && (
                     <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
@@ -172,6 +182,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                     </span>
                     {" · "}
                     {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "sem fotos"}
+                    {paraRenovar.has(p.id) && <span className="font-medium text-warning">{" · "}renovar anúncio</span>}
                   </p>
                 </div>
               </li>
