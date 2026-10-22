@@ -291,6 +291,13 @@ Total: **150 frases** em 10 tipos de aviso, 7 grupos.
 | 13 | Boa noite, olha o seu dia 😴 |  |
 | 14 | Caixa do dia fechado ✅ |  |
 
+## Contas a pagar
+
+- **Quando:** Todo dia às 8h (Brasília), na mesma rotina do lembrete de cobrança (`/api/cron/cobrancas`), só se houver conta em aberto vencendo hoje, amanhã ou já atrasada. Um aviso por conta do dono.
+- **Corpo:** `Hoje: Aluguel R$ 1.200,00 · Amanhã: 2 contas, R$ 300,00 · Atrasada: Internet R$ 99,00`
+- **Ao tocar, abre:** Contas a pagar (`/contas-a-pagar`)
+- **Liga e desliga em:** não tem chave própria (como o aviso de cortesia): chega a quem ligou as notificações no aparelho. Código em `src/lib/push/contas.ts`.
+
 ## Rotinas agendadas
 
 | Rota | Horário (UTC) | Horário (Brasília) | O que faz |
