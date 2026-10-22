@@ -165,7 +165,7 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                     aria-label={p.destaque ? "Tirar dos destaques" : "Colocar nos destaques"}
                     title={p.destaque ? "Nos destaques" : "Colocar nos destaques"}
                     onClick={() => aplicar([p.id], { destaque: !p.destaque }, () => definirDestaque(p.id, !p.destaque))}
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg transition hover:bg-fill ${
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg transition hover:bg-fill ${
                       p.destaque ? "text-amber-500" : "text-ink-faint"
                     }`}
                   >
@@ -177,7 +177,7 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                       aria-label="Copiar link do produto na vitrine"
                       title="Copiar link do produto"
                       onClick={() => copiarLink(p.id)}
-                      className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-fill hover:text-ink sm:flex"
+                      className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-fill hover:text-ink sm:flex"
                     >
                       <IconLink />
                     </button>
