@@ -19,6 +19,16 @@ function diasNoMes(mes: string) {
   return new Date(a, m, 0).getDate();
 }
 
+// Projeção do mês pelo ritmo até hoje. Só com meta de vendas e a partir do 3º dia (antes disso o ritmo engana).
+function projecaoDoMes(faturamento: number, meta: number | null, dia: number, dias: number) {
+  if (!meta || dia < 3 || faturamento <= 0) return null;
+  const projetado = (faturamento / dia) * dias;
+  const restantes = dias - dia;
+  const texto = `No ritmo atual você fecha o mês em ${formatBRL(projetado)}.`;
+  if (projetado >= meta || restantes <= 0) return texto;
+  return `${texto} Para bater a meta faltam ${formatBRL((meta - faturamento) / restantes)} por dia.`;
+}
+
 function resumoItens(itens: { produto_nome: string; quantidade: number }[] | null) {
   if (!itens?.length) return "—";
   const [primeiro, ...resto] = itens;
@@ -159,6 +169,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       metaVendas: metaMensalVendas ? metaMensalVendas * fatia : null,
       metaLucro: metaMensalLucro ? metaMensalLucro * fatia : null,
       tituloMeta: qual === "mes" ? `Meta de ${nomeDoMes(mes).split(" ")[0].toLowerCase()}` : qual === "hoje" ? "Meta de hoje" : "Meta da semana",
+      projecao: qual === "mes" ? projecaoDoMes(faturamento, metaMensalVendas, Number(hoje.slice(8, 10)), diasNoMes(mes)) : null,
       qtd: lista.length,
       ticketMedio: lista.length ? faturamento / lista.length : null,
       vendas: lista.slice(0, 10).map(resumoDe),

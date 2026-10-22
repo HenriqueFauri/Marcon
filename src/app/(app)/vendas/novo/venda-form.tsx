@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
@@ -28,8 +28,10 @@ export interface Vendavel {
 
 // pedido da vitrine virando venda (Registrar venda, em Vitrine > Pedidos)
 export interface PedidoParaVenda {
-  id: string;
+  id: string | null; // null quando é a repetição de uma venda, não um pedido
   codigo: string;
+  repetida?: { cliente: string | null } | null; // "Repetir venda": preços do catálogo de hoje
+  canal?: string | null;
   itens: { chave: string; quantidade: number; preco: number }[];
   desconto: number;
   clienteNome: string | null;
@@ -286,12 +288,13 @@ export function VendaForm({
   const doCadastro = <T extends { id: string; nome: string }>(lista: T[], nome: string | null | undefined) =>
     nome ? lista.find((x) => x.nome.trim().toLowerCase() === nome.trim().toLowerCase()) : undefined;
   const clientePedido = doCadastro(clientes, pedido?.clienteNome);
-  const canalPedido = pedido ? doCadastro(canais, "Vitrine") : undefined;
+  const nomeCanal = pedido ? (pedido.repetida ? (pedido.canal ?? null) : "Vitrine") : null;
+  const canalPedido = doCadastro(canais, nomeCanal);
   const formaPedido = doCadastro(formas, pedido?.pagamento);
   const [clienteId, setClienteId] = useState(clientePedido?.id ?? "");
   const [clienteNome, setClienteNome] = useState(clientePedido ? "" : (pedido?.clienteNome ?? ""));
   const [canalId, setCanalId] = useState(canalPedido?.id ?? "");
-  const [canalNome, setCanalNome] = useState(pedido && !canalPedido ? "Vitrine" : "");
+  const [canalNome, setCanalNome] = useState(nomeCanal && !canalPedido ? nomeCanal : "");
   const [formaId, setFormaId] = useState(formaPedido?.id ?? "");
   const [formaNome, setFormaNome] = useState(formaPedido ? "" : (pedido?.pagamento ?? ""));
   const [desconto, setDesconto] = useState(pedido && pedido.desconto > 0 ? emTexto(pedido.desconto) : "");
@@ -302,6 +305,24 @@ export function VendaForm({
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarMeses(hoje, 1));
   const [erro, setErro] = useState<string | null>(null);
   const [confirmarZero, setConfirmarZero] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // atalhos no computador: "/" vai para a busca; Ctrl ou Cmd + Enter registra a venda
+  useEffect(() => {
+    function aoTeclar(e: KeyboardEvent) {
+      const alvo = e.target as HTMLElement | null;
+      const digitando = !!alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName));
+      if (e.key === "/" && !digitando && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        document.getElementById("buscar-produto")?.focus();
+      } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        formRef.current?.requestSubmit();
+      }
+    }
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
 
   const porChave = useMemo(() => new Map(vendaveis.map((v) => [v.chave, v])), [vendaveis]);
   const temAtacado = vendaveis.some((v) => v.preco_atacado != null);
@@ -425,10 +446,14 @@ export function VendaForm({
   const noCarrinho = new Map(carrinho.map((i) => [i.chave, i.quantidade]));
 
   return (
-    <form onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
+    <form ref={formRef} onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
       {pedido && (
         <p className="rounded-2xl bg-info-tint px-4 py-3 text-[15px] text-ink-2 lg:col-span-5">
-          Do pedido <strong className="text-ink">#{pedido.codigo}</strong> da vitrine. Confira e registre.
+          {pedido.repetida ? (
+            <>Repetindo a venda anterior{pedido.repetida.cliente ? <> de <strong className="text-ink">{pedido.repetida.cliente}</strong></> : null}, com os preços de hoje. Confira e registre.</>
+          ) : (
+            <>Do pedido <strong className="text-ink">#{pedido.codigo}</strong> da vitrine. Confira e registre.</>
+          )}
           {pedido.semEstoque.length > 0 && <> Sem estoque agora, ficou de fora: {pedido.semEstoque.join(", ")}.</>}
         </p>
       )}
@@ -501,7 +526,7 @@ export function VendaForm({
               {linhas.map(({ item, produto }) => (
                 // duas linhas: foto e nome em cima; preço e quantidade embaixo, com a largura toda
                 // (ao lado do nome, os botões de 44 px não cabiam em 390 px)
-                <li key={item.chave} className="flex flex-col gap-2 px-1 py-3">
+                <li key={item.chave} className="entra flex flex-col gap-2 px-1 py-3">
                   <div className="flex items-center gap-3">
                     <FotoProduto url={produto.foto} />
                     <div className="min-w-0 flex-1">
