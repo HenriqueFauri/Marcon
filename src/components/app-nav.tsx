@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ComponentType, type SVGProps } from "react";
 import {
   IconBox,
+  IconChart,
   IconCart,
   IconGift,
   IconHome,
@@ -38,8 +39,10 @@ const NAV: NavItem[] = [
   { href: "/anuncios", label: "Anúncios", icon: IconMegaphone },
   { href: "/vitrine", label: "Vitrine", icon: IconStore },
   { href: "/contas-a-receber", label: "Contas a receber", icon: IconReceipt },
+  { href: "/contas-a-pagar", label: "Contas a pagar", icon: IconReceipt },
   { href: "/fluxo-de-caixa", label: "Fluxo de caixa", icon: IconWallet },
   { href: "/clientes", label: "Clientes", icon: IconUsers },
+  { href: "/relatorios", label: "Relatórios", icon: IconChart },
   { href: "/fornecedores", label: "Fornecedores", icon: IconTruck },
   { href: "/indique", label: "Indique e ganhe", icon: IconGift },
   { href: "/configuracoes", label: "Configurações", icon: IconSettings },
@@ -55,7 +58,7 @@ const ROTULO_DESTAQUE: Record<string, string> = { "/contas-a-receber": "A recebe
 // no desktop o menu se divide em grupos, como na barra lateral do Mac
 const GRUPOS: { titulo: string | null; hrefs: string[] }[] = [
   { titulo: "Loja", hrefs: ["/", "/vendas", "/produtos", "/anuncios", "/vitrine", "/fornecedores"] },
-  { titulo: "Dinheiro", hrefs: ["/contas-a-receber", "/fluxo-de-caixa", "/clientes"] },
+  { titulo: "Dinheiro", hrefs: ["/contas-a-receber", "/contas-a-pagar", "/fluxo-de-caixa", "/clientes", "/relatorios"] },
   { titulo: null, hrefs: ["/indique", "/configuracoes"] },
 ];
 

@@ -202,6 +202,18 @@ export interface VitrineProdutoBruto {
   fotos: { path: string; variacao_id: string | null }[];
 }
 
+// Região de frete (migration 0052): o cliente escolhe no pedido
+export interface RegiaoDeFrete {
+  id: string;
+  nome: string;
+  valor: number;
+}
+
+// frete: null = a combinar, 0 = grátis
+export function rotuloDoFrete(frete: number | null) {
+  return frete === null ? "a combinar" : frete === 0 ? "grátis" : formatBRL(frete);
+}
+
 export interface VitrineBruta {
   loja: {
     nome: string | null;
@@ -217,6 +229,7 @@ export interface VitrineBruta {
     anuncio: string | null;
     entrega: Entrega;
     frete_fixo: number | null;
+    regioes_frete?: RegiaoDeFrete[];
     instagram: string | null;
     endereco: string | null;
     formas_pagamento: string[];
@@ -284,6 +297,7 @@ export interface DadosDoPedido {
   endereco: string;
   pagamento: string;
   frete: number | null; // só vale na entrega
+  regiao?: string | null; // nome da região de frete escolhida
   cupom: CupomAplicado | null;
   codigo?: string; // código do pedido gravado (vitrine_pedidos), para o vendedor achar no app
 }
@@ -328,7 +342,7 @@ export function mensagemDoPedido(loja: string | null, itens: ItemDoPedido[], dad
     ...linhas,
     "",
     ...(desconto > 0 && dados.cupom ? [`Desconto do cupom ${dados.cupom.codigo}: ${formatBRL(desconto)}`] : []),
-    ...(frete ? [`Frete: ${formatBRL(frete)}`] : []),
+    ...(frete !== null ? [`Frete${dados.regiao ? ` (${dados.regiao})` : ""}: ${rotuloDoFrete(frete)}`] : []),
     `Total: ${formatBRL(total)}`,
     "",
     ...(dados.nome ? [`Nome: ${dados.nome}`] : []),
@@ -384,6 +398,18 @@ export function aplicarPrevia(vitrine: Vitrine, d: DadosDaPrevia): Vitrine {
 // Pedido recebido pela loja (tabela vitrine_pedidos, migration 0037)
 export type StatusDoPedido = "novo" | "vendido" | "descartado";
 
+// Andamento para o cliente (migration 0052), enquanto o status é "novo"
+export type AndamentoDoPedido = "recebido" | "separado" | "saiu";
+
+export const ANDAMENTOS: AndamentoDoPedido[] = ["recebido", "separado", "saiu"];
+
+// como o cliente e o vendedor leem cada etapa
+export function rotuloDoAndamento(a: AndamentoDoPedido, entrega: "entrega" | "retirada") {
+  if (a === "recebido") return "Recebido";
+  if (a === "separado") return "Separado";
+  return entrega === "entrega" ? "Saiu para entrega" : "Pronto para retirar";
+}
+
 export interface ItemDoPedidoRecebido {
   produto_id: string;
   variacao_id: string | null;
@@ -407,6 +433,10 @@ export interface PedidoRecebido {
   endereco: string | null;
   pagamento: string | null;
   status: StatusDoPedido;
+  andamento: AndamentoDoPedido;
+  andamento_em: string | null;
+  token: string;
+  regiao_frete: string | null;
   venda_id: string | null;
   created_at: string;
 }

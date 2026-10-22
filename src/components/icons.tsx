@@ -248,3 +248,9 @@ export const IconMore = (p: P) => (
     <circle cx="19" cy="12" r="1.2" />
   </Icon>
 );
+
+export const IconChart = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Icon>
+);

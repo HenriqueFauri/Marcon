@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
 import { ConfiguracaoForm } from "./configuracao-form";
+import { RegioesDeFrete } from "./regioes-de-frete";
 
 export const metadata: Metadata = { title: "Vitrine | Configurações" };
 
@@ -13,10 +14,12 @@ export default async function VitrineConfiguracoesPage() {
       data: { user },
     },
     { data: vitrine },
+    { data: regioes },
     base,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("vitrines").select("slug, ativa, whatsapp, entrega, frete_fixo").maybeSingle(),
+    supabase.from("vitrine_regioes_frete").select("id, nome, valor").order("nome"),
     enderecoDoApp(),
   ]);
   const meta = user?.user_metadata ?? {};
@@ -39,6 +42,7 @@ export default async function VitrineConfiguracoesPage() {
           telefoneEmpresa={(meta.empresa_telefone as string | undefined) ?? ""}
           base={base}
         />
+      {vitrine && vitrine.entrega !== "retirada" && <RegioesDeFrete regioes={(regioes ?? []) as { id: string; nome: string; valor: number }[]} />}
       <p className="px-4 text-[13px] text-ink-muted">
         As formas de pagamento que o cliente escolhe no pedido são as mesmas das vendas, em{" "}
         <Link href="/configuracoes" className="font-medium text-brand-text hover:underline">

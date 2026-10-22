@@ -21,6 +21,7 @@ export interface Produto {
   alerta_estoque_baixo: number | null;
   unidade_medida: string;
   sku: string | null;
+  codigo_barras: string | null;
   fornecedor_nome: string | null;
   fornecedor_id: string | null;
   na_vitrine: boolean;
@@ -185,6 +186,8 @@ export interface Parcela {
   data_pagamento: string | null;
   // parte recebida de uma parcela (migration 0045): a parcela original segue com o que falta
   parcial: boolean;
+  // entrada paga na hora da venda (migration 0052): a parcela 1, já paga
+  entrada?: boolean;
 }
 
 export interface ParcelaComVenda extends Parcela {
@@ -193,4 +196,14 @@ export interface ParcelaComVenda extends Parcela {
     cliente_id: string | null;
     clientes?: { telefone: string | null } | null;
   } | null;
+}
+
+export interface AnuncioPublicacao {
+  id: string;
+  produto_id: string;
+  canal_id: string;
+  link: string | null;
+  publicado_em: string;
+  renovar_dias: number;
+  updated_at: string;
 }

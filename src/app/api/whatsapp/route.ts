@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assistenteAtivo, enviarMensagem, extrairMensagem, type MensagemRecebida } from "@/lib/whatsapp/evolution";
@@ -7,6 +7,7 @@ import { confirmarSeDispensado, resolverPendente } from "@/lib/whatsapp/acoes";
 import { GRUPOS_CONFIRMAVEIS, gruposLiberados, type GrupoConfirmavel } from "@/lib/whatsapp/rascunho";
 import { CONFIANCA_MINIMA, SEGUNDOS_MAXIMOS, transcrever, transcricaoAtiva, vozSegura } from "@/lib/whatsapp/transcricao";
 import { catalogoDoDono } from "@/lib/whatsapp/produtos";
+import { prepararFoto, sugerirProduto } from "@/lib/whatsapp/visao";
 import { hojeISO, somarDias } from "@/lib/format";
 import { lerCodigo } from "@/lib/whatsapp/vinculo";
 import { responder, type Troca } from "@/lib/whatsapp/assistente";
@@ -137,9 +138,9 @@ async function carregarFatos(admin: Admin, owner: string, telefone: string): Pro
   });
 }
 
-async function guardarTroca(admin: Admin, telefone: string, pergunta: string, resposta: string) {
+async function guardarTroca(admin: Admin, telefone: string, pergunta: string, resposta: string, fotoPath: string | null = null) {
   const { error } = await admin.from("whatsapp_conversas").insert([
-    { telefone, papel: "user", texto: pergunta },
+    { telefone, papel: "user", texto: pergunta, foto_path: fotoPath },
     { telefone, papel: "assistant", texto: resposta },
   ]);
   if (error) console.error("[whatsapp] guardar histórico", error.message);
@@ -149,11 +150,35 @@ async function guardarTroca(admin: Admin, telefone: string, pergunta: string, re
 // prazos que a política de privacidade promete: conversa 24 horas, registro de lançamentos 90 dias
 async function apagarAntigos(admin: Admin) {
   const agora = Date.now();
+  await apagarFotosSemDono(admin, agora).catch((e) => console.error("[whatsapp] limpar fotos", e));
   await Promise.all([
     admin.from("whatsapp_conversas").delete().lt("criado_em", new Date(agora - 24 * 3600_000).toISOString()),
     admin.from("whatsapp_codigos").delete().lt("expira_em", new Date(agora - 3600_000).toISOString()),
     admin.from("whatsapp_acoes").delete().lt("criado_em", new Date(agora - 90 * 86400_000).toISOString()),
   ]);
+}
+
+// Foto de produto que o vendedor mandou e nunca virou produto: some junto com a conversa (24 horas).
+// Também vale para a foto de rascunho que foi cancelado, vencido ou trocado (janela de 24 a 48 horas,
+// para cada rascunho ser olhado uma vez só). Foto que virou produto está em produto_fotos e não entra aqui.
+async function apagarFotosSemDono(admin: Admin, agora: number) {
+  const ha = (horas: number) => new Date(agora - horas * 3600_000).toISOString();
+  const [conversas, rascunhos] = await Promise.all([
+    admin.from("whatsapp_conversas").select("foto_path").not("foto_path", "is", null).lt("criado_em", ha(24)).limit(50),
+    admin
+      .from("whatsapp_acoes")
+      .select("payload")
+      .eq("tipo", "produto")
+      .neq("status", "executada")
+      .lt("criado_em", ha(24))
+      .gte("criado_em", ha(48))
+      .limit(50),
+  ]);
+  const caminhos = [
+    ...(conversas.data ?? []).map((c) => c.foto_path as string),
+    ...(rascunhos.data ?? []).map((a) => (a.payload as { fotoPath?: string | null } | null)?.fotoPath ?? ""),
+  ].filter((p) => p && !p.includes(".."));
+  if (caminhos.length) await admin.storage.from("produto-fotos").remove(caminhos);
 }
 
 const AJUDA = /^\s*(ajuda|menu|comandos|help|o que voc[eê] (faz|sabe fazer))\s*[?.!]?\s*$/i;
@@ -189,6 +214,8 @@ function textoAjuda(escrita: boolean) {
   const outros = [
     grupos.includes("produto") ? "• cadastra fone bluetooth a 60" : null,
     grupos.includes("estoque") ? "• chegaram 10 panelas a 40 cada" : null,
+    "• o João pagou",
+    "• mande a foto de um produto com o preço na legenda",
     grupos.includes("caixa") ? "• paguei 50 de frete" : null,
   ].filter(Boolean);
   const lancar = [outros.length ? "*Lançar*" : "*Lançar venda*", "• vendi 2 controle PS4 por 80 no PIX", ...outros].join("\n");
@@ -289,7 +316,7 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
   const ctx = { owner, telefone: msg.telefone, escrita, user: conta.user ?? undefined, semConfirmar, porAudio, vozSegura: seguraParaDispensarSim, duvidosas, admin: ehAdminDoMarcon };
 
   // SIM ou NÃO de um rascunho aberto (venda ou outro lançamento): resolvido aqui, pelo servidor, sem passar pelo modelo
-  if (escrita) {
+  if (escrita && !msg.imagem) {
     const feito = await resolverPendente(admin, ctx, msg.texto);
     if (feito) {
       await enviarMensagem(msg.telefone, eco + feito);
@@ -316,12 +343,44 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
     return;
   }
 
+  // foto de produto: guarda no bucket (pasta do dono), pede ao modelo o nome e a categoria e entrega tudo
+  // ao assistente como uma mensagem só; o cadastro em si é o preparar_produto, com o SIM de sempre
+  let foto: { path: string; usada: boolean } | undefined;
+  if (msg.imagem) {
+    if (!escrita) {
+      await enviarMensagem(msg.telefone, "Por aqui eu ainda não cadastro produto pela foto. Faça pelo Marcon.");
+      return;
+    }
+    const preparada = msg.imagem.base64 ? await prepararFoto(msg.imagem.base64) : null;
+    if (!preparada) {
+      await enviarMensagem(msg.telefone, "Não consegui abrir essa foto. Pode mandar de novo?");
+      return;
+    }
+    const path = `${owner}/whatsapp/${Date.now()}-${randomUUID().slice(0, 8)}.jpg`;
+    const { error: erroFoto } = await admin.storage.from("produto-fotos").upload(path, preparada.buffer, { contentType: "image/jpeg" });
+    if (erroFoto) throw erroFoto;
+    foto = { path, usada: false };
+
+    const { data: cats } = await admin.from("categorias").select("nome").eq("owner_id", owner).order("nome").limit(60);
+    const sugestao = await sugerirProduto(preparada, (cats ?? []).map((c) => c.nome as string), msg.texto).catch((e) => {
+      console.error("[whatsapp] visão", e);
+      return null;
+    });
+    const legenda = msg.texto ? ` Legenda do vendedor: "${msg.texto}".` : " Sem legenda.";
+    msg = {
+      ...msg,
+      texto: sugestao
+        ? `[Foto de produto recebida e guardada. O sistema identificou: nome "${sugestao.nome}"${sugestao.categoria ? `, categoria "${sugestao.categoria}"` : ""}.${legenda}]`
+        : `[Foto de produto recebida e guardada, mas o sistema não conseguiu identificar o produto.${legenda}]`,
+    };
+  }
+
   const [historico, fatos, catalogo] = await Promise.all([
     carregarHistorico(admin, msg.telefone),
     carregarFatos(admin, owner, msg.telefone),
     catalogoDoDono(admin, owner, somarDias(hojeISO(), -90)).catch(() => [] as string[]),
   ]);
-  const respostaDoModelo = await responder(msg.texto, { ...ctx, fatos, catalogo }, historico);
+  const respostaDoModelo = await responder(msg.texto, { ...ctx, foto, fatos, catalogo }, historico);
   await registrarUso(admin, owner);
   // tipo com confirmação desligada em Configurações: o servidor resolve o rascunho na hora (nunca por voz)
   const resposta = (escrita && (await confirmarSeDispensado(admin, ctx, respostaDoModelo))) || respostaDoModelo;
@@ -332,7 +391,8 @@ async function processar(entrada: MensagemRecebida, estado: { vinculado: boolean
       ? `\n\n_Você já usou ${agora} de ${COTA_MES} perguntas deste mês._`
       : "";
   await enviarMensagem(msg.telefone, eco + resposta + aviso);
-  await guardarTroca(admin, msg.telefone, msg.texto, resposta);
+  // a foto que não virou rascunho fica ligada a esta troca por 30 minutos, esperando o preço
+  await guardarTroca(admin, msg.telefone, msg.texto, resposta, foto && !foto.usada ? foto.path : null);
 }
 
 export async function POST(request: Request) {

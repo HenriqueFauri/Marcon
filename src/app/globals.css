@@ -255,6 +255,24 @@ input[type="time"]::-webkit-date-and-time-value {
   text-align: left;
 }
 
+/* Item novo numa lista (carrinho): entra com um leve crescer, 180 ms. */
+@keyframes entra {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+
+.entra {
+  animation: entra 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entra {
+    animation: none;
+  }
+}
+
 /* Folha que sobe de baixo (Modal com folha), como as do iPhone. Só no celular; no computador
    o Modal continua centralizado. */
 @keyframes subir-folha {

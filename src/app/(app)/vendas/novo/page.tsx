@@ -16,11 +16,19 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
   const sp = await searchParams;
   const produtoInicial = typeof sp.produto === "string" ? sp.produto : null;
   const pedidoId = typeof sp.pedido === "string" ? sp.pedido : null;
+  const repetirId = typeof sp.repetir === "string" && /^[0-9a-f-]{36}$/i.test(sp.repetir) ? sp.repetir : null;
   const supabase = await createClient();
   // vindo de um pedido da vitrine (Registrar venda): a venda abre preenchida
   const { data: pedidoData } = pedidoId
     ? await supabase.from("vitrine_pedidos").select("*").eq("id", pedidoId).eq("status", "novo").maybeSingle()
     : { data: null };
+  // "Repetir venda": o RLS limita ao dono; id de outro dono simplesmente não preenche nada
+  const [{ data: vendaRepetida }, { data: itensRepetidos }] = repetirId
+    ? await Promise.all([
+        supabase.from("vendas").select("cliente_nome, canal, forma_pagamento, desconto").eq("id", repetirId).maybeSingle(),
+        supabase.from("venda_itens").select("produto_id, variacao_id, produto_nome, quantidade").eq("venda_id", repetirId),
+      ])
+    : [{ data: null }, { data: null }];
   const [
     { data: produtosData },
     { data: variacoesData },
@@ -77,7 +85,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
           nome: p.nome,
           produto_nome: p.nome,
           rotulo: null,
-          detalhe: [p.marca, p.sku].filter(Boolean).join(" · "),
+          detalhe: [p.marca, p.sku, p.codigo_barras].filter(Boolean).join(" · "),
           preco_varejo: Number(p.preco_varejo),
           preco_atacado: p.preco_atacado != null ? Number(p.preco_atacado) : null,
           custo: Number(p.custo),
@@ -106,6 +114,27 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
 
   const pedidoRecebido = pedidoData as PedidoRecebido | null;
   const chaves = new Set(vendaveis.map((v) => v.chave));
+  const pedidoRepetido: PedidoParaVenda | null =
+    vendaRepetida && itensRepetidos
+      ? {
+          id: null,
+          codigo: "",
+          repetida: { cliente: vendaRepetida.cliente_nome },
+          canal: vendaRepetida.canal,
+          itens: itensRepetidos
+            .map((i) => (i.produto_id ? (i.variacao_id ? `${i.produto_id}:${i.variacao_id}` : i.produto_id) : null))
+            .flatMap((chave, n) => {
+              const v = chave ? vendaveis.find((x) => x.chave === chave) : undefined;
+              return v ? [{ chave: v.chave, quantidade: Number(itensRepetidos[n].quantidade), preco: v.preco_varejo }] : [];
+            }),
+          desconto: Number(vendaRepetida.desconto ?? 0),
+          clienteNome: vendaRepetida.cliente_nome,
+          pagamento: vendaRepetida.forma_pagamento,
+          semEstoque: itensRepetidos
+            .filter((i) => !i.produto_id || !chaves.has(i.variacao_id ? `${i.produto_id}:${i.variacao_id}` : i.produto_id))
+            .map((i) => i.produto_nome),
+        }
+      : null;
   const pedido: PedidoParaVenda | null = pedidoRecebido
     ? {
         id: pedidoRecebido.id,
@@ -173,7 +202,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
             formas={(formasData ?? []) as FormaPagamento[]}
             hoje={hojeISO()}
             produtoInicial={produtoInicial}
-            pedido={pedido}
+            pedido={pedido ?? pedidoRepetido}
           />
         </>
       )}

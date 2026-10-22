@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { avisarVenda } from "@/lib/push/eventos";
 import { falha, ok, type ActionResult } from "@/lib/action";
-import { hojeISO } from "@/lib/format";
+import { formatBRL, hojeISO } from "@/lib/format";
 
 export interface NovaVendaInput {
   itens: { produto_id: string; variacao_id: string | null; quantidade: number; preco_unitario: number }[];
@@ -19,6 +19,7 @@ export interface NovaVendaInput {
   numeroParcelas: number;
   primeiroVencimento: string | null;
   desconto: number;
+  entrada?: number; // paga na hora, só em venda a prazo: entra no caixa agora e o resto vira parcelas
   outrosGastos: number; // motoboy, embalagem...: custo do lojista nesta venda
   data: string | null;
   pedidoId?: string | null; // pedido da vitrine que virou esta venda
@@ -80,17 +81,23 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
       return { ok: false, error: "Venda a prazo precisa de um cliente, pra saber de quem cobrar." };
     }
 
+    const entrada = aPrazo ? Math.round((Number(input.entrada) || 0) * 100) / 100 : 0;
+    if (entrada < 0) return { ok: false, error: "A entrada não pode ser negativa." };
+    if (entrada > 0 && entrada >= subtotal - desconto) {
+      return { ok: false, error: "A entrada precisa ser menor que o total. Se o cliente pagou tudo, registre à vista." };
+    }
+
     const hoje = hojeISO();
     const data = input.data && DATA_RE.test(input.data) ? input.data : hoje;
     const vencimento =
       input.primeiroVencimento && DATA_RE.test(input.primeiroVencimento) ? input.primeiroVencimento : data;
 
-    const { data: vendaId, error } = await supabase.rpc("registrar_venda", {
+    // com entrada, a função própria faz venda, entrada no caixa e parcelas do resto numa transação só
+    const comum = {
       p_cliente_id: input.clienteId || null,
       p_cliente_nome: clienteNome,
       p_itens: itens,
       p_desconto: desconto,
-      p_tipo_pagamento: aPrazo ? "a_prazo" : "a_vista",
       p_forma_pagamento: formaNome,
       p_canal: canalNome,
       p_numero_parcelas: parcelas,
@@ -100,7 +107,11 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
       p_forma_pagamento_id: input.formaPagamentoId || null,
       // só manda quando há gasto: o banco ainda sem a migration 0018 segue registrando vendas normais
       ...(outrosGastos > 0 ? { p_outros_gastos: outrosGastos } : {}),
-    });
+    };
+    const { data: vendaId, error } =
+      entrada > 0
+        ? await supabase.rpc("registrar_venda_com_entrada", { ...comum, p_entrada: entrada })
+        : await supabase.rpc("registrar_venda", { ...comum, p_tipo_pagamento: aPrazo ? "a_prazo" : "a_vista" });
     if (error) return falha(error);
 
     // pedido da vitrine que virou esta venda: sai dos novos e guarda o vínculo
@@ -173,6 +184,79 @@ export async function novoLinkRecibo(vendaId: string): Promise<ActionResult> {
     if (error) return falha(error);
     revalidatePath(`/vendas/${vendaId}`);
     return ok("Link novo criado. O anterior parou de funcionar.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+export interface EditarVendaInput {
+  vendaId: string;
+  clienteId: string | null;
+  clienteNome: string | null;
+  canalId: string | null;
+  canalNome: string | null;
+  formaPagamentoId: string | null;
+  formaPagamentoNome: string | null;
+  data: string;
+  observacoes: string | null;
+  // só os itens que mudaram de preço
+  precos: { item_id: string; preco_unitario: number }[];
+}
+
+// corrige cliente, canal, forma, data, observação e preço dos itens; estoque e custo não mudam
+export async function editarVenda(input: EditarVendaInput): Promise<ActionResult> {
+  try {
+    if (!DATA_RE.test(input.data)) return { ok: false, error: "Confira a data da venda." };
+    if (input.precos.some((p) => !(p.preco_unitario >= 0))) return { ok: false, error: "Confira os preços dos itens." };
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("editar_venda", {
+      p_venda_id: input.vendaId,
+      p_cliente_id: input.clienteId || null,
+      p_cliente_nome: input.clienteNome?.trim() || null,
+      p_canal_id: input.canalId || null,
+      p_canal: input.canalNome?.trim() || null,
+      p_forma_pagamento_id: input.formaPagamentoId || null,
+      p_forma_pagamento: input.formaPagamentoNome?.trim() || null,
+      p_data: input.data,
+      p_observacoes: input.observacoes?.trim() || null,
+      p_precos: input.precos.length ? input.precos : null,
+    });
+    if (error) return falha(error);
+    revalidarVendas();
+    revalidatePath(`/vendas/${input.vendaId}`);
+    return ok("Venda atualizada.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// devolve parte (ou toda a quantidade) de um item: estoque, caixa, parcelas e total acompanham
+export async function devolverItemVenda(
+  vendaId: string,
+  itemId: string,
+  quantidade: number,
+  voltarEstoque: boolean,
+): Promise<ActionResult> {
+  try {
+    if (!Number.isInteger(quantidade) || quantidade < 1) return { ok: false, error: "Informe a quantidade a devolver." };
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("devolver_item_venda", {
+      p_item_id: itemId,
+      p_quantidade: quantidade,
+      p_voltar_estoque: voltarEstoque,
+    });
+    if (error) return falha(error);
+    revalidarVendas();
+    revalidatePath(`/vendas/${vendaId}`);
+    const r = data as { devolvido?: number; estoque?: string } | null;
+    const valor = formatBRL(Number(r?.devolvido ?? 0));
+    const aviso =
+      r?.estoque === "sem_ligacao" || r?.estoque === "sem_variacao"
+        ? " Atenção: o item não está ligado a um produto ou variação, então o estoque não voltou. Use Ajustar no produto."
+        : r?.estoque === "voltou"
+          ? " O item voltou ao estoque."
+          : "";
+    return ok(`Devolução registrada: ${valor} estornados.${aviso}`);
   } catch (e) {
     return falha(e);
   }
