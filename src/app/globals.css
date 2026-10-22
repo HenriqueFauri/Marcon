@@ -41,6 +41,12 @@
   --color-tab-active: var(--tab-active);
   --color-tab-ink: var(--tab-ink);
   --color-panel: var(--panel);
+  --color-graf-1: var(--graf-1);
+  --color-graf-2: var(--graf-2);
+  --color-graf-3: var(--graf-3);
+  --color-graf-4: var(--graf-4);
+  --color-graf-5: var(--graf-5);
+  --color-graf-outros: var(--graf-outros);
 }
 
 /* Claro (padrão): branco e cinza-gelo da Apple, terracota como marca. */
@@ -81,6 +87,13 @@
   --tab-active: #f7e0cf;
   --tab-ink: #636366;
   --panel: #f5f5f7;
+  /* gráficos: ordem fixa, validada contra o cinza-gelo e o grafite (daltonismo e contraste) */
+  --graf-1: #d45f30;
+  --graf-2: #0a66d6;
+  --graf-3: #2a8a5c;
+  --graf-4: #b8860b;
+  --graf-5: #8a55c4;
+  --graf-outros: #8e8e93;
 }
 
 /* Escuro (opcional): preto puro, superfícies em cinza-grafite. É ligado pelo
@@ -122,6 +135,12 @@
   --tab-active: rgba(212, 95, 48, 0.16);
   --tab-ink: #ebebf5;
   --panel: #1c1c1e;
+  --graf-1: #dd6a38;
+  --graf-2: #3d8fe6;
+  --graf-3: #3ea577;
+  --graf-4: #b8841f;
+  --graf-5: #9d6fdb;
+  --graf-outros: #636366;
 }
 
 /* Foco visível para quem navega pelo teclado; fica na camada base para que o ring próprio
@@ -291,4 +310,23 @@ input[type="time"]::-webkit-date-and-time-value {
   .folha[open] {
     animation: none;
   }
+}
+
+/* Gráficos de Relatórios: barras crescem e roscas desenham o arco; sem animação para quem pede menos movimento */
+@keyframes graf-crescer {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes graf-esticar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes graf-aparecer {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .graf-barra { transform-origin: bottom; animation: graf-crescer 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .graf-barra-h { transform-origin: left; animation: graf-esticar 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .graf-fade { animation: graf-aparecer 0.6s ease both; }
 }
