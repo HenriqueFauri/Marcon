@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from "react";
 import { Modal } from "@/components/modal";
 import { IconChevronLeft, IconChevronRight, IconX } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
@@ -13,6 +13,7 @@ import {
   type Cupom,
   linkDoWhatsapp,
   mensagemDoPedido,
+  rotuloDoFrete,
   totalDoPedido,
   type ItemDoPedido,
   type Vitrine,
@@ -37,6 +38,9 @@ interface LinhaDoCarrinho extends ItemDoPedido {
   chave: string;
   foto: string | null;
 }
+
+const BOTAO_DA_LOJA =
+  "inline-flex items-center justify-center rounded-full bg-[var(--loja-botao)] px-5 py-3 text-[15px] font-semibold text-[var(--loja-botao-texto)] shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 
 type Ordem = "recentes" | "menor" | "maior";
 
@@ -110,6 +114,11 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
   const [modo, setModo] = useState<"entrega" | "retirada">(loja.entrega === "retirada" ? "retirada" : "entrega");
   const [endereco, setEndereco] = useState("");
   const [pagamento, setPagamento] = useState("");
+  // "" = ainda não escolheu, "outra" = região fora da lista (vale o frete fixo), senão o id da região
+  const [regiaoId, setRegiaoId] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erroPedido, setErroPedido] = useState<string | null>(null);
+  const [ultimoPedido, setUltimoPedido] = useState<{ codigo: string; token: string } | null>(null);
   const [cupom, setCupom] = useState<Cupom | null>(null);
   const [codigoCupom, setCodigoCupom] = useState("");
   const [erroCupom, setErroCupom] = useState<string | null>(null);
@@ -133,6 +142,14 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
       if (contarSeNovo(`marcon-produto-${produto.id}`, hojeLocal())) void registrarEvento(slug, "produto", produto.id);
     }
   }, [chaveStorage, porId, slug, previa]);
+  useEffect(() => {
+    if (previa) return;
+    try {
+      const salvo = JSON.parse(localStorage.getItem(`marcon-ultimo-pedido-${slug}`) ?? "null");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- lê o storage só no navegador
+      if (salvo && typeof salvo.codigo === "string" && typeof salvo.token === "string") setUltimoPedido(salvo);
+    } catch {}
+  }, [slug, previa]);
   useEffect(() => {
     if (previa) return;
     try {
@@ -232,11 +249,64 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
   const quantidadeTotal = linhas.reduce((s, i) => s + i.quantidade, 0);
   const subtotal = totalDoPedido(linhas);
   const modoFinal = loja.entrega === "ambos" ? modo : loja.entrega;
-  const frete = modoFinal === "entrega" ? loja.frete_fixo : null;
+  const regioes = loja.regioes_frete ?? [];
+  const regiao = regioes.find((r) => r.id === regiaoId) ?? null;
+  const frete = modoFinal === "entrega" ? (regiao ? Number(regiao.valor) : loja.frete_fixo) : null;
+  const faltaRegiao = modoFinal === "entrega" && regioes.length > 0 && !regiaoId;
   const desconto = cupom ? descontoDoCupom(cupom, subtotal) : 0;
   const faltaParaCupom = cupom?.minimo && subtotal < Number(cupom.minimo) ? Number(cupom.minimo) - subtotal : 0;
   const total = subtotal - desconto + (frete ?? 0);
   const faltaEndereco = modoFinal === "entrega" && !endereco.trim();
+
+  // Grava o pedido (e reserva as unidades) antes de abrir o WhatsApp. A janela abre já no toque para o
+  // navegador não bloquear; só falta de estoque segura o envio, qualquer outra falha segue como antes.
+  async function enviarPedido(e: MouseEvent<HTMLAnchorElement>, url: string) {
+    e.preventDefault();
+    if (enviando || !codigo) return;
+    setEnviando(true);
+    setErroPedido(null);
+    const janela = window.open("", "_blank");
+    if (janela) janela.opener = null;
+    try {
+      const r = await registrarPedido(slug, {
+        codigo,
+        itens: linhas.map((l) => {
+          const [produtoId, variacaoId] = l.chave.split(":");
+          return { produtoId, variacaoId: variacaoId || null, quantidade: l.quantidade };
+        }),
+        clienteNome: nome.trim(),
+        entrega: modoFinal,
+        endereco: endereco.trim(),
+        pagamento,
+        cupom: cupom && desconto > 0 ? cupom.codigo : null,
+        regiaoId: regiao?.id ?? null,
+      }).catch(() => null);
+      if (r && !r.ok && r.motivo === "estoque") {
+        janela?.close();
+        const falta = new Map(r.itens.map((i) => [chaveDe(i.produtoId, i.variacaoId), i.disponivel]));
+        setItens((atual) =>
+          atual.flatMap((i) => {
+            const disponivel = falta.get(i.chave);
+            if (disponivel === undefined || disponivel >= i.quantidade) return [i];
+            return disponivel > 0 ? [{ ...i, quantidade: disponivel }] : [];
+          }),
+        );
+        setErroPedido("Outro cliente acabou de pedir e não sobrou tudo. Ajustei seu pedido com o que restou; confira e envie de novo.");
+        return;
+      }
+      if (r && r.ok) {
+        const novo = { codigo, token: r.token };
+        setUltimoPedido(novo);
+        try {
+          localStorage.setItem(`marcon-ultimo-pedido-${slug}`, JSON.stringify(novo));
+        } catch {}
+      }
+      if (janela) janela.location.href = url;
+      else window.location.href = url;
+    } finally {
+      setEnviando(false);
+    }
+  }
   const linkDuvida = linkDoWhatsapp(loja.whatsapp, "Olá! Vi sua loja e tenho uma dúvida.");
 
   function adicionar(p: VitrineProduto, variacao: VitrineVariacao | null, quantidade: number) {
@@ -282,8 +352,7 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
   const estilo = { ...tokensDaLoja(cores), colorScheme: fundoEscuro(cores.fundo) ? "dark" : "light" } as CSSProperties;
   const campo =
     "w-full rounded-xl border border-transparent bg-fill px-3.5 py-2.5 text-[15px] text-ink outline-none placeholder:text-ink-muted focus:border-[var(--loja)] focus:bg-surface";
-  const botao =
-    "inline-flex items-center justify-center rounded-full bg-[var(--loja-botao)] px-5 py-3 text-[15px] font-semibold text-[var(--loja-botao-texto)] shadow-sm transition hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
+  const botao = BOTAO_DA_LOJA;
   const nomeLoja = loja.nome ?? "Loja";
 
   return (
@@ -308,6 +377,14 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
             <h1 className="truncate text-lg font-semibold tracking-tight">{nomeLoja}</h1>
             {loja.boas_vindas && <p className="text-[13px] leading-snug text-ink-muted">{loja.boas_vindas}</p>}
           </div>
+          {ultimoPedido && !previa && (
+            <a
+              href={`/loja/${slug}/pedido/${ultimoPedido.token}`}
+              className="shrink-0 rounded-full bg-fill px-3.5 py-1.5 text-[13px] font-medium text-ink-2 transition hover:bg-fill-strong"
+            >
+              Seu pedido
+            </a>
+          )}
         </div>
       </header>
 
@@ -560,6 +637,19 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
                   className={campo}
                 />
               )}
+              {modoFinal === "entrega" && regioes.length > 0 && (
+                <select value={regiaoId} onChange={(e) => setRegiaoId(e.target.value)} aria-label="Região de entrega" className={campo}>
+                  <option value="" disabled>
+                    Sua região (define o frete)
+                  </option>
+                  {regioes.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nome} · {rotuloDoFrete(Number(r.valor))}
+                    </option>
+                  ))}
+                  <option value="outra">Outra região · {rotuloDoFrete(loja.frete_fixo)}</option>
+                </select>
+              )}
               {loja.formas_pagamento.length > 0 && (
                 <select value={pagamento} onChange={(e) => setPagamento(e.target.value)} aria-label="Forma de pagamento" className={campo}>
                   <option value="">Forma de pagamento (opcional)</option>
@@ -629,7 +719,7 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
               {modoFinal === "entrega" && (
                 <div className="flex justify-between text-ink-muted">
                   <dt>Frete</dt>
-                  <dd className="tabular-nums">{frete ? formatBRL(frete) : "a combinar"}</dd>
+                  <dd className="tabular-nums">{rotuloDoFrete(frete)}</dd>
                 </div>
               )}
               <div className="flex items-baseline justify-between pt-1">
@@ -641,9 +731,9 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
               <button type="button" disabled className={`${botao} mt-4 w-full`}>
                 Na prévia o pedido não é enviado
               </button>
-            ) : faltaEndereco ? (
+            ) : faltaEndereco || faltaRegiao ? (
               <button type="button" disabled className={`${botao} mt-4 w-full`}>
-                Informe o endereço de entrega
+                {faltaEndereco ? "Informe o endereço de entrega" : "Escolha a região de entrega"}
               </button>
             ) : (
               <a
@@ -654,34 +744,34 @@ export function Loja({ slug, vitrine: salva, previa = false }: { slug: string; v
                     entrega: modoFinal,
                     endereco: endereco.trim(),
                     pagamento,
-                    frete: loja.frete_fixo,
+                    frete,
+                    regiao: regiao?.nome ?? null,
                     cupom: cupom && desconto > 0 ? { codigo: cupom.codigo, desconto } : null,
                     codigo,
                   }),
                 )}
-                onClick={() => {
-                  // cada código grava uma vez: tocar de novo em Enviar com o mesmo pedido não duplica
-                  if (!codigo || !contarSeNovo(`marcon-pedido-${slug}`, codigo)) return;
-                  void registrarPedido(slug, {
-                    codigo,
-                    itens: linhas.map((l) => {
-                      const [produtoId, variacaoId] = l.chave.split(":");
-                      return { produtoId, variacaoId: variacaoId || null, quantidade: l.quantidade };
-                    }),
-                    clienteNome: nome.trim(),
-                    entrega: modoFinal,
-                    endereco: endereco.trim(),
-                    pagamento,
-                    cupom: cupom && desconto > 0 ? cupom.codigo : null,
-                  });
-                }}
+                onClick={(e) => void enviarPedido(e, e.currentTarget.href)}
+                aria-busy={enviando}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`${botao} mt-4 w-full gap-2`}
               >
                 <IconeWhatsapp />
-                Enviar pedido pelo WhatsApp
+                {enviando ? "Reservando..." : "Enviar pedido pelo WhatsApp"}
               </a>
+            )}
+            {erroPedido && (
+              <p role="alert" className="mt-2 text-center text-xs text-danger">
+                {erroPedido}
+              </p>
+            )}
+            {ultimoPedido?.codigo === codigo && (
+              <p className="mt-2 text-center text-[13px] text-ink-muted">
+                Pedido #{codigo} reservado.{" "}
+                <a href={`/loja/${slug}/pedido/${ultimoPedido.token}`} className="font-medium text-ink-2 underline">
+                  Acompanhar
+                </a>
+              </p>
             )}
             <p className="mt-2 text-center text-xs text-ink-muted">O pagamento e a entrega você combina direto com a loja.</p>
             <div className="mt-5 flex items-center justify-between border-t border-line pt-3 text-[13px]">
@@ -919,7 +1009,9 @@ function DetalheDoProduto({
   botao,
   onAdicionar,
   onAviso,
+  previa = false,
 }: {
+  previa?: boolean; // prévia no painel do vendedor: não adiciona ao pedido nem copia o link
   produto: VitrineProduto;
   botao: string;
   onAdicionar: (p: VitrineProduto, variacao: VitrineVariacao | null, quantidade: number) => void;
@@ -950,6 +1042,10 @@ function DetalheDoProduto({
 
   // no computador (mouse) só copia o link; o menu de compartilhar do sistema fica para o celular
   async function compartilhar() {
+    if (previa) {
+      onAviso("Na prévia o link não é copiado");
+      return;
+    }
     const url = window.location.href;
     try {
       if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
@@ -1052,13 +1148,56 @@ function DetalheDoProduto({
         <Quantidade valor={quantidade} onMudar={(d) => setQuantidade((q) => Math.min(99, Math.max(1, q + d)))} />
         <button
           type="button"
-          disabled={indisponivel}
+          disabled={indisponivel || previa}
           onClick={() => onAdicionar(produto, variacao, quantidade)}
           className={`${botao} flex-1`}
         >
-          {produto.esgotado ? "Esgotado" : comVariacoes && !variacao ? "Escolha uma opção" : "Adicionar ao pedido"}
+          {produto.esgotado ? "Esgotado" : comVariacoes && !variacao ? "Escolha uma opção" : previa ? "Adicionar ao pedido (prévia)" : "Adicionar ao pedido"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// Prévia no painel (Vitrine > Produtos > produto): a mesma folha que o cliente abre na loja, com as
+// cores da loja e o que o vendedor acabou de editar. Nada daqui grava ou conta métrica.
+export function PreviaDoProduto({
+  produto,
+  loja,
+  aberto,
+  onFechar,
+}: {
+  produto: VitrineProduto;
+  loja: Parameters<typeof coresDaLoja>[0];
+  aberto: boolean;
+  onFechar: () => void;
+}) {
+  const cores = coresDaLoja(loja);
+  const estilo = { ...tokensDaLoja(cores), colorScheme: fundoEscuro(cores.fundo) ? "dark" : "light" } as CSSProperties;
+  const [aviso, setAviso] = useState<string | null>(null);
+  return (
+    <div style={estilo}>
+      <Modal folha open={aberto} onClose={onFechar} title={produto.nome} description={produto.marca ?? undefined}>
+        {aberto && (
+          <>
+            <DetalheDoProduto
+              produto={produto}
+              botao={BOTAO_DA_LOJA}
+              previa
+              onAdicionar={() => {}}
+              onAviso={(t) => {
+                setAviso(t);
+                setTimeout(() => setAviso(null), 2200);
+              }}
+            />
+            {aviso && (
+              <p role="status" className="mt-3 text-center text-[13px] text-ink-muted">
+                {aviso}
+              </p>
+            )}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
