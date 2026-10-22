@@ -194,3 +194,13 @@ export interface ParcelaComVenda extends Parcela {
     clientes?: { telefone: string | null } | null;
   } | null;
 }
+
+export interface AnuncioPublicacao {
+  id: string;
+  produto_id: string;
+  canal_id: string;
+  link: string | null;
+  publicado_em: string;
+  renovar_dias: number;
+  updated_at: string;
+}
