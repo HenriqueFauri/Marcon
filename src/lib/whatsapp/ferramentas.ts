@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { hojeISO, somarDias } from "@/lib/format";
 import { prepararVenda } from "./venda";
 import { prepararCaixa, prepararEstoque, prepararProduto } from "./lancamentos";
+import { prepararRecebimento } from "./recebimento";
 import { tipoLiberado } from "./rascunho";
 import { procurarProdutos } from "./produtos";
 
@@ -27,6 +28,7 @@ export interface Contexto {
   porAudio?: boolean; // a mensagem veio de voz (transcrita)
   duvidosas?: string[]; // palavras em que a transcrição ficou em dúvida
   fatos?: string[]; // o que o sistema gravou ou deixou de gravar por este número (route.ts)
+  foto?: { path: string; usada: boolean }; // foto de produto desta mensagem, já guardada (route.ts)
   catalogo?: string[]; // nomes dos produtos do vendedor (os mais vendidos primeiro), para entender "relógio" ou "fone"
   rastro?: Rastro; // preenchido por responder() quando alguém quer medir
 }
@@ -473,6 +475,11 @@ export async function executarFerramenta(nome: string, entrada: Entrada, ctx: Co
     case "preparar_caixa": {
       if (!ctx.escrita || !tipoLiberado("caixa_entrada")) return { erro: "Lançar no caixa por aqui ainda não está liberado." };
       return prepararCaixa(db, ctx, entrada);
+    }
+
+    case "preparar_recebimento": {
+      if (!ctx.escrita || !tipoLiberado("parcela_paga")) return { erro: "Receber parcela por aqui ainda não está liberado." };
+      return prepararRecebimento(db, ctx, entrada);
     }
 
     default:

@@ -1,6 +1,7 @@
 import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hojeISO, somarDias } from "@/lib/format";
 
 // Peças comuns a tudo que o assistente LANÇA (venda, produto, estoque, caixa). A regra é a mesma
 // para todos e não pode quebrar: o modelo só PREPARA um rascunho; quem grava é o servidor, e só
@@ -9,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export type Db = NonNullable<ReturnType<typeof createAdminClient>>;
 export type Entrada = Record<string, unknown>;
 
-export type TipoAcao = "venda" | "produto" | "estoque_entrada" | "estoque_saida" | "caixa_entrada" | "caixa_saida";
+export type TipoAcao = "venda" | "produto" | "estoque_entrada" | "estoque_saida" | "caixa_entrada" | "caixa_saida" | "parcela_paga";
 
 export interface ContextoAcao {
   owner: string;
@@ -18,6 +19,7 @@ export interface ContextoAcao {
   semConfirmar?: GrupoConfirmavel[]; // grupos em que o vendedor dispensou o SIM (Configurações)
   porAudio?: boolean; // a mensagem veio de voz: a transcrição pode errar
   admin?: boolean; // admin do Marcon: limites do dia maiores (acoes.ts)
+  foto?: { path: string; usada: boolean }; // foto de produto mandada nesta mensagem (já guardada no bucket, na pasta do dono)
   vozSegura?: boolean; // transcrição com confiança alta e nenhuma palavra em dúvida: só então o SIM pode ser dispensado por voz
 }
 
@@ -42,6 +44,7 @@ const GRUPO_DO_TIPO: Record<Exclude<TipoAcao, "venda">, GrupoDeLancamento> = {
   estoque_saida: "estoque",
   caixa_entrada: "caixa",
   caixa_saida: "caixa",
+  parcela_paga: "caixa", // mexe no caixa; o SIM nunca é dispensado (acoes.ts)
 };
 
 // o que o vendedor pode escolher em Configurações: a venda mais os grupos acima
@@ -67,6 +70,19 @@ export function termo(v: unknown, max = 60) {
     .replace(/[%_,()*\\]/g, " ")
     .trim()
     .slice(0, max);
+}
+
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+// data dita pelo vendedor: de hoje até 60 dias atrás; qualquer outra coisa vira hoje
+export function dataValida(v: unknown) {
+  const hoje = hojeISO();
+  const dita = String(v ?? "");
+  return DATA.test(dita) && dita <= hoje && dita >= somarDias(hoje, -60) ? dita : hoje;
+}
+
+export function dinheiro(v: unknown) {
+  const n = v == null || v === "" ? NaN : Number(v);
+  return Number.isFinite(n) ? r2(n) : NaN;
 }
 
 export const r2 = (n: number) => Math.round(n * 100) / 100;
