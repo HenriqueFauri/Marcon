@@ -8,6 +8,7 @@ import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/compon
 import { IconBox } from "@/components/icons";
 import { hojeISO } from "@/lib/format";
 import { situacaoDaPublicacao } from "@/lib/publicacao";
+import { FotoProduto } from "../vendas/novo/produto-seletor";
 import { VistaToggle, type Vista } from "./vista-toggle";
 
 export const metadata: Metadata = { title: "Anúncios" };
@@ -45,10 +46,10 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   }
 
   const produtos = (data ?? []) as ProdutoComEstoque[];
-  const versoesPorProduto = new Map<string, number>();
+  // um anúncio por produto: tem anúncio quem tem algum texto salvo (as versões antigas por canal contam como o mesmo)
+  const comAnuncio = new Set<string>();
   for (const a of anunciosData ?? []) {
-    if (!a.titulo && !a.descricao) continue;
-    versoesPorProduto.set(a.produto_id, (versoesPorProduto.get(a.produto_id) ?? 0) + 1);
+    if (a.titulo || a.descricao) comAnuncio.add(a.produto_id);
   }
   // produtos com algum anúncio publicado que já passou do prazo de renovar
   const hoje = hojeISO();
@@ -68,7 +69,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   for (const [produtoId, path] of capaGeral) capaPorProduto.set(produtoId, path);
 
   const lista = produtos.filter((p) => {
-    const tem = (versoesPorProduto.get(p.id) ?? 0) > 0;
+    const tem = comAnuncio.has(p.id);
     if (filtro === "sem" && tem) return false;
     if (filtro === "com" && !tem) return false;
     if (!q) return true;
@@ -121,7 +122,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
           {lista.map((p) => {
             const capa = capaPorProduto.get(p.id);
             const url = capa ? urlPorCaminho.get(capa) : undefined;
-            const versoes = versoesPorProduto.get(p.id) ?? 0;
+            const tem = comAnuncio.has(p.id);
             const fotos = totalFotos.get(p.id) ?? 0;
             return (
               <li key={p.id} className="hairline relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-surface hover:bg-fill/50">
@@ -134,7 +135,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                     <IconBox width={32} height={32} />
                   )}
                   <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-                    {versoes > 0 && <Badge tone="positive">{versoes === 1 ? "1 versão" : `${versoes} versões`}</Badge>}
+                    {tem && <Badge tone="positive">Anúncio pronto</Badge>}
                     {paraRenovar.has(p.id) && <Badge tone="warning">Renovar</Badge>}
                   </div>
                   {fotos > 1 && (
@@ -160,26 +161,17 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
           {lista.map((p) => {
             const capa = capaPorProduto.get(p.id);
             const url = capa ? urlPorCaminho.get(capa) : undefined;
-            const versoes = versoesPorProduto.get(p.id) ?? 0;
+            const tem = comAnuncio.has(p.id);
             const fotos = totalFotos.get(p.id) ?? 0;
             return (
               <li key={p.id} className="relative flex min-w-0 items-center gap-3 px-4 py-3 active:bg-fill sm:hairline sm:rounded-2xl sm:bg-surface sm:p-3 sm:hover:bg-fill/50">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-fill text-ink-faint sm:h-16 sm:w-16">
-                  {url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <IconBox width={22} height={22} />
-                  )}
-                </div>
+                <FotoProduto url={url ?? null} />
                 <div className="min-w-0 flex-1">
                   <Link href={`/anuncios/${p.id}`} className="line-clamp-2 text-[17px] leading-snug text-ink after:absolute after:inset-0 sm:text-[15px] sm:font-medium">
                     {p.nome}
                   </Link>
                   <p className="mt-0.5 truncate text-[13px] text-ink-muted">
-                    <span className={versoes ? "text-positive" : ""}>
-                      {versoes ? `${versoes} ${versoes === 1 ? "versão" : "versões"}` : "Sem anúncio"}
-                    </span>
+                    <span className={tem ? "text-positive" : ""}>{tem ? "Anúncio pronto" : "Sem anúncio"}</span>
                     {" · "}
                     {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "sem fotos"}
                     {paraRenovar.has(p.id) && <span className="font-medium text-warning">{" · "}renovar anúncio</span>}

@@ -14,10 +14,11 @@ export type Evento =
   | "nivel_5k"
   | "nivel_10k"
   | "cobranca"
+  | "renovar_anuncio"
   | "resumo";
 
 // O que o usuário liga/desliga (os três níveis de faturamento andam juntos, e os dois avisos de estoque também)
-export type Grupo = "venda" | "pedido" | "estoque" | "meta" | "niveis" | "cobranca" | "resumo";
+export type Grupo = "venda" | "pedido" | "estoque" | "meta" | "niveis" | "cobranca" | "anuncios" | "resumo";
 
 export const NIVEIS: { evento: Evento; valor: number }[] = [
   { evento: "nivel_1k", valor: 1000 },
@@ -35,6 +36,7 @@ export const EVENTOS: Evento[] = [
   "nivel_5k",
   "nivel_10k",
   "cobranca",
+  "renovar_anuncio",
   "resumo",
 ];
 
@@ -48,6 +50,7 @@ const GRUPO_DO_EVENTO: Record<Evento, Grupo> = {
   nivel_5k: "niveis",
   nivel_10k: "niveis",
   cobranca: "cobranca",
+  renovar_anuncio: "anuncios",
   resumo: "resumo",
 };
 
@@ -58,6 +61,7 @@ export const GRUPOS: { id: Grupo; rotulo: string; descricao: string }[] = [
   { id: "meta", rotulo: "Meta batida", descricao: "Comemora quando você bate a meta do mês." },
   { id: "niveis", rotulo: "Marcos de faturamento", descricao: "Quando o mês passa de R$ 1 mil, R$ 5 mil e R$ 10 mil." },
   { id: "cobranca", rotulo: "Lembrete de cobrança", descricao: "Todo dia às 8h, se houver parcela vencendo ou atrasada." },
+  { id: "anuncios", rotulo: "Renovar anúncios", descricao: "Todo dia às 8h, se algum anúncio publicado passou do prazo de renovar." },
   { id: "resumo", rotulo: "Resumo do dia", descricao: "Por volta das 20h, só nos dias em que você vendeu." },
 ];
 
@@ -225,6 +229,16 @@ const VARIANTES: Record<Evento, Variante[]> = {
     { titulo: "Uma conversa rápida resolve 😄" },
     { titulo: "Contas a receber chamando 📞" },
     { titulo: "Seu dinheiro quer voltar pra casa 🏠" },
+  ],
+  renovar_anuncio: [
+    { titulo: "Hora de renovar anúncio 🔄" },
+    { titulo: "Anúncio velho perde força 📉" },
+    { titulo: "Dá um gás nos anúncios 🚀" },
+    { titulo: "Anúncios pedindo renovação ⏰" },
+    { titulo: "Republica pra voltar ao topo 📌" },
+    { titulo: "Seu anúncio já passou do prazo 👀" },
+    { titulo: "Que tal renovar hoje? 😉" },
+    { titulo: "Anúncio fresquinho vende mais 🛒" },
   ],
   resumo: [
     { titulo: "Fechou o dia! 🌙" },
@@ -412,6 +426,15 @@ export function linhaDoNivel(faturamento: number, mesISO: string) {
   return `Faturamento de ${nomeDoMes(mesISO)}: ${formatBRL(faturamento)}`;
 }
 
+// até 3 produtos com anúncio para renovar; o resto vira "e mais N"
+export function linhaDoRenovarAnuncio(nomes: string[]) {
+  const primeiros = nomes.slice(0, 3);
+  const resto = nomes.length - primeiros.length;
+  const total = `${nomes.length} ${nomes.length === 1 ? "anúncio para renovar" : "anúncios para renovar"}`;
+  return `${total}
+${primeiros.join(", ")}${resto > 0 ? ` e mais ${resto}` : ""}`;
+}
+
 export function linhaDaCobranca(parcelas: ParcelaParaCobrar[], campos: Record<CampoCobranca, boolean>) {
   const porCliente = new Map<string, number>();
   for (const p of parcelas) {
@@ -512,6 +535,8 @@ export function montarExemplo(pref: Preferencias, evento: Evento, posicao: numbe
         return linhaDaMeta("vendas", 10120);
       case "cobranca":
         return linhaDaCobranca(parcelas, pref.dados.cobranca);
+      case "renovar_anuncio":
+        return linhaDoRenovarAnuncio(["Fone Bluetooth", "Tênis Casual"]);
       case "resumo":
         return linhaDoResumo({ vendas: 6, valor: 540, lucro: 210, parcelasAmanha: 2, valorParcelasAmanha: 450 }, pref.dados);
       default:

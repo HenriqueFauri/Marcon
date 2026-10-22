@@ -3,15 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { iaDisponivel } from "@/lib/ia-anuncio";
-import type { AnuncioPublicacao, CanalVenda, ProdutoAnuncio, ProdutoComEstoque, ProdutoFoto, ProdutoVariacao } from "@/types/domain";
+import type { AnuncioPublicacao, ProdutoAnuncio, ProdutoComEstoque, ProdutoFoto, ProdutoVariacao } from "@/types/domain";
 import { Badge, PageHeader, btnSecondary } from "@/components/ui";
 import { lerUso } from "@/lib/uso";
 import { hojeISO } from "@/lib/format";
-import { COR_PADRAO, coresDaLoja } from "@/lib/vitrine";
 import { AnunciosEditor } from "./anuncios-editor";
 import { FotosSection } from "./fotos-section";
 import { PublicacoesCard } from "./publicacoes-card";
-import { ArteStory } from "./arte-story";
 
 export async function generateMetadata({ params }: PageProps<"/anuncios/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -24,16 +22,14 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: produto }, { data: variacoesData }, { data: fotosData }, { data: canaisData }, { data: anunciosData }, { data: publicacoesData }, { data: vitrineData }, { data: auth }, uso] =
+  const [{ data: produto }, { data: variacoesData }, { data: fotosData }, { data: anunciosData }, { data: publicacaoData }, uso] =
     await Promise.all([
       supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", id).maybeSingle(),
       supabase.from("produto_variacoes").select("*").eq("produto_id", id).order("nome_combinacao"),
       supabase.from("produto_fotos").select("*").eq("produto_id", id).order("ordem").order("created_at"),
-      supabase.from("canais_venda").select("*").order("nome"),
-      supabase.from("produto_anuncios").select("*").eq("produto_id", id).order("created_at"),
-      supabase.from("anuncio_publicacoes").select("*").eq("produto_id", id),
-      supabase.from("vitrines").select("cor, tema, cor_botao, cor_fundo, cor_texto, cor_faixa").maybeSingle(),
-      supabase.auth.getUser(),
+      // o anúncio do produto é a versão mais recente; as outras (de quando havia um anúncio por canal) ficam guardadas
+      supabase.from("produto_anuncios").select("*").eq("produto_id", id).order("updated_at", { ascending: false }),
+      supabase.from("anuncio_publicacoes").select("*").eq("produto_id", id).maybeSingle(),
       lerUso(supabase),
     ]);
 
@@ -42,12 +38,9 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
   const p = produto as ProdutoComEstoque;
   const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
   const fotos = (fotosData ?? []) as ProdutoFoto[];
-  const canais = (canaisData ?? []) as CanalVenda[];
   const anuncios = (anunciosData ?? []) as ProdutoAnuncio[];
-  const publicacoes = (publicacoesData ?? []) as AnuncioPublicacao[];
-  const meta = auth.user?.user_metadata ?? {};
-  const loja = String(meta.nome_negocio || meta.nome || "");
-  const cores = coresDaLoja(vitrineData ?? { cor: COR_PADRAO, tema: "claro" });
+  const anuncio = anuncios.find((a) => a.variacao_id === null) ?? anuncios[0] ?? null;
+  const publicacao = (publicacaoData ?? undefined) as AnuncioPublicacao | undefined;
 
   const { data: assinadas } = fotos.length
     ? await supabase.storage.from("produto-fotos").createSignedUrls(fotos.map((f) => f.path), 3600)
@@ -89,9 +82,7 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
       />
       <AnunciosEditor
         produtoId={p.id}
-        canais={canais}
-        anuncios={anuncios}
-        variacoes={variacoes}
+        anuncio={anuncio}
         iaDisponivel={iaDisponivel()}
         dados={{
           nome: p.nome,
@@ -103,8 +94,7 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
           variacoes,
         }}
       />
-        <PublicacoesCard produtoId={p.id} canais={canais} publicacoes={publicacoes} hoje={hojeISO()} />
-      <ArteStory fotos={fotosComUrl} nome={p.nome} preco={Number(p.preco_varejo)} loja={loja} cores={cores} />
+        <PublicacoesCard produtoId={p.id} publicacao={publicacao} hoje={hojeISO()} />
       </div>
     </div>
   );

@@ -1,27 +1,16 @@
-import { formatBRL } from "@/lib/format";
 import type { ProdutoVariacao } from "@/types/domain";
 
-export interface LimitesCanal {
-  titulo: number | null;
-  descricao: number | null;
-}
+// Um padrão só, que serve em qualquer plataforma (Marketplace, OLX, Mercado Livre, Shopee,
+// Instagram, WhatsApp): título curto, descrição em texto simples, sem emoji, sem link e sem preço
+// no texto (o preço tem campo próprio em todas).
+export const LIMITE_TITULO = 60;
+export const LIMITE_DESCRICAO = 2000;
 
 function normalizar(texto: string) {
   return texto
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
-}
-
-// limites conhecidos por plataforma; canal desconhecido = sem limite
-export function limitesDoCanal(nomeCanal: string): LimitesCanal {
-  const n = normalizar(nomeCanal);
-  if (n.includes("mercado")) return { titulo: 60, descricao: null };
-  if (n.includes("shopee")) return { titulo: 120, descricao: 3000 };
-  if (n.includes("facebook") || n.includes("marketplace")) return { titulo: 100, descricao: 5000 };
-  if (n.includes("olx")) return { titulo: 90, descricao: 6000 };
-  if (n.includes("instagram")) return { titulo: null, descricao: 2200 };
-  return { titulo: null, descricao: null };
 }
 
 export function cortar(texto: string, max: number | null) {
@@ -42,39 +31,31 @@ export interface DadosAnuncio {
   variacoes: ProdutoVariacao[];
 }
 
-export const TOTAL_ESTILOS = 4;
+export const TOTAL_ESTILOS = 3;
 
-// junta as partes do título enquanto couber no limite do canal
-function montarTitulo(partes: string[], limite: number | null) {
-  const max = limite ?? 100;
+// junta as partes do título enquanto couber no limite
+function montarTitulo(partes: string[]) {
   let titulo = partes[0] ?? "";
   for (const parte of partes.slice(1)) {
     if (!parte) continue;
     const candidato = `${titulo} - ${parte}`;
-    if (candidato.length <= max) titulo = candidato;
+    if (candidato.length <= LIMITE_TITULO) titulo = candidato;
   }
-  return cortar(titulo, limite);
+  return cortar(titulo, LIMITE_TITULO);
 }
 
-// Sugestão de título e descrição a partir do cadastro — só monta o texto, o
-// usuário revisa e ajusta antes de salvar/copiar. `estilo` varia a redação
-// (0 a 3) pra dar versões diferentes do mesmo anúncio; `variacao`
-// foca o texto numa variação específica.
-export function gerarAnuncio(
-  dados: DadosAnuncio,
-  nomeCanal: string,
-  opcoes: { estilo?: number; variacao?: ProdutoVariacao | null } = {},
-) {
-  const limites = limitesDoCanal(nomeCanal);
+// Sugestão de título e descrição a partir do cadastro: só monta o texto, o usuário revisa e ajusta
+// antes de salvar ou copiar. `estilo` varia a redação (0 a 2) para dar outra versão do mesmo anúncio.
+// `estado` é o rótulo da condição escolhida (ex.: "Novo, na caixa"); sem ele, o texto não diz nada.
+export function gerarAnuncio(dados: DadosAnuncio, opcoes: { estilo?: number; estado?: string | null } = {}) {
   const estilo = (((opcoes.estilo ?? 0) % TOTAL_ESTILOS) + TOTAL_ESTILOS) % TOTAL_ESTILOS;
-  const variacao = opcoes.variacao ?? null;
 
   const nomeJaTemMarca = dados.marca ? normalizar(dados.nome).includes(normalizar(dados.marca)) : true;
   const base = [dados.nome, nomeJaTemMarca ? null : dados.marca].filter(Boolean).join(" ");
 
-  // atributos agrupados (ex.: Tamanho: P, M, G); com variação, só os dela
+  // atributos agrupados (ex.: Tamanho: P, M, G)
   const atributos = new Map<string, Set<string>>();
-  for (const v of variacao ? [variacao] : dados.variacoes) {
+  for (const v of dados.variacoes) {
     for (const [chave, valor] of Object.entries(v.atributos ?? {})) {
       if (!valor) continue;
       if (!atributos.has(chave)) atributos.set(chave, new Set());
@@ -82,54 +63,30 @@ export function gerarAnuncio(
     }
   }
   const variacoesTexto = [...atributos.entries()].map(([chave, valores]) => `${chave}: ${[...valores].join(", ")}`);
-  let opcoesTitulo = [...atributos.values()].map((valores) => [...valores].join("/")).filter(Boolean).join(" ");
-  if (variacao && !opcoesTitulo) opcoesTitulo = variacao.nome_combinacao;
+  const opcoesTitulo = [...atributos.values()].map((valores) => [...valores].join("/")).filter(Boolean).join(" ");
 
   const categoriaNoTitulo =
     dados.categoria && !normalizar(base).includes(normalizar(dados.categoria)) ? dados.categoria : "";
-  const titulo = montarTitulo(
-    [
-      base,
-      ...[
-        [opcoesTitulo],
-        [opcoesTitulo, "Pronta Entrega"],
-        [categoriaNoTitulo, opcoesTitulo],
-        ["Envio Rápido", opcoesTitulo],
-      ][estilo],
-    ],
-    limites.titulo,
-  );
-
-  const precos = variacao
-    ? [Number(variacao.preco_venda ?? dados.precoVarejo)]
-    : dados.variacoes.map((v) => Number(v.preco_venda ?? dados.precoVarejo));
-  const menor = precos.length ? Math.min(...precos) : dados.precoVarejo;
-  const maior = precos.length ? Math.max(...precos) : dados.precoVarejo;
-  const preco = menor === maior ? formatBRL(menor) : `a partir de ${formatBRL(menor)}`;
+  const titulo = montarTitulo([base, ...[[opcoesTitulo], [categoriaNoTitulo, opcoesTitulo], [opcoesTitulo, categoriaNoTitulo]][estilo]]);
 
   const detalhes = [
     dados.marca ? `Marca: ${dados.marca}` : null,
     dados.categoria ? `Categoria: ${dados.categoria}` : null,
     ...variacoesTexto,
+    opcoes.estado ? `Estado: ${opcoes.estado}` : null,
   ].filter(Boolean) as string[];
   const marcadores = detalhes.map((d) => `• ${d}`);
   const textoCadastro = dados.descricao?.trim() ?? "";
 
   const corpos: string[][] = [
     // completo
-    [base, "", ...(textoCadastro ? [textoCadastro, ""] : []), ...(marcadores.length ? [...marcadores, ""] : []),
-      `Preço: ${preco}`, "Produto novo, pronto para envio.", "Chame no privado para combinar entrega ou retirada."],
-    // direto: preço e disponibilidade primeiro
-    [`${base} por ${preco}`, "Pronta entrega.", "", ...(textoCadastro ? [textoCadastro, ""] : []), ...marcadores,
-      ...(marcadores.length ? [""] : []), "Tem dúvida? Me chame que respondo rápido."],
+    [base, "", ...(textoCadastro ? [textoCadastro, ""] : []), ...(marcadores.length ? [...marcadores, ""] : []), "Chame para combinar entrega ou retirada."],
     // detalhes antes do texto
-    [base, "", ...(marcadores.length ? ["Detalhes do produto:", ...marcadores, ""] : []),
-      ...(textoCadastro ? [textoCadastro, ""] : []), `Por apenas ${preco}.`, "Envio para todo o Brasil ou retirada combinada."],
+    [base, "", ...(marcadores.length ? ["Detalhes do produto:", ...marcadores, ""] : []), ...(textoCadastro ? [textoCadastro, ""] : []), "Tem dúvida? Me chame que respondo rápido."],
     // curto
-    [base, ...(textoCadastro ? ["", textoCadastro.split("\n")[0]] : []), "", ...(detalhes.length ? [detalhes.join(" · "), ""] : []),
-      `Valor: ${preco}`, "Produto novo. Pronto para envio."],
+    [base, ...(textoCadastro ? ["", textoCadastro.split("\n")[0]] : []), "", ...(detalhes.length ? [detalhes.join(" · "), ""] : []), "Chame para combinar entrega ou retirada."],
   ];
 
-  const descricao = cortar(corpos[estilo].join("\n").trim(), limites.descricao);
+  const descricao = cortar(corpos[estilo].join("\n").trim(), LIMITE_DESCRICAO);
   return { titulo, descricao };
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { formatBRL } from "@/lib/format";
-import { limitesDoCanal } from "@/lib/anuncio";
+import { LIMITE_DESCRICAO, LIMITE_TITULO } from "@/lib/anuncio";
 import { rotuloDaEntrega, rotuloDoEstado, type PerguntasIA } from "@/lib/ia-perguntas";
 import type { ProdutoVariacao } from "@/types/domain";
 
@@ -15,14 +15,12 @@ export function iaDisponivel() {
 }
 
 export interface EntradaIA {
-  canal: string;
   nome: string;
   marca: string | null;
   categoria: string | null;
   descricao: string | null;
   precoVarejo: number;
   variacoes: ProdutoVariacao[];
-  variacao: ProdutoVariacao | null;
   fotos: string[]; // URLs assinadas, no máximo 3
   perguntas: PerguntasIA;
 }
@@ -34,7 +32,7 @@ export interface SaidaIA {
   tokensSaida: number;
 }
 
-const INSTRUCOES = `Você escreve anúncios de produtos para pequenos vendedores brasileiros que vendem pelo celular em marketplaces e redes sociais.
+const INSTRUCOES = `Você escreve anúncios de produtos para pequenos vendedores brasileiros que vendem pelo celular. O mesmo texto vai ser copiado e colado em qualquer plataforma (Facebook Marketplace, OLX, Mercado Livre, Shopee, Instagram, WhatsApp), então ele precisa funcionar em todas.
 
 Escreva em português do Brasil, com linguagem simples e direta de vendedor, sem exagero.
 
@@ -45,26 +43,26 @@ Fatos:
 - As informações que o vendedor passou (ficha do fornecedor colada, anotações soltas) são fonte de fatos: aproveite o que ajuda a vender e reescreva do seu jeito, sem copiar o texto nem despejar tudo no anúncio. Se vier um pedido de estilo ali (mais curto, destacar tal ponto), siga.
 - Se a marca e o modelo forem de um produto que você conhece bem, pode usar as características técnicas conhecidas dele (tipo de driver, bateria, conexão, tela, potência etc.). Só o que você tem certeza que vale para aquele modelo. Na dúvida, deixe de fora.
 - Nunca invente garantia, nota fiscal, medidas, compatibilidade, estado de conservação, frete grátis, prazo de entrega nem forma de entrega.
-- Se o vendedor não disse se o produto é novo ou usado, não diga nenhum dos dois. Se ele respondeu o estado, escreva-o como uma linha ✅ (ex.: "✅ Novo, na caixa").
-- Se há uma variação escolhida, o anúncio é só dela.
+- Se o vendedor não disse se o produto é novo ou usado, não diga nenhum dos dois. Se ele respondeu o estado, escreva-o como uma linha "•" (ex.: "• Novo, na caixa").
+- Se o produto tem variações, o anúncio é do produto todo: cite as opções (cor, tamanho) numa linha.
 
 Texto:
-- Respeite o limite de caracteres do canal para o título e para a descrição. Conte com folga.
+- Respeite o limite de caracteres do título e da descrição que vem no pedido. Conte com folga.
 - Título: comece pelo produto, depois marca e modelo, depois o atributo mais buscado (cor, tamanho, capacidade). Sem emojis, sem pontos de exclamação, sem CAIXA ALTA e sem palavras como "promoção", "imperdível" ou "barato".
 - Proibido enchimento: "conforme as fotos", "entre em contato para mais detalhes", "produto de qualidade", "excelente", "ótimo custo-benefício" e frases parecidas que servem para qualquer produto.
-- Facebook Marketplace, OLX, Instagram, WhatsApp e outros canais: a descrição abre com uma frase que diz o que é o produto e o principal ponto dele, seguida de 4 a 6 linhas curtas começando com ✅, cada uma com uma característica e, quando fizer sentido, o que ela significa no uso (ex.: "Microfone embutido, bom pra chamada e jogo"). Termine com uma linha de convite como "💬 Chama no chat pra combinar!". Só ponha a linha de retirada ou entrega (📍) se o vendedor respondeu como é, usando a resposta dele. Se respondeu o que acompanha, destaque isso numa linha ✅. Facebook Marketplace e OLX não levam preço no texto, porque o preço tem campo próprio. Instagram e WhatsApp terminam com o preço e um convite para chamar no privado; no Instagram, até 5 hashtags relevantes no fim.
-- Mercado Livre e Shopee: sem emojis e sem links. Parágrafos curtos e uma lista de características com "•". O preço tem campo próprio, então não vai no texto.
+- Formato único, sem emojis e sem links, porque nem toda plataforma aceita. Não ponha preço no texto: o preço tem campo próprio em todas as plataformas.
+- A descrição abre com uma frase que diz o que é o produto e o principal ponto dele, seguida de 4 a 6 linhas curtas começando com "•", cada uma com uma característica e, quando fizer sentido, o que ela significa no uso (ex.: "• Microfone embutido, bom pra chamada e jogo"). Se o vendedor respondeu o estado, escreva-o numa linha "•". Se respondeu o que acompanha, destaque isso numa linha "•". Só ponha a linha de retirada ou entrega se o vendedor respondeu como é, usando a resposta dele. Termine com uma linha de convite simples, como "Chame para combinar!".
 
 Exemplo do nível esperado (só o formato e o tom: não copie os fatos para outro produto). Vendedor respondeu: estado "Novo, na caixa", acompanha "divisor de áudio P2", entrega "Retirada em mãos ou combinar entrega":
 Título: Fone KZ EDX Pro X com Microfone – Preto
 Descrição:
 Fone de ouvido KZ EDX Pro X, driver híbrido, com microfone embutido.
-✅ Grave potente, som equilibrado
-✅ Microfone pra chamada e jogo
-✅ Acompanha divisor de áudio P2 (ouça a dois)
-✅ Novo, na caixa
-📍 Retirada em mãos ou combinar entrega
-💬 Chama no chat pra combinar!`;
+• Grave potente, som equilibrado
+• Microfone pra chamada e jogo
+• Acompanha divisor de áudio P2 (ouça a dois)
+• Novo, na caixa
+• Retirada em mãos ou combinar entrega
+Chame para combinar!`;
 
 const FORMATO = {
   type: "json_schema" as const,
@@ -87,24 +85,20 @@ function atributosTexto(v: ProdutoVariacao) {
 }
 
 function montarPedido(e: EntradaIA) {
-  const limites = limitesDoCanal(e.canal);
   const estado = rotuloDoEstado(e.perguntas.estado);
   const entrega = rotuloDaEntrega(e.perguntas.entrega);
   const preco = (v: ProdutoVariacao) => formatBRL(Number(v.preco_venda ?? e.precoVarejo));
   const linhas = [
-    `Canal: ${e.canal}`,
-    `Limite do título: ${limites.titulo ? `${limites.titulo} caracteres` : "sem limite fixo, até 100 caracteres"}`,
-    `Limite da descrição: ${limites.descricao ? `${limites.descricao} caracteres` : "sem limite fixo, até 1500 caracteres"}`,
+    `Limite do título: ${LIMITE_TITULO} caracteres`,
+    `Limite da descrição: ${LIMITE_DESCRICAO} caracteres`,
     "",
     "Dados do produto:",
     `- Nome: ${e.nome}`,
     e.marca ? `- Marca: ${e.marca}` : null,
     e.categoria ? `- Categoria: ${e.categoria}` : null,
-    e.variacao
-      ? `- Variação escolhida: ${atributosTexto(e.variacao)} — ${preco(e.variacao)}`
-      : e.variacoes.length
-        ? `- Variações: ${e.variacoes.map((v) => `${atributosTexto(v)} (${preco(v)})`).join("; ")}`
-        : `- Preço: ${formatBRL(e.precoVarejo)}`,
+    e.variacoes.length
+      ? `- Variações: ${e.variacoes.map((v) => `${atributosTexto(v)} (${preco(v)})`).join("; ")}`
+      : `- Preço (só para você saber, não vai no texto): ${formatBRL(e.precoVarejo)}`,
     e.descricao?.trim() ? `- Descrição do cadastro: ${e.descricao.trim()}` : null,
     "",
     "Respostas do vendedor:",
