@@ -59,6 +59,7 @@ function camposProduto(formData: FormData) {
       marca: textoOuNull(formData, "marca"),
       descricao: textoOuNull(formData, "descricao"),
       sku: textoOuNull(formData, "sku"),
+      codigo_barras: textoOuNull(formData, "codigo_barras")?.replace(/\s+/g, "") || null,
       custo,
       preco_varejo: precoVarejo,
       preco_atacado: precoAtacado,
@@ -66,6 +67,13 @@ function camposProduto(formData: FormData) {
       unidade_medida: UNIDADES.includes(unidade) ? unidade : "un",
     },
   } as const;
+}
+
+// código de barras repetido: o índice único da 0053 recusa, aqui vira uma frase
+function erroCodigo(error: { code?: string; message?: string }): ActionResult | null {
+  if (error.code === "23505" && error.message?.includes("codigo_barras"))
+    return { ok: false, error: "Já existe outro produto com esse código de barras." };
+  return null;
 }
 
 interface LinhaVariacao {
@@ -154,7 +162,7 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
       })
       .select("id")
       .single();
-    if (error) return falha(error);
+    if (error) return erroCodigo(error) ?? falha(error);
 
     if (estoqueInicial > 0) {
       const { error: rpcError } = await supabase.rpc("registrar_entrada_estoque", {
@@ -262,7 +270,7 @@ export async function atualizarProduto(produtoId: string, formData: FormData): P
         updated_at: new Date().toISOString(),
       })
       .eq("id", produtoId);
-    if (error) return falha(error);
+    if (error) return erroCodigo(error) ?? falha(error);
 
     revalidarProduto(produtoId);
     return { ok: true, message: "Produto atualizado.", id: produtoId };

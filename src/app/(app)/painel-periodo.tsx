@@ -37,6 +37,7 @@ export interface DadosPeriodo {
   metaVendas: number | null;
   metaLucro: number | null;
   tituloMeta: string;
+  projecao: string | null; // só no mês: "no ritmo atual você fecha em R$ X"
   qtd: number;
   ticketMedio: number | null;
   vendas: VendaResumo[]; // as mais recentes
@@ -167,6 +168,7 @@ export function PainelMetas({ metaMensalVendas, metaMensalLucro }: { metaMensalV
         <div className="flex min-w-0 flex-col gap-2 lg:gap-4">
           <Meta rotulo="Vendas" valor={dados.faturamento} meta={dados.metaVendas} tom="text-brand-text" />
           <Meta rotulo="Lucro" valor={dados.lucro} meta={dados.metaLucro} tom="text-tile-positive" />
+          {dados.projecao && <p className="text-[13px] leading-snug text-ink-muted">{dados.projecao}</p>}
           <MetasButton metaVendas={metaMensalVendas} metaLucro={metaMensalLucro} />
         </div>
       </div>

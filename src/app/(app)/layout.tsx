@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
 import { ToastProvider } from "@/components/toaster";
 import { AvisoCortesia } from "@/components/aviso-cortesia";
+import { AvisoOffline } from "@/components/aviso-offline";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { adminConfirmado } from "@/lib/admin";
 
@@ -36,6 +37,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <ToastProvider>
+      <AvisoOffline />
       <div data-clarity-mask="true" className="flex min-h-dvh">
         <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
         <div className="flex min-w-0 flex-1 flex-col">
