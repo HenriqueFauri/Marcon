@@ -54,7 +54,7 @@
   --line-strong: #8e8e93;
   --ink: #1d1d1f;
   --ink-2: #3c3c43;
-  --ink-muted: #6e6e73;
+  --ink-muted: #636366;
   --ink-faint: #aeaeb2;
   --brand: #d45f30;
   --brand-hover: #e06b39;
@@ -79,7 +79,7 @@
   --on-tile-positive: #ffffff;
   --ring-track: #dcebdf;
   --tab-active: #f7e0cf;
-  --tab-ink: #6e6e73;
+  --tab-ink: #636366;
   --panel: #f5f5f7;
 }
 
@@ -122,6 +122,18 @@
   --tab-active: rgba(212, 95, 48, 0.16);
   --tab-ink: #ebebf5;
   --panel: #1c1c1e;
+}
+
+/* Foco visível para quem navega pelo teclado; fica na camada base para que o ring próprio
+   de botões e campos (utilitários) continue valendo onde existe. */
+@layer base {
+  a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
 }
 
 body {

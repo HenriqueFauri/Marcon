@@ -240,3 +240,11 @@ export const IconTicket = (p: P) => (
     <path d="M14 5v2.5M14 11v2M14 16.5V19" />
   </Icon>
 );
+
+export const IconMore = (p: P) => (
+  <Icon {...p}>
+    <circle cx="5" cy="12" r="1.2" />
+    <circle cx="12" cy="12" r="1.2" />
+    <circle cx="19" cy="12" r="1.2" />
+  </Icon>
+);
