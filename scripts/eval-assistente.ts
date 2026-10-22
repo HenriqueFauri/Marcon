@@ -30,6 +30,7 @@ const TELEFONE = "5500000000000"; // número de mentira: o rascunho nasce e morr
 
 interface Espera {
   ferramentas?: string[]; // todas estas devem ter sido chamadas
+  proibidas?: string[]; // nenhuma destas pode ter sido chamada
   semFerramentas?: boolean; // nenhuma ferramenta (conversa, recusa, pedido de repetir)
   contem?: (string | RegExp)[]; // todos devem aparecer na resposta
   naoContem?: (string | RegExp)[];
@@ -39,6 +40,7 @@ interface Espera {
 interface Turno {
   diz: string;
   voz?: string[]; // veio de áudio; as palavras em dúvida da transcrição
+  foto?: boolean; // o vendedor mandou uma foto de produto (o texto é o aviso que o sistema monta em route.ts)
   fatos?: string[]; // o registro do sistema que o assistente recebe (o que foi gravado ou não)
   espera: Espera;
 }
@@ -146,6 +148,23 @@ const CASOS: Caso[] = [
   { nome: "entrada de estoque", turnos: [{ diz: "chegaram 10 cabo usb a 5 cada", espera: { rascunho: true, contem: [/Cabo USB/i, /10/], voltasMax: 3 } }] },
   { nome: "despesa no caixa", turnos: [{ diz: "paguei 50 de frete", espera: { rascunho: true, contem: [/50/], voltasMax: 3 } }] },
 
+  // marcar parcela como paga (F29): o sistema escolhe a parcela e pede o SIM
+  { nome: "cliente pagou: prepara recebimento", turnos: [{ diz: "o João pagou", espera: { ferramentas: ["preparar_recebimento"], contem: [/(Marcar como pago|n[aã]o achei|qual cliente)/i], naoContem: [/fiado/i], voltasMax: 3 } }] },
+  { nome: "cliente pagou parte", turnos: [{ diz: "a Maria me pagou 50", espera: { ferramentas: ["preparar_recebimento"], voltasMax: 3 } }] },
+  { nome: "cliente pagou por voz", turnos: [{ diz: "Olha, o João acabou de me pagar a parcela dele", voz: [], espera: { ferramentas: ["preparar_recebimento"], voltasMax: 3 } }] },
+  { nome: "quem me deve não é recebimento", turnos: [{ diz: "o João está me devendo quanto?", espera: { ferramentas: ["contas_a_receber"], proibidas: ["preparar_recebimento"], voltasMax: 2 } }] },
+  { nome: "pagou sem dizer quem pergunta quem", turnos: [{ diz: "pagaram uma parcela aqui", espera: { naoContem: [RASCUNHO], contem: [/(quem|qual cliente|cliente)/i], voltasMax: 2 } }] },
+
+  // foto do produto vira cadastro (F28)
+  { nome: "foto com preço na legenda", turnos: [{ diz: '[Foto de produto recebida e guardada. O sistema identificou: nome "Fone de ouvido Bluetooth preto". Legenda do vendedor: "60 reais".]', foto: true, espera: { ferramentas: ["preparar_produto"], rascunho: true, contem: [/Fone de ouvido Bluetooth preto/, /60,00/, /Foto/], voltasMax: 3 } }] },
+  { nome: "foto sem preço pergunta só o preço", turnos: [{ diz: '[Foto de produto recebida e guardada. O sistema identificou: nome "Capinha de celular transparente". Sem legenda.]', foto: true, espera: { proibidas: ["preparar_produto"], naoContem: [RASCUNHO], contem: [/pre[cç]o/i], voltasMax: 2 } }] },
+  { nome: "foto, depois o preço", turnos: [
+    { diz: '[Foto de produto recebida e guardada. O sistema identificou: nome "Capinha de celular transparente". Sem legenda.]', foto: true, espera: { contem: [/pre[cç]o/i], voltasMax: 2 } },
+    { diz: "25", foto: true, espera: { ferramentas: ["preparar_produto"], rascunho: true, contem: [/Capinha de celular transparente/, /25,00/, /Foto/], voltasMax: 3 } },
+  ] },
+  { nome: "foto com outro nome dito pelo vendedor", turnos: [{ diz: '[Foto de produto recebida e guardada. O sistema identificou: nome "Fone de ouvido branco". Legenda do vendedor: "esse é o fone Air Pro, 89".]', foto: true, espera: { ferramentas: ["preparar_produto"], rascunho: true, contem: [/Air Pro/, /89,00/], voltasMax: 3 } }] },
+  { nome: "foto não identificada pergunta o nome", turnos: [{ diz: '[Foto de produto recebida e guardada, mas o sistema não conseguiu identificar o produto. Sem legenda.]', foto: true, espera: { proibidas: ["preparar_produto"], naoContem: [RASCUNHO], contem: [/nome/i], voltasMax: 2 } }] },
+
   // não entender, conversa, fora do escopo
   { nome: "ruído de voz pede repetir", turnos: [{ diz: "Você pinchá?", voz: ["pinchá"], espera: { semFerramentas: true, naoContem: [RASCUNHO], voltasMax: 1 } }] },
   { nome: "conversa curta", turnos: [{ diz: "tudo bem?", espera: { semFerramentas: true, voltasMax: 1 } }] },
@@ -167,6 +186,7 @@ function regrasGerais(resposta: string, voz: boolean): string[] {
 function confere(e: Espera, resposta: string, ferramentas: string[], voltas: number): string[] {
   const erros: string[] = [];
   for (const f of e.ferramentas ?? []) if (!ferramentas.includes(f)) erros.push(`não chamou ${f} (chamou: ${ferramentas.join(", ") || "nada"})`);
+  for (const f of e.proibidas ?? []) if (ferramentas.includes(f)) erros.push(`chamou ${f}, que não devia`);
   if (e.semFerramentas === true && ferramentas.length) erros.push(`chamou ferramenta à toa (${ferramentas.join(", ")})`);
   for (const c of e.contem ?? []) if (!(c instanceof RegExp ? c.test(resposta) : resposta.includes(c))) erros.push(`faltou ${c}`);
   for (const c of e.naoContem ?? []) if (c instanceof RegExp ? c.test(resposta) : resposta.includes(c)) erros.push(`não devia ter ${c}`);
@@ -210,7 +230,7 @@ async function main() {
         const inicio = Date.now();
         let resposta = "";
         try {
-          resposta = await responder(t.diz, { owner, telefone: TELEFONE, escrita: true, porAudio: !!t.voz, duvidosas: t.voz, fatos: t.fatos, catalogo, rastro }, historico);
+          resposta = await responder(t.diz, { owner, telefone: TELEFONE, escrita: true, porAudio: !!t.voz, duvidosas: t.voz, fatos: t.fatos, catalogo, rastro, foto: t.foto ? { path: `${owner}/whatsapp/eval.jpg`, usada: false } : undefined }, historico);
         } catch (e) {
           resposta = `ERRO: ${e instanceof Error ? e.message : String(e)}`;
         }
