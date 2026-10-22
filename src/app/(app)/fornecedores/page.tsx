@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Fornecedor } from "@/types/domain";
 import { linkWhatsApp } from "@/lib/format";
@@ -12,6 +13,7 @@ import {
   Table,
   btnIcon,
   btnPrimary,
+  btnSecondary,
   tbodyClass,
   tdClass,
   thClass,
@@ -34,6 +36,17 @@ export default async function FornecedoresPage({ searchParams }: PageProps<"/for
   }
   const { data, error } = await query;
 
+  const atalhos = (
+    <>
+      <Link href="/fornecedores/reposicao" className={btnSecondary}>
+        O que comprar
+      </Link>
+      <Link href="/fornecedores/compras" className={btnSecondary}>
+        Compras
+      </Link>
+    </>
+  );
+
   const novo = (
     <ContatoModal
       titulo="Novo fornecedor"
@@ -51,7 +64,7 @@ export default async function FornecedoresPage({ searchParams }: PageProps<"/for
   if (error) {
     return (
       <div>
-        <PageHeader title="Fornecedores" action={novo} />
+        <PageHeader title="Fornecedores" action={<>{atalhos}{novo}</>} />
         <ErrorMessage>Não foi possível carregar os fornecedores: {error.message}</ErrorMessage>
       </div>
     );

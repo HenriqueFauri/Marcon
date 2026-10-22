@@ -1,6 +1,7 @@
 import { rodarRotina } from "@/lib/push/cron";
 import { enviarCobrancasDoDia } from "@/lib/push/eventos";
 import { rotinaDeCortesias } from "@/lib/push/cortesias";
+import { rotinaDeContas } from "@/lib/push/contas";
 
 // Todo dia às 11h UTC (8h de Brasília): lembrete das parcelas vencendo hoje ou atrasadas e, na mesma
 // rotina, o fim e o aviso das cortesias (o plano Hobby da Vercel aceita só 2 rotinas agendadas).
@@ -12,6 +13,10 @@ export async function GET(request: Request) {
       console.error("[cron] cortesias", e);
       return { erro: true };
     });
-    return { cobrancas, cortesias };
+    const contas = await rotinaDeContas(admin).catch((e) => {
+      console.error("[cron] contas a pagar", e);
+      return { erro: true };
+    });
+    return { cobrancas, cortesias, contas };
   });
 }
