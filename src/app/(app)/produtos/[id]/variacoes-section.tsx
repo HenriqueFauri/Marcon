@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import type { ProdutoVariacao } from "@/types/domain";
 import { formatBRL } from "@/lib/format";
@@ -118,7 +119,7 @@ function EditarVariacao({
           Cancelar
         </button>
         <button type="submit" disabled={isPending} className={btnPrimary}>
-          {isPending ? "Salvando..." : "Salvar variação"}
+          <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar variação"}</RotuloAcao>
         </button>
       </div>
     </form>
@@ -250,7 +251,7 @@ export function VariacoesSection({
         <div className="col-span-2 sm:col-span-4">
           <button type="submit" disabled={isPending} className={btnSecondary}>
             <IconPlus width={16} height={16} />
-            {isPending ? "Salvando..." : "Adicionar variação"}
+            <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Adicionar variação"}</RotuloAcao>
           </button>
           {qtdInicial > 0 && (
             <label className="mt-3 flex cursor-pointer items-start gap-2 text-xs text-ink-muted">

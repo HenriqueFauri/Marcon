@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { mensagemDeErro } from "@/lib/action";
@@ -159,7 +160,7 @@ export function EmpresaForm({
         </Field>
         <div>
           <button type="submit" disabled={isPending} className={btnPrimary}>
-            {isPending ? "Salvando..." : "Salvar"}
+            <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar"}</RotuloAcao>
           </button>
         </div>
       </form>

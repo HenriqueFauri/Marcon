@@ -1,3 +1,4 @@
+import { SetaLink, linkPendente } from "@/components/seta-link";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -66,10 +67,10 @@ function LinhaAtencao({
   href, tom, icone, texto, valor,
 }: { href: string; tom: string; icone: ReactNode; texto: string; valor?: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3 border-t border-line py-2.5 text-sm text-ink first:border-t-0">
+    <Link href={href} className={`flex items-center gap-3 border-t border-line py-2.5 text-sm text-ink first:border-t-0 ${linkPendente}`}>
       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] ${tom}`}>{icone}</span>
       <span className="flex-1">{texto}</span>
-      {valor ? <span className="font-semibold tabular-nums">{valor}</span> : <span aria-hidden="true" className="text-ink-muted">›</span>}
+      {valor ? <span className="font-semibold tabular-nums">{valor}</span> : <SetaLink className="text-ink-muted" />}
     </Link>
   );
 }
@@ -82,7 +83,7 @@ function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; fe
         <Link
           key={p.href}
           href={p.href}
-          className="flex min-h-11 items-center gap-3 border-t border-line px-4 py-3 text-[17px] first:border-t-0 hover:bg-fill/60 active:bg-fill"
+          className={`flex min-h-11 items-center gap-3 border-t border-line px-4 py-3 text-[17px] first:border-t-0 hover:bg-fill/60 active:bg-fill ${linkPendente}`}
         >
           <span
             aria-hidden="true"
@@ -92,7 +93,7 @@ function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; fe
           </span>
           <span className={`flex-1 ${p.feito ? "text-ink-muted line-through" : "text-ink"}`}>{p.texto}</span>
           {p.feito && <span className="sr-only">(feito)</span>}
-          <span aria-hidden="true" className="text-lg text-ink-faint">›</span>
+          <SetaLink />
         </Link>
       ))}
     </Grupo>
@@ -105,7 +106,7 @@ function LinhaResumo({
   href, icone, tom, rotulo, valor, badge,
 }: { href: string; icone: ReactNode; tom: string; rotulo: string; valor?: string; badge?: number }) {
   return (
-    <Link href={href} className={`${LINHA} border-t border-line first:border-t-0 transition hover:bg-fill/60 active:bg-fill`}>
+    <Link href={href} className={`${LINHA} border-t border-line first:border-t-0 transition hover:bg-fill/60 active:bg-fill ${linkPendente}`}>
       <span className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg ${tom}`}>{icone}</span>
       <span className="flex-1">{rotulo}</span>
       {badge ? (
@@ -113,7 +114,7 @@ function LinhaResumo({
       ) : (
         valor && <span className="text-ink-muted tabular-nums">{valor}</span>
       )}
-      <span aria-hidden="true" className="text-lg text-ink-faint">›</span>
+      <SetaLink />
     </Link>
   );
 }

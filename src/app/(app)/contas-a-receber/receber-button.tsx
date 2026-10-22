@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useAction } from "@/components/use-action";
 import { Modal } from "@/components/modal";
@@ -103,7 +104,7 @@ export function ReceberButton({
           </p>
 
           <button type="submit" disabled={isPending || !valido} className={`${btnPrimary} w-full`}>
-            {isPending ? "Salvando..." : falta > 0.004 ? "Receber parte" : "Receber tudo"}
+            <RotuloAcao pendente={isPending} ocupado="Salvando...">{falta > 0.004 ? "Receber parte" : "Receber tudo"}</RotuloAcao>
           </button>
         </form>
       </Modal>

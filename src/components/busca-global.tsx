@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { buscarGeral, type ResultadoBusca } from "@/app/(app)/busca/actions";
+import { FotoProduto } from "./foto-produto";
 import { IconSearch } from "./icons";
 
 const GRUPOS: { chave: keyof ResultadoBusca; titulo: string; href: (id: string, titulo: string) => string }[] = [
@@ -132,10 +133,13 @@ export function BuscaGlobal({ variante }: { variante: "barra" | "icone" }) {
                         <Link
                           href={g.href(r.id, r.titulo)}
                           onClick={() => setAberto(false)}
-                          className="flex min-h-11 flex-col justify-center rounded-xl px-2 py-1.5 hover:bg-fill"
+                          className="flex min-h-11 items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-fill"
                         >
-                          <span className="truncate text-[15px] text-ink">{r.titulo}</span>
-                          {r.detalhe && <span className="truncate text-xs text-ink-muted">{r.detalhe}</span>}
+                          {g.chave === "produtos" && <FotoProduto compacta url={"foto" in r ? r.foto : null} />}
+                          <span className="flex min-w-0 flex-1 flex-col justify-center">
+                            <span className="truncate text-[15px] text-ink">{r.titulo}</span>
+                            {r.detalhe && <span className="truncate text-xs text-ink-muted">{r.detalhe}</span>}
+                          </span>
                         </Link>
                       </li>
                     ))}

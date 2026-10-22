@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SetaLink, linkPendente } from "./seta-link";
 
 // Peças no padrão do Início (Ajustes do iPhone): grupos com título pequeno em cima, linhas que
 // navegam e interruptores. Vieram da vitrine (src/app/(app)/vitrine/campos.tsx, que reexporta daqui).
@@ -85,14 +86,19 @@ export function LinhaLink({
 }) {
   const classe =
     "flex items-center gap-3 border-t border-line px-4 py-3 text-[17px] text-ink transition first:border-t-0 hover:bg-fill/60 active:bg-fill";
+  const classeInterna = `${classe} ${linkPendente}`;
   const conteudo = (
     <>
       {icone && <span className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg ${tom}`}>{icone}</span>}
       <span className="min-w-0 flex-1 truncate">{rotulo}</span>
       {detalhe && <span className="max-w-[45%] truncate text-ink-muted">{detalhe}</span>}
-      <span aria-hidden="true" className="text-lg text-ink-faint">
-        ›
-      </span>
+      {externo ? (
+        <span aria-hidden="true" className="text-lg text-ink-faint">
+          ›
+        </span>
+      ) : (
+        <SetaLink />
+      )}
     </>
   );
   return externo ? (
@@ -100,7 +106,7 @@ export function LinhaLink({
       {conteudo}
     </a>
   ) : (
-    <Link href={href} className={classe}>
+    <Link href={href} className={classeInterna}>
       {conteudo}
     </Link>
   );

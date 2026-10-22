@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
@@ -57,7 +58,7 @@ export function ExcluirProdutoButton({ produtoId, nome }: { produtoId: string; n
             }
             className={btnDanger}
           >
-            {isPending ? "Excluindo..." : "Excluir produto"}
+            <RotuloAcao pendente={isPending} ocupado="Excluindo...">{"Excluir produto"}</RotuloAcao>
           </button>
         </div>
       </Modal>

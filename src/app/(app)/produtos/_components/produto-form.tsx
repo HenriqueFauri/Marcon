@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Fornecedor, ProdutoComEstoque } from "@/types/domain";
@@ -448,7 +449,7 @@ export function ProdutoForm({
               <Field label="SKU / código">
                 <input name="sku" defaultValue={produto?.sku ?? ""} className={inputClass} placeholder="Opcional" />
               </Field>
-              <Field label="Código de barras" hint="Na venda e no estoque, aponte a câmera para achar o produto.">
+              <Field label="Código de barras" hint="Digite, use um leitor USB ou Bluetooth (ele digita sozinho) ou aponte a câmera.">
                 <div className="flex gap-2">
                   <input
                     name="codigo_barras"
@@ -616,7 +617,7 @@ export function ProdutoForm({
           Cancelar
         </button>
         <button type="submit" disabled={isPending} className={btnPrimary}>
-          {isPending ? "Salvando..." : editando ? "Salvar alterações" : "Cadastrar produto"}
+          <RotuloAcao pendente={isPending} ocupado="Salvando...">{editando ? "Salvar alterações" : "Cadastrar produto"}</RotuloAcao>
         </button>
       </div>
     </form>

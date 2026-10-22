@@ -1,10 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { capasDeProdutos } from "@/lib/capas";
 import { formatBRL, formatDataCurta } from "@/lib/format";
 
 export interface ResultadoBusca {
-  produtos: { id: string; titulo: string; detalhe: string }[];
+  produtos: { id: string; titulo: string; detalhe: string; foto: string | null }[];
   clientes: { id: string; titulo: string; detalhe: string }[];
   vendas: { id: string; titulo: string; detalhe: string }[];
 }
@@ -40,8 +41,13 @@ export async function buscarGeral(texto: string): Promise<ResultadoBusca> {
       .order("nome")
       .limit(LIMITE),
     supabase.from("vendas").select("id").ilike("cliente_nome", termo).order("data", { ascending: false }).limit(LIMITE),
-    supabase.from("venda_itens").select("venda_id").ilike("produto_nome", termo).limit(LIMITE * 2),
+    supabase.from("venda_itens").select("venda_id, produto_nome").ilike("produto_nome", termo).limit(LIMITE * 2),
   ]);
+
+  // venda que casou só pelo item vendido: o detalhe mostra o item, senão o resultado parece não ter nada a ver
+  const itemPorVenda = new Map<string, string>();
+  for (const i of itens.data ?? []) if (!itemPorVenda.has(i.venda_id)) itemPorVenda.set(i.venda_id, i.produto_nome);
+  const porCliente = new Set((vendasPorCliente.data ?? []).map((v) => v.id));
 
   const ids = [...new Set([...(vendasPorCliente.data ?? []).map((v) => v.id), ...(itens.data ?? []).map((i) => i.venda_id)])];
   const vendas = ids.length
@@ -53,17 +59,23 @@ export async function buscarGeral(texto: string): Promise<ResultadoBusca> {
         .limit(LIMITE)
     : { data: [] };
 
+  const capas = await capasDeProdutos(
+    supabase,
+    (produtos.data ?? []).map((p) => p.id),
+  );
+
   return {
     produtos: (produtos.data ?? []).map((p) => ({
       id: p.id,
       titulo: p.nome,
       detalhe: `${formatBRL(Number(p.preco_varejo))} · ${Number(p.estoque_atual)} em estoque`,
+      foto: capas.get(p.id) ?? null,
     })),
     clientes: (clientes.data ?? []).map((c) => ({ id: c.id, titulo: c.nome, detalhe: c.telefone ?? "" })),
     vendas: (vendas.data ?? []).map((v) => ({
       id: v.id,
       titulo: v.cliente_nome || "Venda sem cliente",
-      detalhe: `${formatDataCurta(v.data)} · ${formatBRL(Number(v.valor_total))}${v.status === "cancelada" ? " · cancelada" : ""}`,
+      detalhe: `${!porCliente.has(v.id) && itemPorVenda.has(v.id) ? `${itemPorVenda.get(v.id)} · ` : ""}${formatDataCurta(v.data)} · ${formatBRL(Number(v.valor_total))}${v.status === "cancelada" ? " · cancelada" : ""}`,
     })),
   };
 }

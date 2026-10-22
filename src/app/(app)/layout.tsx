@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { avisarContaNova } from "@/lib/push/contas-novas";
 import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
+import { BarraDeProgresso } from "@/components/barra-de-progresso";
 import { ToastProvider } from "@/components/toaster";
 import { AvisoCortesia } from "@/components/aviso-cortesia";
 import { AvisoOffline } from "@/components/aviso-offline";
@@ -41,6 +43,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <ToastProvider>
+      <Suspense fallback={null}>
+        <BarraDeProgresso />
+      </Suspense>
       <AvisoOffline />
       <div data-clarity-mask="true" className="flex min-h-dvh">
         <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />

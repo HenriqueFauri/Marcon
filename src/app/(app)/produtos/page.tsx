@@ -3,6 +3,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { ProdutoComEstoque } from "@/types/domain";
 import { formatBRL, hojeISO, somarDias } from "@/lib/format";
+import { capasDeProdutos } from "@/lib/capas";
+import { SetaLink, linkPendente } from "@/components/seta-link";
+import { FotoProduto } from "@/components/foto-produto";
 import { situacaoEstoque } from "@/lib/estoque";
 import { SearchInput } from "@/components/search-input";
 import {
@@ -97,6 +100,11 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
     return [p.nome, p.marca, p.sku, p.codigo_barras, p.categorias?.nome].some((v) => v?.toLowerCase().includes(q));
   });
 
+  const capas = await capasDeProdutos(
+    supabase,
+    lista.map((p) => p.id),
+  );
+
   const filtroHref = (valor: string) => {
     const qs = new URLSearchParams();
     if (valor) qs.set("filtro", valor);
@@ -161,7 +169,8 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
             const situacao = situacaoEstoque(p);
             return (
               <li key={p.id}>
-                <Link href={`/produtos/${p.id}`} className="flex items-center gap-3 px-4 py-3 transition active:bg-fill">
+                <Link href={`/produtos/${p.id}`} className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${linkPendente}`}>
+                  <FotoProduto url={capas.get(p.id) ?? null} />
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-2 text-[17px] leading-snug text-ink">{p.nome}</span>
                     <span className="block truncate text-[13px] text-ink-muted">
@@ -176,9 +185,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
                       {p.estoque_total} {p.unidade_medida}
                     </span>
                   </span>
-                  <span aria-hidden="true" className="text-lg text-ink-faint">
-                    ›
-                  </span>
+                  <SetaLink />
                 </Link>
               </li>
             );
@@ -204,13 +211,18 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
               return (
                 <tr key={p.id} className="relative hover:bg-fill/50">
                   <td className={tdClass}>
-                    <Link href={`/produtos/${p.id}`} className="font-medium text-ink after:absolute after:inset-0">
-                      {p.nome}
-                    </Link>
-                    <p className="text-xs text-ink-muted">
-                      {[p.categorias?.nome, p.marca, p.tem_variacoes ? "com variações" : null].filter(Boolean).join(" · ") ||
-                        "Sem categoria"}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <FotoProduto compacta url={capas.get(p.id) ?? null} />
+                      <div className="min-w-0">
+                        <Link href={`/produtos/${p.id}`} className="font-medium text-ink after:absolute after:inset-0">
+                          {p.nome}
+                        </Link>
+                        <p className="text-xs text-ink-muted">
+                          {[p.categorias?.nome, p.marca, p.tem_variacoes ? "com variações" : null].filter(Boolean).join(" · ") ||
+                            "Sem categoria"}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                   <td className={`${tdClass} hidden text-right tabular-nums text-ink-muted sm:table-cell`}>
                     {formatBRL(custo)}

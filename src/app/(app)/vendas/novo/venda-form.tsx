@@ -9,7 +9,8 @@ import { Card, Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
 import { IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { registrarVenda } from "../actions";
-import { FotoProduto, ListaProdutos, agruparVendaveis } from "./produto-seletor";
+import { FotoProduto } from "@/components/foto-produto";
+import { ListaProdutos, agruparVendaveis } from "./produto-seletor";
 
 export interface Vendavel {
   chave: string;
