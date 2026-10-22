@@ -201,7 +201,6 @@ export interface ParcelaComVenda extends Parcela {
 export interface AnuncioPublicacao {
   id: string;
   produto_id: string;
-  canal_id: string;
   link: string | null;
   publicado_em: string;
   renovar_dias: number;

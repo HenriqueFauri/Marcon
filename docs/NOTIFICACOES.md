@@ -26,9 +26,10 @@ Gerado a partir de `src/lib/notificacoes.ts` em 2026-10-12. Se as frases mudarem
 | Marcos de faturamento | Marco de R$ 5 mil no mês | Uma vez, quando o faturamento do mês passa de R$ 5 | 12 |
 | Marcos de faturamento | Marco de R$ 10 mil no mês | Uma vez, quando o faturamento do mês passa de R$ 10 | 12 |
 | Lembrete de cobrança | Lembrete de cobrança | Todo dia às 8h (Brasília), só se houver parcela vencendo hoje ou atrasada | 16 |
+| Renovar anúncios | Hora de renovar anúncio | Todo dia às 8h (Brasília), só se algum anúncio publicado passou do prazo de renovar | 8 |
 | Resumo do dia | Resumo do dia | Todo dia entre 20h e 20h59 (Brasília), só para quem vendeu no dia | 14 |
 
-Total: **150 frases** em 10 tipos de aviso, 7 grupos.
+Total: **158 frases** em 11 tipos de aviso, 8 grupos.
 
 ## Venda registrada
 
@@ -266,6 +267,25 @@ Total: **150 frases** em 10 tipos de aviso, 7 grupos.
 | 15 | Contas a receber chamando 📞 |  |
 | 16 | Seu dinheiro quer voltar pra casa 🏠 |  |
 
+## Renovar anúncios
+
+- **Quando:** Todo dia às 8h (Brasília), na mesma rotina das cobranças, só se algum produto tem anúncio publicado (Anúncios, "Onde está publicado") que passou do prazo de renovar. Um aviso por conta. Repete todo dia até a pessoa tocar em "Renovei hoje". Produto inativo não entra.
+- **Corpo (dados):** Primeira linha: quantidade de anúncios para renovar. Segunda linha: até 3 nomes de produto e `e mais N`.
+- **Exemplo de corpo:** 2 anúncios para renovar / Fone Bluetooth, Tênis Casual
+- **Ao tocar, abre:** O anúncio do produto (`/anuncios/<id>`) se for um só, ou a lista de Anúncios (`/anuncios`)
+- **Liga e desliga em:** Configurações, grupo "Renovar anúncios"
+
+| # | Título | Linha extra antes dos dados |
+|---|---|---|
+| 1 | Hora de renovar anúncio 🔄 |  |
+| 2 | Anúncio velho perde força 📉 |  |
+| 3 | Dá um gás nos anúncios 🚀 |  |
+| 4 | Anúncios pedindo renovação ⏰ |  |
+| 5 | Republica pra voltar ao topo 📌 |  |
+| 6 | Seu anúncio já passou do prazo 👀 |  |
+| 7 | Que tal renovar hoje? 😉 |  |
+| 8 | Anúncio fresquinho vende mais 🛒 |  |
+
 ## Resumo do dia
 
 - **Quando:** Todo dia às 20h de Brasília (`/api/cron/resumo`, 23h UTC), só para quem registrou pelo menos uma venda com a data de hoje. No plano Hobby da Vercel a rotina sai em qualquer minuto entre 20h e 20h59. Dia sem venda não tem resumo, mesmo com parcela vencendo amanhã (o lembrete de cobrança da manhã seguinte cobre).
@@ -302,7 +322,7 @@ Total: **150 frases** em 10 tipos de aviso, 7 grupos.
 
 | Rota | Horário (UTC) | Horário (Brasília) | O que faz |
 |---|---|---|---|
-| `/api/cron/cobrancas` | `0 11 * * *` | 8h | Lembrete de cobrança |
+| `/api/cron/cobrancas` | `0 11 * * *` | 8h | Lembrete de cobrança e renovar anúncios |
 | `/api/cron/resumo` | `0 23 * * *` | 20h | Resumo do dia |
 
 Ficam em `vercel.json` e exigem `CRON_SECRET` (sem ele respondem 401). Plano Hobby da Vercel, conferido na documentação em 2026-10-12: até 100 rotinas por projeto, cada uma no máximo uma vez por dia, com precisão de uma hora (a das 20h sai entre 20h e 20h59). Expressão que rode mais de uma vez por dia derruba o deploy.
