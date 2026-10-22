@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { Modal } from "@/components/modal";
 import { useAction } from "@/components/use-action";
@@ -34,7 +35,7 @@ export function MetasButton({ metaVendas, metaLucro }: { metaVendas: number | nu
             <input name="meta_lucro" inputMode="decimal" defaultValue={metaLucro ?? ""} placeholder="Ex: 4200" className={inputClass} />
           </Field>
           <button type="submit" disabled={isPending} className={`${btnPrimary} w-full`}>
-            {isPending ? "Salvando..." : "Salvar metas"}
+            <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar metas"}</RotuloAcao>
           </button>
         </form>
       </Modal>

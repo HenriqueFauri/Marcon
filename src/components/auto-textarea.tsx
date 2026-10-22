@@ -19,14 +19,24 @@ export function AutoTextarea({
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
+    // dentro de um bloco recolhido (Mais detalhes) o campo não tem medida: deixa em auto até aparecer
+    if (el.scrollHeight === 0) return;
     el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
   }
 
   useLayoutEffect(ajustar, [props.value]);
-  // a largura muda (girar o celular, redimensionar a janela) e o texto dobra diferente
+  // a largura muda (girar o celular, redimensionar a janela, abrir o bloco recolhido em que o campo está) e o texto dobra diferente
   useEffect(() => {
-    window.addEventListener("resize", ajustar);
-    return () => window.removeEventListener("resize", ajustar);
+    const el = ref.current;
+    if (!el) return;
+    let largura = el.offsetWidth;
+    const observador = new ResizeObserver(() => {
+      if (el.offsetWidth === largura) return;
+      largura = el.offsetWidth;
+      ajustar();
+    });
+    observador.observe(el);
+    return () => observador.disconnect();
   }, []);
 
   function mudar(e: ChangeEvent<HTMLTextAreaElement>) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useAction } from "@/components/use-action";
 import { Modal } from "@/components/modal";
@@ -52,7 +53,7 @@ export function PagarButton({ id, descricao, valor, mensal }: { id: string; desc
               : `Sai ${formatBRL(valor)} do caixa.`}
           </p>
           <button type="submit" disabled={isPending} className={`${btnPrimary} w-full`}>
-            {isPending ? "Salvando..." : "Confirmar pagamento"}
+            <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Confirmar pagamento"}</RotuloAcao>
           </button>
         </form>
       </Modal>

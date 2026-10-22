@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Modal } from "./modal";
 import { btnPrimary, btnSecondary, inputClass } from "./ui";
 
@@ -12,11 +12,15 @@ type ConstrutorDetector = new (opcoes?: { formats?: string[] }) => DetectorDeCod
 
 const FORMATOS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf"];
 
-function criarDetector(): DetectorDeCodigo | null {
-  const Construtor = (globalThis as { BarcodeDetector?: ConstrutorDetector }).BarcodeDetector;
-  if (!Construtor) return null;
+// Chrome no Android e no Mac já têm o BarcodeDetector. No resto (iPhone, Firefox, Chrome no Windows) entra o
+// ponyfill zxing: carregado só ao abrir o leitor, com o .wasm servido do próprio domínio (a CSP não libera CDN).
+async function criarDetector(): Promise<DetectorDeCodigo | null> {
   try {
-    return new Construtor({ formats: FORMATOS });
+    const nativo = (globalThis as { BarcodeDetector?: ConstrutorDetector }).BarcodeDetector;
+    if (nativo) return new nativo({ formats: FORMATOS });
+    const { BarcodeDetector, setZXingModuleOverrides } = await import("barcode-detector/ponyfill");
+    setZXingModuleOverrides({ locateFile: (arquivo, prefixo) => (arquivo.endsWith(".wasm") ? "/zxing_reader.wasm" : prefixo + arquivo) });
+    return new BarcodeDetector({ formats: FORMATOS as never }) as unknown as DetectorDeCodigo;
   } catch {
     return null;
   }
@@ -34,19 +38,10 @@ function Camera({ onCodigo, onIndisponivel }: { onCodigo: (c: string) => void; o
   });
 
   useEffect(() => {
-    const detector = criarDetector();
-    if (!detector) {
-      aoFalhar.current("Este navegador não lê código de barras pela câmera. Digite o código abaixo.");
-      return;
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      aoFalhar.current("Não deu para abrir a câmera aqui. Digite o código abaixo.");
-      return;
-    }
-
     let parar = false;
     let stream: MediaStream | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let detector: DetectorDeCodigo | null = null;
 
     async function ciclo() {
       const video = videoRef.current;
@@ -67,7 +62,18 @@ function Camera({ onCodigo, onIndisponivel }: { onCodigo: (c: string) => void; o
       if (!parar) timer = setTimeout(ciclo, 200);
     }
 
-    navigator.mediaDevices
+    criarDetector().then((d) => {
+      if (parar) return;
+      if (!d) {
+        aoFalhar.current("Não deu para carregar o leitor aqui. Digite o código abaixo.");
+        return;
+      }
+      detector = d;
+      iniciar();
+    });
+
+    function iniciar() {
+      navigator.mediaDevices
       .getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false })
       .then(async (s) => {
         if (parar) {
@@ -84,6 +90,7 @@ function Camera({ onCodigo, onIndisponivel }: { onCodigo: (c: string) => void; o
       .catch(() => {
         aoFalhar.current("A câmera não abriu. Libere o acesso no navegador ou digite o código abaixo.");
       });
+    }
 
     return () => {
       parar = true;
@@ -100,7 +107,7 @@ function Camera({ onCodigo, onIndisponivel }: { onCodigo: (c: string) => void; o
   );
 }
 
-// Botão que abre a câmera e devolve o código lido. Sem câmera ou sem BarcodeDetector, sobra o campo de digitar.
+// Botão que abre a câmera e devolve o código lido. Sem câmera o botão não aparece: sobra o campo de digitar, que também recebe leitor USB e Bluetooth (digitam como teclado).
 export function BotaoLerCodigo({
   onCodigo,
   rotulo = "Ler código de barras",
@@ -113,6 +120,12 @@ export function BotaoLerCodigo({
   const [aberto, setAberto] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [digitado, setDigitado] = useState("");
+  // sem câmera (página sem HTTPS, aparelho sem câmera) o botão some e fica o campo de digitar ou o leitor USB/Bluetooth
+  const comCamera = useSyncExternalStore(
+    () => () => {},
+    () => !!navigator.mediaDevices?.getUserMedia,
+    () => false,
+  );
 
   function fechar() {
     setAberto(false);
@@ -126,6 +139,8 @@ export function BotaoLerCodigo({
     fechar();
     onCodigo(limpo);
   }
+
+  if (!comCamera) return null;
 
   return (
     <>

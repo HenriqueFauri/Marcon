@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { formatBRL } from "@/lib/format";
-import { IconBox, IconPlus } from "@/components/icons";
+import { IconPlus } from "@/components/icons";
+import { FotoProduto } from "@/components/foto-produto";
 import { BotaoLerCodigo } from "@/components/leitor-codigo";
 import { btnSecondary } from "@/components/ui";
 import type { Vendavel } from "./venda-form";
@@ -36,34 +37,6 @@ export function agruparVendaveis(vendaveis: Vendavel[]): GrupoVendavel[] {
     }
   }
   return [...grupos.values()];
-}
-
-// Foto pequena do produto (capa). Sem foto, ou se o link assinado venceu com a
-// tela aberta há muito tempo, fica o ícone de caixa.
-export function FotoProduto({ url }: { url: string | null }) {
-  const [falhou, setFalhou] = useState(false);
-  if (!url || falhou) {
-    return (
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-tint text-brand-text">
-        <IconBox width={22} height={22} strokeWidth={1.9} />
-      </span>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      // a foto pode falhar antes de o React assumir a página: aí o onError não chega, então confere ao montar
-      ref={(img) => {
-        if (img?.complete && img.naturalWidth === 0) setFalhou(true);
-      }}
-      onError={() => setFalhou(true)}
-      className="h-11 w-11 shrink-0 rounded-xl bg-fill object-cover"
-    />
-  );
 }
 
 // "Azul / M" -> ["Azul", "M"]. O app grava a variação como texto livre, então

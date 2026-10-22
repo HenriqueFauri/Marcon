@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "@/components/use-action";
@@ -113,7 +114,7 @@ export function SaqueCard({
           </Field>
         </div>
         <button type="submit" disabled={isPending} className={`${btnPrimary} sm:mb-px`}>
-          {isPending ? "Pedindo..." : "Pedir saque"}
+          <RotuloAcao pendente={isPending} ocupado="Pedindo...">{"Pedir saque"}</RotuloAcao>
         </button>
       </form>
     </Card>

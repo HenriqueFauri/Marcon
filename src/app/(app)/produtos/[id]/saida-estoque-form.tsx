@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import type { ProdutoVariacao } from "@/types/domain";
 import { useAction } from "@/components/use-action";
@@ -77,7 +78,7 @@ export function SaidaEstoqueForm({
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
         <p className="text-xs text-ink-muted">Baixa o estoque e fica no histórico. Não mexe no caixa.</p>
         <button type="submit" disabled={isPending} className={btnPrimary}>
-          {isPending ? "Salvando..." : "Registrar saída"}
+          <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Registrar saída"}</RotuloAcao>
         </button>
       </div>
     </form>

@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAction } from "@/components/use-action";
@@ -262,7 +263,7 @@ export function FormCompra({
           Cancelar
         </button>
         <button type="submit" disabled={!podeSalvar} className={`${btnPrimary} w-full sm:w-auto`}>
-          {isPending ? "Salvando..." : "Registrar compra"}
+          <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Registrar compra"}</RotuloAcao>
         </button>
       </div>
     </form>

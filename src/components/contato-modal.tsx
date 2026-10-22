@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState, type ReactNode } from "react";
 import type { ActionResult } from "@/lib/action";
 import { Modal } from "./modal";
@@ -101,7 +102,7 @@ export function ContatoModal({
               Cancelar
             </button>
             <button type="submit" disabled={isPending} className={btnPrimary}>
-              {isPending ? "Salvando..." : "Salvar"}
+              <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar"}</RotuloAcao>
             </button>
           </div>
         </form>

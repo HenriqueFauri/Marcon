@@ -6,10 +6,12 @@ import type { NextConfig } from "next";
 // quebrar, o console mostra "Refused to ..." com o endereço a incluir na lista.
 // 'unsafe-inline' fica por causa do script do tema escuro no layout e dos scripts do next/script;
 // 'unsafe-eval' só em desenvolvimento (o Next precisa dele no modo dev).
+// 'wasm-unsafe-eval' só deixa compilar WebAssembly (não libera eval de JavaScript): é do leitor de código
+// de barras do iPhone (zxing), cujo arquivo fica em public/zxing_reader.wasm, do próprio domínio.
 const dev = process.env.NODE_ENV !== "production";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${dev ? " 'unsafe-eval'" : ""} https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms`,
   "style-src 'self' 'unsafe-inline'",
   // fotos e logos vêm de links assinados do Supabase Storage
   "img-src 'self' data: blob: https://*.supabase.co https://www.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
@@ -38,7 +40,7 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
         ],
       },
       // a prévia da loja abre num iframe de Personalizar: só o próprio app pode emoldurar
