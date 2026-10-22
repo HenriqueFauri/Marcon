@@ -46,7 +46,7 @@ interface ItemCarrinho {
 }
 
 // aceita "12,50", "12.50" e "1.234,50"
-function paraNumero(v: string) {
+export function paraNumero(v: string) {
   const t = v.trim();
   // sem vírgula, "1.234" é milhar (1234) e "12.5" é decimal
   const limpo = t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : t;
@@ -55,12 +55,12 @@ function paraNumero(v: string) {
 }
 
 // o preço aparece no jeito brasileiro (79,00); paraNumero lê de volta
-function emTexto(n: number) {
+export function emTexto(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // campo de dinheiro: só dígitos, que entram como centavos (1 → 0,01; 12 → 0,12; 125 → 1,25)
-function mascaraDinheiro(digitado: string) {
+export function mascaraDinheiro(digitado: string) {
   const digitos = digitado.replace(/\D/g, "").replace(/^0+/, "").slice(0, 11);
   return digitos ? emTexto(Number(digitos) / 100) : "";
 }
@@ -79,7 +79,7 @@ function somarMeses(dataISO: string, meses: number) {
 }
 
 // Linha de formulário no estilo iOS: rótulo à esquerda, valor à direita.
-function Linha({ rotulo, children, extra }: { rotulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
+export function Linha({ rotulo, children, extra }: { rotulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
   return (
     <div className="border-t border-line first:border-t-0">
       <label className="flex items-center justify-between gap-4 py-3">
@@ -91,17 +91,17 @@ function Linha({ rotulo, children, extra }: { rotulo: string; children: React.Re
   );
 }
 
-const valorLinha =
+export const valorLinha =
   "w-full min-w-0 cursor-pointer bg-transparent text-right [text-align-last:right] text-[17px] text-ink-2 outline-none placeholder:text-ink-muted focus:text-ink";
 
 // o que aparece na lista enquanto a pessoa ainda não cadastrou os próprios (Configurações)
-const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
-const CANAIS_SUGERIDOS = ["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre", "Vitrine"];
+export const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
+export const CANAIS_SUGERIDOS = ["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre", "Vitrine"];
 
 // Campo "escolha da lista ou digite": select com os cadastrados + texto livre.
 // Com `sugestoes`, vira sempre uma lista de escolha: os cadastrados, depois as sugestões
 // que ainda não estão cadastradas e "Outro" (aí sim aparece o campo de texto).
-function SelectOuTexto({
+export function SelectOuTexto({
   label,
   opcoes,
   id,
@@ -299,6 +299,7 @@ export function VendaForm({
   const [formaNome, setFormaNome] = useState(formaPedido ? "" : (pedido?.pagamento ?? ""));
   const [desconto, setDesconto] = useState(pedido && pedido.desconto > 0 ? emTexto(pedido.desconto) : "");
   const [outrosGastos, setOutrosGastos] = useState("");
+  const [entrada, setEntrada] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState<"a_vista" | "a_prazo">("a_vista");
   const [numeroParcelas, setNumeroParcelas] = useState(2);
   const [data, setData] = useState(hoje);
@@ -349,7 +350,10 @@ export function VendaForm({
   // outros gastos (motoboy, embalagem...) saem do bolso do lojista: baixam o lucro, não o total do cliente
   const lucro = total - custo - valorOutros;
   const parcelasValidas = Math.min(Math.max(Math.trunc(numeroParcelas) || 1, 1), 60);
-  const valorParcela = parcelasValidas > 0 ? total / parcelasValidas : 0;
+  // entrada paga agora: entra no caixa hoje; o restante vira as parcelas
+  const valorEntrada = tipoPagamento === "a_prazo" ? paraNumero(entrada) : 0;
+  const restante = total - valorEntrada;
+  const valorParcela = parcelasValidas > 0 ? restante / parcelasValidas : 0;
 
   function precoPadrao(v: Vendavel) {
     return tabela === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
@@ -394,6 +398,7 @@ export function VendaForm({
     if (valorDesconto < 0) return "O desconto não pode ser negativo.";
     if (valorDesconto > subtotal) return "O desconto é maior que o total da venda.";
     if (valorOutros < 0) return "Os outros gastos não podem ser negativos.";
+    if (valorEntrada > 0 && valorEntrada >= total) return "A entrada precisa ser menor que o total. Se pagou tudo, escolha À vista.";
     if (tipoPagamento === "a_prazo" && !clienteId && !clienteNome.trim())
       return "Informe o cliente: venda a prazo precisa saber de quem cobrar.";
     return null;
@@ -432,6 +437,7 @@ export function VendaForm({
           numeroParcelas: parcelasValidas,
           primeiroVencimento,
           desconto: valorDesconto,
+          entrada: valorEntrada,
           outrosGastos: valorOutros,
           data,
           pedidoId: pedido?.id ?? null,
@@ -655,6 +661,21 @@ export function VendaForm({
             </div>
 
             {tipoPagamento === "a_prazo" && (
+              <Linha
+                rotulo="Entrada paga agora (R$)"
+                extra={<p className="text-[13px] text-ink-muted">Entra no caixa hoje. O que sobrar vira as parcelas.</p>}
+              >
+                <input
+                  inputMode="numeric"
+                  value={entrada}
+                  onChange={(e) => setEntrada(mascaraDinheiro(e.target.value))}
+                  placeholder="0,00"
+                  className={valorLinha}
+                />
+              </Linha>
+            )}
+
+            {tipoPagamento === "a_prazo" && (
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Nº de parcelas">
                   <input
@@ -767,6 +788,9 @@ export function VendaForm({
 
           {tipoPagamento === "a_prazo" && total > 0 && (
             <div className="mt-3 rounded-lg bg-fill/60 p-3 text-xs text-ink-muted">
+              {valorEntrada > 0 && valorEntrada < total && (
+                <p className="mb-1 font-medium text-ink-2">Entrada de {formatBRL(valorEntrada)} hoje, mais</p>
+              )}
               <p className="mb-1 font-medium text-ink-2">
                 {parcelasValidas}x de {formatBRL(valorParcela)}
               </p>

@@ -186,6 +186,8 @@ export interface Parcela {
   data_pagamento: string | null;
   // parte recebida de uma parcela (migration 0045): a parcela original segue com o que falta
   parcial: boolean;
+  // entrada paga na hora da venda (migration 0052): a parcela 1, já paga
+  entrada?: boolean;
 }
 
 export interface ParcelaComVenda extends Parcela {
