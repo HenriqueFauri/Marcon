@@ -10,8 +10,8 @@ import {
   IconGift,
   IconHome,
   IconMegaphone,
+  IconMore,
   IconPlus,
-  IconSearch,
   IconReceipt,
   IconSettings,
   IconShield,
@@ -22,6 +22,7 @@ import {
   IconX,
 } from "./icons";
 import { Badge } from "./ui";
+import { BuscaGlobal } from "./busca-global";
 import { SignOutButton } from "./sign-out-button";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -49,8 +50,10 @@ const NAV: NavItem[] = [
   { href: "/admin", label: "Administração", icon: IconShield },
 ];
 
-// atalhos da barra inferior no celular; o resto fica no menu
-const NAV_MOBILE = ["/", "/vendas", "/produtos", "/anuncios"];
+// atalhos da barra inferior no celular; o resto fica no "Mais", com Vitrine, Contas a receber e Caixa em destaque
+const NAV_MOBILE = ["/", "/vendas", "/produtos"];
+const NAV_DESTAQUE = ["/vitrine", "/contas-a-receber", "/fluxo-de-caixa"];
+const ROTULO_DESTAQUE: Record<string, string> = { "/contas-a-receber": "A receber", "/fluxo-de-caixa": "Caixa" };
 
 // no desktop o menu se divide em grupos, como na barra lateral do Mac
 const GRUPOS: { titulo: string | null; hrefs: string[] }[] = [
@@ -177,8 +180,11 @@ export function Sidebar({
   const pathname = usePathname();
   return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-line bg-surface/60 px-3 py-5 lg:flex">
-      <div className="mb-6 px-2">
+      <div className="mb-4 px-2">
         <Marca nomeNegocio={nomeNegocio} nome={nome} />
+      </div>
+      <div className="mb-4 px-1">
+        <BuscaGlobal variante="barra" />
       </div>
       <div className="flex-1 overflow-y-auto">
         <ListaNav pathname={pathname} contagens={contagens} admin={admin} />
@@ -227,13 +233,7 @@ export function MobileNav({
   return (
     <>
       <header className={`sticky top-0 z-30 ${emVenda ? "hidden" : "flex"} items-center justify-end gap-2.5 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden`}>
-        <Link
-          href="/produtos?buscar=1"
-          aria-label="Buscar produtos"
-          className="glass flex h-11 w-11 items-center justify-center rounded-full text-ink shadow-sm ring-1 ring-line/60"
-        >
-          <IconSearch width={20} height={20} strokeWidth={2.2} />
-        </Link>
+        <BuscaGlobal variante="icone" />
         <button
           onClick={() => setAberto(true)}
           aria-label={pedidosNovos > 0 ? `Abrir menu, ${SELOS["/vitrine"](pedidosNovos)} na vitrine` : "Abrir menu"}
@@ -267,6 +267,18 @@ export function MobileNav({
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setAberto(true)}
+          aria-label={pedidosNovos > 0 ? `Mais, ${SELOS["/vitrine"](pedidosNovos)} na vitrine` : "Mais"}
+          className="relative flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-medium text-tab-ink"
+        >
+          <IconMore width={22} height={22} />
+          <span className="max-w-full truncate px-1">Mais</span>
+          {pedidosNovos > 0 && (
+            <span aria-hidden="true" className="absolute right-[28%] top-1.5 h-2.5 w-2.5 rounded-full bg-danger ring-2 ring-canvas" />
+          )}
+        </button>
       </nav>
 
       {!emVenda && (
@@ -285,6 +297,7 @@ export function MobileNav({
         onClick={(e) => {
           if (e.target === ref.current) setAberto(false);
         }}
+        aria-label="Menu"
         className="mb-0 mt-auto max-h-[85dvh] w-full max-w-none rounded-t-[28px] bg-surface p-0 text-ink backdrop:bg-black/40 backdrop:backdrop-blur-sm"
       >
         <div className="flex flex-col gap-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -297,6 +310,26 @@ export function MobileNav({
             >
               <IconX />
             </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {NAV.filter((i) => NAV_DESTAQUE.includes(i.href)).map((item) => {
+              const Icone = item.icon;
+              const isAtivo = ativo(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setAberto(false)}
+                  aria-current={isAtivo ? "page" : undefined}
+                  className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[13px] font-medium ${
+                    isAtivo ? "bg-brand-tint text-brand-text" : "bg-fill text-ink"
+                  }`}
+                >
+                  <Icone width={22} height={22} className="text-brand-text" />
+                  <span className="max-w-full truncate">{ROTULO_DESTAQUE[item.href] ?? item.label}</span>
+                </Link>
+              );
+            })}
           </div>
           <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} contagens={contagens} admin={admin} />
           <PlanoLink plano={plano} pathname={pathname} onNavigate={() => setAberto(false)} />

@@ -8,10 +8,12 @@ interface Toast {
   id: number;
   tipo: ToastTipo;
   mensagem: string;
+  desfazer?: () => void;
 }
 
 interface ToastApi {
-  success: (mensagem: string) => void;
+  // com `desfazer`, o aviso ganha um botão e fica um pouco mais na tela
+  success: (mensagem: string, opts?: { desfazer?: () => void }) => void;
   error: (mensagem: string) => void;
 }
 
@@ -26,17 +28,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const mostrar = useCallback(
-    (tipo: ToastTipo, mensagem: string) => {
+    (tipo: ToastTipo, mensagem: string, desfazer?: () => void) => {
       const id = ++proximoId.current;
-      setToasts((prev) => [...prev.slice(-2), { id, tipo, mensagem }]);
-      setTimeout(() => remover(id), tipo === "error" ? 6000 : 3500);
+      setToasts((prev) => [...prev.slice(-2), { id, tipo, mensagem, desfazer }]);
+      setTimeout(() => remover(id), tipo === "error" || desfazer ? 6000 : 3500);
     },
     [remover],
   );
 
   const api = useMemo<ToastApi>(
     () => ({
-      success: (m) => mostrar("success", m),
+      success: (m, opts) => mostrar("success", m, opts?.desfazer),
       error: (m) => mostrar("error", m),
     }),
     [mostrar],
@@ -65,10 +67,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <IconCheck className="mt-0.5 shrink-0" />
             )}
             <span className="flex-1">{t.mensagem}</span>
+            {t.desfazer && (
+              <button
+                onClick={() => {
+                  remover(t.id);
+                  t.desfazer?.();
+                }}
+                className="-my-2 shrink-0 rounded-full px-3 py-2.5 text-sm font-semibold text-brand-text hover:bg-fill"
+              >
+                Desfazer
+              </button>
+            )}
             <button
               onClick={() => remover(t.id)}
               aria-label="Fechar aviso"
-              className="shrink-0 text-ink-muted hover:text-ink"
+              className="-m-2 shrink-0 p-2 text-ink-muted hover:text-ink"
             >
               <IconX width={16} height={16} />
             </button>

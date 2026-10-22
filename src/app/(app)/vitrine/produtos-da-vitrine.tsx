@@ -83,7 +83,10 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
     const ids = visiveis.filter((p) => p.naVitrine !== valor).map((p) => p.id);
     if (ids.length === 0) return;
     aplicar(ids, { naVitrine: valor }, () => definirNaVitrine(ids, valor));
-    toast.success(`${ids.length} ${ids.length === 1 ? "produto" : "produtos"} ${valor ? "na vitrine" : "fora da vitrine"}.`);
+    toast.success(
+      `${ids.length} ${ids.length === 1 ? "produto" : "produtos"} ${valor ? "na vitrine" : "fora da vitrine"}.`,
+      { desfazer: () => aplicar(ids, { naVitrine: !valor }, () => definirNaVitrine(ids, !valor)) },
+    );
   }
 
   async function copiarLink(id: string) {
@@ -187,7 +190,11 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
               <Interruptor
                 ligado={p.naVitrine}
                 rotulo={`Mostrar ${p.nome} na vitrine`}
-                onMudar={() => aplicar([p.id], { naVitrine: !p.naVitrine }, () => definirNaVitrine([p.id], !p.naVitrine))}
+                onMudar={() => {
+                  const novo = !p.naVitrine;
+                  aplicar([p.id], { naVitrine: novo }, () => definirNaVitrine([p.id], novo));
+                  if (!novo) toast.success(`${p.nome} saiu da vitrine.`, { desfazer: () => aplicar([p.id], { naVitrine: true }, () => definirNaVitrine([p.id], true)) });
+                }}
               />
               <Link
                 href={`/vitrine/produtos/${p.id}`}
