@@ -6,8 +6,6 @@ import type { ProdutoComEstoque } from "@/types/domain";
 import { SearchInput } from "@/components/search-input";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/components/ui";
 import { IconBox } from "@/components/icons";
-import { hojeISO } from "@/lib/format";
-import { situacaoDaPublicacao } from "@/lib/publicacao";
 import { FotoProduto } from "@/components/foto-produto";
 import { VistaToggle, type Vista } from "./vista-toggle";
 
@@ -29,11 +27,10 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   const vista: Vista = vistaParam === "galeria" ? "galeria" : "lista";
 
   const supabase = await createClient();
-  const [{ data, error }, { data: anunciosData }, { data: fotosData }, { data: publicacoesData }] = await Promise.all([
+  const [{ data, error }, { data: anunciosData }, { data: fotosData }] = await Promise.all([
     supabase.from("produtos_com_estoque").select("*, categorias(nome)").neq("status", "inativo").order("nome"),
     supabase.from("produto_anuncios").select("produto_id, titulo, descricao"),
     supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
-    supabase.from("anuncio_publicacoes").select("produto_id, publicado_em, renovar_dias"),
   ]);
 
   if (error) {
@@ -50,12 +47,6 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   const comAnuncio = new Set<string>();
   for (const a of anunciosData ?? []) {
     if (a.titulo || a.descricao) comAnuncio.add(a.produto_id);
-  }
-  // produtos com algum anúncio publicado que já passou do prazo de renovar
-  const hoje = hojeISO();
-  const paraRenovar = new Set<string>();
-  for (const pb of publicacoesData ?? []) {
-    if (situacaoDaPublicacao(pb.publicado_em, pb.renovar_dias, hoje).tipo === "vencido") paraRenovar.add(pb.produto_id);
   }
   const capaPorProduto = new Map<string, string>();
   const capaGeral = new Map<string, string>();
@@ -135,9 +126,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                     <IconBox width={32} height={32} />
                   )}
                   <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-                    {tem && <Badge tone="positive">Anúncio pronto</Badge>}
-                    {paraRenovar.has(p.id) && <Badge tone="warning">Renovar</Badge>}
-                  </div>
+                    {tem && <Badge tone="positive">Anúncio pronto</Badge>}                  </div>
                   {fotos > 1 && (
                     <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
                       {fotos} fotos
@@ -173,9 +162,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                   <p className="mt-0.5 truncate text-[13px] text-ink-muted">
                     <span className={tem ? "text-positive" : ""}>{tem ? "Anúncio pronto" : "Sem anúncio"}</span>
                     {" · "}
-                    {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "sem fotos"}
-                    {paraRenovar.has(p.id) && <span className="font-medium text-warning">{" · "}renovar anúncio</span>}
-                  </p>
+                    {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "sem fotos"}                  </p>
                 </div>
               </li>
             );
