@@ -11,6 +11,7 @@ import { IconPlus, IconX } from "@/components/icons";
 import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { excluirFoto, registrarFoto, reordenarFotos } from "../../produtos/actions";
 import { baixarBlob, buscarImagem, copiarImagemParaAreaDeTransferencia, nomeArquivo } from "./fotos-utils";
+import { TituloPasso } from "./passo";
 
 export interface FotoComUrl {
   id: string;
@@ -92,8 +93,12 @@ export function FotosSection({
 
   return (
     <Card
-      title="Fotos"
-      rodape="A primeira foto é a capa. Dá pra copiar e colar direto no anúncio, ou baixar."
+      title={
+        <TituloPasso n={1} feito={comUrl.length > 0}>
+          Fotos
+        </TituloPasso>
+      }
+      rodape="A primeira é a capa. Na hora de publicar, copie ou baixe as fotos aqui."
       action={
         comUrl.length > 1 ? (
           <button type="button" onClick={levarTodas} disabled={ocupado} className={`${btnSecondary} px-4 py-1.5 text-sm`}>
@@ -449,9 +454,9 @@ function GrupoFotos({
       />
       <p className="mt-3 text-xs text-ink-muted">
         {fotos.length === 0
-          ? "A primeira foto vira a capa. Dá pra enviar várias de uma vez, ou arrastar os arquivos pra cá; o Marcon reduz o tamanho sozinho."
+          ? "Dá pra enviar várias de uma vez. O Marcon reduz o tamanho sozinho."
           : `${fotos.length} de ${maxFotos} ${maxFotos === 1 ? "foto" : "fotos"}.`}
-        {fotos.length > 1 && " Arraste as fotos para mudar a ordem (no celular, segure e arraste). A primeira é a capa."}
+        {fotos.length > 1 && " Segure e arraste pra mudar a ordem."}
         {limitadoPeloPlano && fotos.length >= maxFotos && (
           <>
             {" "}
