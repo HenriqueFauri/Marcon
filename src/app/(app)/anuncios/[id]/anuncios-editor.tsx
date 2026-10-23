@@ -1,20 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
-import type { CanalVenda, ProdutoAnuncio, ProdutoVariacao } from "@/types/domain";
-import { gerarAnuncio, limitesDoCanal } from "@/lib/anuncio";
+import type { ProdutoAnuncio } from "@/types/domain";
+import { LIMITE_DESCRICAO, LIMITE_TITULO, gerarAnuncio } from "@/lib/anuncio";
 import type { DadosAnuncio } from "@/lib/anuncio";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
-import { ConfirmButton } from "@/components/confirm-button";
 import { Card, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
-import { IconPlus, IconSparkles } from "@/components/icons";
-import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, type PerguntasIA } from "@/lib/ia-perguntas";
+import { IconSparkles } from "@/components/icons";
+import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, rotuloDoEstado, type PerguntasIA } from "@/lib/ia-perguntas";
 import { AutoTextarea } from "@/components/auto-textarea";
-import { Segmentado } from "@/components/ajustes";
-import { escreverAnuncioIA, excluirVersaoAnuncio, salvarVersaoAnuncio } from "../actions";
-
+import { formatBRL } from "@/lib/format";
+import { escreverAnuncioIA, salvarAnuncio } from "../actions";
 
 function useCopiar() {
   const toast = useToast();
@@ -57,10 +54,6 @@ function useEscreverComIA() {
   }
 
   return { escrevendo, escrever };
-}
-
-function contador(atual: number, max: number | null) {
-  return max === null ? `${atual} caracteres` : `${atual}/${max}`;
 }
 
 const linkAcao = "text-[13px] font-medium text-brand-text hover:underline disabled:opacity-40 disabled:no-underline";
@@ -109,14 +102,14 @@ function GeradorIA({
   onGerar,
   ocupado,
   escrevendo,
-  temVersao,
+  temAnuncio,
 }: {
   perguntas: PerguntasIA;
   onChange: (p: PerguntasIA) => void;
   onGerar: () => void;
   ocupado: boolean;
   escrevendo: boolean;
-  temVersao: boolean;
+  temAnuncio: boolean;
 }) {
   return (
     <div className="mb-4 rounded-2xl bg-fill p-4">
@@ -142,7 +135,6 @@ function GeradorIA({
             className={`${inputClass} !bg-surface`}
           />
         </div>
-        <Escolha rotulo="Estado" opcoes={ESTADOS} valor={perguntas.estado} onChange={(estado) => onChange({ ...perguntas, estado })} />
         <Escolha rotulo="Retirada e entrega" opcoes={ENTREGAS} valor={perguntas.entrega} onChange={(entrega) => onChange({ ...perguntas, entrega })} />
         <div>
           <label htmlFor="ia-acompanha" className="mb-1.5 block text-[13px] font-medium text-ink-muted">
@@ -160,7 +152,7 @@ function GeradorIA({
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <button type="button" onClick={onGerar} disabled={ocupado || escrevendo} className={btnPrimary}>
-          <IconSparkles width={16} height={16} /> {escrevendo ? "Escrevendo..." : temVersao ? "Escrever outra versão com IA" : "Escrever com IA"}
+          <IconSparkles width={16} height={16} /> {escrevendo ? "Escrevendo..." : temAnuncio ? "Reescrever com IA" : "Escrever com IA"}
         </button>
         <span className="text-xs text-ink-muted">O que ficar em branco, a IA não diz.</span>
       </div>
@@ -168,355 +160,127 @@ function GeradorIA({
   );
 }
 
-function VersaoCard({
-  numero,
-  produtoId,
-  canal,
-  versao,
-  variacoes,
-  dados,
-  ia,
-}: {
-  numero: number;
-  produtoId: string;
-  canal: CanalVenda;
-  versao: ProdutoAnuncio;
-  variacoes: ProdutoVariacao[];
-  dados: DadosAnuncio;
-  ia: { disponivel: boolean; perguntas: PerguntasIA };
-}) {
-  const { isPending, run } = useAction();
-  const { escrevendo, escrever } = useEscreverComIA();
-  const copiar = useCopiar();
-  const [titulo, setTitulo] = useState(versao.titulo ?? "");
-  const [descricao, setDescricao] = useState(versao.descricao ?? "");
-  const [variacaoId, setVariacaoId] = useState(versao.variacao_id ?? "");
-  const [estilo, setEstilo] = useState(numero);
-  const alterado =
-    titulo !== (versao.titulo ?? "") || descricao !== (versao.descricao ?? "") || variacaoId !== (versao.variacao_id ?? "");
-  const limites = limitesDoCanal(canal.nome);
-
-  function reescrever() {
-    const sugestao = gerarAnuncio(dados, canal.nome, {
-      estilo,
-      variacao: variacoes.find((v) => v.id === variacaoId) ?? null,
-    });
-    setEstilo((e) => e + 1);
-    setTitulo(sugestao.titulo);
-    setDescricao(sugestao.descricao);
-  }
-
-  function reescreverComIA() {
-    escrever({ produtoId, canalId: canal.id, variacaoId: variacaoId || null, perguntas: ia.perguntas }, (texto) => {
-      setTitulo(texto.titulo);
-      setDescricao(texto.descricao);
-    });
-  }
-
-  function salvar() {
-    run(() =>
-      salvarVersaoAnuncio({ id: versao.id, produtoId, canalId: canal.id, variacaoId: variacaoId || null, titulo, descricao }),
-    );
-  }
-
-  const tituloEstourou = limites.titulo !== null && titulo.length > limites.titulo;
-  const descricaoEstourou = limites.descricao !== null && descricao.length > limites.descricao;
-
-  return (
-    <div className="rounded-2xl border border-line p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-ink">Versão {numero}</span>
-          {variacoes.length > 0 && (
-            <select
-              value={variacaoId}
-              onChange={(e) => setVariacaoId(e.target.value)}
-              aria-label="Anúncio para"
-              className={`${inputClass} !w-auto !py-1 text-xs`}
-            >
-              <option value="">Produto todo</option>
-              {variacoes.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nome_combinacao}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {ia.disponivel ? (
-            <button
-              type="button"
-              onClick={reescreverComIA}
-              disabled={escrevendo}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-brand-text transition hover:bg-brand-tint disabled:opacity-50"
-            >
-              <IconSparkles width={14} height={14} /> {escrevendo ? "Escrevendo..." : "Reescrever com IA"}
-            </button>
-          ) : (
-            <button type="button" onClick={reescrever} className={`${btnGhost} px-3 py-1 text-xs`}>
-              Outra sugestão
-            </button>
-          )}
-          <ConfirmButton
-            title="Excluir esta versão?"
-            description={versao.titulo ?? "Versão sem título"}
-            ariaLabel="Excluir versão"
-            onConfirm={() => excluirVersaoAnuncio(versao.id, produtoId)}
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <div>
-          <div className="mb-1 flex items-baseline justify-between gap-2">
-            <label htmlFor={`t-${versao.id}`} className="text-[13px] font-medium text-ink-muted">
-              Título
-            </label>
-            <span className="flex items-baseline gap-3 text-xs">
-              <span className={tituloEstourou ? "text-danger" : "text-ink-muted"}>{contador(titulo.length, limites.titulo)}</span>
-              <button type="button" disabled={!titulo} onClick={() => copiar(titulo, "Título")} className={linkAcao}>
-                Copiar
-              </button>
-            </span>
-          </div>
-          <AutoTextarea
-            umaLinha
-            id={`t-${versao.id}`}
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Título do anúncio"
-            className={inputClass}
-          />
-          {tituloEstourou && <p className="mt-1 text-xs text-danger">Passou do limite de {limites.titulo} caracteres deste canal.</p>}
-        </div>
-
-        <div>
-          <div className="mb-1 flex items-baseline justify-between gap-2">
-            <label htmlFor={`d-${versao.id}`} className="text-[13px] font-medium text-ink-muted">
-              Descrição
-            </label>
-            <span className="flex items-baseline gap-3 text-xs">
-              <span className={descricaoEstourou ? "text-danger" : "text-ink-muted"}>{contador(descricao.length, limites.descricao)}</span>
-              <button type="button" disabled={!descricao} onClick={() => copiar(descricao, "Descrição")} className={linkAcao}>
-                Copiar
-              </button>
-            </span>
-          </div>
-          <AutoTextarea
-            id={`d-${versao.id}`}
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            rows={6}
-            placeholder="Descrição do anúncio"
-            className={inputClass}
-          />
-          {descricaoEstourou && (
-            <p className="mt-1 text-xs text-danger">Passou do limite de {limites.descricao} caracteres deste canal.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <button
-          type="button"
-          disabled={!titulo && !descricao}
-          onClick={() => copiar([titulo, descricao].filter(Boolean).join("\n\n"), "Anúncio")}
-          className={`${btnSecondary} px-4 py-1.5 text-sm`}
-        >
-          Copiar tudo
-        </button>
-        {alterado ? (
-          <button type="button" onClick={salvar} disabled={isPending} className={`${btnPrimary} px-4 py-1.5 text-sm`}>
-            {isPending ? "Salvando..." : "Salvar alterações"}
-          </button>
-        ) : (
-          <span className="text-xs text-ink-muted">Salvo</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Rótulos que cabem lado a lado em 390 px, por quantidade de canais (nome mais o número de versões).
-const CABE_NO_CELULAR: Record<number, number> = { 2: 19, 3: 12, 4: 8 };
-
-// Troca de canal sem rolar de lado: até 4 canais, controle segmentado que divide a largura;
-// com mais (ou com nomes compridos demais para o celular), um seletor.
-function SeletorDeCanal({
-  canais,
-  anuncios,
-  canalId,
-  onMudar,
-}: {
-  canais: CanalVenda[];
-  anuncios: ProdutoAnuncio[];
-  canalId: string;
-  onMudar: (id: string) => void;
-}) {
-  const itens = canais.map((c) => ({ id: c.id, nome: c.nome, qtd: anuncios.filter((a) => a.canal_id === c.id).length }));
-  const versoes = (qtd: number) => (qtd === 1 ? "1 versão" : `${qtd} versões`);
-
-  if (itens.length === 1) {
-    return (
-      <p className="text-[15px] font-semibold text-ink">
-        {itens[0].nome}
-        {itens[0].qtd > 0 && <span className="ml-2 text-[13px] font-normal text-ink-muted">{versoes(itens[0].qtd)}</span>}
-      </p>
-    );
-  }
-
-  const segmentado = itens.length <= 4;
-  const cabe = segmentado && itens.every((i) => i.nome.length + (i.qtd > 0 ? 2 : 0) <= CABE_NO_CELULAR[itens.length]);
-
-  return (
-    <>
-      {segmentado && (
-        <div className={cabe ? "" : "hidden sm:block"}>
-          <Segmentado
-            rotulo="Canal de venda"
-            valor={canalId}
-            onMudar={onMudar}
-            opcoes={itens.map((i) => ({
-              valor: i.id,
-              label: (
-                <>
-                  {i.nome}
-                  {i.qtd > 0 && <span className="ml-1 text-xs font-normal tabular-nums text-ink-muted">{i.qtd}</span>}
-                </>
-              ),
-            }))}
-          />
-        </div>
-      )}
-      {!cabe && (
-        <select
-          value={canalId}
-          onChange={(e) => onMudar(e.target.value)}
-          aria-label="Canal de venda"
-          className={`${inputClass} ${segmentado ? "sm:hidden" : ""}`}
-        >
-          {itens.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.qtd > 0 ? `${i.nome} (${versoes(i.qtd)})` : i.nome}
-            </option>
-          ))}
-        </select>
-      )}
-    </>
-  );
-}
-
 export function AnunciosEditor({
   produtoId,
-  canais,
-  anuncios,
-  variacoes,
+  anuncio,
   dados,
   iaDisponivel,
 }: {
   produtoId: string;
-  canais: CanalVenda[];
-  anuncios: ProdutoAnuncio[];
-  variacoes: ProdutoVariacao[];
+  anuncio: ProdutoAnuncio | null;
   dados: DadosAnuncio;
   iaDisponivel: boolean;
 }) {
   const { isPending, run } = useAction();
   const { escrevendo, escrever } = useEscreverComIA();
+  const copiar = useCopiar();
   const [perguntas, setPerguntas] = useState<PerguntasIA>(PERGUNTAS_VAZIAS);
-  const [canalId, setCanalId] = useState(canais[0]?.id ?? "");
-  const canal = canais.find((c) => c.id === canalId) ?? canais[0];
+  const [titulo, setTitulo] = useState(anuncio?.titulo ?? "");
+  const [descricao, setDescricao] = useState(anuncio?.descricao ?? "");
+  const [estilo, setEstilo] = useState(0);
+  const alterado = titulo !== (anuncio?.titulo ?? "") || descricao !== (anuncio?.descricao ?? "");
+  const tituloEstourou = titulo.length > LIMITE_TITULO;
 
-  if (!canal) {
-    return (
-      <Card title="Títulos e descrições">
-        <p className="text-sm text-ink-muted">
-          Cadastre canais de venda em{" "}
-          <Link href="/configuracoes" className="text-brand-text hover:underline">
-            Configurações
-          </Link>{" "}
-          para escrever um anúncio diferente para cada canal.
-        </p>
-      </Card>
-    );
+  function salvar(texto: { titulo: string; descricao: string }) {
+    run(() => salvarAnuncio({ id: anuncio?.id ?? null, produtoId, variacaoId: anuncio?.variacao_id ?? null, ...texto }));
   }
 
-  const versoes = anuncios.filter((a) => a.canal_id === canal.id);
-
-  function nova(sugerir: boolean) {
-    const sugestao = sugerir ? gerarAnuncio(dados, canal.nome, { estilo: versoes.length }) : { titulo: "", descricao: "" };
-    run(() =>
-      salvarVersaoAnuncio({
-        id: null,
-        produtoId,
-        canalId: canal.id,
-        variacaoId: null,
-        titulo: sugestao.titulo,
-        descricao: sugestao.descricao,
-      }),
-    );
+  function sugerir() {
+    const sugestao = gerarAnuncio(dados, { estilo, estado: rotuloDoEstado(perguntas.estado) });
+    setEstilo((e) => e + 1);
+    setTitulo(sugestao.titulo);
+    setDescricao(sugestao.descricao);
   }
 
-  function novaComIA() {
-    escrever({ produtoId, canalId: canal.id, variacaoId: null, perguntas }, (texto) =>
-      run(() =>
-        salvarVersaoAnuncio({ id: null, produtoId, canalId: canal.id, variacaoId: null, ...texto }),
-      ),
-    );
+  // O texto da IA custa uma escrita da cota: sem anúncio salvo ele já vai direto para o banco; com anúncio,
+  // entra nos campos e só substitui o texto salvo quando a pessoa tocar em Salvar.
+  function escreverComIA() {
+    escrever({ produtoId, perguntas }, (texto) => {
+      setTitulo(texto.titulo);
+      setDescricao(texto.descricao);
+      if (!anuncio) salvar(texto);
+    });
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card title="Títulos e descrições">
-        <div className="mb-4">
-          <SeletorDeCanal canais={canais} anuncios={anuncios} canalId={canal.id} onMudar={setCanalId} />
-        </div>
+    <Card title="Anúncio">
+      <p className="mb-4 text-sm text-ink-muted">
+        Um texto só, que serve em qualquer plataforma: Marketplace, OLX, Mercado Livre, Shopee, Instagram ou WhatsApp. É só copiar e colar.
+      </p>
 
-        {iaDisponivel && (
-          <GeradorIA
-            perguntas={perguntas}
-            onChange={setPerguntas}
-            onGerar={novaComIA}
-            ocupado={isPending}
-            escrevendo={escrevendo}
-            temVersao={versoes.length > 0}
-          />
-        )}
+      <div className="mb-4 flex flex-col gap-4">
+        <Escolha rotulo="Condição" opcoes={ESTADOS} valor={perguntas.estado} onChange={(estado) => setPerguntas({ ...perguntas, estado })} />
+        <p className="text-[13px] text-ink-muted">
+          Preço: <span className="font-medium text-ink">{formatBRL(dados.precoVarejo)}</span> (o do cadastro do produto)
+        </p>
+      </div>
 
-        <div className="flex flex-col gap-3">
-          {versoes.map((v, i) => (
-            <VersaoCard
-              key={v.id}
-              numero={i + 1}
-              produtoId={produtoId}
-              canal={canal}
-              versao={v}
-              variacoes={variacoes}
-              dados={dados}
-              ia={{ disponivel: iaDisponivel, perguntas }}
-            />
-          ))}
-          {versoes.length === 0 && !iaDisponivel && (
-            <p className="text-sm text-ink-muted">Nenhuma versão para {canal.nome} ainda. Gere uma sugestão e ajuste.</p>
-          )}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {!iaDisponivel && (
-              <button type="button" onClick={() => nova(true)} disabled={isPending} className={btnPrimary}>
-                <IconPlus width={16} height={16} /> Nova versão com sugestão
+      {iaDisponivel && (
+        <GeradorIA
+          perguntas={perguntas}
+          onChange={setPerguntas}
+          onGerar={escreverComIA}
+          ocupado={isPending}
+          escrevendo={escrevendo}
+          temAnuncio={!!anuncio}
+        />
+      )}
+
+      <div className="flex flex-col gap-4">
+        <div>
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <label htmlFor="anuncio-titulo" className="text-[13px] font-medium text-ink-muted">
+              Título
+            </label>
+            <span className="flex items-baseline gap-3 text-xs">
+              <span className={tituloEstourou ? "text-danger" : "text-ink-muted"}>{titulo.length}/{LIMITE_TITULO}</span>
+              <button type="button" disabled={!titulo} onClick={() => copiar(titulo, "Título")} className={linkAcao}>
+                Copiar
               </button>
-            )}
-            {iaDisponivel && (
-              <button type="button" onClick={() => nova(true)} disabled={isPending} className={linkAcao}>
-                Sugestão automática (sem IA)
-              </button>
-            )}
-            <button type="button" onClick={() => nova(false)} disabled={isPending} className={linkAcao}>
-              Versão em branco
-            </button>
+            </span>
           </div>
+          <AutoTextarea umaLinha id="anuncio-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título do anúncio" className={inputClass} />
+          {tituloEstourou && <p className="mt-1 text-xs text-danger">Título curto funciona em todas as plataformas: tente até {LIMITE_TITULO} caracteres.</p>}
         </div>
-      </Card>
-    </div>
+
+        <div>
+          <div className="mb-1 flex items-baseline justify-between gap-2">
+            <label htmlFor="anuncio-descricao" className="text-[13px] font-medium text-ink-muted">
+              Descrição
+            </label>
+            <span className="flex items-baseline gap-3 text-xs">
+              <span className={descricao.length > LIMITE_DESCRICAO ? "text-danger" : "text-ink-muted"}>{descricao.length}/{LIMITE_DESCRICAO}</span>
+              <button type="button" disabled={!descricao} onClick={() => copiar(descricao, "Descrição")} className={linkAcao}>
+                Copiar
+              </button>
+            </span>
+          </div>
+          <AutoTextarea id="anuncio-descricao" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={6} placeholder="Descrição do anúncio" className={inputClass} />
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={!titulo && !descricao}
+            onClick={() => copiar([titulo, descricao].filter(Boolean).join("\n\n"), "Anúncio")}
+            className={`${btnSecondary} px-4 py-1.5 text-sm`}
+          >
+            Copiar tudo
+          </button>
+          <button type="button" onClick={sugerir} className={`${btnGhost} px-3 py-1 text-xs`}>
+            {anuncio || titulo || descricao ? "Outra sugestão (sem IA)" : "Gerar sugestão (sem IA)"}
+          </button>
+        </div>
+        {alterado ? (
+          <button type="button" onClick={() => salvar({ titulo, descricao })} disabled={isPending} className={`${btnPrimary} px-4 py-1.5 text-sm`}>
+            {isPending ? "Salvando..." : "Salvar anúncio"}
+          </button>
+        ) : (
+          <span className="text-xs text-ink-muted">{anuncio ? "Salvo" : ""}</span>
+        )}
+      </div>
+    </Card>
   );
 }

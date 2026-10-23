@@ -34,11 +34,18 @@ export interface AudioRecebido {
   segundos: number;
 }
 
+// Foto. Chega no mesmo evento quando o webhook base64 está ligado, como o áudio.
+export interface ImagemRecebida {
+  base64?: string;
+  mimetype: string;
+}
+
 export interface MensagemRecebida {
   id: string;
   telefone: string; // só dígitos
   texto: string; // vazio quando é áudio: a rota transcreve e preenche
   audio?: AudioRecebido;
+  imagem?: ImagemRecebida; // o texto é a legenda (pode vir vazio)
 }
 
 interface Chave {
@@ -77,6 +84,17 @@ export function extrairMensagem(corpo: unknown): MensagemRecebida | null {
     (typeof msg.conversation === "string" && msg.conversation) ||
     ((msg.extendedTextMessage as { text?: string } | undefined)?.text ?? "");
   if (texto.trim()) return { id: chave.id, telefone, texto: texto.trim().slice(0, 1000) };
+
+  const foto = msg.imageMessage as { mimetype?: string; caption?: string; base64?: string } | undefined;
+  if (foto) {
+    const base64 = [msg.base64, foto.base64].find((b): b is string => typeof b === "string" && b.length > 0);
+    return {
+      id: chave.id,
+      telefone,
+      texto: (foto.caption ?? "").trim().slice(0, 1000),
+      imagem: { base64, mimetype: foto.mimetype || "image/jpeg" },
+    };
+  }
 
   const voz = msg.audioMessage as { mimetype?: string; seconds?: number; base64?: string } | undefined;
   if (!voz) return null;

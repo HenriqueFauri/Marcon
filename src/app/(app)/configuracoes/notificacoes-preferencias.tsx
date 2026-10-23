@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useAction } from "@/components/use-action";
 import { btnPrimary, btnSecondary } from "@/components/ui";
@@ -115,7 +116,7 @@ export function NotificacoesPreferencias({ atual }: { atual: Preferencias }) {
 
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={isPending || !alterado} className={btnPrimary}>
-          {isPending ? "Salvando..." : "Salvar"}
+          <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar"}</RotuloAcao>
         </button>
         <button
           type="button"

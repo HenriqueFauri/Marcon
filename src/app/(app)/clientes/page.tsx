@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import type { Cliente } from "@/types/domain";
-import { formatBRL, linkWhatsApp } from "@/lib/format";
+import { formatBRL, formatDataCurta, linkWhatsApp } from "@/lib/format";
+import { vendasConcluidas } from "@/lib/relatorios";
 import { ContatoModal } from "@/components/contato-modal";
 import { ConfirmButton } from "@/components/confirm-button";
 import { SearchInput } from "@/components/search-input";
@@ -9,6 +10,7 @@ import {
   EmptyState,
   ErrorMessage,
   PageHeader,
+  Segmentos,
   Table,
   btnIcon,
   btnPrimary,
@@ -33,9 +35,11 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
     query = query.or(`nome.ilike.${termo},telefone.ilike.${termo},email.ilike.${termo},cpf_cnpj.ilike.${termo}`);
   }
 
-  const [{ data, error }, { data: abertasData }] = await Promise.all([
+  const [{ data, error }, { data: abertasData }, vendasFeitas] = await Promise.all([
     query,
     supabase.from("parcelas_com_status").select("valor, status_efetivo, vendas(cliente_id)").neq("status", "pago"),
+    // total comprado e última compra: se falhar, a lista segue sem esse detalhe
+    vendasConcluidas(supabase, "2000-01-01", null).catch(() => []),
   ]);
 
   const novo = (
@@ -79,11 +83,31 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
     emAberto.set(id, atual);
   }
 
+  // total comprado e última compra por cliente
+  const compras = new Map<string, { total: number; ultima: string }>();
+  for (const v of vendasFeitas) {
+    if (!v.cliente_id) continue;
+    const c = compras.get(v.cliente_id) ?? { total: 0, ultima: v.data };
+    c.total += v.valor_total;
+    if (v.data > c.ultima) c.ultima = v.data;
+    compras.set(v.cliente_id, c);
+  }
+
   return (
     <div>
       <PageHeader
         title="Clientes"
         action={novo}
+      />
+
+      <Segmentos
+        rotulo="Clientes"
+        substituir={false}
+        className="mb-4 w-full sm:w-80"
+        itens={[
+          { href: "/clientes", label: "Lista", ativo: true },
+          { href: "/clientes/insights", label: "Insights", ativo: false },
+        ]}
       />
 
       <div className="mb-4">
@@ -116,6 +140,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
           <tbody className={tbodyClass}>
             {clientes.map((c) => {
               const saldo = emAberto.get(c.id);
+              const comprou = compras.get(c.id);
               const whatsapp = linkWhatsApp(c.telefone);
               return (
                 <tr key={c.id} className="hover:bg-fill/50">
@@ -124,6 +149,11 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
                     <p className="text-[13px] text-ink-muted sm:hidden">
                       {[c.telefone, saldo ? `${formatBRL(saldo.valor)} em aberto` : null].filter(Boolean).join(" · ") || "Sem telefone"}
                     </p>
+                    {comprou && (
+                      <p className="text-[13px] text-ink-muted">
+                        Comprou {formatBRL(comprou.total)} · última em {formatDataCurta(comprou.ultima)}
+                      </p>
+                    )}
                     {c.observacoes && <p className="max-w-xs truncate text-xs text-ink-muted">{c.observacoes}</p>}
                   </td>
                   <td className={`${tdClass} hidden text-ink-2 sm:table-cell`}>

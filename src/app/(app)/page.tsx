@@ -1,3 +1,4 @@
+import { SetaLink, linkPendente } from "@/components/seta-link";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -9,7 +10,7 @@ import { situacaoEstoque } from "@/lib/estoque";
 import { EmptyState, btnPrimary } from "@/components/ui";
 import { PainelMetas, PainelVendas, PeriodoProvider, type DadosPeriodo, type DadosPorPeriodo, type Periodo, type VendaResumo } from "./painel-periodo";
 import { AvisoNotificacoes } from "./aviso-notificacoes";
-import { IconAlert, IconBox, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
+import { IconAlert, IconBox, IconCheck, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
 
 export const metadata: Metadata = { title: "Início" };
 
@@ -17,6 +18,16 @@ const FUSO = "America/Sao_Paulo";
 function diasNoMes(mes: string) {
   const [a, m] = mes.split("-").map(Number);
   return new Date(a, m, 0).getDate();
+}
+
+// Projeção do mês pelo ritmo até hoje. Só com meta de vendas e a partir do 3º dia (antes disso o ritmo engana).
+function projecaoDoMes(faturamento: number, meta: number | null, dia: number, dias: number) {
+  if (!meta || dia < 3 || faturamento <= 0) return null;
+  const projetado = (faturamento / dia) * dias;
+  const restantes = dias - dia;
+  const texto = `No ritmo atual você fecha o mês em ${formatBRL(projetado)}.`;
+  if (projetado >= meta || restantes <= 0) return texto;
+  return `${texto} Para bater a meta faltam ${formatBRL((meta - faturamento) / restantes)} por dia.`;
 }
 
 function resumoItens(itens: { produto_nome: string; quantidade: number }[] | null) {
@@ -56,11 +67,36 @@ function LinhaAtencao({
   href, tom, icone, texto, valor,
 }: { href: string; tom: string; icone: ReactNode; texto: string; valor?: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3 border-t border-line py-2.5 text-sm text-ink first:border-t-0">
+    <Link href={href} className={`flex items-center gap-3 border-t border-line py-2.5 text-sm text-ink first:border-t-0 ${linkPendente}`}>
       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] ${tom}`}>{icone}</span>
       <span className="flex-1">{texto}</span>
-      {valor ? <span className="font-semibold tabular-nums">{valor}</span> : <span aria-hidden="true" className="text-ink-muted">›</span>}
+      {valor ? <span className="font-semibold tabular-nums">{valor}</span> : <SetaLink className="text-ink-muted" />}
     </Link>
+  );
+}
+
+function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; feito: boolean }[] }) {
+  const feitos = passos.filter((p) => p.feito).length;
+  return (
+    <Grupo titulo={`Primeiros passos · ${feitos} de ${passos.length}`}>
+      {passos.map((p) => (
+        <Link
+          key={p.href}
+          href={p.href}
+          className={`flex min-h-11 items-center gap-3 border-t border-line px-4 py-3 text-[17px] first:border-t-0 hover:bg-fill/60 active:bg-fill ${linkPendente}`}
+        >
+          <span
+            aria-hidden="true"
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${p.feito ? "bg-tile-positive text-on-tile-positive" : "border border-line-strong"}`}
+          >
+            {p.feito && <IconCheck width={14} height={14} strokeWidth={2.6} />}
+          </span>
+          <span className={`flex-1 ${p.feito ? "text-ink-muted line-through" : "text-ink"}`}>{p.texto}</span>
+          {p.feito && <span className="sr-only">(feito)</span>}
+          <SetaLink />
+        </Link>
+      ))}
+    </Grupo>
   );
 }
 
@@ -70,7 +106,7 @@ function LinhaResumo({
   href, icone, tom, rotulo, valor, badge,
 }: { href: string; icone: ReactNode; tom: string; rotulo: string; valor?: string; badge?: number }) {
   return (
-    <Link href={href} className={`${LINHA} border-t border-line first:border-t-0 transition hover:bg-fill/60 active:bg-fill`}>
+    <Link href={href} className={`${LINHA} border-t border-line first:border-t-0 transition hover:bg-fill/60 active:bg-fill ${linkPendente}`}>
       <span className={`flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg ${tom}`}>{icone}</span>
       <span className="flex-1">{rotulo}</span>
       {badge ? (
@@ -78,7 +114,7 @@ function LinhaResumo({
       ) : (
         valor && <span className="text-ink-muted tabular-nums">{valor}</span>
       )}
-      <span aria-hidden="true" className="text-lg text-ink-faint">›</span>
+      <SetaLink />
     </Link>
   );
 }
@@ -106,6 +142,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     { data: parcelasData },
     { data: caixaData },
     { data: saldoData },
+    { count: totalVendas },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("produtos_com_estoque").select("*").neq("status", "inativo"),
@@ -124,6 +161,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     supabase.from("lancamentos_caixa").select("tipo, valor, data").gte("data", hoje).eq("afeta_caixa", true),
     // saldo somado no banco: somar no app cortava em 1000 lançamentos
     supabase.rpc("saldo_caixa", { p_ate: hoje }),
+    supabase.from("vendas").select("id", { count: "exact", head: true }).neq("status", "cancelada"),
   ]);
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
@@ -159,6 +197,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
       metaVendas: metaMensalVendas ? metaMensalVendas * fatia : null,
       metaLucro: metaMensalLucro ? metaMensalLucro * fatia : null,
       tituloMeta: qual === "mes" ? `Meta de ${nomeDoMes(mes).split(" ")[0].toLowerCase()}` : qual === "hoje" ? "Meta de hoje" : "Meta da semana",
+      projecao: qual === "mes" ? projecaoDoMes(faturamento, metaMensalVendas, Number(hoje.slice(8, 10)), diasNoMes(mes)) : null,
       qtd: lista.length,
       ticketMedio: lista.length ? faturamento / lista.length : null,
       vendas: lista.slice(0, 10).map(resumoDe),
@@ -186,6 +225,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   ).split(" ")[0];
 
   const semNada = produtos.length === 0 && todasVendas.length === 0;
+
+  // checklist da conta nova; some sozinho quando os três passos estão feitos
+  const passos = [
+    { href: "/produtos/novo", texto: "Cadastrar um produto", feito: produtos.length > 0 },
+    { href: "/vendas/novo", texto: "Registrar uma venda", feito: (totalVendas ?? 0) > 0 },
+    { href: "/vitrine", texto: "Abrir a vitrine", feito: produtos.some((p) => p.na_vitrine) },
+  ];
+  const primeirosPassos = passos.some((p) => !p.feito);
 
   return (
     <div className="flex flex-col gap-5">
@@ -215,15 +262,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
       <AvisoNotificacoes />
 
+      {primeirosPassos && <PrimeirosPassos passos={passos} />}
+
       {semNada ? (
         <EmptyState
           title="Vamos começar?"
           description="Cadastre seus produtos com custo e preço. Depois é só registrar as vendas: estoque, lucro e caixa se atualizam sozinhos."
-          action={
-            <Link href="/produtos/novo" className={btnPrimary}>
-              Cadastrar primeiro produto
-            </Link>
-          }
         />
       ) : (
         <PeriodoProvider inicial={periodo} dados={dadosPorPeriodo}>

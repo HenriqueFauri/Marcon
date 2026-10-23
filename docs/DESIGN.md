@@ -55,3 +55,13 @@ As peças de `ajustes.tsx` nasceram na vitrine (`vitrine/campos.tsx` só reexpor
 - [ ] Filtros segmentados, listas no celular, destrutivo no fim
 - [ ] Tema escuro conferido (tokens, nunca cor fixa)
 - [ ] Sem travessão nem hífen como pausa nos textos
+
+## Carregamento
+
+Toda espera tem de aparecer na tela. Peças prontas, sem biblioteca:
+
+- **Navegação:** a barra fina no topo (`BarraDeProgresso`, no layout do app) liga sozinha em qualquer clique em link interno e termina quando o endereço muda. Nada a fazer por tela.
+- **Linha que navega:** termine o `Link` com `<SetaLink />` (o "›" vira spinner) e some `linkPendente` à classe do `Link` (a linha escurece). Tem de estar dentro do `Link` (`useLinkStatus`). `LinhaLink` já faz isso.
+- **Botão que chama server action:** `useAction()` e `disabled={isPending}`; o texto vai em `<RotuloAcao pendente={isPending} ocupado="Salvando...">Salvar</RotuloAcao>`, que mostra spinner sem mudar a largura do botão.
+- **Rota lenta:** crie `loading.tsx` com `EsqueletoLista` ou `EsqueletoDetalhe` (`src/components/esqueleto.tsx`). Sem ele, vale o esqueleto genérico de `(app)/loading.tsx`.
+- Movimento respeita `prefers-reduced-motion` (`motion-reduce:`).

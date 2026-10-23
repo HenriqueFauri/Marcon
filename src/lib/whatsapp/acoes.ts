@@ -3,7 +3,8 @@ import { mensagemDeErro } from "@/lib/action";
 import { NAO, SIM, SIM_SUAVE, grupoDoTipo, tipoLiberado, type ContextoAcao, type Db, type TipoAcao } from "./rascunho";
 import { executarVenda } from "./venda";
 import { MULTIPLICADOR_ADMIN } from "./uso";
-import { executarCaixa, executarEstoque, executarProduto } from "./lancamentos";
+import { apagarFotoDoRascunho, executarCaixa, executarEstoque, executarProduto } from "./lancamentos";
+import { executarRecebimento } from "./recebimento";
 
 // Resolve o SIM ou o NÃO de um rascunho aberto. É chamado pela rota ANTES do modelo, e é o único
 // lugar que grava um lançamento: o modelo nunca chega aqui. Para o assistente lançar uma coisa
@@ -24,6 +25,7 @@ const EXECUTORES: Record<TipoAcao, Executor> = {
   estoque_saida: executarEstoque,
   caixa_entrada: executarCaixa,
   caixa_saida: executarCaixa,
+  parcela_paga: executarRecebimento,
 };
 
 // teto por dia: vendas têm o próprio (decisão antiga); os outros lançamentos dividem um
@@ -49,6 +51,8 @@ export async function confirmarSeDispensado(db: Db, ctx: ContextoAcao, resposta:
     .eq("status", "pendente")
     .maybeSingle();
   if (!acao || acao.owner_id !== ctx.owner || acao.resumo !== resposta) return null;
+  // receber parcela mexe em dinheiro do cliente: o vendedor sempre responde SIM
+  if (acao.tipo === "parcela_paga") return null;
   if (!ctx.semConfirmar.includes(grupoDoTipo(acao.tipo as TipoAcao))) return null;
   // produto achado só por semelhança com o que foi dito: o vendedor precisa ver antes de gravar
   if ((acao.payload as { aproximado?: boolean } | null)?.aproximado) return null;
@@ -96,11 +100,13 @@ export async function resolverPendente(db: Db, ctx: ContextoAcao, texto: string)
 
   if (quer === "nao") {
     await fechar({ status: "cancelada" }).eq("status", "pendente");
+    await apagarFotoDoRascunho(db, ctx.owner, acao.payload);
     return "Certo, cancelei. Nada foi lançado.";
   }
 
   if (new Date(acao.expira_em).getTime() < Date.now()) {
     await fechar({ status: "expirada" }).eq("status", "pendente");
+    await apagarFotoDoRascunho(db, ctx.owner, acao.payload);
     return "Esse pedido expirou, por segurança. Me conta de novo.";
   }
 
@@ -126,6 +132,7 @@ export async function resolverPendente(db: Db, ctx: ContextoAcao, texto: string)
   const { data: dentro } = await db.rpc("consumir_limite", { p_chave: limite.chave, p_max: limite.max, p_segundos: 86400 });
   if (dentro !== true) {
     await fechar({ status: "falhou", erro: "limite diário" });
+    await apagarFotoDoRascunho(db, ctx.owner, acao.payload);
     return `Você chegou no limite de ${limite.oQue} por aqui hoje. Faça os outros direto no Marcon.`;
   }
 
@@ -137,6 +144,7 @@ export async function resolverPendente(db: Db, ctx: ContextoAcao, texto: string)
     const bruto = e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : "";
     console.error("[whatsapp] lançamento falhou", tipo, bruto);
     await fechar({ status: "falhou", erro: bruto.slice(0, 300) });
+    await apagarFotoDoRascunho(db, ctx.owner, acao.payload);
     return `Não consegui lançar: ${mensagemDeErro(e)}`;
   }
 }

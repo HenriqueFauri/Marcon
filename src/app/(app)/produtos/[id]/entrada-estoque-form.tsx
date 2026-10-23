@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useRef, useState } from "react";
 import type { Fornecedor, ProdutoVariacao } from "@/types/domain";
 import { formatBRL } from "@/lib/format";
@@ -125,7 +126,7 @@ export function EntradaEstoqueForm({
           <span className="block text-xs text-ink-muted">Sai do caixa como &quot;Fornecimento&quot;.</span>
         </p>
         <button type="submit" disabled={isPending} className={btnPrimary}>
-          {isPending ? "Salvando..." : "Registrar entrada"}
+          <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Registrar entrada"}</RotuloAcao>
         </button>
       </div>
     </form>

@@ -1,8 +1,13 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { avisarContaNova } from "@/lib/push/contas-novas";
 import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
+import { BarraDeProgresso } from "@/components/barra-de-progresso";
 import { ToastProvider } from "@/components/toaster";
 import { AvisoCortesia } from "@/components/aviso-cortesia";
+import { AvisoOffline } from "@/components/aviso-offline";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { adminConfirmado } from "@/lib/admin";
 
@@ -15,6 +20,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   if (!user) {
     redirect("/login");
   }
+  // conta nova abrindo o app pela primeira vez: avisa o admin (depois da resposta, sem atrasar a tela)
+  after(() => avisarContaNova(user));
 
   const [{ count: parcelasAbertas }, { count: pedidosNovos }, { data: assinaturaRow }] = await Promise.all([
     supabase.from("parcelas_com_status").select("id", { count: "exact", head: true }).neq("status", "pago"),
@@ -36,6 +43,10 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <ToastProvider>
+      <Suspense fallback={null}>
+        <BarraDeProgresso />
+      </Suspense>
+      <AvisoOffline />
       <div data-clarity-mask="true" className="flex min-h-dvh">
         <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
         <div className="flex min-w-0 flex-1 flex-col">

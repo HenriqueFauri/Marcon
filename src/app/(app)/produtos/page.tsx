@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { ProdutoComEstoque } from "@/types/domain";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, hojeISO, somarDias } from "@/lib/format";
+import { capasDeProdutos } from "@/lib/capas";
+import { SetaLink, linkPendente } from "@/components/seta-link";
+import { FotoProduto } from "@/components/foto-produto";
 import { situacaoEstoque } from "@/lib/estoque";
 import { SearchInput } from "@/components/search-input";
 import {
@@ -20,6 +23,7 @@ import {
   Segmentos,
 } from "@/components/ui";
 import { IconPlus } from "@/components/icons";
+import { LerCodigoBusca } from "./_components/ler-codigo-busca";
 
 export const metadata: Metadata = { title: "Produtos" };
 
@@ -27,6 +31,7 @@ const FILTROS = [
   { valor: "", label: "Ativos" },
   { valor: "baixo", label: "Acabando" },
   { valor: "sem", label: "Zerados" },
+  { valor: "parados", label: "Parados" },
   { valor: "inativos", label: "Inativos" },
 ] as const;
 
@@ -54,6 +59,24 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
   }
 
   const todos = (data ?? []) as ProdutoComEstoque[];
+
+  // Parados: com estoque e sem venda (não cancelada) há 30 dias. Lê em páginas porque o banco devolve no máximo 1000 linhas por consulta.
+  const vendidos = new Set<string>();
+  if (filtro === "parados") {
+    const desde = somarDias(hojeISO(), -30);
+    for (let de = 0; de < 20000; de += 1000) {
+      const { data: itens } = await supabase
+        .from("venda_itens")
+        .select("produto_id, vendas!inner(data, status)")
+        .gte("vendas.data", desde)
+        .neq("vendas.status", "cancelada")
+        .order("id")
+        .range(de, de + 999);
+      for (const i of itens ?? []) if (i.produto_id) vendidos.add(i.produto_id as string);
+      if ((itens?.length ?? 0) < 1000) break;
+    }
+  }
+  const parado = (p: ProdutoComEstoque) => p.estoque_total > 0 && !vendidos.has(p.id);
   const ativos = todos.filter((p) => p.status !== "inativo");
   const valorEstoque = ativos.reduce(
     (s, p) => s + Number(p.valor_estoque ?? Math.max(p.estoque_total, 0) * Number(p.custo_min)),
@@ -69,11 +92,18 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
       if (p.status !== "inativo") return false;
     } else {
       if (p.status === "inativo") return false;
-      if (filtro && situacaoEstoque(p) !== filtro) return false;
+      if (filtro === "parados") {
+        if (!parado(p)) return false;
+      } else if (filtro && situacaoEstoque(p) !== filtro) return false;
     }
     if (!q) return true;
-    return [p.nome, p.marca, p.sku, p.categorias?.nome].some((v) => v?.toLowerCase().includes(q));
+    return [p.nome, p.marca, p.sku, p.codigo_barras, p.categorias?.nome].some((v) => v?.toLowerCase().includes(q));
   });
+
+  const capas = await capasDeProdutos(
+    supabase,
+    lista.map((p) => p.id),
+  );
 
   const filtroHref = (valor: string) => {
     const qs = new URLSearchParams();
@@ -105,13 +135,23 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SearchInput placeholder="Buscar por nome, marca, SKU..." />
+        <div className="flex min-w-0 items-center gap-2">
+          {/* key: ao ler um código, o campo recomeça com o termo novo da URL */}
+          <SearchInput key={q} placeholder="Buscar por nome, marca, SKU ou código..." />
+          <LerCodigoBusca />
+        </div>
         <Segmentos
           rotulo="Filtrar produtos"
-          className="sm:w-[26rem]"
+          className="sm:w-[32rem]"
           itens={FILTROS.map((f) => ({ href: filtroHref(f.valor), label: f.label, ativo: filtro === f.valor }))}
         />
       </div>
+
+      {filtro === "parados" && lista.length > 0 && (
+        <p className="mb-3 text-[13px] text-ink-muted">
+          Sem venda há 30 dias, com {formatBRL(lista.reduce((s, p) => s + Number(p.valor_estoque ?? Math.max(p.estoque_total, 0) * Number(p.custo_min)), 0))} parados em estoque (a custo).
+        </p>
+      )}
 
       {todos.length === 0 ? (
         <EmptyState
@@ -129,7 +169,8 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
             const situacao = situacaoEstoque(p);
             return (
               <li key={p.id}>
-                <Link href={`/produtos/${p.id}`} className="flex items-center gap-3 px-4 py-3 transition active:bg-fill">
+                <Link href={`/produtos/${p.id}`} className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${linkPendente}`}>
+                  <FotoProduto url={capas.get(p.id) ?? null} />
                   <span className="min-w-0 flex-1">
                     <span className="line-clamp-2 text-[17px] leading-snug text-ink">{p.nome}</span>
                     <span className="block truncate text-[13px] text-ink-muted">
@@ -144,9 +185,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
                       {p.estoque_total} {p.unidade_medida}
                     </span>
                   </span>
-                  <span aria-hidden="true" className="text-lg text-ink-faint">
-                    ›
-                  </span>
+                  <SetaLink />
                 </Link>
               </li>
             );
@@ -172,13 +211,18 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
               return (
                 <tr key={p.id} className="relative hover:bg-fill/50">
                   <td className={tdClass}>
-                    <Link href={`/produtos/${p.id}`} className="font-medium text-ink after:absolute after:inset-0">
-                      {p.nome}
-                    </Link>
-                    <p className="text-xs text-ink-muted">
-                      {[p.categorias?.nome, p.marca, p.tem_variacoes ? "com variações" : null].filter(Boolean).join(" · ") ||
-                        "Sem categoria"}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <FotoProduto compacta url={capas.get(p.id) ?? null} />
+                      <div className="min-w-0">
+                        <Link href={`/produtos/${p.id}`} className="font-medium text-ink after:absolute after:inset-0">
+                          {p.nome}
+                        </Link>
+                        <p className="text-xs text-ink-muted">
+                          {[p.categorias?.nome, p.marca, p.tem_variacoes ? "com variações" : null].filter(Boolean).join(" · ") ||
+                            "Sem categoria"}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                   <td className={`${tdClass} hidden text-right tabular-nums text-ink-muted sm:table-cell`}>
                     {formatBRL(custo)}

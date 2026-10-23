@@ -1,8 +1,10 @@
 import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
-import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
+import { formatBRL, formatData, hojeISO } from "@/lib/format";
 import {
   abrirAcao,
+  dataValida,
+  dinheiro,
   gruposLiberados,
   igual,
   r2,
@@ -15,14 +17,13 @@ import {
 } from "./rascunho";
 import type { Resultado } from "./acoes";
 import { umProduto } from "./produtos";
+import { FERRAMENTA_RECEBIMENTO } from "./recebimento";
 
 // Lançamentos além da venda: produto novo, entrada e saída de estoque, entrada e saída de caixa.
 // Só existem para o modelo quando a conta tem permissão de lançar, dada no /admin (acesso.ts).
 // Seguem as mesmas três regras da
 // venda (venda.ts): o modelo só prepara, o rascunho guarda tudo já resolvido e o texto de
 // confirmação é montado aqui.
-
-const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 const FERRAMENTAS: Record<GrupoDeLancamento, Anthropic.Tool> = {
   produto: {
@@ -38,6 +39,7 @@ const FERRAMENTAS: Record<GrupoDeLancamento, Anthropic.Tool> = {
         estoque_inicial: { type: "integer", description: "Quantas unidades já tem, só se disse" },
         marca: { type: "string", description: "Marca, só se disse" },
         categoria: { type: "string", description: "Categoria, só se disse" },
+        usar_foto: { type: "boolean", description: "true quando o vendedor mandou a foto do produto e o sistema avisou que ela está guardada" },
       },
       required: ["nome", "preco"],
     },
@@ -88,7 +90,7 @@ const FERRAMENTAS: Record<GrupoDeLancamento, Anthropic.Tool> = {
 
 // ferramentas que o modelo enxerga: só as dos grupos ligados no servidor
 export function ferramentasDeLancamento(): Anthropic.Tool[] {
-  return gruposLiberados().map((g) => FERRAMENTAS[g]);
+  return [...gruposLiberados().map((g) => FERRAMENTAS[g]), FERRAMENTA_RECEBIMENTO];
 }
 
 // linha das instruções do assistente, conforme o que está ligado
@@ -102,21 +104,12 @@ export function instrucoesDeLancamento(): string {
       : null,
     g.includes("caixa") ? 'dinheiro que entrou ou saiu fora de venda = preparar_caixa ("paguei 50 de frete")' : null,
   ].filter(Boolean);
-  return `- Outros lançamentos: ${partes.join("; ")}. Valem as mesmas regras da venda: nunca invente valor, deixe em branco o que ele não disse, e quem pede o SIM e lança é o sistema.`;
+  return `- Outros lançamentos: ${partes.join("; ")}. Valem as mesmas regras da venda: nunca invente valor, deixe em branco o que ele não disse, e quem pede o SIM e lança é o sistema.
+- Cliente pagou uma parcela ("o João pagou", "a Maria me pagou 50") = preparar_recebimento só com o que ele disse; o sistema escolhe a parcela. Isso não é pergunta de "quem me deve" (essa é contas_a_receber).
+- Foto de produto: quando a mensagem do vendedor traz "[Foto de produto recebida ...]", o sistema já olhou a foto e guardou. Se o preço está na legenda ou na conversa, chame preparar_produto com usar_foto true, o nome e a categoria sugeridos (o vendedor pode ter pedido outro nome). Se faltar o preço, pergunte só o preço. Se o sistema não identificou o produto, pergunte o nome e o preço.`;
 }
 
-export const NOMES_DAS_FERRAMENTAS = ["preparar_produto", "preparar_estoque", "preparar_caixa"] as const;
-
-function dataValida(v: unknown) {
-  const hoje = hojeISO();
-  const dita = String(v ?? "");
-  return DATA.test(dita) && dita <= hoje && dita >= somarDias(hoje, -60) ? dita : hoje;
-}
-
-function dinheiro(v: unknown) {
-  const n = v == null || v === "" ? NaN : Number(v);
-  return Number.isFinite(n) ? r2(n) : NaN;
-}
+export const NOMES_DAS_FERRAMENTAS = ["preparar_produto", "preparar_estoque", "preparar_caixa", "preparar_recebimento"] as const;
 
 // ---------------------------------------------------------------------------
 // Produto novo
@@ -129,6 +122,7 @@ interface RascunhoProduto {
   estoque: number;
   marca: string | null;
   categoriaId: string | null;
+  fotoPath: string | null; // foto já guardada no bucket produto-fotos, na pasta do dono
 }
 
 export async function prepararProduto(db: Db, ctx: ContextoAcao, entrada: Entrada): Promise<unknown> {
@@ -142,6 +136,9 @@ export async function prepararProduto(db: Db, ctx: ContextoAcao, entrada: Entrad
   const custo = Number.isFinite(custoDito) ? custoDito : 0;
   const estoque = Math.trunc(Number(entrada.estoque_inicial) || 0);
   if (estoque < 0 || estoque > 100_000) return { erro: "Confira o estoque inicial." };
+
+  const limite = await limiteDeProdutos(db, ctx.owner);
+  if (limite) return { erro: limite };
 
   const { data: iguais, error } = await db.from("produtos").select("nome").eq("owner_id", ctx.owner).ilike("nome", termo(nome, 120)).limit(1);
   if (error) throw error;
@@ -159,7 +156,12 @@ export async function prepararProduto(db: Db, ctx: ContextoAcao, entrada: Entrad
   }
 
   const marca = String(entrada.marca ?? "").trim().slice(0, 60) || null;
-  const rascunho: RascunhoProduto = { nome, preco, custo, estoque, marca, categoriaId };
+  let fotoPath: string | null = null;
+  if (entrada.usar_foto === true) {
+    fotoPath = await acharFoto(db, ctx);
+    if (!fotoPath) return { erro: "Não achei a foto. Peça para o vendedor mandar de novo." };
+  }
+  const rascunho: RascunhoProduto = { nome, preco, custo, estoque, marca, categoriaId, fotoPath };
 
   return abrirAcao(db, ctx, "produto", rascunho, [
     "*Cadastrar este produto?*",
@@ -169,6 +171,7 @@ export async function prepararProduto(db: Db, ctx: ContextoAcao, entrada: Entrad
     marca ? `Marca: ${marca}` : null,
     categoriaNome ? `Categoria: ${categoriaNome}` : categoriaDita ? "Categoria: fica sem (essa ainda não existe no seu cadastro)" : null,
     estoque > 0 ? `Estoque inicial: ${estoque} (não mexe no caixa)` : "Estoque inicial: 0",
+    fotoPath ? "Foto: a que você mandou" : null,
   ]);
 }
 
@@ -191,6 +194,16 @@ export async function executarProduto(db: Db, ctx: ContextoAcao, payload: unknow
     .single();
   if (error) throw error;
 
+  // a foto é um extra: se não entrar, o produto continua cadastrado e o vendedor é avisado
+  let fotoSalva = false;
+  if (r.fotoPath && caminhoDoDono(r.fotoPath, ctx.owner)) {
+    const { error: erroFoto } = await db.from("produto_fotos").insert({ owner_id: ctx.owner, produto_id: produto.id, path: r.fotoPath, ordem: 0 });
+    if (erroFoto) {
+      console.error("[whatsapp] foto do produto", erroFoto.message);
+      await apagarFotoDoRascunho(db, ctx.owner, r);
+    } else fotoSalva = true;
+  }
+
   if (r.estoque > 0) {
     const { error: erroEstoque } = await db.rpc("registrar_entrada_estoque_como", {
       p_owner: ctx.owner,
@@ -204,13 +217,60 @@ export async function executarProduto(db: Db, ctx: ContextoAcao, payload: unknow
     });
     if (erroEstoque) {
       console.error("[whatsapp] estoque inicial", erroEstoque.message);
-      return { referenciaId: produto.id, mensagem: `Produto cadastrado: ${r.nome}. O estoque inicial não entrou, lance pelo Marcon.` };
+      return { referenciaId: produto.id, mensagem: `Produto cadastrado: ${r.nome}${fotoSalva ? ", com a foto" : ""}. O estoque inicial não entrou, lance pelo Marcon.` };
     }
   }
   return {
     referenciaId: produto.id,
-    mensagem: `Produto cadastrado: ${r.nome}, a ${formatBRL(r.preco)}${r.estoque > 0 ? `, com ${r.estoque} em estoque` : ""}. Fotos e anúncio você coloca no Marcon.`,
+    mensagem: `Produto cadastrado: ${r.nome}, a ${formatBRL(r.preco)}${r.estoque > 0 ? `, com ${r.estoque} em estoque` : ""}. ${fotoSalva ? "A foto já está no produto. O anúncio você faz no Marcon." : r.fotoPath ? "A foto não entrou, coloque pelo Marcon." : "Fotos e anúncio você coloca no Marcon."}`,
   };
+}
+
+// Mesma regra do banco (caminho_do_dono, migration 0031): dentro da pasta do dono e sem "..".
+function caminhoDoDono(caminho: string, owner: string) {
+  return caminho.startsWith(`${owner}/`) && !caminho.includes("..");
+}
+
+// A foto que o vendedor mandou: a desta mensagem (ctx.foto) ou a última dos 30 minutos anteriores,
+// guardada na conversa. Passa a ser do rascunho, então sai da conversa para não valer duas vezes.
+async function acharFoto(db: Db, ctx: ContextoAcao): Promise<string | null> {
+  if (ctx.foto) {
+    ctx.foto.usada = true;
+    return ctx.foto.path;
+  }
+  const desde = new Date(Date.now() - 30 * 60_000).toISOString();
+  const { data } = await db
+    .from("whatsapp_conversas")
+    .select("id, foto_path")
+    .eq("telefone", ctx.telefone)
+    .not("foto_path", "is", null)
+    .gte("criado_em", desde)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const path = (data?.foto_path as string | null) ?? null;
+  if (!path || !caminhoDoDono(path, ctx.owner)) return null;
+  await db.from("whatsapp_conversas").update({ foto_path: null }).eq("id", data!.id);
+  return path;
+}
+
+// Rascunho cancelado, vencido ou que falhou: a foto guardada para ele não serve mais.
+export async function apagarFotoDoRascunho(db: Db, owner: string, payload: unknown) {
+  const path = (payload as { fotoPath?: string | null } | null)?.fotoPath;
+  if (!path || !caminhoDoDono(path, owner)) return;
+  const { error } = await db.storage.from("produto-fotos").remove([path]);
+  if (error) console.error("[whatsapp] apagar foto", error.message);
+}
+
+// Limite de produtos do plano grátis, avisado já na hora de preparar (o gatilho do banco continua valendo).
+async function limiteDeProdutos(db: Db, owner: string): Promise<string | null> {
+  const { data: plano } = await db.rpc("plano_do_usuario", { p_owner: owner });
+  if (typeof plano !== "string") return null;
+  const { data: limites } = await db.rpc("limites_do_plano", { p_plano: plano });
+  const max = (limites as { produtos?: number | null } | null)?.produtos;
+  if (typeof max !== "number") return null;
+  const { count } = await db.from("produtos").select("id", { count: "exact", head: true }).eq("owner_id", owner);
+  return (count ?? 0) >= max ? `Você chegou ao limite de ${max} produtos do plano grátis. Assine o plano Marcon para cadastrar sem limite.` : null;
 }
 
 // ---------------------------------------------------------------------------

@@ -83,7 +83,10 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
     const ids = visiveis.filter((p) => p.naVitrine !== valor).map((p) => p.id);
     if (ids.length === 0) return;
     aplicar(ids, { naVitrine: valor }, () => definirNaVitrine(ids, valor));
-    toast.success(`${ids.length} ${ids.length === 1 ? "produto" : "produtos"} ${valor ? "na vitrine" : "fora da vitrine"}.`);
+    toast.success(
+      `${ids.length} ${ids.length === 1 ? "produto" : "produtos"} ${valor ? "na vitrine" : "fora da vitrine"}.`,
+      { desfazer: () => aplicar(ids, { naVitrine: !valor }, () => definirNaVitrine(ids, !valor)) },
+    );
   }
 
   async function copiarLink(id: string) {
@@ -165,7 +168,7 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                     aria-label={p.destaque ? "Tirar dos destaques" : "Colocar nos destaques"}
                     title={p.destaque ? "Nos destaques" : "Colocar nos destaques"}
                     onClick={() => aplicar([p.id], { destaque: !p.destaque }, () => definirDestaque(p.id, !p.destaque))}
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg transition hover:bg-fill ${
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg transition hover:bg-fill ${
                       p.destaque ? "text-amber-500" : "text-ink-faint"
                     }`}
                   >
@@ -177,7 +180,7 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                       aria-label="Copiar link do produto na vitrine"
                       title="Copiar link do produto"
                       onClick={() => copiarLink(p.id)}
-                      className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-fill hover:text-ink sm:flex"
+                      className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-fill hover:text-ink sm:flex"
                     >
                       <IconLink />
                     </button>
@@ -187,7 +190,11 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
               <Interruptor
                 ligado={p.naVitrine}
                 rotulo={`Mostrar ${p.nome} na vitrine`}
-                onMudar={() => aplicar([p.id], { naVitrine: !p.naVitrine }, () => definirNaVitrine([p.id], !p.naVitrine))}
+                onMudar={() => {
+                  const novo = !p.naVitrine;
+                  aplicar([p.id], { naVitrine: novo }, () => definirNaVitrine([p.id], novo));
+                  if (!novo) toast.success(`${p.nome} saiu da vitrine.`, { desfazer: () => aplicar([p.id], { naVitrine: true }, () => definirNaVitrine([p.id], true)) });
+                }}
               />
               <Link
                 href={`/vitrine/produtos/${p.id}`}

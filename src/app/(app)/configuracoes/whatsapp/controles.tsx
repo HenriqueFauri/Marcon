@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useAction } from "@/components/use-action";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -58,7 +59,7 @@ export function Vincular({ numeroDoMarcon, prefixo }: { numeroDoMarcon: string; 
         })
       }
     >
-      {isPending ? "Gerando..." : "Vincular meu WhatsApp"}
+      <RotuloAcao pendente={isPending} ocupado="Gerando...">{"Vincular meu WhatsApp"}</RotuloAcao>
     </button>
   );
 }

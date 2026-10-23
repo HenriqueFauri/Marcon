@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
@@ -9,7 +9,8 @@ import { Card, Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
 import { IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { registrarVenda } from "../actions";
-import { FotoProduto, ListaProdutos, agruparVendaveis } from "./produto-seletor";
+import { FotoProduto } from "@/components/foto-produto";
+import { ListaProdutos, agruparVendaveis } from "./produto-seletor";
 
 export interface Vendavel {
   chave: string;
@@ -28,8 +29,10 @@ export interface Vendavel {
 
 // pedido da vitrine virando venda (Registrar venda, em Vitrine > Pedidos)
 export interface PedidoParaVenda {
-  id: string;
+  id: string | null; // null quando é a repetição de uma venda, não um pedido
   codigo: string;
+  repetida?: { cliente: string | null } | null; // "Repetir venda": preços do catálogo de hoje
+  canal?: string | null;
   itens: { chave: string; quantidade: number; preco: number }[];
   desconto: number;
   clienteNome: string | null;
@@ -44,7 +47,7 @@ interface ItemCarrinho {
 }
 
 // aceita "12,50", "12.50" e "1.234,50"
-function paraNumero(v: string) {
+export function paraNumero(v: string) {
   const t = v.trim();
   // sem vírgula, "1.234" é milhar (1234) e "12.5" é decimal
   const limpo = t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, "") : t;
@@ -53,12 +56,12 @@ function paraNumero(v: string) {
 }
 
 // o preço aparece no jeito brasileiro (79,00); paraNumero lê de volta
-function emTexto(n: number) {
+export function emTexto(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // campo de dinheiro: só dígitos, que entram como centavos (1 → 0,01; 12 → 0,12; 125 → 1,25)
-function mascaraDinheiro(digitado: string) {
+export function mascaraDinheiro(digitado: string) {
   const digitos = digitado.replace(/\D/g, "").replace(/^0+/, "").slice(0, 11);
   return digitos ? emTexto(Number(digitos) / 100) : "";
 }
@@ -77,7 +80,7 @@ function somarMeses(dataISO: string, meses: number) {
 }
 
 // Linha de formulário no estilo iOS: rótulo à esquerda, valor à direita.
-function Linha({ rotulo, children, extra }: { rotulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
+export function Linha({ rotulo, children, extra }: { rotulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
   return (
     <div className="border-t border-line first:border-t-0">
       <label className="flex items-center justify-between gap-4 py-3">
@@ -89,17 +92,17 @@ function Linha({ rotulo, children, extra }: { rotulo: string; children: React.Re
   );
 }
 
-const valorLinha =
+export const valorLinha =
   "w-full min-w-0 cursor-pointer bg-transparent text-right [text-align-last:right] text-[17px] text-ink-2 outline-none placeholder:text-ink-muted focus:text-ink";
 
 // o que aparece na lista enquanto a pessoa ainda não cadastrou os próprios (Configurações)
-const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
-const CANAIS_SUGERIDOS = ["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre", "Vitrine"];
+export const FORMAS_SUGERIDAS = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito", "Transferência"];
+export const CANAIS_SUGERIDOS = ["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre", "Vitrine"];
 
 // Campo "escolha da lista ou digite": select com os cadastrados + texto livre.
 // Com `sugestoes`, vira sempre uma lista de escolha: os cadastrados, depois as sugestões
 // que ainda não estão cadastradas e "Outro" (aí sim aparece o campo de texto).
-function SelectOuTexto({
+export function SelectOuTexto({
   label,
   opcoes,
   id,
@@ -286,22 +289,42 @@ export function VendaForm({
   const doCadastro = <T extends { id: string; nome: string }>(lista: T[], nome: string | null | undefined) =>
     nome ? lista.find((x) => x.nome.trim().toLowerCase() === nome.trim().toLowerCase()) : undefined;
   const clientePedido = doCadastro(clientes, pedido?.clienteNome);
-  const canalPedido = pedido ? doCadastro(canais, "Vitrine") : undefined;
+  const nomeCanal = pedido ? (pedido.repetida ? (pedido.canal ?? null) : "Vitrine") : null;
+  const canalPedido = doCadastro(canais, nomeCanal);
   const formaPedido = doCadastro(formas, pedido?.pagamento);
   const [clienteId, setClienteId] = useState(clientePedido?.id ?? "");
   const [clienteNome, setClienteNome] = useState(clientePedido ? "" : (pedido?.clienteNome ?? ""));
   const [canalId, setCanalId] = useState(canalPedido?.id ?? "");
-  const [canalNome, setCanalNome] = useState(pedido && !canalPedido ? "Vitrine" : "");
+  const [canalNome, setCanalNome] = useState(nomeCanal && !canalPedido ? nomeCanal : "");
   const [formaId, setFormaId] = useState(formaPedido?.id ?? "");
   const [formaNome, setFormaNome] = useState(formaPedido ? "" : (pedido?.pagamento ?? ""));
   const [desconto, setDesconto] = useState(pedido && pedido.desconto > 0 ? emTexto(pedido.desconto) : "");
   const [outrosGastos, setOutrosGastos] = useState("");
+  const [entrada, setEntrada] = useState("");
   const [tipoPagamento, setTipoPagamento] = useState<"a_vista" | "a_prazo">("a_vista");
   const [numeroParcelas, setNumeroParcelas] = useState(2);
   const [data, setData] = useState(hoje);
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarMeses(hoje, 1));
   const [erro, setErro] = useState<string | null>(null);
   const [confirmarZero, setConfirmarZero] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // atalhos no computador: "/" vai para a busca; Ctrl ou Cmd + Enter registra a venda
+  useEffect(() => {
+    function aoTeclar(e: KeyboardEvent) {
+      const alvo = e.target as HTMLElement | null;
+      const digitando = !!alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName));
+      if (e.key === "/" && !digitando && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        document.getElementById("buscar-produto")?.focus();
+      } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        formRef.current?.requestSubmit();
+      }
+    }
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
 
   const porChave = useMemo(() => new Map(vendaveis.map((v) => [v.chave, v])), [vendaveis]);
   const temAtacado = vendaveis.some((v) => v.preco_atacado != null);
@@ -328,7 +351,10 @@ export function VendaForm({
   // outros gastos (motoboy, embalagem...) saem do bolso do lojista: baixam o lucro, não o total do cliente
   const lucro = total - custo - valorOutros;
   const parcelasValidas = Math.min(Math.max(Math.trunc(numeroParcelas) || 1, 1), 60);
-  const valorParcela = parcelasValidas > 0 ? total / parcelasValidas : 0;
+  // entrada paga agora: entra no caixa hoje; o restante vira as parcelas
+  const valorEntrada = tipoPagamento === "a_prazo" ? paraNumero(entrada) : 0;
+  const restante = total - valorEntrada;
+  const valorParcela = parcelasValidas > 0 ? restante / parcelasValidas : 0;
 
   function precoPadrao(v: Vendavel) {
     return tabela === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
@@ -373,6 +399,7 @@ export function VendaForm({
     if (valorDesconto < 0) return "O desconto não pode ser negativo.";
     if (valorDesconto > subtotal) return "O desconto é maior que o total da venda.";
     if (valorOutros < 0) return "Os outros gastos não podem ser negativos.";
+    if (valorEntrada > 0 && valorEntrada >= total) return "A entrada precisa ser menor que o total. Se pagou tudo, escolha À vista.";
     if (tipoPagamento === "a_prazo" && !clienteId && !clienteNome.trim())
       return "Informe o cliente: venda a prazo precisa saber de quem cobrar.";
     return null;
@@ -411,6 +438,7 @@ export function VendaForm({
           numeroParcelas: parcelasValidas,
           primeiroVencimento,
           desconto: valorDesconto,
+          entrada: valorEntrada,
           outrosGastos: valorOutros,
           data,
           pedidoId: pedido?.id ?? null,
@@ -425,10 +453,14 @@ export function VendaForm({
   const noCarrinho = new Map(carrinho.map((i) => [i.chave, i.quantidade]));
 
   return (
-    <form onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
+    <form ref={formRef} onSubmit={enviar} className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-6">
       {pedido && (
         <p className="rounded-2xl bg-info-tint px-4 py-3 text-[15px] text-ink-2 lg:col-span-5">
-          Do pedido <strong className="text-ink">#{pedido.codigo}</strong> da vitrine. Confira e registre.
+          {pedido.repetida ? (
+            <>Repetindo a venda anterior{pedido.repetida.cliente ? <> de <strong className="text-ink">{pedido.repetida.cliente}</strong></> : null}, com os preços de hoje. Confira e registre.</>
+          ) : (
+            <>Do pedido <strong className="text-ink">#{pedido.codigo}</strong> da vitrine. Confira e registre.</>
+          )}
           {pedido.semEstoque.length > 0 && <> Sem estoque agora, ficou de fora: {pedido.semEstoque.join(", ")}.</>}
         </p>
       )}
@@ -501,7 +533,7 @@ export function VendaForm({
               {linhas.map(({ item, produto }) => (
                 // duas linhas: foto e nome em cima; preço e quantidade embaixo, com a largura toda
                 // (ao lado do nome, os botões de 44 px não cabiam em 390 px)
-                <li key={item.chave} className="flex flex-col gap-2 px-1 py-3">
+                <li key={item.chave} className="entra flex flex-col gap-2 px-1 py-3">
                   <div className="flex items-center gap-3">
                     <FotoProduto url={produto.foto} />
                     <div className="min-w-0 flex-1">
@@ -630,6 +662,21 @@ export function VendaForm({
             </div>
 
             {tipoPagamento === "a_prazo" && (
+              <Linha
+                rotulo="Entrada paga agora (R$)"
+                extra={<p className="text-[13px] text-ink-muted">Entra no caixa hoje. O que sobrar vira as parcelas.</p>}
+              >
+                <input
+                  inputMode="numeric"
+                  value={entrada}
+                  onChange={(e) => setEntrada(mascaraDinheiro(e.target.value))}
+                  placeholder="0,00"
+                  className={valorLinha}
+                />
+              </Linha>
+            )}
+
+            {tipoPagamento === "a_prazo" && (
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Nº de parcelas">
                   <input
@@ -742,6 +789,9 @@ export function VendaForm({
 
           {tipoPagamento === "a_prazo" && total > 0 && (
             <div className="mt-3 rounded-lg bg-fill/60 p-3 text-xs text-ink-muted">
+              {valorEntrada > 0 && valorEntrada < total && (
+                <p className="mb-1 font-medium text-ink-2">Entrada de {formatBRL(valorEntrada)} hoje, mais</p>
+              )}
               <p className="mb-1 font-medium text-ink-2">
                 {parcelasValidas}x de {formatBRL(valorParcela)}
               </p>

@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import type { ProdutoVariacao } from "@/types/domain";
 import { useAction } from "@/components/use-action";
@@ -78,7 +79,7 @@ export function AjusteEstoqueForm({
             : `${diferenca > 0 ? "Soma" : "Tira"} ${Math.abs(diferenca)} ${Math.abs(diferenca) === 1 ? "unidade" : "unidades"}. Não mexe no caixa nem no custo.`}
         </p>
         <button type="submit" disabled={isPending || diferenca === null || diferenca === 0} className={btnPrimary}>
-          {isPending ? "Salvando..." : "Ajustar estoque"}
+          <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Ajustar estoque"}</RotuloAcao>
         </button>
       </div>
     </form>

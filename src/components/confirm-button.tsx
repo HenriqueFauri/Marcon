@@ -1,5 +1,6 @@
 "use client";
 
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState, type ReactNode } from "react";
 import type { ActionResult } from "@/lib/action";
 import { Modal } from "./modal";
@@ -62,7 +63,7 @@ export function ConfirmButton({
             }
             className={btnDanger}
           >
-            {isPending ? "Aguarde..." : confirmLabel}
+            <RotuloAcao pendente={isPending} ocupado="Aguarde...">{confirmLabel}</RotuloAcao>
           </button>
         </div>
       </Modal>

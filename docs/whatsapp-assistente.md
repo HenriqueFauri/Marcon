@@ -62,6 +62,11 @@ Para trocar a Evolution pela API oficial da Meta, reescreva só `enviarMensagem(
 - Limite: 30 lançamentos por dia por conta, somando os três grupos (`WHATSAPP_LIMITE_LANCAMENTOS_DIA`), separado do limite de vendas.
 - **Não testado com o WhatsApp de verdade.** As funções do banco foram testadas no Staging (2026-10-11). Antes de ligar: subir a Evolution apontando para o Staging, ligar "Lançar pelo WhatsApp" na conta de teste e passar por cada tipo. Para lançar algo novo: um tipo em `TipoAcao`, um `preparar` que chame `abrirAcao()` e um executor em `EXECUTORES`.
 
+**Marcar parcela como paga (migration 0060, `recebimento.ts`).** "O João pagou" ou "a Maria me pagou 50" chama `preparar_recebimento` só com o cliente, o valor (se foi parte) e a data. O servidor acha as parcelas em aberto do dono cujo cliente combina com o nome (`.eq("owner_id")`), escolhe a mais antiga e guarda tudo no rascunho `parcela_paga`. Dois clientes com o mesmo nome parcial: pergunta qual (nunca o modelo escolhe). Valor maior que a parcela: recusa. O SIM executa `receber_parcela_como()` (só `service_role`, assume a identidade do dono e chama a `receber_parcela()` do app, então caixa, parcial e travas valem igual) e manda o mesmo aviso do app. Por mexer em dinheiro recebido, **o SIM nunca é dispensado** (`confirmarSeDispensado` ignora o tipo), nem por voz.
+
+**Foto do produto vira cadastro (migration 0060, `visao.ts`).** A foto chega no mesmo evento (webhook base64, como o áudio; `extrairMensagem()` devolve `imagem` e a legenda vira o texto). Só para conta que lança. A rota endireita e reduz a foto com `sharp` (JPEG de até 1600 px), guarda em `produto-fotos/<owner_id>/whatsapp/...` e pede ao Haiku (visão, ferramenta forçada) um nome e uma categoria entre as do dono, sem inventar marca ou modelo. Isso vira uma mensagem de sistema para o assistente ("[Foto de produto recebida e guardada. O sistema identificou: ...]"), que chama `preparar_produto` com `usar_foto` quando há preço (na legenda ou depois, em até 30 minutos; a foto fica em `whatsapp_conversas.foto_path`). O resumo mostra "Foto: a que você mandou"; com SIM, o produto nasce e a foto entra em `produto_fotos` (ordem 0). Cada foto conta como uma pergunta na cota. O limite de produtos do plano grátis é checado já ao preparar (e o gatilho do banco continua valendo). Foto de rascunho cancelado, vencido ou que falhou é apagada na hora ou na limpeza de 24 a 48 horas (`apagarFotosSemDono` em `route.ts`).
+- **Não testado com o WhatsApp de verdade** (nem a migration 0060 no Staging): confirmar que a Evolution entrega `imageMessage` com `base64` no evento.
+
 ## Ferramentas do modelo
 
 | Ferramenta | Responde |
@@ -76,7 +81,7 @@ Para trocar a Evolution pela API oficial da Meta, reescreva só `enviarMensagem(
 | `caixa_do_periodo` | Entradas, saídas, maiores saídas, saldo hoje |
 | `pedidos_da_vitrine` | Pedidos novos, vendidos ou descartados |
 | `preparar_venda` | Só para contas com escrita liberada |
-| `preparar_produto`, `preparar_estoque`, `preparar_caixa` | Conta com "Lançar pelo WhatsApp" ligado no `/admin` |
+| `preparar_produto`, `preparar_estoque`, `preparar_caixa`, `preparar_recebimento` | Conta com "Lançar pelo WhatsApp" ligado no `/admin` |
 
 Caixa e contas a receber são calculados no servidor porque `saldo_caixa` e `resumo_caixa` usam `auth.uid()`; as regras espelham as telas.
 
@@ -118,6 +123,7 @@ Precisa do `.env.staging` na raiz. Regra de trabalho: todo ajuste de prompt ou d
 | `0046_whatsapp_sem_confirmar.sql` | `whatsapp_vinculos.sem_confirmar` (grupos sem SIM) | Dono muda só `lancar_venda` e `sem_confirmar` (grant por coluna) |
 | `0048_admin_seguro.sql` | `admins`, `admin_registro`, `eh_admin()`, números por conta para o `/admin`, admin sem teto de IA | Tudo só para `service_role` |
 | `0049_whatsapp_liberados.sql` | `whatsapp_liberados` (quem usa e quem lança, decidido no `/admin`) | Só `service_role` |
+| `0060_whatsapp_parcela_e_foto.sql` | tipo `parcela_paga`, `receber_parcela_como()`, `whatsapp_conversas.foto_path` | Função só para `service_role` |
 | `0047_buscar_produtos_parecidos.sql` | Extensões `pg_trgm` e `unaccent`; `buscar_produtos_parecidos()` | Função só para `service_role` |
 | `0044_whatsapp_lancamentos_base.sql` | Tipos novos e `referencia_id` em `whatsapp_acoes`; `registrar_entrada_estoque_como()` e `registrar_saida_estoque_como()` | Funções só para `service_role` |
 

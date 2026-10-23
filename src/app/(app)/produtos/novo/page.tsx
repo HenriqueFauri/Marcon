@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import type { Fornecedor } from "@/types/domain";
+import type { Fornecedor, ProdutoComEstoque } from "@/types/domain";
 import { PageHeader } from "@/components/ui";
 import { AvisoDeLimite, LimiteAtingido } from "@/components/limite-do-plano";
 import { AVISAR_QUANDO_FALTAREM, lerUso, restante } from "@/lib/uso";
@@ -9,13 +9,19 @@ import { criarProduto } from "../actions";
 
 export const metadata: Metadata = { title: "Novo produto" };
 
-export default async function NovoProdutoPage() {
+export default async function NovoProdutoPage({ searchParams }: PageProps<"/produtos/novo">) {
+  const { copiar } = await searchParams;
   const supabase = await createClient();
   const [{ data: fornecedores }, { data: categorias }, uso] = await Promise.all([
     supabase.from("fornecedores").select("*").order("nome"),
     supabase.from("categorias").select("nome").order("nome"),
     lerUso(supabase),
   ]);
+  // "Duplicar": o RLS já limita ao dono; id inválido ou de outro dono simplesmente não preenche nada
+  const idModelo = typeof copiar === "string" && /^[0-9a-f-]{36}$/i.test(copiar) ? copiar : null;
+  const { data: modelo } = idModelo
+    ? await supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", idModelo).maybeSingle()
+    : { data: null };
 
   // plano grátis: 50 produtos. O banco barra; aqui só se explica antes de o erro aparecer
   const vagas = uso ? restante(uso.produtos, uso.limites.produtos) : null;
@@ -38,6 +44,7 @@ export default async function NovoProdutoPage() {
           <ProdutoForm
             fornecedores={(fornecedores ?? []) as Fornecedor[]}
             categorias={(categorias ?? []).map((c) => c.nome as string)}
+            modelo={(modelo ?? undefined) as ProdutoComEstoque | undefined}
             onSave={criarProduto}
           />
         </>

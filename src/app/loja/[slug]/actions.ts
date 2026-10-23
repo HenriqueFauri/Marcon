@@ -83,29 +83,35 @@ export interface PedidoDaLoja {
   endereco: string;
   pagamento: string;
   cupom: string | null;
+  regiaoId?: string | null;
 }
 
-// Grava o pedido em vitrine_pedidos (migration 0037) e conta na métrica de pedidos. O banco refaz preço,
-// cupom, frete e total a partir dos ids; daqui só vão ids, quantidades e os dados de entrega.
-// Falha calada: o pedido segue pelo WhatsApp mesmo se a gravação não der certo.
-export async function registrarPedido(slug: string, pedido: PedidoDaLoja) {
+// "erro": não deu para gravar (limite, banco fora do ar), e o pedido segue pelo WhatsApp como antes.
+export type ResultadoDoPedido = { ok: true; token: string } | { ok: false; motivo: "erro" };
+
+// Grava o pedido em vitrine_pedidos (migrations 0037 e 0061) e conta na métrica de pedidos. Não recusa
+// por falta de estoque e não reserva nada: o vendedor resolve ao ver o pedido. O banco refaz preço, cupom,
+// frete e total a partir dos ids; daqui só vão ids, quantidades e os dados de entrega. Qualquer falha
+// deixa o pedido seguir pelo WhatsApp.
+export async function registrarPedido(slug: string, pedido: PedidoDaLoja): Promise<ResultadoDoPedido> {
+  const erro = { ok: false, motivo: "erro" } as const;
   try {
     const s = String(slug).toLowerCase();
-    if (!SLUG_REGEX.test(s) || (EXEMPLO && s === "exemplo") || !CODIGO.test(pedido.codigo)) return;
+    if (!SLUG_REGEX.test(s) || (EXEMPLO && s === "exemplo") || !CODIGO.test(pedido.codigo)) return erro;
     const itens = (pedido.itens ?? []).slice(0, 50).filter(
       (i) => UUID.test(i.produtoId) && (i.variacaoId === null || UUID.test(i.variacaoId)) && Number.isInteger(i.quantidade),
     );
-    if (itens.length === 0) return;
+    if (itens.length === 0) return erro;
 
     const admin = createAdminClient();
-    if (!admin) return;
-    if (!(await dentroDoLimite(admin, `pedido:${await ipDoVisitante()}:${s}`, MAX_PEDIDOS))) return;
+    if (!admin) return erro;
+    if (!(await dentroDoLimite(admin, `pedido:${await ipDoVisitante()}:${s}`, MAX_PEDIDOS))) return erro;
 
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    await admin.rpc("registrar_pedido_vitrine", {
+    const { data, error } = await admin.rpc("registrar_pedido_vitrine", {
       p_slug: s,
       p_codigo: pedido.codigo,
       p_itens: itens.map((i) => ({ produto_id: i.produtoId, variacao_id: i.variacaoId, quantidade: Math.min(Math.max(i.quantidade, 1), 99) })),
@@ -115,10 +121,23 @@ export async function registrarPedido(slug: string, pedido: PedidoDaLoja) {
         endereco: String(pedido.endereco ?? "").slice(0, 300),
         pagamento: String(pedido.pagamento ?? "").slice(0, 60),
         cupom: pedido.cupom && CUPOM_REGEX.test(pedido.cupom) ? pedido.cupom : null,
+        regiao_id: pedido.regiaoId && UUID.test(pedido.regiaoId) ? pedido.regiaoId : null,
       },
       p_ignorar: user?.id ?? null,
     });
-    // aviso (push) ao dono da loja; opcional, nunca atrapalha o pedido
-    await avisarPedidoDaVitrine(admin, s, pedido.codigo).catch((e) => console.error("[push] aviso de pedido da vitrine", e));
-  } catch {}
+    if (error || !data) return erro;
+    const r = data as {
+      ok: boolean;
+      repetido?: boolean;
+      token?: string;
+    };
+    if (r.ok && r.token) {
+      // aviso (push) ao dono da loja; opcional, nunca atrapalha o pedido
+      if (!r.repetido) await avisarPedidoDaVitrine(admin, s, pedido.codigo).catch((e) => console.error("[push] aviso de pedido da vitrine", e));
+      return { ok: true, token: r.token };
+    }
+    return erro;
+  } catch {
+    return erro;
+  }
 }

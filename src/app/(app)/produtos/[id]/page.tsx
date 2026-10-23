@@ -76,9 +76,14 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
         }
         description={[p.categorias?.nome ?? "Sem categoria", p.marca, p.sku ? `SKU ${p.sku}` : null].filter(Boolean).join(" · ")}
         action={
-          <Link href={`/produtos/${p.id}/editar`} className={`${btnSecondary} px-4 py-2 text-sm`}>
-            <IconPencil width={15} height={15} /> Editar
-          </Link>
+          <div className="flex gap-2">
+            <Link href={`/produtos/novo?copiar=${p.id}`} className={`${btnSecondary} px-4 py-2 text-sm`}>
+              Duplicar
+            </Link>
+            <Link href={`/produtos/${p.id}/editar`} className={`${btnSecondary} px-4 py-2 text-sm`}>
+              <IconPencil width={15} height={15} /> Editar
+            </Link>
+          </div>
         }
       />
 

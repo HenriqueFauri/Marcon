@@ -38,7 +38,7 @@ export default async function VitrinePedidosPage({ searchParams }: PageProps<"/v
         rotulo="Filtrar pedidos"
         itens={FILTROS.map((f) => ({ href: `/vitrine/pedidos?status=${f.valor}`, label: f.label, ativo: f.valor === filtro }))}
       />
-      <Grupo semPadding rodape="O pedido é gravado quando o cliente toca em Enviar pedido. Ele pode desistir no WhatsApp: confira pelo código.">
+      <Grupo semPadding rodape="O pedido é gravado quando o cliente toca em Enviar pedido. Ele pode desistir no WhatsApp: confira pelo código. O estoque não é reservado: ao registrar a venda, a Nova venda avisa o que estiver sem estoque.">
         {pedidos.length === 0 ? (
           <p className="px-4 py-6 text-center text-[15px] text-ink-muted">{VAZIO[filtro]}</p>
         ) : (
