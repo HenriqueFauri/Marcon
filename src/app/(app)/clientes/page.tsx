@@ -119,7 +119,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
         className="mb-4 w-full sm:w-80"
         itens={[
           { href: "/clientes", label: "Lista", ativo: true },
-          { href: "/clientes/insights", label: "Insights", ativo: false },
+          { href: "/clientes/insights", label: "Análises", ativo: false },
         ]}
       />
 
@@ -170,13 +170,13 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
                     {c.observacoes && <p className="max-w-xs truncate text-xs text-ink-muted">{c.observacoes}</p>}
                   </td>
                   <td className={`${tdClass} hidden text-ink-2 sm:table-cell`}>
-                    <p>{c.telefone ?? "—"}</p>
+                    {c.telefone && <p>{c.telefone}</p>}
                     {c.email && <p className="text-xs text-ink-muted">{c.email}</p>}
                   </td>
                   <td
                     className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${saldo ? (saldo.atrasado ? "text-danger" : "text-warning") : "text-ink-faint"}`}
                   >
-                    {saldo ? formatBRL(saldo.valor) : "—"}
+                    {saldo ? formatBRL(saldo.valor) : null}
                   </td>
                   <td className={`${tdClass} text-right`}>
                     <div className="flex items-center justify-end gap-1">
@@ -201,13 +201,18 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
                         comDocumento
                         onSave={atualizarCliente.bind(null, c.id)}
                         successMessage="Cliente atualizado."
-                      />
-                      <ConfirmButton
-                        title={`Excluir “${c.nome}”?`}
-                        description="As vendas já feitas para esse cliente continuam no histórico com o nome registrado."
-                        ariaLabel={`Excluir ${c.nome}`}
-                        successMessage="Cliente excluído."
-                        onConfirm={excluirCliente.bind(null, c.id)}
+                        rodape={
+                          <ConfirmButton
+                            title={`Excluir “${c.nome}”?`}
+                            description="As vendas já feitas para esse cliente continuam no histórico com o nome registrado."
+                            ariaLabel={`Excluir ${c.nome}`}
+                            successMessage="Cliente excluído."
+                            onConfirm={excluirCliente.bind(null, c.id)}
+                            className="inline-flex items-center rounded-full px-4 py-2 text-[15px] font-medium text-danger transition hover:bg-danger-tint"
+                          >
+                            Excluir cliente
+                          </ConfirmButton>
+                        }
                       />
                     </div>
                   </td>

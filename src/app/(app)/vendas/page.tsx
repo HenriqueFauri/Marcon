@@ -5,6 +5,7 @@ import type { Venda } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { comecarNaPrimeira, resolverPeriodo } from "@/lib/periodo";
 import { SeletorPeriodo } from "@/components/seletor-periodo";
+import { SetaLink, linkPendente } from "@/components/seta-link";
 import {
   Badge,
   EmptyState,
@@ -118,7 +119,7 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Total vendido" value={formatBRL(totalVendido)} />
         <StatCard
-          label="Lucro bruto"
+          label="Lucro"
           value={formatBRL(lucroTotal)}
           tone={lucroTotal >= 0 ? "positive" : "negative"}
           hint={`${margem.toFixed(1)}% de margem`}
@@ -148,7 +149,7 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
                     <li key={v.id}>
                       <Link
                         href={`/vendas/${v.id}`}
-                        className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${cancelada ? "opacity-50" : ""}`}
+                        className={`flex items-center gap-3 px-4 py-3 transition active:bg-fill ${linkPendente} ${cancelada ? "opacity-50" : ""}`}
                       >
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[17px] text-ink">{v.cliente_nome ?? "Avulsa"}</span>
@@ -165,9 +166,7 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
                             </span>
                           )}
                         </span>
-                        <span aria-hidden="true" className="text-lg text-ink-faint">
-                          ›
-                        </span>
+                        <SetaLink />
                       </Link>
                     </li>
                   );

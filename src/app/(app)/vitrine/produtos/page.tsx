@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { enderecoDoApp } from "@/lib/indicacao-servidor";
-import { Card } from "@/components/ui";
 import { ProdutosDaVitrine, type ProdutoDaLista } from "../produtos-da-vitrine";
 
 export const metadata: Metadata = { title: "Vitrine | Produtos" };
@@ -46,9 +45,5 @@ export default async function VitrineProdutosPage() {
     };
   });
 
-  return (
-    <Card>
-      <ProdutosDaVitrine produtos={produtos} linkDaLoja={vitrine?.ativa ? `${base}/loja/${vitrine.slug}` : null} />
-    </Card>
-  );
+  return <ProdutosDaVitrine produtos={produtos} linkDaLoja={vitrine?.ativa ? `${base}/loja/${vitrine.slug}` : null} />;
 }

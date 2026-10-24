@@ -4,8 +4,9 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/toaster";
 import { formatBRL } from "@/lib/format";
-import { inputClass } from "@/components/ui";
-import { Segmentado } from "./campos";
+import { EmptyState, btnPrimary, inputClass } from "@/components/ui";
+import { SetaLink, linkPendente } from "@/components/seta-link";
+import { Grupo, Segmentado, SoInterruptor } from "./campos";
 import { IconLink } from "@/components/icons";
 import { definirDestaque, definirNaVitrine } from "./actions";
 
@@ -27,23 +28,6 @@ const FILTROS: { valor: Filtro; label: string }[] = [
   { valor: "dentro", label: "Na vitrine" },
   { valor: "fora", label: "Fora" },
 ];
-
-function Interruptor({ ligado, onMudar, rotulo }: { ligado: boolean; onMudar: () => void; rotulo: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={ligado}
-      aria-label={rotulo}
-      onClick={onMudar}
-      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${ligado ? "bg-positive" : "bg-fill-strong"}`}
-    >
-      <span
-        className={`absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform ${ligado ? "translate-x-5" : ""}`}
-      />
-    </button>
-  );
-}
 
 // Lista de todos os produtos ativos para escolher o que aparece na loja sem abrir cada cadastro.
 // Muda na hora na tela e grava em seguida; se o banco recusar, volta como estava.
@@ -101,12 +85,15 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
 
   if (produtos.length === 0) {
     return (
-      <p className="rounded-xl bg-fill/60 px-4 py-3 text-sm text-ink-2">
-        Você ainda não tem produtos ativos.{" "}
-        <Link href="/produtos/novo" className="font-medium text-brand-text hover:underline">
-          Cadastrar produto
-        </Link>
-      </p>
+      <EmptyState
+        title="Nenhum produto ativo"
+        description="Cadastre seus produtos e escolha aqui quais aparecem na loja."
+        action={
+          <Link href="/produtos/novo" className={btnPrimary}>
+            Cadastrar produto
+          </Link>
+        }
+      />
     );
   }
 
@@ -137,11 +124,15 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
       </div>
 
       {visiveis.length === 0 ? (
-        <p className="py-6 text-center text-sm text-ink-muted">Nenhum produto nesta lista.</p>
+        <EmptyState
+          title="Nenhum produto nesta lista"
+          description={busca.trim() ? `Nada corresponde a “${busca.trim()}”.` : "Troque o filtro para ver os outros produtos."}
+        />
       ) : (
-        <ul className="-mx-4 divide-y divide-line border-t border-line sm:-mx-5">
+        <Grupo semPadding>
+        <ul className="divide-y divide-line">
           {visiveis.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
+            <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
               {p.foto ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={p.foto} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-fill object-cover" />
@@ -169,7 +160,7 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                     title={p.destaque ? "Nos destaques" : "Colocar nos destaques"}
                     onClick={() => aplicar([p.id], { destaque: !p.destaque }, () => definirDestaque(p.id, !p.destaque))}
                     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg transition hover:bg-fill ${
-                      p.destaque ? "text-amber-500" : "text-ink-faint"
+                      p.destaque ? "text-warning" : "text-ink-faint"
                     }`}
                   >
                     {p.destaque ? "★" : "☆"}
@@ -187,11 +178,13 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
                   )}
                 </>
               )}
-              <Interruptor
+              {/* a key muda com o valor: o switch acompanha o "Colocar todos" e a volta quando o banco recusa */}
+              <SoInterruptor
+                key={`${p.id}-${p.naVitrine}`}
+                name={`na_vitrine_${p.id}`}
                 ligado={p.naVitrine}
                 rotulo={`Mostrar ${p.nome} na vitrine`}
-                onMudar={() => {
-                  const novo = !p.naVitrine;
+                onMudar={(novo) => {
                   aplicar([p.id], { naVitrine: novo }, () => definirNaVitrine([p.id], novo));
                   if (!novo) toast.success(`${p.nome} saiu da vitrine.`, { desfazer: () => aplicar([p.id], { naVitrine: true }, () => definirNaVitrine([p.id], true)) });
                 }}
@@ -199,13 +192,14 @@ export function ProdutosDaVitrine({ produtos: iniciais, linkDaLoja }: { produtos
               <Link
                 href={`/vitrine/produtos/${p.id}`}
                 aria-label={`Ajustar como ${p.nome} aparece na loja`}
-                className="-mr-2 flex h-9 w-6 shrink-0 items-center justify-center text-lg text-ink-faint"
+                className={`-mr-2 flex h-9 w-6 shrink-0 items-center justify-center ${linkPendente}`}
               >
-                ›
+                <SetaLink />
               </Link>
             </li>
           ))}
         </ul>
+        </Grupo>
       )}
     </div>
   );

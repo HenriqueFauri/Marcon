@@ -2,7 +2,8 @@
 
 import { ConfirmButton } from "@/components/confirm-button";
 import { useToast } from "@/components/toaster";
-import { Card, btnGhost, btnPrimary, btnSecondary } from "@/components/ui";
+import { btnGhost, btnPrimary, btnSecondary } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { IconLink, IconWhatsapp } from "@/components/icons";
 import { linkWhatsApp } from "@/lib/format";
 import { novoLinkRecibo } from "../actions";
@@ -57,10 +58,13 @@ export function ReciboCard({
   const whatsapp = linkWhatsApp(clienteTelefone);
 
   return (
-    <Card
-      title="Recibo"
-      description="Mande o link para o cliente. As parcelas aparecem com a situação de hoje."
-      className="mb-6"
+    <Grupo
+      titulo="Recibo"
+      rodape={
+        whatsapp
+          ? "Mande o link para o cliente. As parcelas aparecem com a situação de hoje."
+          : "O cliente não tem telefone cadastrado, então o recibo vai pelo compartilhar. As parcelas aparecem com a situação de hoje."
+      }
     >
       <div className="flex flex-wrap gap-2">
         {whatsapp ? (
@@ -86,8 +90,7 @@ export function ReciboCard({
           Baixar PDF
         </a>
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
-        <span>{whatsapp ? null : "O cliente não tem telefone cadastrado, então o recibo vai pelo compartilhar."}</span>
+      <div className="flex justify-end border-t border-line pt-3 text-[13px] text-ink-muted">
         <ConfirmButton
           title="Criar um link novo?"
           description="O link enviado antes para de abrir. Use se mandou o recibo para a pessoa errada."
@@ -99,6 +102,6 @@ export function ReciboCard({
           Desativar este link
         </ConfirmButton>
       </div>
-    </Card>
+    </Grupo>
   );
 }

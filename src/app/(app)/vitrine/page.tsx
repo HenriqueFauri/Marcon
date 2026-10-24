@@ -6,7 +6,8 @@ import { hojeISO } from "@/lib/format";
 import { btnPrimary } from "@/components/ui";
 import { IconBox, IconPalette, IconReceipt, IconSettings, IconTicket } from "@/components/icons";
 import type { PedidoRecebido } from "@/lib/vitrine";
-import { Grupo, LinhaLink } from "./campos";
+import { SetaLink, linkPendente } from "@/components/seta-link";
+import { Grupo, LinhaInfo, LinhaLink } from "./campos";
 import { LinkDaLoja } from "./link-da-loja";
 import { LinhaDoPedido } from "./pedidos/linha-do-pedido";
 
@@ -18,15 +19,6 @@ function diasAtras(dia: string, dias: number) {
   const d = new Date(`${dia}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() - dias);
   return d.toISOString().slice(0, 10);
-}
-
-function Numero({ valor, rotulo }: { valor: string | number; rotulo: string }) {
-  return (
-    <div className="rounded-2xl bg-fill/60 px-2 py-3 text-center">
-      <p className="text-xl font-semibold tabular-nums text-ink">{valor}</p>
-      <p className="text-xs text-ink-muted">{rotulo}</p>
-    </div>
-  );
 }
 
 interface Passo {
@@ -101,7 +93,7 @@ export default async function VitrineVisaoGeralPage() {
 
   const passos: Passo[] = [
     { feito: !!vitrine, titulo: "Criar a loja", ajuda: "Escolha o endereço e o WhatsApp que recebe os pedidos.", href: "/vitrine/configuracoes" },
-    { feito: !!vitrine?.ativa, titulo: "Colocar no ar", ajuda: 'Ligue "Vitrine no ar" em Configurações.', href: "/vitrine/configuracoes" },
+    { feito: !!vitrine?.ativa, titulo: "Colocar no ar", ajuda: 'Ligue "Vitrine no ar" em Ajustes da loja.', href: "/vitrine/configuracoes" },
     { feito: marcados.length > 0, titulo: "Escolher os produtos", ajuda: "Ligue os produtos que aparecem na loja.", href: "/vitrine/produtos" },
     {
       feito: marcados.length > 0 && semFoto === 0,
@@ -191,14 +183,12 @@ export default async function VitrineVisaoGeralPage() {
 
       {proximo && (
         <Grupo titulo="Próximo passo" semPadding>
-          <Link href={proximo.href} className="flex items-center gap-3 px-4 py-3 transition hover:bg-fill/60 active:bg-fill">
+          <Link href={proximo.href} className={`flex items-center gap-3 px-4 py-3 transition hover:bg-fill/60 active:bg-fill ${linkPendente}`}>
             <span className="min-w-0 flex-1">
               <span className="block text-[17px] text-ink">{proximo.titulo}</span>
               <span className="block text-[13px] leading-snug text-ink-muted">{proximo.ajuda}</span>
             </span>
-            <span aria-hidden="true" className="text-lg text-ink-faint">
-              ›
-            </span>
+            <SetaLink />
           </Link>
         </Grupo>
       )}
@@ -219,16 +209,14 @@ export default async function VitrineVisaoGeralPage() {
             <Link
               key={p.titulo}
               href={p.href}
-              className="flex items-center gap-3 border-t border-line px-4 py-3 transition first:border-t-0 hover:bg-fill/60 active:bg-fill"
+              className={`flex items-center gap-3 border-t border-line px-4 py-3 transition first:border-t-0 hover:bg-fill/60 active:bg-fill ${linkPendente}`}
             >
               <span aria-hidden="true" className="h-[22px] w-[22px] shrink-0 rounded-full border-[1.5px] border-line-strong" />
               <span className="min-w-0 flex-1">
                 <span className="block text-[17px] text-ink">{p.titulo}</span>
                 <span className="block text-[13px] leading-snug text-ink-muted">{p.ajuda}</span>
               </span>
-              <span aria-hidden="true" className="text-lg text-ink-faint">
-                ›
-              </span>
+              <SetaLink />
             </Link>
           ))}
         </Grupo>
@@ -240,7 +228,7 @@ export default async function VitrineVisaoGeralPage() {
           <LinhaLink
             href="/vitrine/pedidos"
             icone={<IconReceipt className={tile} />}
-            tom="bg-info text-white"
+            tom="bg-info-tint text-info"
             rotulo="Pedidos"
             detalhe={(pedidosNovos ?? 0) === 0 ? "Nenhum novo" : `${pedidosNovos} ${pedidosNovos === 1 ? "novo" : "novos"}`}
           />
@@ -261,7 +249,7 @@ export default async function VitrineVisaoGeralPage() {
             href="/vitrine/configuracoes"
             icone={<IconSettings className={tile} />}
             tom="bg-ink-muted text-surface"
-            rotulo="Configurações"
+            rotulo="Ajustes da loja"
           />
           <LinhaLink
             href="/vitrine/cupons"
@@ -282,28 +270,32 @@ export default async function VitrineVisaoGeralPage() {
             </span>
           }
           rodape={maisVistos.length === 0 ? "Suas visitas logado não contam. Divulgue o link e os números aparecem aqui." : undefined}
+          semPadding
         >
-          <div className="grid grid-cols-3 gap-2">
-            <Numero valor={visitas} rotulo="visitas" />
-            <Numero valor={pedidos} rotulo="pedidos" />
-            <Numero valor={visitas > 0 ? `${Math.round((pedidos / visitas) * 100)}%` : "0%"} rotulo="conversão" />
-          </div>
-          {maisVistos.length > 0 && (
-            <div>
-              <p className="mb-1 text-[13px] text-ink-muted">Mais vistos</p>
-              <ol className="divide-y divide-line">
-                {maisVistos.map(([id, n], i) => (
-                  <li key={id} className="flex items-center justify-between gap-3 py-2.5 text-[15px]">
-                    <Link href={`/produtos/${id}`} className="min-w-0 truncate text-ink hover:underline">
-                      <span className="mr-2 tabular-nums text-ink-muted">{i + 1}</span>
-                      {nomePorId.get(id)}
-                    </Link>
-                    <span className="shrink-0 tabular-nums text-ink-muted">{n}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+          <LinhaInfo rotulo="Visitas" valor={<span className="tabular-nums">{visitas}</span>} />
+          <LinhaInfo rotulo="Pedidos" valor={<span className="tabular-nums">{pedidos}</span>} />
+          <LinhaInfo
+            rotulo="Conversão"
+            valor={<span className="tabular-nums">{visitas > 0 ? `${Math.round((pedidos / visitas) * 100)}%` : "0%"}</span>}
+          />
+        </Grupo>
+      )}
+
+      {vitrine && maisVistos.length > 0 && (
+        <Grupo titulo="Mais vistos" semPadding rodape="Quantas vezes cada produto foi aberto na loja.">
+          {maisVistos.map(([id, n], i) => (
+            <LinhaLink
+              key={id}
+              href={`/produtos/${id}`}
+              rotulo={
+                <>
+                  <span className="mr-2 tabular-nums text-ink-muted">{i + 1}</span>
+                  {nomePorId.get(id)}
+                </>
+              }
+              detalhe={<span className="tabular-nums">{n}</span>}
+            />
+          ))}
         </Grupo>
       )}
     </div>

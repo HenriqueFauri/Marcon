@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { CanalVenda, Cliente, FormaPagamento, Venda, VendaItem } from "@/types/domain";
 import { formatBRL } from "@/lib/format";
 import { useAction } from "@/components/use-action";
-import { Card, btnPrimary, inputClass } from "@/components/ui";
+import { btnPrimary, inputClass } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { editarVenda } from "../../actions";
 import {
   CANAIS_SUGERIDOS,
@@ -90,9 +91,9 @@ export function EditarVendaForm({
   }
 
   return (
-    <form onSubmit={salvar} className="flex flex-col gap-4 pb-24 lg:pb-0">
-      <Card title="Itens" rodape="Muda só o preço. Pra mudar a quantidade, use Devolver na venda.">
-        <ul className="divide-y divide-line">
+    <form onSubmit={salvar} className="flex flex-col gap-7 pb-24 lg:pb-0">
+      <Grupo titulo="Itens" rodape="Muda só o preço. Pra mudar a quantidade, use Devolver na venda.">
+        <ul className="-my-3 divide-y divide-line">
           {itens.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 py-3">
               <div className="min-w-0">
@@ -112,7 +113,7 @@ export function EditarVendaForm({
             </li>
           ))}
         </ul>
-        <dl className="mt-1 space-y-1 border-t border-line pt-3 text-sm">
+        <dl className="space-y-1 border-t border-line pt-3 text-sm">
           <div className="flex justify-between font-semibold text-ink">
             <dt>Total</dt>
             <dd className="tabular-nums">{formatBRL(total)}</dd>
@@ -125,7 +126,7 @@ export function EditarVendaForm({
           )}
         </dl>
         {diferenca !== 0 && (
-          <p className="mt-2 text-[13px] text-ink-muted">
+          <p className="-mt-2 text-[13px] text-ink-muted">
             {aPrazo
               ? diferenca < 0
                 ? "A diferença sai das parcelas em aberto, da última pra primeira. O que já foi pago e passar disso volta como estorno no caixa."
@@ -135,23 +136,25 @@ export function EditarVendaForm({
                 : "A diferença entra no caixa hoje."}
           </p>
         )}
-      </Card>
+      </Grupo>
 
-      <Card title="Cliente" className="!py-2 sm:!py-2">
-        <SelectOuTexto
-          label="Cliente"
-          opcoes={clientes}
-          id={clienteId}
-          setId={setClienteId}
-          texto={clienteNome}
-          setTexto={setClienteNome}
-          placeholder="Digite o nome do cliente (opcional)"
-          vazio="Avulso (sem cadastro)"
-        />
-      </Card>
+      <Grupo titulo="Cliente" semPadding>
+        <div className="px-4">
+          <SelectOuTexto
+            label="Cliente"
+            opcoes={clientes}
+            id={clienteId}
+            setId={setClienteId}
+            texto={clienteNome}
+            setTexto={setClienteNome}
+            placeholder="Digite o nome do cliente (opcional)"
+            vazio="Avulso (sem cadastro)"
+          />
+        </div>
+      </Grupo>
 
-      <Card title="Pagamento">
-        <div className="-mb-3">
+      <Grupo titulo="Pagamento" semPadding>
+        <div className="px-4">
           <SelectOuTexto
             label="Forma de pagamento"
             opcoes={formas}
@@ -178,9 +181,9 @@ export function EditarVendaForm({
             <input type="date" value={data} max={hoje} required onChange={(e) => setData(e.target.value)} className={valorLinha} />
           </Linha>
         </div>
-      </Card>
+      </Grupo>
 
-      <Card title="Observação">
+      <Grupo titulo="Observação">
         <textarea
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
@@ -188,7 +191,7 @@ export function EditarVendaForm({
           placeholder="Anotação sobre a venda (opcional)"
           className={inputClass}
         />
-      </Card>
+      </Grupo>
 
       {erro && (
         <p role="alert" className="text-sm text-danger">

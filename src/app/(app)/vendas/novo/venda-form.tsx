@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { useAction } from "@/components/use-action";
-import { Card, Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
+import { Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
+import { Grupo, Segmentado } from "@/components/ajustes";
 import { IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { registrarVenda } from "../actions";
@@ -16,7 +17,7 @@ export interface Vendavel {
   chave: string;
   produto_id: string;
   variacao_id: string | null;
-  nome: string; // "Produto — Variação", usado em avisos e leitores de tela
+  nome: string; // "Produto · Variação", usado em avisos e leitores de tela
   produto_nome: string;
   rotulo: string | null; // nome da variação, ex.: "Azul / M"
   detalhe: string;
@@ -491,29 +492,22 @@ export function VendaForm({
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-4 lg:col-span-3">
-        <Card
-          title="Produtos"
-          action={
-            temAtacado && (
-              <div className="flex rounded-full bg-fill p-0.5 text-xs" role="group" aria-label="Tabela de preço">
-                {(["varejo", "atacado"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => trocarTabela(t)}
-                    aria-pressed={tabela === t}
-                    className={`rounded-full px-3 py-1 font-medium capitalize ${tabela === t ? "bg-surface text-ink shadow-sm" : "text-ink-muted"}`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )
-          }
-        >
+      <div className="flex flex-col gap-7 lg:col-span-3">
+        {/* overflow visível no cartão: com overflow-hidden a busca não gruda no topo */}
+        <Grupo titulo="Produtos" className="[&>div]:overflow-visible">
+          {temAtacado && (
+            <Segmentado
+              rotulo="Tabela de preço"
+              valor={tabela}
+              onMudar={trocarTabela}
+              opcoes={[
+                { valor: "varejo", label: "Varejo" },
+                { valor: "atacado", label: "Atacado" },
+              ]}
+            />
+          )}
           {/* a busca gruda no topo enquanto a lista rola com a página (sem rolagem dentro da rolagem) */}
-          <div className="sticky top-[env(safe-area-inset-top)] z-10 mb-1 bg-surface py-2">
+          <div className="sticky top-[env(safe-area-inset-top)] z-10 -my-2 bg-surface py-2">
             <div className="relative">
               <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" width={16} height={16} />
               <input
@@ -535,9 +529,9 @@ export function VendaForm({
             onAdicionar={adicionar}
             abertoInicial={iniciais.length > 1 ? produtoInicial : null}
           />
-        </Card>
+        </Grupo>
 
-        <Card title={`Carrinho${linhas.length ? ` (${linhas.length})` : ""}`}>
+        <Grupo titulo={`Carrinho${linhas.length ? ` · ${linhas.length} ${linhas.length === 1 ? "item" : "itens"}` : ""}`}>
           {linhas.length === 0 ? (
             <p className="py-4 text-center text-sm text-ink-muted">Toque num produto acima para adicionar.</p>
           ) : (
@@ -635,47 +629,38 @@ export function VendaForm({
             </span>
             Adicionar produto
           </button>
-        </Card>
+        </Grupo>
 
-        <Card title="Cliente" className="!py-2 sm:!py-2">
-          <SelectOuTexto
-            label="Cliente"
-            opcoes={clientes}
-            id={clienteId}
-            setId={setClienteId}
-            texto={clienteNome}
-            setTexto={setClienteNome}
-            placeholder="Digite o nome do cliente (opcional)"
-            vazio="Avulso (sem cadastro)"
-          />
-        </Card>
+        <Grupo titulo="Cliente" semPadding>
+          <div className="px-4">
+            <SelectOuTexto
+              label="Cliente"
+              opcoes={clientes}
+              id={clienteId}
+              setId={setClienteId}
+              texto={clienteNome}
+              setTexto={setClienteNome}
+              placeholder="Digite o nome do cliente (opcional)"
+              vazio="Avulso (sem cadastro)"
+            />
+          </div>
+        </Grupo>
       </div>
 
-      <div className="flex flex-col gap-4 lg:col-span-2">
-        <Card title="Pagamento">
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-1 rounded-full bg-fill p-1" role="radiogroup" aria-label="Tipo de pagamento">
-              {(
-                [
-                  ["a_vista", "À vista"],
-                  ["a_prazo", "A prazo / parcelado"],
-                ] as const
-              ).map(([valor, rotulo]) => (
-                <label
-                  key={valor}
-                  className="cursor-pointer rounded-full py-2 text-center text-[15px] font-medium text-ink-2 transition has-[:checked]:bg-surface has-[:checked]:font-semibold has-[:checked]:shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40 has-[:checked]:text-ink"
-                >
-                  <input
-                    type="radio"
-                    name="tipo_pagamento"
-                    value={valor}
-                    checked={tipoPagamento === valor}
-                    onChange={() => setTipoPagamento(valor)}
-                    className="sr-only"
-                  />
-                  {rotulo}
-                </label>
-              ))}
+      <div className="flex flex-col gap-7 lg:col-span-2">
+        <Grupo titulo="Pagamento" semPadding>
+          <div className="flex flex-col px-4">
+            <div className="py-3">
+              <Segmentado
+                name="tipo_pagamento"
+                rotulo="Tipo de pagamento"
+                valor={tipoPagamento}
+                onMudar={setTipoPagamento}
+                opcoes={[
+                  { valor: "a_vista", label: "À vista" },
+                  { valor: "a_prazo", label: "A prazo ou parcelado" },
+                ]}
+              />
             </div>
 
             {tipoPagamento === "a_prazo" && (
@@ -694,7 +679,7 @@ export function VendaForm({
             )}
 
             {tipoPagamento === "a_prazo" && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 border-t border-line py-3">
                 <Field label="Nº de parcelas">
                   <input
                     type="number"
@@ -720,7 +705,6 @@ export function VendaForm({
               </div>
             )}
 
-            <div className="-mb-3">
             <SelectOuTexto
               label="Forma de pagamento"
               opcoes={formas}
@@ -772,12 +756,10 @@ export function VendaForm({
             <Linha rotulo="Data da venda">
               <input type="date" value={data} max={hoje} onChange={(e) => mudarData(e.target.value)} className={valorLinha} />
             </Linha>
-            </div>
-
           </div>
-        </Card>
+        </Grupo>
 
-        <Card className="lg:sticky lg:top-6">
+        <Grupo titulo="Resumo" className="lg:sticky lg:top-6">
           <dl className="space-y-1.5 text-sm">
             <div className="flex justify-between text-ink-muted">
               <dt>Subtotal</dt>
@@ -808,11 +790,11 @@ export function VendaForm({
           </dl>
 
           {tipoPagamento === "a_prazo" && total > 0 && (
-            <div className="mt-3 rounded-lg bg-fill/60 p-3 text-xs text-ink-muted">
+            <div className="border-t border-line pt-3 text-[13px] text-ink-muted">
               {valorEntrada > 0 && valorEntrada < total && (
-                <p className="mb-1 font-medium text-ink-2">Entrada de {formatBRL(valorEntrada)} hoje, mais</p>
+                <p className="mb-0.5 font-medium text-ink-2">Entrada de {formatBRL(valorEntrada)} hoje, mais</p>
               )}
-              <p className="mb-1 font-medium text-ink-2">
+              <p className="mb-0.5 font-medium text-ink-2">
                 {parcelasValidas}x de {formatBRL(valorParcela)}
               </p>
               {primeiroVencimento && (
@@ -825,12 +807,12 @@ export function VendaForm({
           )}
 
           {erro && (
-            <p role="alert" className="mt-3 text-sm text-danger">
+            <p role="alert" className="text-sm text-danger">
               {erro}
             </p>
           )}
 
-          <div className="fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 lg:static lg:mt-4 lg:bg-none lg:p-0">
+          <div className="fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 lg:static lg:bg-none lg:p-0">
             <button
               type="submit"
               disabled={isPending || linhas.length === 0}
@@ -839,7 +821,7 @@ export function VendaForm({
               {isPending ? "Registrando..." : `Registrar venda${linhas.length ? ` · ${formatBRL(total)}` : ""}`}
             </button>
           </div>
-        </Card>
+        </Grupo>
       </div>
       <Modal
         open={confirmarZero}
