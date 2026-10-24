@@ -6,16 +6,15 @@ import { mensagemDeErro } from "@/lib/action";
 import { formatPct, hrefRelatorio, margem, resolverPeriodoRelatorio, ticketMedio } from "@/lib/relatorios";
 import { carregarRelatorio, type ProdutoVendido } from "@/lib/relatorios-dados";
 import { Grupo } from "@/components/ajustes";
-import { Badge, ErrorMessage, PageHeader, btnPrimary, btnSecondary } from "@/components/ui";
+import { Badge, ErrorMessage, PageHeader, btnPrimary, btnSecondary, EmptyState } from "@/components/ui";
 import { GraficoEvolucao } from "@/components/graficos/evolucao";
 import { LinhaBarra } from "@/components/graficos/barras";
 import { BarraEmpilhada, Rosca, dobrarEmOutros } from "@/components/graficos/rosca";
 import { Kpi } from "@/components/graficos/kpi";
 import { Variacao } from "@/components/graficos/variacao";
-import { EstadoVazio } from "@/components/graficos/vazio";
 import { FotoProduto } from "@/components/foto-produto";
 import { AbasRelatorios } from "./abas";
-import { SeletorPeriodo } from "./seletor-periodo";
+import { SeletorPeriodo } from "@/components/seletor-periodo";
 import { LinhaCliente, detalheCompras, detalheSumido } from "./clientes-secao";
 
 export const metadata: Metadata = { title: "Relatórios" };
@@ -71,15 +70,16 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
       <AbasRelatorios atual="resumo" periodo={periodo} />
 
       <div className="mb-6">
-        <SeletorPeriodo periodo={periodo} basePath="/relatorios" />
+        <SeletorPeriodo tipo="relatorio" periodo={periodo} basePath="/relatorios" />
       </div>
 
       <div className="graf-secoes flex flex-col gap-7">
         {semVendas ? (
-          <EstadoVazio
-            titulo="Nenhuma venda nesse período"
-            texto="Registre uma venda ou escolha outro período para ver os números e os gráficos aparecerem aqui."
-            acoes={
+          <EmptyState
+            ilustracao="grafico"
+            title="Nenhuma venda nesse período"
+            description="Registre uma venda ou escolha outro período para ver os números e os gráficos aparecerem aqui."
+            action={
               <>
                 <Link href="/vendas/novo" className={btnPrimary}>
                   Nova venda

@@ -21,10 +21,64 @@ Leia antes de criar ou mudar qualquer tela. O padrão foi definido pelo dono em 
 | Liga/desliga | `Interruptor` (switch verde do iOS, `bg-positive`) | `src/components/ajustes.tsx` |
 | Linha que navega | `LinhaLink` (ícone em quadrado colorido, detalhe cinza, `›`) | `src/components/ajustes.tsx` |
 | Botões | `btnPrimary` (pílula terracota), `btnSecondary`, `btnGhost` | `src/components/ui.tsx` |
+| Ação dentro de uma linha (Pagar, Receber, Copiar) | `btnSmall` (pílula pequena, some a cor) ou `btnSmallNeutro` (cinza pronto) | `src/components/ui.tsx` |
+| Período (mês, meses, datas) | `SeletorPeriodo` com `tipo="caixa"`, `"relatorio"` ou `"mes"` (único no app) | `src/components/seletor-periodo.tsx` |
+| Lista ou relatório vazio | `EmptyState` (`ilustracao="grafico"` nos relatórios) | `src/components/ui.tsx` |
+| Carregamento da rota | `loading.tsx` com `EsqueletoLista` ou `EsqueletoDetalhe` | `src/components/esqueleto.tsx` |
 | Explicação de um cartão | prop `rodape` do `Card` (texto embaixo, fora do cartão; nunca `description` com frase) | `src/components/ui.tsx` |
 | Borda fina de cartão | utilitário `hairline` (aceita `sm:`) | `src/app/globals.css` |
 
 As peças de `ajustes.tsx` nasceram na vitrine (`vitrine/campos.tsx` só reexporta). Peça nova que servir a mais de uma área vai direto para `src/components/`.
+
+## Padrão de página
+
+Toda tela segue a mesma ordem, de cima para baixo. O que não tiver uso, fica de fora.
+
+1. **Cabeçalho:** `PageHeader` com **no máximo uma ação** (`action`). Duas ações? A segunda vai para o corpo ou para o detalhe.
+2. **Números (opcional):** `StatCard` em grade (`grid grid-cols-2 gap-3 lg:grid-cols-4`), só quando o número ajuda a decidir.
+3. **Filtros:** `Segmentos` (até 4 opções numa fileira; mais que isso, `colunasCelular`) e, se a lista for longa, a busca embaixo. Período sempre com `SeletorPeriodo`.
+4. **Corpo:** `Grupo`s separados por `gap-7` (`flex flex-col gap-7`), cada um com título de 13 px em maiúsculas (o próprio `titulo` do `Grupo`).
+5. **Formulário:**
+   - Sim ou não: `Interruptor`. Nunca checkbox solto nem dois botões.
+   - Escolha de até 4 opções: `Segmentado`. Mais que 4: linha com o valor à direita e `›`, que abre a lista.
+   - Linha com `›` (`LinhaLink`) para o que abre outra tela.
+6. **Botão principal:** um só `btnPrimary` visível por estado da tela. O resto é `btnSecondary`, `btnGhost` ou `btnSmall`.
+7. **Excluir e cancelar:** no fim da tela, como texto vermelho discreto (`text-danger`). Nunca lixeira na linha da lista.
+8. **Vazio:** `EmptyState` com título, uma frase e o próximo passo como ação.
+9. **Carregando:** `loading.tsx` em toda rota que busca dados (`EsqueletoLista` para listas, `EsqueletoDetalhe` para detalhe e formulário).
+10. **Progresso:** nunca bolinha numerada (1, 2, 3). O andamento vai no título do grupo: "Primeiros passos · 1 de 3".
+
+### Peças novas (assinaturas)
+
+- `btnSmall`: classe base da pílula pequena, sem cor. Uso: `` `${btnSmall} bg-fill text-ink hover:bg-fill-strong` `` ou `btnSmallNeutro` pronto. Destaque: `` `${btnSmall} bg-brand-fill text-on-brand` ``, no máximo uma por linha.
+- `SeletorPeriodo` (`@/components/seletor-periodo`), tudo na URL:
+  - `{ tipo: "caixa", periodo: PeriodoCaixa, basePath, params? }`: Mês, 3, 6 e 12 meses, Tudo, Datas. Lê `resolverPeriodo` de `lib/periodo`.
+  - `{ tipo: "relatorio", periodo: PeriodoRelatorio, basePath, params? }`: 7 dias, 30 dias, Este mês, Mês passado, Ano, Outro. Lê `resolverPeriodoRelatorio` de `lib/relatorios`.
+  - `{ tipo: "mes", mes: "AAAA-MM", basePath, params? }`: só as setas de mês.
+  - `params`: filtros da página que acompanham a troca de período (ex.: `{ tipo }`).
+- `Segmentos` ganhou `colunasCelular?: number`: com mais opções que isso, quebra em fileiras no celular e volta a uma fileira a partir de `sm`.
+- `EmptyState` ganhou `ilustracao?: "grafico" | ReactNode`; `title` aceita `ReactNode`. As ações ocupam a largura no celular. `EstadoVazio` (graficos/vazio) ficou obsoleto.
+- `Grupo` ganhou `className?: string` (ex.: `"lg:hidden"`).
+
+## Glossário
+
+Use sempre a palavra da esquerda.
+
+| Use | Não use |
+| --- | --- |
+| Acabando, Zerado | Estoque baixo, Sem estoque |
+| Repor estoque | O que comprar |
+| Lucro | Lucro bruto |
+| Caixa, Saldo em caixa | Dinheiro em caixa |
+| Avulsa (venda ou gasto sem cadastro) | Outros termos para o mesmo caso |
+| Duplicar | Repetir venda |
+| Com anúncio, Sem anúncio | Outros rótulos para o filtro de anúncio |
+| Análises | Insights |
+| Ajustes da loja (na Vitrine) | Configurações da loja |
+| Começar grátis | Teste grátis, Cadastre-se |
+
+- Plural por extenso ("1 produto", "2 produtos"), nunca "produto(s)".
+- Campo vazio: "Nada" ou omitir a linha. Nunca "—".
 
 ## Regras de layout
 

@@ -1,23 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { lerTudo as paginar } from "@/lib/ler-tudo";
 import { deslocarMes, hojeISO, intervaloDoMes, nomeDoMes, somarDias } from "@/lib/format";
 
 // Leituras para relatórios. O PostgREST corta cada resposta em 1000 linhas, então tudo aqui
 // vem em páginas até acabar. A segurança é a RLS por owner_id das próprias tabelas.
 
-const PAGINA = 1000;
-
-export async function paginar<T>(
-  buscar: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const todas: T[] = [];
-  for (let de = 0; ; de += PAGINA) {
-    const { data, error } = await buscar(de, de + PAGINA - 1);
-    if (error) throw new Error(error.message);
-    todas.push(...(data ?? []));
-    if (!data || data.length < PAGINA) break;
-  }
-  return todas;
-}
+// paginar é o lerTudo compartilhado (src/lib/ler-tudo.ts)
+export { paginar };
 
 export interface VendaResumo {
   id: string;

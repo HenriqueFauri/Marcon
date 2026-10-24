@@ -12,14 +12,18 @@ export function Grupo({
   rodape,
   children,
   semPadding = false,
+  className = "",
 }: {
   titulo?: ReactNode;
   rodape?: ReactNode;
   children: ReactNode;
+  // semPadding: o conteúdo são linhas (LinhaLink, LinhaInfo) que já trazem o próprio px-4 py-3
   semPadding?: boolean;
+  // classe da seção inteira (ex.: "lg:hidden" para um grupo só do celular)
+  className?: string;
 }) {
   return (
-    <section>
+    <section className={className || undefined}>
       {titulo && <h2 className="mb-1.5 px-4 text-[13px] uppercase text-ink-muted">{titulo}</h2>}
       <div className={`hairline overflow-hidden rounded-3xl bg-surface ${semPadding ? "" : "flex flex-col gap-4 p-4 sm:p-5"}`}>
         {children}

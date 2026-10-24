@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { lerTudo } from "@/lib/ler-tudo";
 import type { ParcelaComVenda } from "@/types/domain";
 import { formatBRL, formatData, hojeISO, linkWhatsApp } from "@/lib/format";
 import {
@@ -47,11 +48,19 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
       data: { user },
     },
   ] = await Promise.all([
-    supabase
-      .from("parcelas_com_status")
-      .select("*, vendas(cliente_nome, cliente_id, clientes(telefone))")
-      .order("vencimento")
-      .order("created_at"),
+    // todas as parcelas, página a página: os totais saem delas e o PostgREST corta cada consulta em 1000 linhas
+    lerTudo((de, ate) =>
+      supabase
+        .from("parcelas_com_status")
+        .select("*, vendas(cliente_nome, cliente_id, clientes(telefone))")
+        .order("vencimento")
+        .order("created_at")
+        .order("id")
+        .range(de, ate),
+    ).then(
+      (linhas) => ({ data: linhas, error: null }),
+      (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
+    ),
     supabase.auth.getUser(),
   ]);
   const chavePix = ((user?.user_metadata?.empresa_pix as string | undefined) ?? "").trim();

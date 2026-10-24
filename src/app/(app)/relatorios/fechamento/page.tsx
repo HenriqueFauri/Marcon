@@ -6,15 +6,14 @@ import { mensagemDeErro } from "@/lib/action";
 import { fechamentoDoMes } from "@/lib/fechamento";
 import { formatPct, margem, ticketMedio } from "@/lib/relatorios";
 import { capasDeProdutos } from "@/lib/relatorios-dados";
-import { MonthPicker } from "@/components/month-picker";
+import { SeletorPeriodo } from "@/components/seletor-periodo";
 import { Grupo } from "@/components/ajustes";
-import { ErrorMessage, PageHeader, btnPrimary, btnSecondary } from "@/components/ui";
+import { ErrorMessage, PageHeader, btnPrimary, btnSecondary, EmptyState } from "@/components/ui";
 import { GraficoEvolucao } from "@/components/graficos/evolucao";
 import { LinhaBarra } from "@/components/graficos/barras";
 import { Rosca, dobrarEmOutros } from "@/components/graficos/rosca";
 import { Kpi } from "@/components/graficos/kpi";
 import { Variacao } from "@/components/graficos/variacao";
-import { EstadoVazio } from "@/components/graficos/vazio";
 import { FotoProduto } from "@/components/foto-produto";
 import { AbasRelatorios } from "../abas";
 
@@ -73,14 +72,15 @@ export default async function FechamentoPage({ searchParams }: PageProps<"/relat
       <AbasRelatorios atual="fechamento" />
 
       <div className="mb-6">
-        <MonthPicker mes={mes} basePath="/relatorios/fechamento" />
+        <SeletorPeriodo tipo="mes" mes={mes} basePath="/relatorios/fechamento" />
       </div>
 
       {semNada ? (
-        <EstadoVazio
-          titulo={`${nomeDoMes(mes)} sem movimento`}
-          texto="Nenhuma venda nem lançamento no caixa nesse mês. Escolha outro mês ou registre uma venda."
-          acoes={
+        <EmptyState
+          ilustracao="grafico"
+          title={`${nomeDoMes(mes)} sem movimento`}
+          description="Nenhuma venda nem lançamento no caixa nesse mês. Escolha outro mês ou registre uma venda."
+          action={
             <Link href="/vendas/novo" className={btnPrimary}>
               Nova venda
             </Link>

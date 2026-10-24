@@ -305,6 +305,10 @@ export function VendaForm({
   const [numeroParcelas, setNumeroParcelas] = useState(2);
   const [data, setData] = useState(hoje);
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarMeses(hoje, 1));
+  // o 1º vencimento acompanha a data da venda (um mês depois) até a pessoa escolher outro
+  const [vencimentoEscolhido, setVencimentoEscolhido] = useState(false);
+  // item em que a quantidade pedida passou do estoque (e foi cortada): mostra o aviso nele
+  const [estoqueBatido, setEstoqueBatido] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmarZero, setConfirmarZero] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -360,8 +364,15 @@ export function VendaForm({
     return tabela === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
   }
 
+  function mudarData(nova: string) {
+    setData(nova);
+    if (!vencimentoEscolhido && /^d{4}-d{2}-d{2}$/.test(nova)) setPrimeiroVencimento(somarMeses(nova, 1));
+  }
+
   function adicionar(v: Vendavel) {
     setErro(null);
+    const noCarrinho = carrinho.find((i) => i.chave === v.chave)?.quantidade ?? 0;
+    setEstoqueBatido(noCarrinho + 1 > v.estoque ? v.chave : null);
     setCarrinho((prev) => {
       const existente = prev.find((i) => i.chave === v.chave);
       if (existente) {
@@ -375,6 +386,7 @@ export function VendaForm({
 
   function alterarQuantidade(chave: string, quantidade: number) {
     const max = porChave.get(chave)?.estoque ?? 1;
+    setEstoqueBatido(quantidade > max ? chave : (atual) => (atual === chave ? null : atual));
     setCarrinho((prev) =>
       prev.map((i) => (i.chave === chave ? { ...i, quantidade: Math.min(Math.max(quantidade, 1), max) } : i)),
     );
@@ -601,6 +613,11 @@ export function VendaForm({
                       </button>
                     </div>
                   </div>
+                  {estoqueBatido === item.chave && (
+                    <p role="status" className="text-right text-[13px] text-warning">
+                      Só {produto.estoque === 1 ? "tem 1 unidade" : `tem ${produto.estoque} unidades`} em estoque.
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -693,7 +710,10 @@ export function VendaForm({
                   <input
                     type="date"
                     value={primeiroVencimento}
-                    onChange={(e) => setPrimeiroVencimento(e.target.value)}
+                    onChange={(e) => {
+                      setPrimeiroVencimento(e.target.value);
+                      setVencimentoEscolhido(true);
+                    }}
                     className={inputClass}
                   />
                 </Field>
@@ -750,7 +770,7 @@ export function VendaForm({
               />
             </Linha>
             <Linha rotulo="Data da venda">
-              <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} className={valorLinha} />
+              <input type="date" value={data} max={hoje} onChange={(e) => mudarData(e.target.value)} className={valorLinha} />
             </Linha>
             </div>
 

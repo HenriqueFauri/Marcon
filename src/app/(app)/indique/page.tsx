@@ -99,6 +99,8 @@ export default async function IndiquePage() {
   // percentual negociado com o admin, ou o padrão
   const percentual = percentualDoAfiliado(afiliado.percentual);
   const comissaoPorMes = comissaoDe(PLANOS.marcon.valor, percentual);
+  // no anual a comissão é a mesma porcentagem, sobre a cobrança de R$ 149, uma vez por ano
+  const comissaoPorAno = comissaoDe(PLANOS.marcon.valorAnual, percentual);
   const link = linkDeIndicacao(base, afiliado.codigo);
   const indicados = await carregarIndicados(
     indicacoes.map((i) => i.indicado_id),
@@ -125,7 +127,7 @@ export default async function IndiquePage() {
         <CompartilharCard
           link={link}
           mensagem={mensagemDeConvite(link)}
-          descricao={`Você ganha ${percentual}% (${formatBRL(comissaoPorMes)}) de cada mensalidade de quem assinar pelo seu link, todo mês, enquanto a pessoa continuar assinando.`}
+          descricao={`Você ganha ${percentual}% (${formatBRL(comissaoPorMes)}) de cada mensalidade de quem assinar pelo seu link, todo mês, enquanto a pessoa continuar assinando. No plano anual, ${formatBRL(comissaoPorAno)} a cada ano pago.`}
         />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

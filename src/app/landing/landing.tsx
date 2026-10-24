@@ -16,7 +16,7 @@ import {
   IconWhatsapp,
 } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
-import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
+import { ANUAL_POR_MES, DIAS_DE_TESTE, ECONOMIA_ANUAL, PLANO_GRATIS, PLANOS } from "@/lib/planos";
 
 // Uma landing, várias portas de entrada: a geral (raiz do site) e uma para cada
 // canal, para mandar o link certo em cada grupo. Muda só o começo da conversa;
@@ -125,7 +125,7 @@ const PERGUNTAS = [
   },
   {
     p: "Quanto custa?",
-    r: `Os primeiros ${DIAS_DE_TESTE} dias são grátis, com tudo liberado e sem cartão. Depois, o plano Marcon sai por ${formatBRL(PLANOS.marcon.valor)} por mês, sem fidelidade. Se não quiser assinar, sua conta continua no plano grátis, com limite de vendas e produtos.`,
+    r: `Os primeiros ${DIAS_DE_TESTE} dias são grátis, com tudo liberado e sem cartão. Depois, o plano Marcon sai por ${formatBRL(PLANOS.marcon.valor)} por mês, sem fidelidade, ou ${formatBRL(PLANOS.marcon.valorAnual)} por ano (${formatBRL(ANUAL_POR_MES)} por mês). Se não quiser assinar, sua conta continua no plano grátis, com limite de vendas e produtos.`,
   },
   {
     p: "Precisa instalar alguma coisa?",
@@ -772,8 +772,6 @@ export function Landing({ publico }: { publico: Publico }) {
   // na navegação o assistente entra na ordem em que aparece na página, depois do Lucro
   const secoes = comAssistente ? [...SECOES.slice(0, -1), SECAO_ASSISTENTE, ...SECOES.slice(-1)] : SECOES;
   const perguntas = comAssistente ? [PERGUNTAS[0], PERGUNTA_ASSISTENTE, ...PERGUNTAS.slice(1)] : PERGUNTAS;
-  // o assistente vem num plano maior: não entra nos itens do plano atual
-  const itensDoPlano = PLANOS.marcon.inclui;
   return (
     <div className="flex min-h-dvh flex-col bg-surface text-ink">
       <header className="glass sticky top-0 z-20 flex h-11 items-center justify-between border-b border-line px-4 text-xs sm:justify-center sm:gap-5 md:gap-9">
@@ -1113,7 +1111,7 @@ export function Landing({ publico }: { publico: Publico }) {
                   href="/login?modo=signup"
                   className="mt-8 inline-flex items-center justify-center rounded-full bg-fill px-6 py-3 text-[17px] font-medium text-ink transition hover:bg-fill-strong active:scale-[0.98]"
                 >
-                  Criar conta
+                  Começar grátis
                 </Link>
               </div>
 
@@ -1122,12 +1120,17 @@ export function Landing({ publico }: { publico: Publico }) {
                   {DIAS_DE_TESTE} dias grátis
                 </span>
                 <h3 className="text-[19px] font-semibold tracking-tight">{PLANOS.marcon.nome}</h3>
-                <p className="mt-1 text-[15px] text-ink-muted">Pra quem já vende toda semana.</p>
+                <p className="mt-1 text-[15px] text-ink-muted">Com vitrine pra mandar no status e nos grupos.</p>
                 <p className="mt-5 text-[40px] font-bold tracking-[-0.04em] tabular-nums">
                   {formatBRL(PLANOS.marcon.valor)}
                   <span className="text-[15px] font-medium tracking-normal text-ink-muted"> /mês</span>
                 </p>
-                <PlanoItens itens={itensDoPlano} />
+                {/* o anual, sem chave de mensal/anual: os dois preços à vista, o anual com a conta feita */}
+                <p className="mt-1 text-[15px] text-ink-muted">
+                  ou <span className="font-semibold text-ink">{formatBRL(PLANOS.marcon.valorAnual)} por ano</span>, que sai{" "}
+                  {formatBRL(ANUAL_POR_MES)} por mês. Economia de {formatBRL(ECONOMIA_ANUAL)}.
+                </p>
+                <PlanoItens itens={PLANOS.marcon.inclui} />
                 <Link
                   href="/login?modo=signup"
                   className="bg-brand-fill mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"

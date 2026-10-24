@@ -24,10 +24,11 @@ export default function TermosPage() {
         <p>
           Os primeiros {DIAS_DE_TESTE} dias são de teste gratuito, com tudo liberado e sem cartão. Depois do teste, você pode
           continuar no plano grátis (até {PLANO_GRATIS.limites.vendasPorMes} vendas por mês e {PLANO_GRATIS.limites.produtos}{" "}
-          produtos) ou assinar o plano {PLANOS.marcon.nome}, por {formatBRL(PLANOS.marcon.valor)} por mês, sem limites.
+          produtos) ou assinar o plano {PLANOS.marcon.nome}, por {formatBRL(PLANOS.marcon.valor)} por mês ou{" "}
+          {formatBRL(PLANOS.marcon.valorAnual)} por ano, com vendas e produtos ilimitados.
         </p>
         <p>
-          A assinatura é cobrada todo mês no cartão de crédito, por meio do Asaas. O Marcon não vê nem guarda o número do seu
+          A assinatura é cobrada no cartão de crédito, por meio do Asaas: todo mês no plano mensal, ou uma vez por ano no plano anual. O Marcon não vê nem guarda o número do seu
           cartão. Você pode cancelar quando quiser, na tela Assinatura: nenhuma nova cobrança será feita e você volta ao plano
           grátis. Valores já pagos não são devolvidos pelo período em andamento, salvo quando a lei exigir.
         </p>
