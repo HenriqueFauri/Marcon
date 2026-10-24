@@ -23,6 +23,8 @@ interface Pedido {
   frete: number;
   total_itens: number;
   observacoes: string | null;
+  a_prazo: boolean | null;
+  parcelas: number | null;
   pedido_compra_itens: Item[];
 }
 
@@ -31,7 +33,7 @@ export default async function ComprasPage() {
   const { data, error } = await supabase
     .from("pedidos_compra")
     .select(
-      "id, fornecedor_nome, data, frete, total_itens, observacoes, pedido_compra_itens(produto_nome, quantidade, valor_unitario, frete_rateado, custo_unitario_final)",
+      "id, fornecedor_nome, data, frete, total_itens, observacoes, a_prazo, parcelas, pedido_compra_itens(produto_nome, quantidade, valor_unitario, frete_rateado, custo_unitario_final)",
     )
     .order("data", { ascending: false })
     .order("created_at", { ascending: false })
@@ -94,6 +96,11 @@ export default async function ComprasPage() {
                 </span>
                 <span className="font-semibold tabular-nums text-ink">{formatBRL(Number(p.total_itens) + Number(p.frete))}</span>
               </li>
+              {p.a_prazo && (
+                <li className="px-4 py-3 text-[15px] text-ink-muted">
+                  A prazo · {p.parcelas === 1 || !p.parcelas ? "1 parcela" : `${p.parcelas} parcelas`}
+                </li>
+              )}
             </ul>
           </Grupo>
         ))
