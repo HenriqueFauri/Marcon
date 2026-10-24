@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Parcela, Venda, VendaItem } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
-import { Badge, PageHeader, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Badge, PageHeader, StatCard, Table, btnSecondary, btnSmallNeutro, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { Grupo, LinhaInfo } from "@/components/ajustes";
 import { CancelarVendaButton } from "./cancelar-venda-button";
 import { DevolverItemButton } from "./devolver-item-button";
 import { ReciboCard } from "./recibo-card";
 import { ReceberButton } from "../../contas-a-receber/receber-button";
+import { DesfazerRecebimento } from "../../contas-a-receber/desfazer-recebimento";
 
 export const metadata: Metadata = { title: "Detalhe da venda" };
 
@@ -50,6 +52,22 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
   const totalParcelas = parcelas.reduce((m, p) => Math.max(m, p.numero_parcela), 0);
   const recebido = parcelas.filter((p) => p.status_efetivo === "pago").reduce((s, p) => s + Number(p.valor), 0);
   const resumoParcelas = `${formatBRL(recebido)} recebido de ${formatBRL(venda.valor_total)}.`;
+  const janelaRecebimento = (p: Parcela, trigger: ReactNode, triggerClassName: string, triggerLabel?: string) => (
+    <DesfazerRecebimento
+      id={p.id}
+      valor={Number(p.valor)}
+      numero={p.numero_parcela}
+      cliente={venda.cliente_nome}
+      dataPagamento={p.data_pagamento}
+      vencimento={p.vencimento}
+      parcial={p.parcial}
+      entrada={p.entrada}
+      cancelada={cancelada}
+      trigger={trigger}
+      triggerClassName={triggerClassName}
+      triggerLabel={triggerLabel}
+    />
+  );
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -170,22 +188,30 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
             <Grupo titulo="Parcelas" rodape={resumoParcelas} semPadding className="sm:hidden">
               {parcelas.map((p) => {
                 const status = STATUS_PARCELA[p.status_efetivo];
+                const texto = (
+                  <>
+                    <span className="block text-[17px] text-ink">
+                      Parcela {p.numero_parcela}/{totalParcelas}
+                      {p.entrada && <span className="text-ink-muted"> · entrada</span>}
+                      {p.parcial && <span className="text-ink-muted"> · parte</span>}
+                    </span>
+                    <span className="block text-[13px] text-ink-muted">
+                      {p.data_pagamento
+                        ? `${p.parcial ? "Recebido" : "Paga"} em ${formatData(p.data_pagamento)}`
+                        : `Vence ${formatData(p.vencimento)}`}
+                      {" · "}
+                      <span className={status.texto}>{status.label}</span>
+                    </span>
+                  </>
+                );
                 return (
                   <div key={p.id} className="flex items-center gap-3 border-t border-line px-4 py-3 first:border-t-0">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[17px] text-ink">
-                        Parcela {p.numero_parcela}/{totalParcelas}
-                        {p.entrada && <span className="text-ink-muted"> · entrada</span>}
-                        {p.parcial && <span className="text-ink-muted"> · parte</span>}
-                      </p>
-                      <p className="text-[13px] text-ink-muted">
-                        {p.data_pagamento
-                          ? `${p.parcial ? "Recebido" : "Paga"} em ${formatData(p.data_pagamento)}`
-                          : `Vence ${formatData(p.vencimento)}`}
-                        {" · "}
-                        <span className={status.texto}>{status.label}</span>
-                      </p>
-                    </div>
+                    {p.status_efetivo === "pago" ? (
+                      // parcela recebida: tocar abre os dados do recebimento, com desfazer no fim
+                      janelaRecebimento(p, texto, "block min-w-0 flex-1 text-left")
+                    ) : (
+                      <div className="min-w-0 flex-1">{texto}</div>
+                    )}
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <span className="text-[17px] tabular-nums text-ink">{formatBRL(p.valor)}</span>
                       {p.status_efetivo !== "pago" && (
@@ -234,8 +260,10 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
                           <Badge tone={status.tone}>{status.label}</Badge>
                         </td>
                         <td className={`${tdClass} text-right`}>
-                          {p.status_efetivo !== "pago" && (
+                          {p.status_efetivo !== "pago" ? (
                             <ReceberButton id={p.id} valor={Number(p.valor)} numero={p.numero_parcela} cliente={venda.cliente_nome} />
+                          ) : (
+                            janelaRecebimento(p, "Detalhes", btnSmallNeutro, "Ver recebimento ou desfazer")
                           )}
                         </td>
                       </tr>
