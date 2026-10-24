@@ -105,7 +105,8 @@ function Seletor({
 
   const qtdNoCarrinho = escolhida ? (noCarrinho.get(escolhida.chave) ?? 0) : 0;
   const restante = escolhida ? escolhida.estoque - qtdNoCarrinho : 0;
-  const podeAdicionar = !!escolhida && restante > 0;
+  // sem estoque também adiciona: vira encomenda (o carrinho avisa e a venda pede confirmação)
+  const podeAdicionar = !!escolhida;
 
   return (
     <div className="flex flex-col gap-3 bg-fill/50 px-3 py-3">
@@ -128,14 +129,12 @@ function Seletor({
                     marcada
                       ? "border-brand bg-brand-tint font-medium text-brand-text"
                       : semEstoque
-                        ? "border-line text-ink-muted line-through opacity-50"
+                        ? "border-line text-ink-muted hover:bg-fill"
                         : "border-line-strong text-ink hover:bg-fill"
                   }`}
                 >
                   {valor}
-                  {niveis === 1 && (
-                    <span className="ml-1.5 text-xs text-ink-muted no-underline">{semEstoque ? "esgotado" : emEstoque}</span>
-                  )}
+                  {niveis === 1 && <span className="ml-1.5 text-xs text-ink-muted">{semEstoque ? "Zerado" : emEstoque}</span>}
                 </button>
               );
             })}
@@ -159,14 +158,12 @@ function Seletor({
               : niveis === 1
                 ? "Escolha uma opção"
                 : "Escolha todas as opções"
-            : restante <= 0
-              ? `${escolhida.rotulo} · esgotado`
-              : `Adicionar ${escolhida.rotulo}`}
+            : `Adicionar ${escolhida.rotulo}`}
         </span>
-        {escolhida && restante > 0 && (
+        {escolhida && (
           <span className="flex shrink-0 items-center gap-2 tabular-nums">
             {formatBRL(precoPadrao(escolhida))}
-            <span className="text-xs opacity-80">{restante} disp.</span>
+            <span className="text-xs opacity-80">{restante > 0 ? `${restante} disp.` : "encomenda"}</span>
             <IconPlus width={16} height={16} />
           </span>
         )}
@@ -222,7 +219,8 @@ export function ListaProdutos({
     const campo = document.getElementById("buscar-produto") as HTMLInputElement | null;
     if (grupos.length === 1) {
       const g = grupos[0];
-      if (!g.temVariacoes && g.itens[0].estoque - (noCarrinho.get(g.itens[0].chave) ?? 0) > 0) {
+      // zerado também entra: o carrinho avisa que vira encomenda
+      if (!g.temVariacoes) {
         onAdicionar(g.itens[0]);
         // venda seguida: limpa a busca para o próximo código
         if (campo) {
@@ -274,7 +272,9 @@ export function ListaProdutos({
                 {g.temVariacoes ? `${g.itens.length} ${g.itens.length === 1 ? "opção" : "opções"} · ` : ""}
                 {emCarrinho > 0
                   ? `${emCarrinho} no carrinho · ${disponivel === 0 ? "sem mais estoque" : `${disponivel} restante${disponivel === 1 ? "" : "s"}`}`
-                  : `${disponivel} disponível${disponivel === 1 ? "" : "is"}`}
+                  : esgotado
+                    ? "Zerado"
+                    : `${disponivel} disponível${disponivel === 1 ? "" : "is"}`}
                 {g.detalhe ? ` · ${g.detalhe}` : ""}
               </span>
             </span>
@@ -300,7 +300,6 @@ export function ListaProdutos({
             <button
               type="button"
               onClick={() => (g.temVariacoes ? setAberto(expandido ? null : g.produtoId) : onAdicionar(g.itens[0]))}
-              disabled={!g.temVariacoes && esgotado}
               aria-expanded={g.temVariacoes ? expandido : undefined}
               className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-fill disabled:cursor-not-allowed disabled:opacity-40"
             >
