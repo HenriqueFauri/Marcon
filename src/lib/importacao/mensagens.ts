@@ -6,14 +6,14 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 export function mensagemDeProdutos(c: { criados: number; ignorados: number }) {
   return (
     `${plural(c.criados, "produto importado", "produtos importados")}.` +
-    (c.ignorados ? ` ${plural(c.ignorados, "já existia", "já existiam")} e foram pulados.` : "")
+    (c.ignorados ? ` ${plural(c.ignorados, "já existia e foi pulado", "já existiam e foram pulados")}.` : "")
   );
 }
 
 export function mensagemDeVendas(c: { criadas: number; ignoradas: number; itens_sem_produto: number }) {
   return (
     `${plural(c.criadas, "venda importada", "vendas importadas")}.` +
-    (c.ignoradas ? ` ${plural(c.ignoradas, "já estava", "já estavam")} no Marcon e foram puladas.` : "") +
+    (c.ignoradas ? ` ${plural(c.ignoradas, "já estava no Marcon e foi pulada", "já estavam no Marcon e foram puladas")}.` : "") +
     (c.itens_sem_produto
       ? ` ${plural(c.itens_sem_produto, "item ficou", "itens ficaram")} sem ligação com um produto: importe os produtos primeiro, se ainda não fez.`
       : "")
@@ -23,6 +23,6 @@ export function mensagemDeVendas(c: { criadas: number; ignoradas: number; itens_
 export function mensagemDeLancamentos(c: { criados: number; ignorados: number }) {
   return (
     `${plural(c.criados, "lançamento importado", "lançamentos importados")}.` +
-    (c.ignorados ? ` ${plural(c.ignorados, "já estava", "já estavam")} no Marcon e foram pulados.` : "")
+    (c.ignorados ? ` ${plural(c.ignorados, "já estava no Marcon e foi pulado", "já estavam no Marcon e foram pulados")}.` : "")
   );
 }

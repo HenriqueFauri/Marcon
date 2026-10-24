@@ -2,7 +2,8 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Badge, Card, btnPrimary, inputClass } from "@/components/ui";
+import { btnPrimary, inputClass } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { IconAlert, IconCheck } from "@/components/icons";
 import { useToast } from "@/components/toaster";
 import { formatBRL, formatData } from "@/lib/format";
@@ -41,9 +42,9 @@ type Carregado = { [T in Tipo]?: { analise: De<T>; chave: number } };
 
 const EXTENSOES = /\.(xlsx|xls|csv|tsv|txt|pdf)$/i;
 const MODELOS = [
-  { arquivo: "produtos.csv", rotulo: "produtos" },
-  { arquivo: "vendas.csv", rotulo: "vendas" },
-  { arquivo: "caixa.csv", rotulo: "caixa" },
+  { arquivo: "produtos.csv", rotulo: "produtos", colunas: "Nome, Custo, Preço, Estoque" },
+  { arquivo: "vendas.csv", rotulo: "vendas", colunas: "Data, Produto, Quantidade, Valor" },
+  { arquivo: "caixa.csv", rotulo: "caixa", colunas: "Data, Descrição, Valor, Tipo" },
 ];
 
 const num = (s: string) => Number(s.replace(",", ".")) || 0;
@@ -55,22 +56,19 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 // peças compartilhadas
 // ---------------------------------------------------------------------------
 
+// linha do Grupo: mesmo ritmo das LinhaLink e LinhaInfo
+const LINHA = "border-t border-line px-4 py-3 first:border-t-0";
+
 function Conferencias({ itens }: { itens: Conferencia[] }) {
   if (itens.length === 0) return null;
   const todasOk = itens.every((c) => c.ok);
   return (
-    <div
-      className={`rounded-2xl border px-4 py-3 text-[13px] ${
-        todasOk ? "border-positive/30 bg-positive-tint text-positive" : "border-warning/40 bg-warning-tint text-warning"
-      }`}
-    >
-      <p className="flex items-center gap-2 font-medium">
+    <div className={`${LINHA} text-[13px]`}>
+      <p className={`flex items-center gap-2 text-[15px] font-medium ${todasOk ? "text-positive" : "text-warning"}`}>
         {todasOk ? <IconCheck width={16} height={16} /> : <IconAlert width={16} height={16} />}
-        {todasOk
-          ? "Conferido: o que li bate com os totais do relatório."
-          : "Atenção: algum total não bate com o do relatório. Confira antes de importar."}
+        {todasOk ? "Conferido com os totais do relatório." : "Algum total não bate. Confira antes de importar."}
       </p>
-      <ul className="mt-1.5 flex flex-col gap-0.5 text-ink-2">
+      <ul className="mt-1 flex flex-col gap-0.5 text-ink-muted">
         {itens.map((c) => (
           <li key={c.rotulo}>
             {c.ok ? "✓" : "✗"} {c.rotulo}: li {c.lido}; o relatório diz {c.esperado}
@@ -84,50 +82,51 @@ function Conferencias({ itens }: { itens: Conferencia[] }) {
 function Avisos({ itens }: { itens: string[] }) {
   if (itens.length === 0) return null;
   return (
-    <ul className="flex flex-col gap-1 rounded-2xl bg-warning-tint px-4 py-3 text-[13px] text-warning">
+    <ul className={`${LINHA} flex flex-col gap-1 text-[13px] text-warning`}>
       {itens.map((a) => (
-        <li key={a}>{a}</li>
+        <li key={a} className="flex items-start gap-2">
+          <IconAlert width={14} height={14} className="mt-0.5 shrink-0" />
+          {a}
+        </li>
       ))}
     </ul>
   );
 }
 
+// Cada tipo de dado é um Grupo; o andamento vai no título ("Importar · 1 de 3"), nunca bolinha numerada.
 function Secao({
-  numero,
-  titulo,
+  passo,
+  rotulo,
   periodo,
+  rodape,
   children,
 }: {
-  numero: number;
-  titulo: string;
+  passo: { n: number; de: number };
+  rotulo: string;
   periodo: string | null;
+  rodape?: ReactNode;
   children: ReactNode;
 }) {
+  const titulo = passo.de > 1 ? `Importar · ${passo.n} de ${passo.de}` : "Importar";
   return (
-    <Card
-      title={
-        <span className="flex items-center gap-2.5">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-tint text-[13px] font-semibold text-brand-text">
-            {numero}
-          </span>
-          {titulo}
-        </span>
-      }
-      description={periodo ? `Período: ${periodo}` : undefined}
-    >
-      <div className="flex flex-col gap-4">{children}</div>
-    </Card>
+    <Grupo titulo={titulo} rodape={rodape} semPadding>
+      <div className={LINHA}>
+        <p className="text-[17px] font-semibold text-ink">{rotulo}</p>
+        {periodo && <p className="text-[13px] text-ink-muted">Período: {periodo}</p>}
+      </div>
+      {children}
+    </Grupo>
   );
 }
 
 function Resultado({ mensagem, href, rotulo }: { mensagem: string; href: string; rotulo: string }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-positive-tint px-4 py-3 text-[14px] text-positive">
-      <span className="flex items-center gap-2">
-        <IconCheck width={18} height={18} />
+    <div className={`${LINHA} flex flex-wrap items-center justify-between gap-3 text-[15px]`}>
+      <span className="flex items-center gap-2 text-positive">
+        <IconCheck width={18} height={18} className="shrink-0" />
         {mensagem}
       </span>
-      <Link href={href} className="font-medium underline-offset-2 hover:underline">
+      <Link href={href} className="font-medium text-brand-text hover:opacity-80">
         {rotulo}
       </Link>
     </div>
@@ -152,6 +151,7 @@ function BotaoImportar({
   enviando,
   onClick,
   rotulo,
+  resumo,
   bloqueado,
   progresso,
 }: {
@@ -159,28 +159,26 @@ function BotaoImportar({
   enviando: boolean;
   onClick: () => void;
   rotulo: string;
+  resumo?: string;
   bloqueado?: boolean;
   progresso?: string;
 }) {
   // plano grátis: a prévia funciona, mas gravar vendas e caixa de outro sistema é do plano pago
   if (bloqueado) {
     return (
-      <div className="flex flex-col gap-2">
-        <p className="rounded-2xl bg-warning-tint px-4 py-3 text-[13px] text-warning">
-          Importar vendas e extrato de caixa de outro sistema faz parte do plano Marcon. No plano grátis dá para importar os produtos.
-        </p>
-        <div>
-          <Link href="/assinatura" className={btnPrimary}>
-            Assinar o plano Marcon
-          </Link>
-        </div>
+      <div className={`${LINHA} flex flex-col gap-3`}>
+        <p className="text-[15px] text-ink-2">Vendas e caixa de outro sistema entram no plano Marcon. No grátis, só os produtos.</p>
+        <Link href="/assinatura" className={`${btnPrimary} w-full sm:w-auto sm:self-start`}>
+          Assinar o plano Marcon
+        </Link>
       </div>
     );
   }
   return (
-    <div>
-      <button type="button" className={btnPrimary} disabled={enviando || quantidade === 0} onClick={onClick}>
-        {enviando ? `Importando${progresso ? ` ${progresso}` : ""}...` : quantidade === 0 ? "Selecione ao menos um" : `Importar ${rotulo}`}
+    <div className={`${LINHA} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}>
+      {resumo && <p className="text-[15px] text-ink-2">{resumo}</p>}
+      <button type="button" className={`${btnPrimary} w-full sm:w-auto`} disabled={enviando || quantidade === 0} onClick={onClick}>
+        {enviando ? `Importando${progresso ? ` ${progresso}` : ""}...` : quantidade === 0 ? "Marque ao menos um" : `Importar ${rotulo}`}
       </button>
     </div>
   );
@@ -193,18 +191,18 @@ function BotaoImportar({
 function Campo({ rotulo, valor, onChange, decimal }: { rotulo: string; valor: string; onChange: (v: string) => void; decimal?: boolean }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1 block text-[11px] font-medium text-ink-muted">{rotulo}</span>
+      <span className="mb-1 block text-[13px] text-ink-muted">{rotulo}</span>
       <input
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         inputMode={decimal ? "decimal" : undefined}
-        className={`${inputClass} !py-1.5 text-[14px]`}
+        className={`${inputClass} !py-1.5 text-[15px]`}
       />
     </label>
   );
 }
 
-function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
+function SecaoProdutos({ analise, passo }: { analise: De<"produtos">; passo: { n: number; de: number } }) {
   const toast = useToast();
   const [linhas, setLinhas] = useState(() =>
     analise.itens.map((p) => ({
@@ -253,26 +251,28 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
   }
 
   return (
-    <Secao numero={1} titulo={`Produtos (${analise.itens.length})`} periodo={analise.periodo}>
+    <Secao
+      passo={passo}
+      rotulo={plural(analise.itens.length, "produto", "produtos")}
+      periodo={analise.periodo}
+      rodape={resultado ? undefined : "Produto com o mesmo nome de um que já existe é pulado. Corrija o que quiser antes de importar."}
+    >
       <Conferencias itens={analise.conferencias} />
       <Avisos itens={analise.avisos} />
       {resultado ? (
         <Resultado mensagem={resultado} href="/produtos" rotulo="Ver produtos" />
       ) : (
         <>
-          <p className="text-[13px] text-ink-muted">
-            Produto que já existe no Marcon com o mesmo nome é pulado. Você pode corrigir qualquer valor aqui antes de importar.
-          </p>
-          <ul className="divide-y divide-line rounded-2xl border border-line">
+          <ul className="divide-y divide-line border-t border-line">
             {linhas.map((l, i) => (
-              <li key={i} className="flex items-start gap-3 px-3 py-3">
+              <li key={i} className="flex items-start gap-3 px-4 py-3">
                 <Marcar marcado={l.sel} onChange={(v) => alterar(i, { sel: v })} rotulo={`Importar ${l.nome}`} />
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <input
                     value={l.nome}
                     onChange={(e) => alterar(i, { nome: e.target.value })}
                     aria-label="Nome do produto"
-                    className={`${inputClass} !py-1.5 font-medium`}
+                    className={`${inputClass} !py-1.5 text-[17px]`}
                   />
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <Campo rotulo="Categoria" valor={l.categoria} onChange={(v) => alterar(i, { categoria: v })} />
@@ -282,7 +282,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
                     <Campo rotulo="Estoque" valor={l.estoque} onChange={(v) => alterar(i, { estoque: v })} />
                   </div>
                   {l.avisos.map((a) => (
-                    <p key={a} className="text-[12px] text-warning">
+                    <p key={a} className="text-[13px] text-warning">
                       {a}
                     </p>
                   ))}
@@ -307,7 +307,7 @@ function SecaoProdutos({ analise }: { analise: De<"produtos"> }) {
 // vendas
 // ---------------------------------------------------------------------------
 
-function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: boolean }) {
+function SecaoVendas({ analise, liberado, passo }: { analise: De<"vendas">; liberado: boolean; passo: { n: number; de: number } }) {
   const toast = useToast();
   const [selecionadas, setSelecionadas] = useState(() => new Set(analise.itens.filter((v) => !v.aPrazo).map((v) => v.ref)));
   const [enviando, setEnviando] = useState(false);
@@ -348,29 +348,34 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
   }
 
   return (
-    <Secao numero={2} titulo={`Vendas (${analise.itens.length})`} periodo={analise.periodo}>
+    <Secao
+      passo={passo}
+      rotulo={plural(analise.itens.length, "venda", "vendas")}
+      periodo={analise.periodo}
+      rodape={
+        resultado
+          ? undefined
+          : "Entram como histórico: não mexem no estoque de hoje e caem no caixa na data da venda. Importar de novo não duplica."
+      }
+    >
       <Conferencias itens={analise.conferencias} />
       <Avisos itens={analise.avisos} />
       {resultado ? (
         <Resultado mensagem={resultado} href="/vendas" rotulo="Ver vendas" />
       ) : (
         <>
-          <p className="text-[13px] text-ink-muted">
-            As vendas entram como <strong className="font-medium text-ink-2">histórico</strong>: não mexem no estoque de hoje e entram no
-            caixa na data em que aconteceram. Importar o mesmo relatório de novo não duplica.
-          </p>
-          <label className="flex items-center gap-2 text-[13px] text-ink-2">
+          <label className={`${LINHA} flex cursor-pointer items-center gap-3 text-[15px] text-ink`}>
             <input
               type="checkbox"
               checked={selecionadas.size === importaveis.length && importaveis.length > 0}
               onChange={(e) => setSelecionadas(new Set(e.target.checked ? importaveis.map((v) => v.ref) : []))}
-              className="h-[18px] w-[18px] accent-[var(--brand)]"
+              className="h-[18px] w-[18px] shrink-0 accent-[var(--brand)]"
             />
-            Selecionar todas
+            Marcar todas
           </label>
-          <ul className="divide-y divide-line sm:max-h-[32rem] sm:overflow-y-auto rounded-2xl border border-line">
+          <ul className="divide-y divide-line border-t border-line sm:max-h-[32rem] sm:overflow-y-auto">
             {analise.itens.map((v) => (
-              <li key={v.ref} className="flex items-start gap-3 px-3 py-2.5 text-[14px]">
+              <li key={v.ref} className="flex items-start gap-3 px-4 py-3">
                 <Marcar
                   marcado={selecionadas.has(v.ref)}
                   onChange={(m) => alternar(v.ref, m)}
@@ -378,31 +383,29 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
                   desabilitado={v.aPrazo}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-ink">
+                  <p className="truncate text-[15px] text-ink">
                     {v.itens.map((i) => `${i.quantidade > 1 ? `${i.quantidade}× ` : ""}${i.nome}`).join(" + ")}
                   </p>
-                  <p className="text-[12px] text-ink-muted">
+                  <p className="text-[13px] text-ink-muted">
                     {[formatData(v.data), v.formaPagamento, v.canal, v.cliente].filter(Boolean).join(" · ")}
                   </p>
                   {v.avisos.map((a) => (
-                    <p key={a} className="text-[12px] text-warning">
+                    <p key={a} className="text-[13px] text-warning">
                       {a}
                     </p>
                   ))}
                 </div>
-                <span className="shrink-0 tabular-nums text-ink">{formatBRL(v.total)}</span>
+                <span className="shrink-0 text-[15px] tabular-nums text-ink">{formatBRL(v.total)}</span>
               </li>
             ))}
           </ul>
-          <p className="text-[13px] text-ink-2">
-            {plural(escolhidas.length, "venda selecionada", "vendas selecionadas")} · {formatBRL(total)}
-          </p>
           <BotaoImportar
             quantidade={escolhidas.length}
             enviando={enviando}
             progresso={progresso}
             onClick={importar}
             rotulo={plural(escolhidas.length, "venda", "vendas")}
+            resumo={`${plural(escolhidas.length, "marcada", "marcadas")} · ${formatBRL(total)}`}
             bloqueado={!liberado}
           />
         </>
@@ -415,7 +418,7 @@ function SecaoVendas({ analise, liberado }: { analise: De<"vendas">; liberado: b
 // extrato de caixa
 // ---------------------------------------------------------------------------
 
-function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boolean }) {
+function SecaoCaixa({ analise, liberado, passo }: { analise: De<"caixa">; liberado: boolean; passo: { n: number; de: number } }) {
   const toast = useToast();
   const [selecionados, setSelecionados] = useState(() => new Set(analise.itens.map((l) => l.ref)));
   const [enviando, setEnviando] = useState(false);
@@ -447,43 +450,45 @@ function SecaoCaixa({ analise, liberado }: { analise: De<"caixa">; liberado: boo
   }
 
   return (
-    <Secao numero={3} titulo={`Extrato de caixa (${analise.itens.length} lançamentos)`} periodo={analise.periodo}>
+    <Secao
+      passo={passo}
+      rotulo={`Caixa: ${plural(analise.itens.length, "lançamento", "lançamentos")}`}
+      periodo={analise.periodo}
+      rodape={
+        resultado
+          ? undefined
+          : "Entram compras de estoque e despesas. Compra de estoque não conta como despesa do mês e não mexe no estoque."
+      }
+    >
       <Conferencias itens={analise.conferencias} />
       <Avisos itens={analise.avisos} />
       {resultado ? (
         <Resultado mensagem={resultado} href="/fluxo-de-caixa" rotulo="Ver fluxo de caixa" />
       ) : (
         <>
-          <p className="text-[13px] text-ink-muted">
-            Entram as compras de estoque e as despesas. Compra de estoque não conta como despesa do mês (o custo entra no lucro quando o
-            produto é vendido) e não altera o estoque.
-          </p>
-          <ul className="divide-y divide-line sm:max-h-[32rem] sm:overflow-y-auto rounded-2xl border border-line">
+          <ul className="divide-y divide-line border-t border-line sm:max-h-[32rem] sm:overflow-y-auto">
             {analise.itens.map((l) => (
-              <li key={l.ref} className="flex items-start gap-3 px-3 py-2.5 text-[14px]">
+              <li key={l.ref} className="flex items-start gap-3 px-4 py-3">
                 <Marcar marcado={selecionados.has(l.ref)} onChange={(m) => alternar(l.ref, m)} rotulo={`Importar ${l.descricao}`} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-ink">{l.descricao}</p>
-                  <p className="flex items-center gap-2 text-[12px] text-ink-muted">
-                    {formatData(l.data)}
-                    <Badge tone={l.origem === "compra" ? "info" : "neutral"}>{l.origem === "compra" ? "Compra de estoque" : l.categoria}</Badge>
+                  <p className="truncate text-[15px] text-ink">{l.descricao}</p>
+                  <p className="text-[13px] text-ink-muted">
+                    {[formatData(l.data), l.origem === "compra" ? "Compra de estoque" : l.categoria].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                <span className={`shrink-0 tabular-nums ${l.tipo === "saida" ? "text-danger" : "text-positive"}`}>
+                <span className={`shrink-0 text-[15px] tabular-nums ${l.tipo === "saida" ? "text-danger" : "text-positive"}`}>
                   {l.tipo === "saida" ? "−" : "+"} {formatBRL(l.valor)}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="text-[13px] text-ink-2">
-            {plural(escolhidos.length, "lançamento selecionado", "lançamentos selecionados")} · saídas de {formatBRL(total)}
-          </p>
           <BotaoImportar
             quantidade={escolhidos.length}
             enviando={enviando}
             progresso={progresso}
             onClick={importar}
             rotulo={plural(escolhidos.length, "lançamento", "lançamentos")}
+            resumo={`${plural(escolhidos.length, "marcado", "marcados")} · saídas de ${formatBRL(total)}`}
             bloqueado={!liberado}
           />
         </>
@@ -542,8 +547,12 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
 
   const vazio = !carregado.produtos && !carregado.vendas && !carregado.caixa;
 
+  // andamento: a ordem é produtos, vendas, caixa (só conta o que foi carregado)
+  const ordem = (["produtos", "vendas", "caixa"] as const).filter((t) => carregado[t]);
+  const passo = (t: (typeof ordem)[number]) => ({ n: ordem.indexOf(t) + 1, de: ordem.length });
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-7">
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -560,11 +569,8 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
         }`}
       >
         <p className="text-[17px] font-semibold text-ink">{lendo ? "Lendo os arquivos..." : "Solte seus arquivos aqui"}</p>
-        <p className="max-w-md text-[14px] text-ink-muted">
-          Planilhas (Excel ou CSV) ou relatórios em PDF com seus produtos, vendas e caixa. Pode enviar vários de uma vez. Nada é
-          importado antes de você conferir e confirmar.
-        </p>
-        <button type="button" className={btnPrimary} disabled={lendo} onClick={() => inputRef.current?.click()}>
+        <p className="max-w-md text-[15px] text-ink-muted">Excel, CSV ou PDF. Nada entra antes de você conferir.</p>
+        <button type="button" className={`${btnPrimary} w-full sm:w-auto`} disabled={lendo} onClick={() => inputRef.current?.click()}>
           Escolher arquivos
         </button>
         <input
@@ -580,29 +586,38 @@ export function Importador({ historicoLiberado = true }: { historicoLiberado?: b
       </div>
 
       {vazio && !lendo && (
-        <Card title="Como funciona">
-          <ol className="flex list-decimal flex-col gap-2 pl-5 text-[14px] text-ink-2">
-            <li>Envie sua planilha (Excel ou CSV) ou os relatórios em PDF. Pode ter produtos, vendas e caixa, cada um numa aba ou arquivo.</li>
-            <li>Eu reconheço as colunas pelos títulos e mostro tudo numa prévia. Nos relatórios em PDF, comparo também com os totais.</li>
-            <li>Corrija o que quiser, desmarque o que não quer e confirme. Importe primeiro os produtos, depois as vendas.</li>
-          </ol>
-          <p className="mt-3 text-[13px] text-ink-muted">
-            A planilha precisa ter uma linha de títulos. Produtos: Nome, Custo, Preço, Estoque. Vendas: Data, Produto, Quantidade, Valor.
-            Caixa: Data, Descrição, Valor, Tipo. Sem planilha pronta? Comece por um modelo:
-          </p>
-          <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+        <>
+          <Grupo titulo="Como funciona" semPadding>
+            <p className={`${LINHA} text-[15px] text-ink`}>Envie a planilha ou o relatório em PDF. Pode mandar vários.</p>
+            <p className={`${LINHA} text-[15px] text-ink`}>Confira a prévia, corrija e desmarque o que não quer.</p>
+            <p className={`${LINHA} text-[15px] text-ink`}>Importe os produtos primeiro, depois as vendas.</p>
+          </Grupo>
+          <Grupo titulo="Modelos" rodape="A planilha precisa de uma linha de títulos." semPadding>
             {MODELOS.map((m) => (
-              <a key={m.arquivo} href={`/modelos/${m.arquivo}`} download className="font-medium text-brand-text hover:underline">
-                Modelo de {m.rotulo}
+              <a
+                key={m.arquivo}
+                href={`/modelos/${m.arquivo}`}
+                download
+                className={`${LINHA} flex items-center gap-3 transition hover:bg-fill/60 active:bg-fill`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[17px] text-ink">Modelo de {m.rotulo}</span>
+                  <span className="block truncate text-[13px] text-ink-muted">{m.colunas}</span>
+                </span>
+                <span className="text-[15px] font-medium text-brand-text">Baixar</span>
               </a>
             ))}
-          </p>
-        </Card>
+          </Grupo>
+        </>
       )}
 
-      {carregado.produtos && <SecaoProdutos key={carregado.produtos.chave} analise={carregado.produtos.analise} />}
-      {carregado.vendas && <SecaoVendas key={carregado.vendas.chave} analise={carregado.vendas.analise} liberado={historicoLiberado} />}
-      {carregado.caixa && <SecaoCaixa key={carregado.caixa.chave} analise={carregado.caixa.analise} liberado={historicoLiberado} />}
+      {carregado.produtos && <SecaoProdutos key={carregado.produtos.chave} analise={carregado.produtos.analise} passo={passo("produtos")} />}
+      {carregado.vendas && (
+        <SecaoVendas key={carregado.vendas.chave} analise={carregado.vendas.analise} liberado={historicoLiberado} passo={passo("vendas")} />
+      )}
+      {carregado.caixa && (
+        <SecaoCaixa key={carregado.caixa.chave} analise={carregado.caixa.analise} liberado={historicoLiberado} passo={passo("caixa")} />
+      )}
     </div>
   );
 }

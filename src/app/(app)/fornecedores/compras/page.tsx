@@ -61,8 +61,8 @@ export default async function ComprasPage() {
 
       {pedidos.length === 0 ? (
         <EmptyState
-          title="Nenhuma compra registrada"
-          description="Registre a compra com vários itens e o frete: o frete entra no custo de cada produto e o caixa leva uma saída só."
+          title="Nenhuma compra ainda"
+          description="O frete entra no custo de cada produto."
           action={nova}
         />
       ) : (

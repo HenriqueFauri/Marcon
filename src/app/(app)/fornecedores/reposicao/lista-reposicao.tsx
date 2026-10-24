@@ -78,7 +78,7 @@ export function ListaReposicao({ grupos }: { grupos: GrupoReposicao[] }) {
                     <div className="min-w-0 flex-1">
                       <p className={`truncate text-[17px] ${marcado ? "text-ink" : "text-ink-muted line-through"}`}>{i.nome}</p>
                       <p className="text-[13px] text-ink-muted">
-                        {i.estoque <= 0 ? "Sem estoque" : `Restam ${i.estoque}`} · vendeu {i.vendido30} em 30 dias
+                        {i.estoque <= 0 ? "Zerado" : i.estoque === 1 ? "Resta 1" : `Restam ${i.estoque}`} · vendeu {i.vendido30} em 30 dias
                       </p>
                     </div>
                     <input
