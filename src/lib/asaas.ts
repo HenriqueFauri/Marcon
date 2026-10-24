@@ -69,9 +69,11 @@ export function criarCliente(dados: { nome: string; email: string; cpfCnpj: stri
 
 // cartão de crédito recorrente: o cliente informa o cartão na página de pagamento
 // do Asaas (invoiceUrl), então nenhum dado de cartão passa pelo Marcon
+// ciclo: MONTHLY no plano mensal, YEARLY no anual (uma cobrança a cada 12 meses)
 export function criarAssinatura(dados: {
   clienteId: string;
   valor: number;
+  ciclo: "MONTHLY" | "YEARLY";
   descricao: string;
   ownerId: string;
   primeiroVencimento: string;
@@ -86,7 +88,7 @@ export function criarAssinatura(dados: {
       billingType: "CREDIT_CARD",
       value: dados.valor,
       nextDueDate: dados.primeiroVencimento,
-      cycle: "MONTHLY",
+      cycle: dados.ciclo,
       description: dados.descricao,
       externalReference: dados.ownerId,
       ...(dados.retornoUrl ? { callback: { successUrl: dados.retornoUrl, autoRedirect: true } } : {}),
