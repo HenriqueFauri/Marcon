@@ -119,8 +119,8 @@ function lerVariacoes(formData: FormData): (LinhaVariacao | { erro: string })[] 
 }
 
 // Origem do estoque inicial. No cadastro de produto a escolha é "Já era meu" (padrão: entra no estoque
-// sem sair do caixa) ou "Comprei agora" (sai do caixa). Na variação nova continua a caixinha
-// "Esse estoque já era meu". O argumento só é mandado quando não sai do caixa.
+// sem sair do caixa) ou "Comprei agora" (sai do caixa), no cadastro e na variação nova. estoque_ja_pago
+// é o campo antigo (caixinha), aceito por compatibilidade. O argumento só é mandado quando não sai do caixa.
 function estoqueJaPago(formData: FormData) {
   const origem = formData.get("estoque_origem");
   if (origem === "comprei") return false;

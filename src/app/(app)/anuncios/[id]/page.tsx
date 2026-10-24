@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { iaDisponivel } from "@/lib/ia-anuncio";
 import type { ProdutoAnuncio, ProdutoComEstoque, ProdutoFoto, ProdutoVariacao } from "@/types/domain";
-import { Badge, PageHeader, btnSecondary } from "@/components/ui";
+import { Badge, PageHeader } from "@/components/ui";
 import { lerUso } from "@/lib/uso";
 import { AnunciosEditor } from "./anuncios-editor";
 import { FotosSection } from "./fotos-section";
@@ -49,7 +48,7 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
   }));
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl pb-24 lg:pb-0">
       <PageHeader
         back={{ href: "/anuncios", label: "Anúncios" }}
         title={
@@ -58,14 +57,7 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
             {p.status === "inativo" && <Badge>Inativo</Badge>}
           </span>
         }
-        description={[p.categorias?.nome ?? "Sem categoria", p.marca, p.sku ? `SKU ${p.sku}` : null].filter(Boolean).join(" · ")}
-        action={
-          <>
-            <Link href={`/produtos/${p.id}`} className={btnSecondary}>
-              Ver produto
-            </Link>
-          </>
-        }
+        description={[p.categorias?.nome, p.marca].filter(Boolean).join(" · ") || undefined}
       />
 
       <div className="flex flex-col gap-7">

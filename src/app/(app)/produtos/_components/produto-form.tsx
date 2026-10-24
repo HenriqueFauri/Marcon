@@ -15,8 +15,8 @@ import { createClient } from "@/lib/supabase/client";
 import { comprimirImagem, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { registrarFoto } from "../actions";
 import { AutoTextarea } from "@/components/auto-textarea";
-import { Grupo, LinhaLink, Segmentado } from "@/components/ajustes";
-import { Card, Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
+import { Grupo, Interruptor, LinhaLink, Segmentado } from "@/components/ajustes";
+import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconBox, IconChevronDown, IconPlus, IconTrash } from "@/components/icons";
 
 const UNIDADES = [
@@ -94,7 +94,7 @@ function LinhaVariacaoNova({
   const precoEfetivo = lerNumero(preco) ?? precoPadrao;
 
   return (
-    <div className="rounded-2xl border border-line p-3">
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[13px] font-semibold text-ink-2">Variação {indice + 1}</span>
         {podeRemover && (
@@ -152,10 +152,7 @@ function VariacoesNovas({ custoPadrao, precoPadrao }: { custoPadrao: number | nu
   const [proximo, setProximo] = useState(1);
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-ink-muted">
-        Uma linha para cada combinação (ex: &quot;Azul / M&quot;). Custo e preço em branco usam os do produto.
-      </p>
+    <div className="flex flex-col gap-4">
       {linhas.map((id, i) => (
         <LinhaVariacaoNova
           key={id}
@@ -166,14 +163,14 @@ function VariacoesNovas({ custoPadrao, precoPadrao }: { custoPadrao: number | nu
           precoPadrao={precoPadrao}
         />
       ))}
-      <div>
+      <div className="border-t border-line pt-4">
         <button
           type="button"
           onClick={() => {
             setLinhas((l) => [...l, proximo]);
             setProximo((n) => n + 1);
           }}
-          className={btnSecondary}
+          className={`${btnSecondary} w-full sm:w-auto`}
         >
           <IconPlus width={16} height={16} /> Adicionar outra variação
         </button>
@@ -377,10 +374,10 @@ export function ProdutoForm({
           },
         );
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-7"
     >
       {/* o essencial para cadastrar em segundos: nome, custo, preço, estoque e foto. O resto fica em "Mais detalhes" */}
-      <Card title={editando ? "Produto" : "Cadastro rápido"}>
+      <Grupo titulo={editando ? "Produto" : "Cadastro rápido"}>
         <div className="flex flex-col gap-4">
           {!editando && <FotoDeCapa foto={foto} onChange={setFoto} />}
 
@@ -454,7 +451,7 @@ export function ProdutoForm({
             </p>
           )}
         </div>
-      </Card>
+      </Grupo>
 
       <button
         type="button"
@@ -473,8 +470,8 @@ export function ProdutoForm({
       </button>
 
       {/* escondido (e não desmontado): os campos continuam no envio mesmo com a seção fechada */}
-      <div id="mais-detalhes" hidden={!aberto} className="flex flex-col gap-4">
-        <Card title="Informações">
+      <div id="mais-detalhes" hidden={!aberto} className="flex flex-col gap-7">
+        <Grupo titulo="Informações">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <CategoriaCampo categorias={categorias} inicial={base?.categorias?.nome ?? ""} />
@@ -509,9 +506,9 @@ export function ProdutoForm({
               />
             </Field>
           </div>
-        </Card>
+        </Grupo>
 
-        <Card title="Atacado, estoque e fornecedor">
+        <Grupo titulo="Atacado, estoque e fornecedor">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Preço de atacado (R$)">
@@ -547,22 +544,17 @@ export function ProdutoForm({
             </div>
 
             {!editando && (
-              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  name="tem_variacoes"
-                  value="true"
-                  checked={temVariacoes}
-                  onChange={(e) => setTemVariacoes(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-brand"
+              <div>
+                {/* o servidor lê tem_variacoes === "true"; o interruptor só muda o estado */}
+                <input type="hidden" name="tem_variacoes" value={temVariacoes ? "true" : ""} />
+                <Interruptor
+                  name="tem_variacoes_ligado"
+                  padrao={temVariacoes}
+                  onMudar={setTemVariacoes}
+                  titulo="Tem variações"
+                  ajuda="Tamanho, cor... O estoque passa a ser por variação."
                 />
-                <span>
-                  Este produto tem variações (tamanho, cor...)
-                  <span className="mt-0.5 block text-xs text-ink-muted">
-                    O estoque passa a ser controlado por variação. Preencha as variações logo abaixo.
-                  </span>
-                </span>
-              </label>
+              </div>
             )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -602,16 +594,16 @@ export function ProdutoForm({
               )}
             </div>
           </div>
-        </Card>
+        </Grupo>
 
         {!editando && temVariacoes && (
-          <Card title="Variações">
+          <Grupo titulo="Variações" rodape={<>Uma para cada combinação (ex.: &quot;Azul / M&quot;). Custo e preço em branco usam os do produto.</>}>
             <div className="flex flex-col gap-4">
               <VariacoesNovas custoPadrao={custoN} precoPadrao={precoN} />
               {/* vale para o estoque de todas as variações */}
               <OrigemDoEstoque valor={origemEstoque} onMudar={setOrigemEstoque} />
             </div>
-          </Card>
+          </Grupo>
         )}
       </div>
 
@@ -632,11 +624,11 @@ export function ProdutoForm({
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" onClick={() => router.back()} className={btnGhost}>
           Cancelar
         </button>
-        <button type="submit" disabled={isPending} className={btnPrimary}>
+        <button type="submit" disabled={isPending} className={`${btnPrimary} w-full py-3 sm:w-auto sm:py-2.5`}>
           <RotuloAcao pendente={isPending} ocupado="Salvando...">{editando ? "Salvar alterações" : "Cadastrar produto"}</RotuloAcao>
         </button>
       </div>
