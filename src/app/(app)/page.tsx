@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
 import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes, somarDias } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
+import { lerUso } from "@/lib/uso";
 import { EmptyState, btnPrimary } from "@/components/ui";
 import { Grupo } from "@/components/ajustes";
 import { PainelMetas, PainelVendas, PeriodoProvider, type DadosPeriodo, type DadosPorPeriodo, type Periodo, type VendaResumo } from "./painel-periodo";
@@ -92,6 +93,16 @@ function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; fe
   );
 }
 
+// calendário para as contas a pagar (o recibo já é das parcelas a receber)
+function IconCalendarioPagar({ size = 17 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="3" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+    </svg>
+  );
+}
+
 const LINHA = "flex items-center gap-3 px-4 py-3 text-[17px] text-ink";
 
 function LinhaResumo({
@@ -135,6 +146,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     { data: caixaData },
     { data: saldoData },
     { count: totalVendas },
+    { data: pagarData },
+    uso,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("produtos_com_estoque").select("*").neq("status", "inativo"),
@@ -154,6 +167,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     // saldo somado no banco: somar no app cortava em 1000 lançamentos
     supabase.rpc("saldo_caixa", { p_ate: hoje }),
     supabase.from("vendas").select("id", { count: "exact", head: true }).neq("status", "cancelada"),
+    // contas a pagar em aberto até daqui a 7 dias (as atrasadas entram: também pedem atenção)
+    supabase.from("contas_a_pagar").select("valor").eq("status", "aberta").lte("vencimento", somarDias(hoje, 7)),
+    // o plano diz se a vitrine abre (no grátis ela só mostra o convite para assinar)
+    lerUso(supabase),
   ]);
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
@@ -211,6 +228,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const vencemNaSemana = parcelas.filter((p) => p.status_efetivo !== "atrasado" && p.vencimento >= hoje && p.vencimento <= fimSemana);
   const valorVencemNaSemana = vencemNaSemana.reduce((s, p) => s + Number(p.valor), 0);
   const alertasEstoque = produtos.filter((p) => situacaoEstoque(p) !== "ok");
+  const aPagar = pagarData ?? [];
+  const valorAPagar = aPagar.reduce((s, c) => s + Number(c.valor), 0);
+  const textoAPagar = aPagar.length
+    ? `${aPagar.length} ${aPagar.length === 1 ? "conta" : "contas"} a pagar em 7 dias`
+    : "Nada a pagar em 7 dias";
 
   const primeiroNome = (
     (meta.nome as string | undefined) ?? (meta.full_name as string | undefined) ?? ""
@@ -218,11 +240,16 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
   const semNada = produtos.length === 0 && todasVendas.length === 0;
 
-  // checklist da conta nova; some sozinho quando os três passos estão feitos
+  // checklist da conta nova; some sozinho quando os três passos estão feitos.
+  // O 3º depende do plano: com vitrine, abrir a vitrine; no grátis (vitrine só convida a assinar),
+  // trazer os produtos de uma planilha (vale como feito a partir de 5 produtos cadastrados).
+  const temVitrine = uso ? uso.plano !== "gratis" : true;
   const passos = [
     { href: "/produtos/novo", texto: "Cadastrar um produto", feito: produtos.length > 0 },
     { href: "/vendas/novo", texto: "Registrar uma venda", feito: (totalVendas ?? 0) > 0 },
-    { href: "/vitrine", texto: "Abrir a vitrine", feito: produtos.some((p) => p.na_vitrine) },
+    temVitrine
+      ? { href: "/vitrine", texto: "Abrir a vitrine", feito: produtos.some((p) => p.na_vitrine) }
+      : { href: "/importar", texto: "Trazer seus produtos", feito: produtos.length >= 5 },
   ];
   const primeirosPassos = passos.some((p) => !p.feito);
 
@@ -290,6 +317,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 valor={alertasEstoque.length ? `${alertasEstoque.length} ${alertasEstoque.length === 1 ? "item" : "itens"}` : "Tudo ok"}
               />
               <LinhaResumo
+                href="/contas-a-pagar"
+                icone={<IconCalendarioPagar />}
+                tom="bg-tile-warning text-on-tile-warning"
+                rotulo="A pagar em 7 dias"
+                valor={aPagar.length ? formatBRL(valorAPagar) : "Nada"}
+              />
+              <LinhaResumo
                 href="/fluxo-de-caixa"
                 icone={<IconWallet width={17} height={17} />}
                 tom="bg-tile-positive text-on-tile-positive"
@@ -327,6 +361,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 icone={<IconReceipt width={15} height={15} />}
                 texto={vencemNaSemana.length ? `${vencemNaSemana.length} ${vencemNaSemana.length === 1 ? "vence" : "vencem"} esta semana` : "Nada vence esta semana"}
                 valor={vencemNaSemana.length ? formatBRL(valorVencemNaSemana) : undefined}
+              />
+              <LinhaAtencao
+                href="/contas-a-pagar"
+                tom="bg-tile-warning text-on-tile-warning"
+                icone={<IconCalendarioPagar size={15} />}
+                texto={textoAPagar}
+                valor={aPagar.length ? formatBRL(valorAPagar) : undefined}
               />
             </Grupo>
           </div>
