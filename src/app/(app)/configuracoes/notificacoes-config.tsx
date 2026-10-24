@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useToast } from "@/components/toaster";
 import { mensagemDeErro } from "@/lib/action";
-import { btnPrimary, btnSecondary } from "@/components/ui";
+import { Grupo, Interruptor } from "@/components/ajustes";
 import { removerInscricaoPush, salvarInscricaoPush } from "./push-actions";
 
 function urlBase64ToUint8Array(base64String: string) {
@@ -21,6 +21,8 @@ export function NotificacoesConfig() {
   const suportado = useSyncExternalStore(semAssinatura, pushSuportado, () => false);
   const [inscrito, setInscrito] = useState<boolean | null>(null);
   const [carregando, setCarregando] = useState(false);
+  // o Interruptor guarda o próprio estado: a chave nova o redesenha quando a troca falha
+  const [tentativa, setTentativa] = useState(0);
   const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
   useEffect(() => {
@@ -68,6 +70,7 @@ export function NotificacoesConfig() {
       toast.error(mensagemDeErro(e, "Erro ao ativar notificações."));
     } finally {
       setCarregando(false);
+      setTentativa((t) => t + 1);
     }
   }
 
@@ -87,35 +90,41 @@ export function NotificacoesConfig() {
       toast.error(mensagemDeErro(e, "Erro ao desativar notificações."));
     } finally {
       setCarregando(false);
+      setTentativa((t) => t + 1);
     }
   }
 
   if (!suportado) {
     return (
-      <p className="text-sm text-ink-muted">
-        Este navegador não suporta notificações. No iPhone, instale o app primeiro (Compartilhar → Adicionar à Tela de
-        Início) e abra por lá.
-      </p>
+      <Grupo titulo="Notificações">
+        <p className="text-[15px] text-ink-muted">
+          Este navegador não suporta notificações. No iPhone, instale o app primeiro (Compartilhar, Adicionar à Tela de
+          Início) e abra por lá.
+        </p>
+      </Grupo>
     );
   }
 
   return (
     <div id="notificacoes" className="scroll-mt-24">
-      <p className="mb-3 text-sm text-ink-muted">
-        Receba um aviso a cada venda, pedido da vitrine e produto acabando, além do lembrete de cobrança e do resumo do
-        dia. Vale só para este aparelho: ative em cada um que você usa.
-      </p>
-      {inscrito === null ? (
-        <p className="text-sm text-ink-muted">Verificando...</p>
-      ) : inscrito ? (
-        <button onClick={desativar} disabled={carregando} className={btnSecondary}>
-          {carregando ? "Desativando..." : "Desativar notificações"}
-        </button>
-      ) : (
-        <button onClick={ativar} disabled={carregando} className={btnPrimary}>
-          {carregando ? "Ativando..." : "Ativar notificações"}
-        </button>
-      )}
+      <Grupo
+        titulo="Notificações"
+        rodape="Aviso a cada venda, pedido da vitrine e produto acabando, mais o lembrete de cobrança e o resumo do dia. Vale só para este aparelho: ative em cada um que você usa."
+      >
+        {inscrito === null ? (
+          <p className="text-[15px] text-ink-muted">Verificando...</p>
+        ) : (
+          <Interruptor
+            key={`${inscrito}-${tentativa}`}
+            name="push"
+            padrao={inscrito}
+            titulo="Neste aparelho"
+            ajuda={carregando ? (inscrito ? "Desativando..." : "Ativando...") : undefined}
+            desabilitado={carregando}
+            onMudar={(ligar) => (ligar ? ativar() : desativar())}
+          />
+        )}
+      </Grupo>
     </div>
   );
 }

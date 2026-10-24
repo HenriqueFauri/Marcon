@@ -87,7 +87,7 @@ export function VendasDaConta({ detalhe }: { detalhe: Pick<DetalheConta, "mais_v
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[17px] text-ink">{p.nome}</span>
                     <span className={`block text-[13px] ${Number(p.estoque) <= 0 ? "text-danger" : "text-ink-muted"}`}>
-                      {Number(p.estoque) <= 0 ? "Sem estoque" : `${p.estoque} em estoque`}
+                      {Number(p.estoque) <= 0 ? "Zerado" : `${p.estoque} em estoque`}
                     </span>
                   </span>
                   <span className="shrink-0 text-[17px] tabular-nums text-ink">{formatBRL(Number(p.preco))}</span>
@@ -112,7 +112,7 @@ export function VendasDaConta({ detalhe }: { detalhe: Pick<DetalheConta, "mais_v
           ? "Últimos 90 dias, pelo valor vendido."
           : aba === "vendas"
             ? "As vendas mais recentes."
-            : `${detalhe.estoque.produtos_ativos} produtos ativos, em ordem alfabética.`}
+            : `${detalhe.estoque.produtos_ativos} ${detalhe.estoque.produtos_ativos === 1 ? "produto ativo" : "produtos ativos"}, em ordem alfabética.`}
       </p>
     </section>
   );

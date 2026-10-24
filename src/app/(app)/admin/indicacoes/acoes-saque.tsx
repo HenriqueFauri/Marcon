@@ -24,7 +24,7 @@ export function AcoesSaque({ id, valor, chavePix }: { id: string; valor: number;
   }
 
   return (
-    <div className="flex items-center justify-end gap-4">
+    <div className="flex items-center gap-4 sm:justify-end">
       <button type="button" className={link} onClick={copiarChave}>
         Copiar chave
       </button>

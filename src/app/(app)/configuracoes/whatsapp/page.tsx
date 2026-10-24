@@ -126,9 +126,9 @@ export default async function AssistenteWhatsappPage() {
 
         {confirmacoes.length > 0 && (
           <Grupo
-            titulo="Pedir meu SIM antes de lançar"
+            titulo="Pedir o seu SIM antes de lançar"
             semPadding
-            rodape="Desligado, o assistente lança na hora e conta o que fez. Por voz, só lanço sem o SIM quando entendo o áudio com segurança; se ficar qualquer dúvida, peço o SIM."
+            rodape="Ligado, o assistente só lança depois do seu SIM. Desligado, lança na hora e conta o que fez; por voz, só pula o SIM quando entende o áudio com segurança. Na dúvida, ele pede o SIM."
           >
             {confirmacoes.map((c) => (
               <InterruptorConfirmacao key={c.grupo} grupo={c.grupo} titulo={c.titulo} pedir={!semConfirmar.includes(c.grupo)} />
