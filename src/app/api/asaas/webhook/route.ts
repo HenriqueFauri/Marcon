@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarComissao } from "@/lib/indicacao-servidor";
+import { CICLOS, cicloDe } from "@/lib/planos";
 
 // Webhook do Asaas: mantém a tabela assinaturas igual ao que o Asaas diz.
 // Cadastre no painel do Asaas (Integrações > Webhooks) com o mesmo token de
@@ -21,11 +22,11 @@ function tokenValido(recebido: string | null) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// vencimento pago + 1 mês = próxima cobrança
-function mesSeguinte(data: string | undefined) {
+// vencimento pago + 1 mês (mensal) ou + 12 meses (anual) = próxima cobrança
+function proximoVencimento(data: string | undefined, meses: number) {
   if (!data) return null;
   const d = new Date(`${data}T12:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + 1);
+  d.setUTCMonth(d.getUTCMonth() + meses);
   return d.toISOString().slice(0, 10);
 }
 
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
     if (assinaturaId) {
       const { data: linha } = await admin
         .from("assinaturas")
-        .select("owner_id, status")
+        .select("owner_id, status, ciclo")
         .eq("asaas_subscription_id", assinaturaId)
         .maybeSingle();
 
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
       if (linha && linha.status !== "cancelada") {
         let mudanca: { status: string; proximo_vencimento?: string | null } | null = null;
         if (tipo === "PAYMENT_CONFIRMED" || tipo === "PAYMENT_RECEIVED") {
-          mudanca = { status: "ativa", proximo_vencimento: mesSeguinte(evento.payment?.dueDate) };
+          mudanca = { status: "ativa", proximo_vencimento: proximoVencimento(evento.payment?.dueDate, CICLOS[cicloDe(linha.ciclo)].meses) };
         } else if (tipo === "PAYMENT_OVERDUE") {
           mudanca = { status: "atrasada" };
         } else if (tipo === "SUBSCRIPTION_DELETED" || tipo === "SUBSCRIPTION_INACTIVATED") {

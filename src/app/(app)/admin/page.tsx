@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adminConfirmado, ehAdmin } from "@/lib/admin";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
-import { PLANOS } from "@/lib/planos";
+import { ANUAL_POR_MES, PLANOS } from "@/lib/planos";
 import { rotuloDoMotivo } from "@/lib/cortesia";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
@@ -56,7 +56,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }] = await Promise.all([
     todasAsContas(admin),
-    admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
+    admin.from("assinaturas").select("owner_id, plano, ciclo, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
     admin.rpc("admin_resumo_por_conta"),
     admin.from("whatsapp_liberados").select("owner_id, lancar"),
     admin.from("whatsapp_vinculos").select("owner_id, telefone"),
@@ -112,8 +112,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     return qs ? `/admin?${qs}` : "/admin";
   };
 
-  const pagantes = linhas.filter((l) => l.situacao.tipo === "ativa" || l.situacao.tipo === "atrasada").length;
-  const receitaMensal = pagantes * PLANOS.marcon.valor;
+  const listaPagantes = linhas.filter((l) => l.situacao.tipo === "ativa" || l.situacao.tipo === "atrasada");
+  const pagantes = listaPagantes.length;
+  // anual entra pelo equivalente mensal (R$ 149 / 12), para o número continuar sendo "por mês"
+  const receitaMensal = listaPagantes.reduce((s, l) => s + (l.situacao.ciclo === "anual" ? ANUAL_POR_MES : PLANOS.marcon.valor), 0);
   const vendidoNoMes = linhas.reduce((s, l) => s + Number(l.resumo?.valor_mes ?? 0), 0);
 
   return (

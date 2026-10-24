@@ -100,6 +100,17 @@ Integrações, Webhooks, no painel do **sandbox**:
 
 A rota responde 401 se o token for diferente. Nunca cadastrar a URL de produção no sandbox nem a do Staging no Asaas real. A chave de API do sandbox é criada no próprio painel do sandbox.
 
+### Assinatura mensal e anual
+
+Plano Marcon: R$ 15,90 por mês ou R$ 149 por ano (decisão de 2026-10-24), só no cartão. Valores e ciclos em `src/lib/planos.ts` (`CICLOS`).
+
+- A tela Assinatura tem a escolha Mensal ou Anual. `assinarPlano` (`src/app/(app)/assinatura/actions.ts`) cria a assinatura no Asaas com `cycle: MONTHLY` e 15,90, ou `cycle: YEARLY` e 149. O valor sai do servidor, nunca do navegador.
+- O ciclo fica em `assinaturas.ciclo` (`mensal` ou `anual`, migration 0063). Linhas de antes da 0063 ficam `mensal`.
+- Assinatura pendente de outro ciclo é cancelada no Asaas e outra é criada; do mesmo ciclo, reaproveita o link.
+- Webhook: os mesmos eventos para os dois ciclos. No pagamento confirmado, `proximo_vencimento` = vencimento pago + 1 mês (mensal) ou + 12 meses (anual).
+- Indique e ganhe: a comissão é a porcentagem do afiliado sobre o valor de cada cobrança paga. No anual, 30% de 149 (R$ 44,70) uma vez por ano.
+- Cancelar marca a assinatura como cancelada na hora e a conta volta ao grátis, também no anual (sem devolução pelo período em andamento, como dizem os Termos).
+
 ## Conta de teste e dados de exemplo
 
 ```bash

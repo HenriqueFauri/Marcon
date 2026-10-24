@@ -4,11 +4,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Card, btnPrimary, inputClass } from "@/components/ui";
 import { ConfirmButton } from "@/components/confirm-button";
+import { Segmentado } from "@/components/ajustes";
 import { IconCheck } from "@/components/icons";
 import { useToast } from "@/components/toaster";
 import { formatarDocumento, documentoValido } from "@/lib/documento";
 import { formatBRL, formatData } from "@/lib/format";
-import { DIAS_DE_TESTE, PLANO_GRATIS, PLANOS } from "@/lib/planos";
+import { ANUAL_POR_MES, CICLOS, DIAS_DE_TESTE, ECONOMIA_ANUAL, PLANO_GRATIS, PLANOS, type Ciclo } from "@/lib/planos";
 import type { Situacao } from "@/lib/assinatura";
 import type { Uso } from "@/lib/uso";
 import { assinarPlano, cancelarPlano, regularizarPagamento, type ResultadoAssinar } from "./actions";
@@ -78,6 +79,7 @@ function Lista({ itens }: { itens: readonly string[] }) {
   );
 }
 
+// ação destrutiva: fica no fim da tela, como texto vermelho discreto (docs/DESIGN.md)
 function CancelarLink({ aoCancelar }: { aoCancelar: () => void }) {
   return (
     <ConfirmButton
@@ -86,11 +88,16 @@ function CancelarLink({ aoCancelar }: { aoCancelar: () => void }) {
       confirmLabel="Cancelar assinatura"
       onConfirm={cancelarPlano}
       onDone={aoCancelar}
-      className="text-[13px] font-medium text-ink-muted underline-offset-2 hover:text-danger hover:underline"
+      className="w-full py-2 text-center text-[15px] font-medium text-danger hover:underline sm:w-auto"
     >
       Cancelar assinatura
     </ConfirmButton>
   );
+}
+
+// "R$ 149 por ano" / "R$ 15,90 por mês"
+function precoDoCiclo(ciclo: Ciclo) {
+  return `${formatBRL(CICLOS[ciclo].valor)} por ${ciclo === "anual" ? "ano" : "mês"}`;
 }
 
 export function AssinaturaPainel({
@@ -109,6 +116,8 @@ export function AssinaturaPainel({
   const [documento, setDocumento] = useState("");
   const [erroDocumento, setErroDocumento] = useState<string | null>(null);
   const [abrindo, setAbrindo] = useState(false);
+  // começa no ciclo da assinatura pendente, se houver; senão no mensal
+  const [ciclo, setCiclo] = useState<Ciclo>(situacao.ciclo);
   // o pagamento abre em outra aba; aqui esperamos o webhook confirmar
   const [esperandoPagamento, setEsperandoPagamento] = useState(false);
   const avisou = useRef(false);
@@ -168,7 +177,7 @@ export function AssinaturaPainel({
       return;
     }
     setErroDocumento(null);
-    void abrirPagamento(() => assinarPlano(documento));
+    void abrirPagamento(() => assinarPlano(documento, ciclo));
   }
 
   // ---- bloco de situação, no topo ----
@@ -191,16 +200,15 @@ export function AssinaturaPainel({
     situacaoCard = (
       <Card>
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[17px] font-semibold text-ink">Plano {PLANO.nome}</p>
+          <p className="text-[17px] font-semibold text-ink">
+            Plano {PLANO.nome} {CICLOS[situacao.ciclo].rotulo.toLowerCase()}
+          </p>
           <Badge tone="positive">Ativa</Badge>
         </div>
         <p className="mt-1 text-[14px] text-ink-2">
-          {formatBRL(PLANO.valor)} por mês, no cartão de crédito.
+          {precoDoCiclo(situacao.ciclo)}, no cartão de crédito.
           {situacao.proximoVencimento && ` Próxima cobrança em ${formatData(situacao.proximoVencimento)}.`}
         </p>
-        <div className="mt-4">
-          <CancelarLink aoCancelar={() => setEsperandoPagamento(false)} />
-        </div>
       </Card>
     );
   } else if (tipo === "atrasada") {
@@ -211,13 +219,13 @@ export function AssinaturaPainel({
           <Badge tone="warning">Atrasada</Badge>
         </div>
         <p className="mt-1 text-[14px] text-ink-2">
-          O Asaas tenta de novo sozinho, mas você pode resolver agora pagando com o mesmo cartão ou com outro.
+          Plano {PLANO.nome} {CICLOS[situacao.ciclo].rotulo.toLowerCase()}, {precoDoCiclo(situacao.ciclo)}. O Asaas tenta de novo
+          sozinho, mas você pode resolver agora pagando com o mesmo cartão ou com outro.
         </p>
-        <div className="mt-4 flex flex-wrap items-center gap-4">
+        <div className="mt-4">
           <button type="button" className={btnPrimary} disabled={abrindo} onClick={() => void abrirPagamento(regularizarPagamento)}>
             {abrindo ? "Abrindo pagamento..." : "Regularizar pagamento"}
           </button>
-          <CancelarLink aoCancelar={() => setEsperandoPagamento(false)} />
         </div>
       </Card>
     );
@@ -243,7 +251,7 @@ export function AssinaturaPainel({
         </div>
         <p className="mt-3 text-[14px] text-ink-2">
           Tudo liberado, sem cartão. Termina em {formatData(situacao.fimDoTeste)}. Depois você segue no plano grátis ou assina para
-          continuar sem limite.
+          ter vendas e produtos ilimitados e a vitrine.
         </p>
       </Card>
     );
@@ -271,7 +279,8 @@ export function AssinaturaPainel({
           <Badge>Grátis</Badge>
         </div>
         <p className="mt-1 text-[14px] text-ink-2">
-          Até {PLANO_GRATIS.limites.vendasPorMes} vendas por mês e {PLANO_GRATIS.limites.produtos} produtos. Assine para tirar os limites.
+          Até {PLANO_GRATIS.limites.vendasPorMes} vendas por mês e {PLANO_GRATIS.limites.produtos} produtos. Assine e libere vendas
+          ilimitadas e a sua vitrine com link.
         </p>
       </Card>
     );
@@ -279,6 +288,9 @@ export function AssinaturaPainel({
 
   // depois do clique em "Assinar" o painel ainda não sabe que virou pendente
   const esperandoAntesDoServidor = esperandoPagamento && tipo !== "pendente" && tipo !== "atrasada" && !liberada;
+  // mensal ou anual só se escolhe ao assinar; assinado (ou atrasado), mostra o ciclo que a pessoa tem
+  const podeEscolherCiclo = cobrancaDisponivel && !liberada && tipo !== "atrasada";
+  const cicloMostrado: Ciclo = podeEscolherCiclo ? ciclo : liberada || tipo === "atrasada" ? situacao.ciclo : "mensal";
 
   return (
     <div className="flex flex-col gap-5">
@@ -304,10 +316,35 @@ export function AssinaturaPainel({
             <h2 className="text-[17px] font-semibold tracking-tight text-ink">{PLANO.nome}</h2>
             {liberada && <Badge tone="positive">Seu plano</Badge>}
           </div>
-          <p className="text-[26px] font-semibold tracking-tight text-ink">
-            {formatBRL(PLANO.valor)}
-            <span className="text-[14px] font-normal text-ink-muted"> /mês</span>
-          </p>
+          {podeEscolherCiclo && (
+            <Segmentado
+              rotulo="Ciclo de cobrança"
+              valor={ciclo}
+              onMudar={setCiclo}
+              opcoes={[
+                { valor: "mensal", label: CICLOS.mensal.rotulo },
+                { valor: "anual", label: CICLOS.anual.rotulo },
+              ]}
+            />
+          )}
+          <div>
+            <p className="text-[26px] font-semibold tracking-tight text-ink">
+              {formatBRL(CICLOS[cicloMostrado].valor)}
+              <span className="text-[14px] font-normal text-ink-muted"> {CICLOS[cicloMostrado].sufixo}</span>
+            </p>
+            {cicloMostrado === "anual" ? (
+              <p className="mt-0.5 text-[13px] text-ink-muted">
+                Sai {formatBRL(ANUAL_POR_MES)} por mês. Você economiza {formatBRL(ECONOMIA_ANUAL)} em relação a 12 mensalidades.
+              </p>
+            ) : (
+              !liberada &&
+              tipo !== "atrasada" && (
+                <p className="mt-0.5 text-[13px] text-ink-muted">
+                  Ou {formatBRL(PLANO.valorAnual)} por ano, {formatBRL(ANUAL_POR_MES)} por mês.
+                </p>
+              )
+            )}
+          </div>
           <Lista itens={PLANO.inclui} />
 
           {!liberada && tipo !== "atrasada" && (
@@ -346,9 +383,9 @@ export function AssinaturaPainel({
                   <button type="button" className={btnPrimary} disabled={abrindo} onClick={assinar}>
                     {abrindo
                       ? "Abrindo pagamento..."
-                      : tipo === "pendente"
+                      : tipo === "pendente" && ciclo === situacao.ciclo
                         ? "Continuar pagamento"
-                        : `Assinar por ${formatBRL(PLANO.valor)}/mês`}
+                        : `Assinar por ${formatBRL(CICLOS[ciclo].valor)}${CICLOS[ciclo].sufixo}`}
                   </button>
                   {esperandoAntesDoServidor && (
                     <p className="text-[13px] text-ink-2">
@@ -356,8 +393,10 @@ export function AssinaturaPainel({
                     </p>
                   )}
                   <p className="text-[12px] leading-relaxed text-ink-muted">
-                    Cobrança mensal no cartão de crédito. Cancele quando quiser. Você digita o cartão na página segura do Asaas: o
-                    Marcon não vê nem guarda o número.
+                    {ciclo === "anual"
+                      ? "Uma cobrança por ano no cartão de crédito, renovada sozinha. Cancele quando quiser."
+                      : "Cobrança mensal no cartão de crédito. Cancele quando quiser."}{" "}
+                    Você digita o cartão na página segura do Asaas: o Marcon não vê nem guarda o número.
                   </p>
                 </>
               )}
@@ -366,8 +405,8 @@ export function AssinaturaPainel({
         </section>
       </div>
 
-      {tipo === "pendente" && (
-        <div>
+      {(ativa || tipo === "atrasada" || tipo === "pendente") && (
+        <div className="flex justify-center pt-2 sm:justify-start">
           <CancelarLink aoCancelar={() => setEsperandoPagamento(false)} />
         </div>
       )}

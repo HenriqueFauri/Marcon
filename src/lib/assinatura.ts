@@ -1,4 +1,4 @@
-import { DIAS_DE_TESTE } from "@/lib/planos";
+import { DIAS_DE_TESTE, cicloDe, type Ciclo } from "@/lib/planos";
 import { hojeISO } from "@/lib/format";
 
 // Onde o usuário está no ciclo de assinatura. O teste corre a partir da criação
@@ -10,6 +10,7 @@ export interface Situacao {
   diasRestantes: number; // no teste e na cortesia com prazo
   fimDoTeste: string; // yyyy-mm-dd
   plano: string | null;
+  ciclo: Ciclo; // mensal ou anual; sem assinatura, mensal
   proximoVencimento: string | null;
   cortesiaAte: string | null; // último dia da cortesia (yyyy-mm-dd); nulo em cortesia antiga, sem prazo
   cortesiaEm: string | null; // quando foi dada
@@ -18,6 +19,7 @@ export interface Situacao {
 
 interface LinhaAssinatura {
   plano: string;
+  ciclo?: string | null; // migration 0063
   status: "pendente" | "ativa" | "atrasada" | "cancelada" | "cortesia";
   proximo_vencimento: string | null;
   cortesia_ate?: string | null;
@@ -47,6 +49,7 @@ export function situacaoDaAssinatura(linha: LinhaAssinatura | null, contaCriadaE
     diasRestantes,
     fimDoTeste: fim.toISOString().slice(0, 10),
     plano: linha?.plano ?? null,
+    ciclo: cicloDe(linha?.ciclo),
     proximoVencimento: linha?.proximo_vencimento ?? null,
     cortesiaAte: null as string | null,
     cortesiaEm: null as string | null,

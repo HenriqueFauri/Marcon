@@ -15,7 +15,7 @@ import {
   linkDePagamento,
 } from "@/lib/asaas";
 import { documentoValido } from "@/lib/documento";
-import { PLANO_PADRAO, PLANOS } from "@/lib/planos";
+import { CICLOS, PLANO_PADRAO, PLANOS, cicloDe, ehCiclo, type Ciclo } from "@/lib/planos";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
@@ -35,9 +35,12 @@ function hojeEmBrasilia() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 }
 
-export async function assinarPlano(documento: string): Promise<ResultadoAssinar> {
+export async function assinarPlano(documento: string, cicloEscolhido: Ciclo = "mensal"): Promise<ResultadoAssinar> {
   try {
     const plano = PLANO_PADRAO;
+    // vem do navegador: só aceita os dois ciclos conhecidos, e o valor sai daqui, nunca do cliente
+    if (!ehCiclo(cicloEscolhido)) return { ok: false, error: "Escolha mensal ou anual." };
+    const ciclo = cicloEscolhido;
     const cpfCnpj = documento.replace(/\D/g, "");
     if (!documentoValido(cpfCnpj)) {
       return { ok: false, error: "CPF ou CNPJ inválido. Confira os números." };
@@ -63,8 +66,9 @@ export async function assinarPlano(documento: string): Promise<ResultadoAssinar>
       return { ok: false, error: `Sua conta já tem o plano Marcon liberado, sem cobrança.${ate}` };
     }
 
-    // assinatura ainda não paga: reaproveita o mesmo link em vez de criar outra cobrança
-    if (atual?.status === "pendente" && atual.asaas_subscription_id && atual.plano === plano) {
+    // assinatura ainda não paga, mesmo plano e mesmo ciclo: reaproveita o link em vez de criar outra cobrança.
+    // Trocou de ciclo (começou mensal e voltou para o anual): cancela a pendente e cria outra.
+    if (atual?.status === "pendente" && atual.asaas_subscription_id && atual.plano === plano && cicloDe(atual.ciclo) === ciclo) {
       const url = await linkDePagamento(atual.asaas_subscription_id);
       if (url) return { ok: true, url };
     }
@@ -83,12 +87,14 @@ export async function assinarPlano(documento: string): Promise<ResultadoAssinar>
     let clienteId = reaproveitado ?? (await novoCliente());
 
     const dadosPlano = PLANOS[plano];
+    const dadosCiclo = CICLOS[ciclo];
     const retornoUrl = await urlDeRetorno();
     const criar = (cliente: string) => {
       const dados = {
         clienteId: cliente,
-        valor: dadosPlano.valor,
-        descricao: `Marcon, plano ${dadosPlano.nome}`,
+        valor: dadosCiclo.valor,
+        ciclo: dadosCiclo.asaas,
+        descricao: `Marcon, plano ${dadosPlano.nome} ${dadosCiclo.rotulo.toLowerCase()}`,
         ownerId: user.id,
         primeiroVencimento: hojeEmBrasilia(),
       };
@@ -116,6 +122,7 @@ export async function assinarPlano(documento: string): Promise<ResultadoAssinar>
         asaas_customer_id: clienteId,
         asaas_subscription_id: assinatura.id,
         plano,
+        ciclo,
         status: "pendente",
         proximo_vencimento: null,
         updated_at: new Date().toISOString(),
