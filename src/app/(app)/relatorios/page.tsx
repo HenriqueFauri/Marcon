@@ -197,15 +197,18 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
 
         {(entradasESaidas || d.caixa.gastos.length > 0) && (
           <div className="grid gap-7 lg:grid-cols-2">
-            <Grupo titulo="Gastos por categoria">
+            <Grupo
+              titulo="Despesas por categoria"
+              rodape={d.caixa.compras > 0 ? `Comprou de estoque: ${formatBRL(d.caixa.compras)}, fora das despesas (virou produto).` : undefined}
+            >
               {d.caixa.gastos.length === 0 ? (
-                <p className="text-[15px] text-ink-muted">Nenhuma saída de caixa nesse período.</p>
+                <p className="text-[15px] text-ink-muted">Nenhuma despesa nesse período.</p>
               ) : (
                 <Rosca
                   formatar={formatBRL}
-                  centroRotulo="Saiu"
-                  centroValor={formatBRL(d.caixa.saidas)}
-                  descricao={`Gastos por categoria, total ${formatBRL(d.caixa.saidas)}`}
+                  centroRotulo="Despesas"
+                  centroValor={formatBRL(d.caixa.despesas)}
+                  descricao={`Despesas por categoria, total ${formatBRL(d.caixa.despesas)}`}
                   fatias={dobrarEmOutros(
                     d.caixa.gastos.map((g) => ({
                       nome: g.categoria,
@@ -240,7 +243,7 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
                   detalhe={<Variacao atual={d.caixa.saidas} anterior={d.caixaAnterior.saidas} subirEhBom={false} className="!px-1.5 !py-0" />}
                 />
                 <li className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-[15px] text-ink">{resultado >= 0 ? "Sobrou" : "Faltou"}</span>
+                  <span className="text-[15px] text-ink">Resultado do caixa</span>
                   <span className={`text-[17px] font-semibold tabular-nums ${resultado >= 0 ? "text-positive" : "text-danger"}`}>
                     {resultado >= 0 ? "↑" : "↓"} {formatBRL(Math.abs(resultado))}
                   </span>

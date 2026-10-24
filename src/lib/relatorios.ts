@@ -15,14 +15,15 @@ export interface VendaResumo {
   cliente_id: string | null;
   forma_pagamento: string | null;
   valor_total: number;
-  custo_total: number;
+  custo_total: number; // custo dos produtos + outros gastos da venda (motoboy, embalagem)
+  outros_gastos: number;
 }
 
 export async function vendasConcluidas(supabase: SupabaseClient, inicio: string, fimExclusivo: string | null) {
   const linhas = await paginar<VendaResumo>((de, ate) => {
     let q = supabase
       .from("vendas")
-      .select("id, data, canal, cliente_id, forma_pagamento, valor_total, custo_total")
+      .select("id, data, canal, cliente_id, forma_pagamento, valor_total, custo_total, outros_gastos")
       .eq("status", "concluida")
       .gte("data", inicio)
       .order("data")
@@ -31,7 +32,7 @@ export async function vendasConcluidas(supabase: SupabaseClient, inicio: string,
     if (fimExclusivo) q = q.lt("data", fimExclusivo);
     return q;
   });
-  return linhas.map((v) => ({ ...v, valor_total: Number(v.valor_total), custo_total: Number(v.custo_total) }));
+  return linhas.map((v) => ({ ...v, valor_total: Number(v.valor_total), custo_total: Number(v.custo_total), outros_gastos: Number(v.outros_gastos ?? 0) }));
 }
 
 export interface TotaisVendas {
