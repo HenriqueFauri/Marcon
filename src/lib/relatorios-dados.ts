@@ -111,36 +111,105 @@ export function agruparVendas(
 // caixa
 // ---------------------------------------------------------------------------
 
+// Cada saída do caixa cai num destes baldes:
+//   - despesa: conta paga, saída manual, gasto importado (aluguel, energia, salário). Sai do "Sobrou".
+//   - compra de estoque: entrada de estoque, pedido de compra ou categoria "Fornecimento". Não é
+//     despesa: o dinheiro virou produto e o custo entra no lucro quando o produto for vendido.
+//   - das vendas: outros gastos da venda (já estão no custo_total, afeta_lucro = false) e estornos
+//     de venda cancelada ou editada (a venda já saiu do lucro). Contar de novo seria descontar duas vezes.
+//   - retirada: o dono tirou dinheiro do negócio. É destino do que sobrou, não despesa.
+export type TipoSaida = "despesa" | "compra" | "venda" | "retirada";
+
 export interface CaixaPeriodo {
   entradas: number;
   saidas: number;
-  gastos: { categoria: string; valor: number }[];
+  despesas: number;
+  gastos: { categoria: string; valor: number }[]; // só as despesas, por categoria
+  compras: number; // comprou de estoque
+  comprasQtd: number;
+  saidasDasVendas: number;
+  retiradas: number;
 }
 
 interface Lancamento {
   tipo: "entrada" | "saida";
+  origem: "compra" | "manual" | "ajuste" | "gasto";
   categoria: string;
   valor: number;
+  afeta_lucro: boolean;
+  venda_id: string | null;
+  parcela_id: string | null;
+  movimento_estoque_id: string | null;
+}
+
+export function tipoDeSaida(l: Omit<Lancamento, "tipo" | "valor">): TipoSaida {
+  const categoria = l.categoria.trim().toLowerCase();
+  if (l.origem === "compra" || l.movimento_estoque_id || categoria === "fornecimento") return "compra";
+  if (l.venda_id || l.parcela_id || !l.afeta_lucro) return "venda";
+  if (categoria === "retirada") return "retirada";
+  return "despesa";
 }
 
 export async function caixaDoPeriodo(supabase: SupabaseClient, inicio: string, fimExclusivo: string): Promise<CaixaPeriodo> {
   const lancamentos = await paginar<Lancamento>((de, ate) =>
-    supabase.from("lancamentos_caixa").select("tipo, categoria, valor").gte("data", inicio).lt("data", fimExclusivo).order("id").range(de, ate),
+    supabase
+      .from("lancamentos_caixa")
+      .select("tipo, origem, categoria, valor, afeta_lucro, venda_id, parcela_id, movimento_estoque_id")
+      .gte("data", inicio)
+      .lt("data", fimExclusivo)
+      .order("id")
+      .range(de, ate),
   );
-  let entradas = 0;
-  let saidas = 0;
+  const r: CaixaPeriodo = { entradas: 0, saidas: 0, despesas: 0, gastos: [], compras: 0, comprasQtd: 0, saidasDasVendas: 0, retiradas: 0 };
   const porCategoria = new Map<string, number>();
   for (const l of lancamentos) {
     const valor = Number(l.valor);
     if (l.tipo === "entrada") {
-      entradas += valor;
+      r.entradas += valor;
+      continue;
+    }
+    r.saidas += valor;
+    const tipo = tipoDeSaida(l);
+    if (tipo === "compra") {
+      r.compras += valor;
+      r.comprasQtd += 1;
+    } else if (tipo === "venda") {
+      r.saidasDasVendas += valor;
+    } else if (tipo === "retirada") {
+      r.retiradas += valor;
     } else {
-      saidas += valor;
+      r.despesas += valor;
       porCategoria.set(l.categoria, (porCategoria.get(l.categoria) ?? 0) + valor);
     }
   }
-  const gastos = Array.from(porCategoria, ([categoria, valor]) => ({ categoria, valor })).sort((a, b) => b.valor - a.valor);
-  return { entradas, saidas, gastos };
+  r.gastos = Array.from(porCategoria, ([categoria, valor]) => ({ categoria, valor })).sort((a, b) => b.valor - a.valor);
+  return r;
+}
+
+// ---------------------------------------------------------------------------
+// o que vem no mês seguinte e o estoque de hoje (a custo)
+// ---------------------------------------------------------------------------
+
+export async function aPagarNoPeriodo(supabase: SupabaseClient, inicio: string, fimExclusivo: string) {
+  const contas = await paginar<{ valor: number }>((de, ate) =>
+    supabase.from("contas_a_pagar").select("valor").eq("status", "aberta").gte("vencimento", inicio).lt("vencimento", fimExclusivo).order("id").range(de, ate),
+  );
+  return { total: contas.reduce((s, c) => s + Number(c.valor), 0), quantidade: contas.length };
+}
+
+export async function aReceberNoPeriodo(supabase: SupabaseClient, inicio: string, fimExclusivo: string) {
+  // a parcela recebida em parte fica pendente valendo só o que falta (0045)
+  const parcelas = await paginar<{ valor: number }>((de, ate) =>
+    supabase.from("parcelas").select("valor").neq("status", "pago").gte("vencimento", inicio).lt("vencimento", fimExclusivo).order("id").range(de, ate),
+  );
+  return { total: parcelas.reduce((s, p) => s + Number(p.valor), 0), quantidade: parcelas.length };
+}
+
+export async function valorEmEstoque(supabase: SupabaseClient) {
+  const produtos = await paginar<{ valor_estoque: number }>((de, ate) =>
+    supabase.from("produtos_com_estoque").select("valor_estoque").gt("estoque_total", 0).order("id").range(de, ate),
+  );
+  return produtos.reduce((s, p) => s + Number(p.valor_estoque ?? 0), 0);
 }
 
 // ---------------------------------------------------------------------------

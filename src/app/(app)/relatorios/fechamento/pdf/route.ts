@@ -56,7 +56,7 @@ export async function GET(req: Request) {
   } catch {
     return new Response("Não foi possível montar o fechamento agora.", { status: 500 });
   }
-  const { atual, anterior } = dados;
+  const { atual, anterior, seguinte } = dados;
   const negocio = (auth.user.user_metadata?.nome_negocio as string | undefined) || "Meu negócio";
 
   const pdf = await PDFDocument.create();
@@ -105,13 +105,13 @@ export async function GET(req: Request) {
   const resultadoAnterior = anterior.entradas - anterior.saidas;
   const mg = margem(atual.vendas.lucro, atual.vendas.receita);
   const mgAnt = margem(anterior.vendas.lucro, anterior.vendas.receita);
-  const cartoes: { rotulo: string; valor: string; a: number; b: number; pontos?: boolean; cor?: ReturnType<typeof rgb> }[] = [
+  const cartoes: { rotulo: string; valor: string; a: number; b: number; pontos?: boolean; cor?: ReturnType<typeof rgb>; subirEhBom?: boolean }[] = [
+    { rotulo: atual.sobrou >= 0 ? "Sobrou no mês" : "Faltou no mês", valor: formatBRL(atual.sobrou), a: atual.sobrou, b: anterior.sobrou, cor: atual.sobrou < 0 ? VERMELHO : VERDE },
     { rotulo: "Faturamento", valor: formatBRL(atual.vendas.receita), a: atual.vendas.receita, b: anterior.vendas.receita },
-    { rotulo: "Lucro", valor: formatBRL(atual.vendas.lucro), a: atual.vendas.lucro, b: anterior.vendas.lucro, cor: atual.vendas.lucro < 0 ? VERMELHO : VERDE },
+    { rotulo: "Lucro das vendas", valor: formatBRL(atual.vendas.lucro), a: atual.vendas.lucro, b: anterior.vendas.lucro, cor: atual.vendas.lucro < 0 ? VERMELHO : undefined },
+    { rotulo: "Despesas", valor: formatBRL(atual.despesas), a: atual.despesas, b: anterior.despesas, subirEhBom: false },
     { rotulo: "Margem", valor: formatPct(mg), a: mg, b: mgAnt, pontos: true },
-    { rotulo: "Ticket médio", valor: formatBRL(ticketMedio(atual.vendas)), a: ticketMedio(atual.vendas), b: ticketMedio(anterior.vendas) },
     { rotulo: "Vendas feitas", valor: String(atual.vendas.vendas), a: atual.vendas.vendas, b: anterior.vendas.vendas },
-    { rotulo: "Resultado do caixa", valor: formatBRL(resultado), a: resultado, b: resultadoAnterior, cor: resultado < 0 ? VERMELHO : undefined },
   ];
   const folga = 10;
   const larguraCartao = (largura - folga * 2) / 3;
@@ -127,10 +127,35 @@ export async function GET(req: Request) {
       y = topo - 33;
       texto(c.valor, x + 10, 15, negrito, c.cor ?? INK);
       y = topo - 47;
-      texto(`${textoVariacao(c.a, c.b, c.pontos)} vs mês anterior`, x + 10, 8, normal, corVariacao(c.a, c.b, true, c.pontos));
+      texto(`${textoVariacao(c.a, c.b, c.pontos)} vs mês anterior`, x + 10, 8, normal, corVariacao(c.a, c.b, c.subirEhBom ?? true, c.pontos));
     });
     y = topo - alturaCartao - folga;
   }
+
+  // ---- a conta do mês: do vendido até o que sobrou
+  titulo(`A conta de ${nomeDoMes(mes)}`);
+  const linhaConta = (rotulo: string, valor: number, opcoes: { sinal?: "+" | "-"; forte?: boolean; cor?: ReturnType<typeof rgb>; nota?: string } = {}) => {
+    garantir(24);
+    y -= 8;
+    regua();
+    y -= 14;
+    const fonte = opcoes.forte ? negrito : normal;
+    texto(rotulo, MARGEM, 10, fonte);
+    if (opcoes.nota) texto(opcoes.nota, MARGEM + largTexto(rotulo, 10, fonte) + 8, 8.5, normal, MUTED);
+    aDireita(`${opcoes.sinal ? `${opcoes.sinal} ` : ""}${formatBRL(Math.abs(valor))}`, direita, 10, fonte, opcoes.cor ?? INK);
+  };
+  linhaConta("Vendas", atual.vendas.receita, { nota: `${atual.vendas.vendas} ${atual.vendas.vendas === 1 ? "venda" : "vendas"}` });
+  linhaConta("Custo das mercadorias", atual.custoMercadorias, { sinal: "-" });
+  if (atual.gastosDasVendas > 0) linhaConta("Gastos das vendas", atual.gastosDasVendas, { sinal: "-", nota: "motoboy, embalagem e afins" });
+  linhaConta("Lucro das vendas", atual.vendas.lucro, { forte: true, sinal: atual.vendas.lucro < 0 ? "-" : undefined });
+  linhaConta("Despesas", atual.despesas, { sinal: "-", nota: "contas pagas e saídas lançadas no caixa" });
+  linhaConta(atual.sobrou >= 0 ? "Sobrou" : "Faltou", atual.sobrou, {
+    forte: true,
+    sinal: atual.sobrou < 0 ? "-" : undefined,
+    cor: atual.sobrou < 0 ? VERMELHO : VERDE,
+    nota: `${textoVariacao(atual.sobrou, anterior.sobrou)} vs ${nomeDoMes(anterior.mes)}`,
+  });
+  linhaConta("Comprou de estoque", atual.compras, { cor: MUTED, nota: "à parte: virou produto, não é despesa" });
 
   // ---- dia a dia: faturamento (barra clara) e lucro (barra cheia)
   titulo("Dia a dia");
@@ -185,16 +210,29 @@ export async function GET(req: Request) {
   };
   barra("Entrou", atual.entradas, anterior.entradas, AZUL, true);
   barra("Saiu", atual.saidas, anterior.saidas, MARCA, false);
+  const detalheSaidas: [string, number][] = [
+    ["Despesas", atual.despesas],
+    [`Comprou de estoque (${atual.comprasQtd} ${atual.comprasQtd === 1 ? "compra" : "compras"})`, atual.compras],
+    ["Gastos e estornos das vendas", atual.saidasDasVendas],
+    ["Retiradas", atual.retiradas],
+  ];
+  for (const [rotulo, valor] of detalheSaidas) {
+    if (valor <= 0) continue;
+    garantir(16);
+    y -= 13;
+    texto(rotulo, MARGEM + 12, 9, normal, MUTED);
+    aDireita(formatBRL(valor), direita - 70, 9, normal, MUTED);
+  }
   y -= 16;
-  texto(resultado >= 0 ? "Sobrou no mês" : "Faltou no mês", MARGEM, 10, negrito);
-  aDireita(formatBRL(Math.abs(resultado)), direita, 10, negrito, resultado >= 0 ? VERDE : VERMELHO);
+  texto("Resultado do caixa", MARGEM, 10, negrito);
+  aDireita(`${resultado < 0 ? "- " : ""}${formatBRL(Math.abs(resultado))}`, direita, 10, negrito, resultado >= 0 ? VERDE : VERMELHO);
 
-  // ---- gastos por categoria
-  titulo("Gastos por categoria");
-  const totalGastos = atual.gastos.reduce((s, g) => s + g.valor, 0);
+  // ---- despesas por categoria (compra de estoque fica fora)
+  titulo("Despesas por categoria");
+  const totalGastos = atual.despesas;
   if (atual.gastos.length === 0) {
     y -= 12;
-    texto("Nenhuma saída de caixa nesse mês.", MARGEM, 10, normal, MUTED);
+    texto("Nenhuma despesa nesse mês.", MARGEM, 10, normal, MUTED);
     y -= 4;
   }
   for (const g of atual.gastos) {
@@ -214,8 +252,30 @@ export async function GET(req: Request) {
     y -= 8;
     regua();
     y -= 14;
-    texto("Total de saídas", MARGEM, 10, negrito);
+    texto("Total de despesas", MARGEM, 10, negrito);
     aDireita(formatBRL(totalGastos), direita - 120, 10, negrito);
+  }
+  garantir(24);
+  y -= 20;
+  texto("Comprou de estoque (fora das despesas)", MARGEM, 10);
+  aDireita(formatBRL(atual.compras), direita - 120, 10, negrito);
+  aDireita(textoVariacao(atual.compras, anterior.compras), direita, 9, normal, MUTED);
+
+  // ---- o mês seguinte e o estoque de hoje
+  titulo(`Olhando pra ${nomeDoMes(seguinte.mes)}`);
+  const frente: [string, string, number][] = [
+    ["A pagar", `${seguinte.aPagar.quantidade} ${seguinte.aPagar.quantidade === 1 ? "conta" : "contas"} em aberto`, seguinte.aPagar.total],
+    ["A receber", `${seguinte.aReceber.quantidade} ${seguinte.aReceber.quantidade === 1 ? "parcela" : "parcelas"} em aberto`, seguinte.aReceber.total],
+    ["Estoque hoje", "pelo custo dos produtos", seguinte.estoqueHoje],
+  ];
+  for (const [rotulo, nota, valor] of frente) {
+    garantir(24);
+    y -= 8;
+    regua();
+    y -= 14;
+    texto(rotulo, MARGEM, 10);
+    texto(nota, MARGEM + largTexto(rotulo, 10, normal) + 8, 8.5, normal, MUTED);
+    aDireita(formatBRL(valor), direita, 10, negrito);
   }
 
   // ---- produtos que mais renderam
@@ -246,10 +306,13 @@ export async function GET(req: Request) {
   aDireita(nomeDoMes(anterior.mes), colAnterior + 20, 8.5, normal, MUTED);
   aDireita("variação", direita, 8.5, normal, MUTED);
   const linhas: [string, string, string, number, number, boolean?][] = [
+    ["Sobrou", formatBRL(atual.sobrou), formatBRL(anterior.sobrou), atual.sobrou, anterior.sobrou],
     ["Vendido", formatBRL(atual.vendas.receita), formatBRL(anterior.vendas.receita), atual.vendas.receita, anterior.vendas.receita],
     ["Vendas feitas", String(atual.vendas.vendas), String(anterior.vendas.vendas), atual.vendas.vendas, anterior.vendas.vendas],
     ["Ticket médio", formatBRL(ticketMedio(atual.vendas)), formatBRL(ticketMedio(anterior.vendas)), ticketMedio(atual.vendas), ticketMedio(anterior.vendas)],
-    ["Lucro", formatBRL(atual.vendas.lucro), formatBRL(anterior.vendas.lucro), atual.vendas.lucro, anterior.vendas.lucro],
+    ["Lucro das vendas", formatBRL(atual.vendas.lucro), formatBRL(anterior.vendas.lucro), atual.vendas.lucro, anterior.vendas.lucro],
+    ["Despesas", formatBRL(atual.despesas), formatBRL(anterior.despesas), atual.despesas, anterior.despesas, false],
+    ["Comprou de estoque", formatBRL(atual.compras), formatBRL(anterior.compras), atual.compras, anterior.compras],
     ["Entrou no caixa", formatBRL(atual.entradas), formatBRL(anterior.entradas), atual.entradas, anterior.entradas],
     ["Saiu do caixa", formatBRL(atual.saidas), formatBRL(anterior.saidas), atual.saidas, anterior.saidas, false],
     ["Resultado do caixa", formatBRL(resultado), formatBRL(resultadoAnterior), resultado, resultadoAnterior],
@@ -267,7 +330,9 @@ export async function GET(req: Request) {
 
   garantir(40);
   y -= 30;
-  texto("Lucro: vendido menos o custo dos produtos e os outros gastos das vendas. O caixa inclui compras de estoque e lançamentos manuais.", MARGEM, 7, normal, MUTED);
+  texto("Lucro das vendas: vendido menos o custo dos produtos e os gastos das vendas. Sobrou: esse lucro menos as despesas do mês.", MARGEM, 7, normal, MUTED);
+  y -= 10;
+  texto("Compra de estoque não é despesa: o custo entra no lucro quando o produto for vendido.", MARGEM, 7, normal, MUTED);
 
   // rodapé em todas as páginas
   const paginas = pdf.getPages();
