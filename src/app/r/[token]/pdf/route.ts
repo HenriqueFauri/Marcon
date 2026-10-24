@@ -17,7 +17,8 @@ const STATUS_PARCELA = { pendente: "A vencer", pago: "Paga", atrasado: "Atrasada
 // as fontes padrão do PDF só cobrem Latin-1: troca o que não cabe
 function seguro(texto: string) {
   return texto
-    .replace(/[−–—]/g, "-")
+    .replace(/\s*[–—]\s*/g, " · ")
+    .replace(/−/g, "-")
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/[\r\n\t]+/g, " ")
@@ -168,7 +169,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/r/[token]/pdf">) {
   direita(formatBRL(venda.valor_total), 13, negrito);
   y -= 16;
   texto("Pagamento", MARGEM, 10, normal, MUTED);
-  direita([venda.tipo_pagamento === "a_prazo" ? "A prazo" : "À vista", venda.forma_pagamento].filter(Boolean).join(" - "), 10, normal, MUTED);
+  direita([venda.tipo_pagamento === "a_prazo" ? "A prazo" : "À vista", venda.forma_pagamento].filter(Boolean).join(" · "), 10, normal, MUTED);
 
   // parcelas
   if (parcelas.length > 0) {
@@ -181,7 +182,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/r/[token]/pdf">) {
       y -= 12;
       regua();
       y -= 16;
-      texto(`${p.numero}/${totalParcelas} -${formatBRL(p.valor)}`, MARGEM, 10);
+      texto(`${p.numero}/${totalParcelas} · ${formatBRL(p.valor)}`, MARGEM, 10);
       if (!cancelada) direita(STATUS_PARCELA[p.status], 10, negrito, MUTED);
       y -= 12;
       texto(p.data_pagamento ? `paga em ${formatData(p.data_pagamento)}` : `vence em ${formatData(p.vencimento)}`, MARGEM, 9, normal, MUTED);

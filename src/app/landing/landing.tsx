@@ -17,13 +17,13 @@ import {
 } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
 import { ANUAL_POR_MES, DIAS_DE_TESTE, ECONOMIA_ANUAL, PLANO_GRATIS, PLANOS } from "@/lib/planos";
-import { COTA_MES } from "@/lib/whatsapp/uso";
 
 // Uma landing, várias portas de entrada: a geral (raiz do site) e uma para cada
 // canal, para mandar o link certo em cada grupo. Muda só o começo da conversa;
 // o resto da página é o mesmo.
 // "assistente" é a versão alternativa da geral, que também apresenta o assistente
-// no WhatsApp. Fica fora da busca enquanto o assistente não abre para todo mundo.
+// no WhatsApp como novidade que vem num plano maior. Fica fora da busca enquanto
+// o assistente não abre para todo mundo.
 export type Publico = "geral" | "marketplace" | "whatsapp" | "assistente";
 
 const PUBLICOS: Record<
@@ -41,11 +41,11 @@ const PUBLICOS: Record<
   assistente: {
     titulo: "Marcon | O app de quem vende no Marketplace e no WhatsApp",
     descricao:
-      "Estoque, custo, lucro e anúncios num lugar só, com um assistente no WhatsApp: você pergunta quanto vendeu e lança a venda por mensagem.",
+      "Estoque, custo, lucro e anúncios num lugar só. E vem aí um assistente no WhatsApp, num plano maior: você pergunta quanto vendeu e lança a venda por mensagem.",
     selo: "Pra quem vende no Marketplace e no WhatsApp",
     manchete: ["Você vende.", "O Marcon faz as contas."],
     apoio:
-      "Estoque, custo, lucro e anúncios num app só. E um assistente no seu WhatsApp: você pergunta quanto vendeu ou lança a venda por mensagem, entre uma conversa e outra.",
+      "Estoque, custo, lucro e anúncios num app só. E vem aí um assistente no seu WhatsApp pra perguntar quanto vendeu e lançar venda por mensagem.",
     canal: "WhatsApp",
     assistente: true,
   },
@@ -56,7 +56,7 @@ const PUBLICOS: Record<
     selo: "Pra quem vende no Marketplace e no WhatsApp",
     manchete: ["Você vende.", "O Marcon faz as contas."],
     apoio:
-      "Estoque, custo, lucro e anúncios num app só. Pra quem vende no Marketplace, no WhatsApp e no Instagram e quer saber, de verdade, se está valendo a pena.",
+      "Estoque, custo, lucro e anúncios num app só. Pra saber, de verdade, se tá valendo a pena.",
     canal: "Marketplace",
   },
   marketplace: {
@@ -103,7 +103,7 @@ const SECAO_ASSISTENTE = { id: "assistente", rotulo: "Assistente" };
 
 const PERGUNTA_ASSISTENTE = {
   p: "Como funciona o assistente no WhatsApp?",
-  r: `Você vincula o seu número em Configurações e conversa com o WhatsApp do Marcon. Ele responde sobre estoque, vendas, caixa, contas a receber e pedidos da vitrine, e lança venda por mensagem ou por áudio, mostrando o resumo antes de gravar. Foto ainda não. Vem no plano Marcon, com ${COTA_MES} perguntas por mês.`,
+  r: "Tá chegando, num plano maior que o Marcon. Você vincula o seu número e conversa com o WhatsApp do Marcon: ele responde sobre estoque, vendas, caixa, contas a receber e pedidos da vitrine, e lança venda por mensagem ou por áudio, sempre mostrando o resumo antes de gravar.",
 };
 
 const PERGUNTAS = [
@@ -113,7 +113,7 @@ const PERGUNTAS = [
   },
   {
     p: "Já uso outro sistema. Tenho que começar do zero?",
-    r: "Não. Você traz seus produtos, suas vendas e seu caixa do sistema antigo e confere tudo numa prévia antes de importar.",
+    r: "Não. Você traz seus produtos do sistema antigo e confere tudo numa prévia antes de importar. No plano Marcon, dá pra trazer também o histórico de vendas e de caixa.",
   },
   {
     p: "O Marcon publica o anúncio por mim?",
@@ -510,8 +510,7 @@ function TelaNovaVenda() {
   );
 }
 
-function TelaAnuncios({ canal }: { canal: string }) {
-  const canais = canal === "WhatsApp" ? ["WhatsApp", "Marketplace", "Instagram"] : ["Marketplace", "WhatsApp", "Instagram"];
+function TelaAnuncios() {
   return (
     <Tela>
       <Cartao titulo="Fotos" acao={<span className="rounded-full bg-fill px-3 py-1 text-[12px] font-semibold text-ink">Baixar todas</span>}>
@@ -521,23 +520,11 @@ function TelaAnuncios({ canal }: { canal: string }) {
           <Foto tom="bg-warning-tint text-warning" />
         </div>
       </Cartao>
-      <Cartao titulo="Títulos e descrições">
-        <div className="mb-3 flex gap-1 overflow-hidden">
-          {canais.map((c, i) => (
-            <span
-              key={c}
-              className={`whitespace-nowrap rounded-full px-3 py-1 text-[12px] ${
-                i === 0 ? "bg-brand-fill font-semibold text-on-brand" : "bg-fill text-ink-2"
-              }`}
-            >
-              {c}
-            </span>
-          ))}
-        </div>
+      <Cartao titulo="Anúncio">
         <div className="rounded-2xl border border-line p-3">
           <div className="mb-1 flex items-center justify-between gap-2">
             <span className="text-[12px] font-medium text-ink-2">
-              Título <span className="font-normal text-ink-muted">(36/100)</span>
+              Título <span className="font-normal text-ink-muted">(36/120)</span>
             </span>
             <span className="rounded-full bg-fill px-2.5 py-0.5 text-[11px] font-semibold text-ink">Copiar título</span>
           </div>
@@ -563,7 +550,7 @@ function ProdutoNaVitrine({ nome, preco, tom, selo }: { nome: string; preco: str
       <div className={`relative flex aspect-square items-center justify-center ${tom}`}>
         <IconBox width={24} height={24} strokeWidth={1.6} />
         {selo && (
-          <span className="absolute left-1.5 top-1.5 rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-semibold text-black">{selo}</span>
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-semibold text-white">{selo}</span>
         )}
       </div>
       <div className="p-2">
@@ -575,18 +562,14 @@ function ProdutoNaVitrine({ nome, preco, tom, selo }: { nome: string; preco: str
 }
 
 function TelaVitrine() {
-  const corDaLoja = "#0f766e";
   return (
     <Tela>
       <div className="-mx-3.5 -mt-3.5 overflow-hidden rounded-t-[34px]">
-        <p className="px-4 pb-1.5 pt-3 text-center text-[11px] font-medium text-white" style={{ background: corDaLoja }}>
+        <p className="bg-brand-fill px-4 pb-1.5 pt-3 text-center text-[11px] font-medium text-on-brand">
           Frete grátis acima de R$ 150
         </p>
         <div className="flex items-center gap-2.5 border-b border-line bg-surface px-4 py-3">
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[15px] font-bold text-white"
-            style={{ background: corDaLoja }}
-          >
+          <span className="bg-brand-fill flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[15px] font-bold text-on-brand">
             L
           </span>
           <span className="min-w-0">
@@ -597,9 +580,7 @@ function TelaVitrine() {
       </div>
       <div className="rounded-xl bg-fill px-3 py-2 text-[12px] text-ink-muted">Buscar produto</div>
       <div className="flex gap-1.5 text-[11px] font-medium">
-        <span className="rounded-full px-3 py-1 text-white" style={{ background: corDaLoja }}>
-          Todos
-        </span>
+        <span className="bg-brand-fill rounded-full px-3 py-1 text-on-brand">Todos</span>
         <span className="rounded-full bg-fill px-3 py-1 text-ink-2">Fones</span>
         <span className="rounded-full bg-fill px-3 py-1 text-ink-2">Carregadores</span>
       </div>
@@ -614,9 +595,7 @@ function TelaVitrine() {
           <span className="block text-[13px] font-semibold tabular-nums text-ink">R$ 129,80</span>
           <span className="block text-[11px] text-ink-muted">2 itens no pedido</span>
         </span>
-        <span className="rounded-full px-3.5 py-1.5 text-[12px] font-semibold text-white" style={{ background: corDaLoja }}>
-          Ver pedido
-        </span>
+        <span className="bg-brand-fill rounded-full px-3.5 py-1.5 text-[12px] font-semibold text-on-brand">Ver pedido</span>
       </div>
     </Tela>
   );
@@ -810,6 +789,12 @@ export function Landing({ publico }: { publico: Publico }) {
           <Link href="/login" className="font-medium text-brand-text hover:underline">
             Entrar
           </Link>
+          <Link
+            href="/login?modo=signup"
+            className="bg-brand-fill inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold text-on-brand sm:hidden xl:inline-flex"
+          >
+            Começar grátis
+          </Link>
           <ThemeToggle variante="icone" />
         </span>
       </header>
@@ -927,10 +912,10 @@ export function Landing({ publico }: { publico: Publico }) {
               É só copiar e colar.
             </>
           }
-          texto="Cada produto guarda as fotos e um anúncio pra cada canal. Na hora de postar no Marketplace ou no status, você copia, cola e pronto. Se der branco, a IA escreve uma versão pra você revisar."
+          texto="Cada produto guarda as fotos e o anúncio pronto. Na hora de postar no Marketplace ou no status, você copia, cola e pronto. Deu branco? A IA escreve pra você revisar."
           pontos={[
             "Até 10 fotos por produto, pra copiar ou baixar todas",
-            "Um texto pra cada canal, no tamanho certo",
+            "Título de até 120 letras e descrição prontos pra colar",
             "IA que escreve título e descrição a partir do cadastro",
           ]}
           flutuante={
@@ -947,12 +932,12 @@ export function Landing({ publico }: { publico: Publico }) {
             </Flutuante>
           }
         >
-          <TelaAnuncios canal={p.canal} />
+          <TelaAnuncios />
         </Recurso>
 
         <Recurso
           id="vitrine"
-          rotulo="Vitrine"
+          rotulo="Vitrine · no plano Marcon"
           invertido
           titulo={
             <>
@@ -1004,7 +989,7 @@ export function Landing({ publico }: { publico: Publico }) {
           texto="Traga todo o seu histórico pro Marcon: produtos, vendas e caixa. Você confere tudo numa prévia, corrige o que quiser e só então importa."
           pontos={[
             "Produtos com custo, preço e estoque",
-            "Histórico de vendas e de caixa",
+            "Histórico de vendas e de caixa, no plano Marcon",
             "Nada entra antes de você conferir",
           ]}
         >
@@ -1035,7 +1020,7 @@ export function Landing({ publico }: { publico: Publico }) {
         {comAssistente && (
           <Recurso
             id="assistente"
-            rotulo="Assistente no WhatsApp"
+            rotulo="Em breve · Assistente no WhatsApp"
             fundo="bg-panel"
             titulo={
               <>
@@ -1043,11 +1028,11 @@ export function Landing({ publico }: { publico: Publico }) {
                 <br />O Marcon responde.
               </>
             }
-            texto="Você conversa com o WhatsApp do Marcon como se fosse um contato. Pergunta quanto vendeu, o que tá acabando ou quem tá devendo, e lança a venda por mensagem. Antes de lançar, ele sempre pede o seu SIM."
+            texto="Tá chegando, num plano maior. Você vai conversar com o WhatsApp do Marcon como se fosse um contato: pergunta quanto vendeu, o que tá acabando ou quem tá devendo, e lança a venda por mensagem. Antes de lançar, ele sempre pede o seu SIM."
             pontos={[
               "Estoque, vendas, caixa e contas a receber na conversa",
               "Venda lançada por mensagem, só depois do seu SIM",
-              `${COTA_MES} perguntas por mês no plano Marcon`,
+              "Vem num plano maior, separado do plano Marcon",
             ]}
             flutuante={
               <Flutuante className="ml-auto sm:-right-16 sm:-top-16 sm:ml-0">
@@ -1078,9 +1063,9 @@ export function Landing({ publico }: { publico: Publico }) {
           <div className="mx-auto max-w-[720px]">
             <Icone tamanho={72} />
             <h2 id="app-titulo" className="mt-6 text-[34px] font-bold leading-[1.06] tracking-[-0.035em] sm:text-5xl">
-              Sem loja de aplicativos.
+              Nada pra baixar.
               <br />
-              <span className="text-ink-muted">Direto na tela de início.</span>
+              <span className="text-ink-muted">Abre e já tá na tela de início.</span>
             </h2>
             <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.47] text-ink-muted sm:text-[19px]">
               Abre o Marcon no navegador e toca em “Adicionar à tela de início”. Ele abre em tela cheia, como um app, e avisa
@@ -1186,14 +1171,14 @@ export function Landing({ publico }: { publico: Publico }) {
             a negócio de verdade.
           </h2>
           <p className="mx-auto mt-4 max-w-[520px] text-xl font-medium text-ink-muted">
-            Comece hoje, de graça. Leva menos de um minuto.
+            Comece hoje, de graça. {DIAS_DE_TESTE} dias com tudo liberado.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-3">
             <Link
               href="/login?modo=signup"
               className="bg-brand-fill inline-flex items-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"
             >
-              Criar conta grátis
+              Começar grátis
             </Link>
             <Link href="/login" className="text-[17px] font-medium text-brand-text hover:underline">
               Já tenho conta ›

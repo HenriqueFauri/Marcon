@@ -143,19 +143,15 @@ function LoginForm() {
         </svg>
         <div>
           <p className="text-[17px] font-bold tracking-tight text-ink">Marcon</p>
-          <p className="text-xs text-ink-muted">Vendas, estoque e caixa num só lugar</p>
+          <p className="text-xs text-ink-muted">O app de quem vende no Marketplace e no WhatsApp</p>
         </div>
       </div>
 
       <div className="rounded-[28px] bg-surface p-6 shadow-sm sm:p-8">
-        <h1 className="mb-1 text-[28px] font-bold tracking-tight text-ink">{TITULOS[mode]}</h1>
-        <p className="mb-6 text-sm text-ink-muted">
-          {mode === "reset"
-            ? "Informe seu e-mail e enviaremos um link para criar uma nova senha."
-            : mode === "signup"
-              ? "Leva menos de um minuto."
-              : "Que bom te ver de novo."}
-        </p>
+        <h1 className={`${mode === "reset" ? "mb-1" : "mb-6"} text-[28px] font-bold tracking-tight text-ink`}>{TITULOS[mode]}</h1>
+        {mode === "reset" && (
+          <p className="mb-6 text-sm text-ink-muted">Informe seu e-mail e enviaremos um link para criar uma nova senha.</p>
+        )}
 
         {aviso && (
           <p
