@@ -14,6 +14,7 @@ import { VendasDaConta } from "./vendas-da-conta";
 
 export const metadata: Metadata = { title: "Conta" };
 
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // a lista de produtos vai inteira para o navegador; acima disso, corta
 const PRODUTOS_NO_MAXIMO = 300;
@@ -95,13 +96,13 @@ export default async function ContaAdminPage({ params }: PageProps<"/admin/conta
           <section className="flex flex-col gap-3">
             <h2 className="px-4 text-[13px] uppercase text-ink-muted">Vendas</h2>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatCard label="No mês" value={formatBRL(Number(r?.valor_mes ?? 0))} hint={`${r?.vendas_mes ?? 0} vendas`} />
+              <StatCard label="No mês" value={formatBRL(Number(r?.valor_mes ?? 0))} hint={plural(r?.vendas_mes ?? 0, "venda", "vendas")} />
               <StatCard label="Lucro no mês" value={formatBRL(lucroMes)} tone={lucroMes < 0 ? "negative" : "positive"} />
-              <StatCard label="Desde o início" value={formatBRL(Number(r?.valor_total ?? 0))} hint={`${r?.vendas_total ?? 0} vendas`} />
+              <StatCard label="Desde o início" value={formatBRL(Number(r?.valor_total ?? 0))} hint={plural(r?.vendas_total ?? 0, "venda", "vendas")} />
               <StatCard
                 label="Estoque parado"
                 value={formatBRL(Number(detalhe.estoque.valor_custo))}
-                hint={`${detalhe.estoque.unidades} un. em ${detalhe.estoque.produtos_ativos} produtos`}
+                hint={`${detalhe.estoque.unidades} un. em ${plural(detalhe.estoque.produtos_ativos, "produto", "produtos")}`}
               />
             </div>
             <VendasDaConta

@@ -9,7 +9,7 @@ import { useToast } from "@/components/toaster";
 import { comprimirLogo } from "@/lib/imagem";
 import { formatarTelefone } from "@/lib/format";
 import { formatarDocumento } from "@/lib/documento";
-import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
+import { Field, btnGhost, btnSecondary, inputClass } from "@/components/ui";
 import { atualizarEmpresa, atualizarLogoEmpresa } from "./actions";
 
 const TAMANHO_MAX = 2 * 1024 * 1024;
@@ -80,7 +80,7 @@ export function EmpresaForm({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt="Logo da empresa" className="h-16 w-16 rounded-xl border border-line object-cover" />
         ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-line-strong text-xs text-ink-muted">
+          <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-line-strong text-[13px] text-ink-muted">
             sem logo
           </div>
         )}
@@ -159,7 +159,7 @@ export function EmpresaForm({
           />
         </Field>
         <div>
-          <button type="submit" disabled={isPending} className={btnPrimary}>
+          <button type="submit" disabled={isPending} className={`${btnSecondary} w-full sm:w-auto`}>
             <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar"}</RotuloAcao>
           </button>
         </div>

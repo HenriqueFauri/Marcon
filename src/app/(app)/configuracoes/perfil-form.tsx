@@ -2,7 +2,7 @@
 
 import { RotuloAcao } from "@/components/rotulo-acao";
 import { useAction } from "@/components/use-action";
-import { Field, btnPrimary, inputClass } from "@/components/ui";
+import { Field, btnSecondary, inputClass } from "@/components/ui";
 import { atualizarPerfil } from "./actions";
 
 export function PerfilForm({ nome, email }: { nome: string; email: string }) {
@@ -19,7 +19,7 @@ export function PerfilForm({ nome, email }: { nome: string; email: string }) {
         </Field>
       </div>
       <div>
-        <button type="submit" disabled={isPending} className={btnPrimary}>
+        <button type="submit" disabled={isPending} className={`${btnSecondary} w-full sm:w-auto`}>
           <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar"}</RotuloAcao>
         </button>
       </div>

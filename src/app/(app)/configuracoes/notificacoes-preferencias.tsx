@@ -3,6 +3,7 @@
 import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useAction } from "@/components/use-action";
+import { Grupo, Interruptor } from "@/components/ajustes";
 import { btnPrimary, btnSecondary } from "@/components/ui";
 import {
   CAMPOS_COBRANCA,
@@ -10,13 +11,13 @@ import {
   GRUPOS,
   type CampoCobranca,
   type CampoVenda,
-  type Grupo,
+  type Grupo as GrupoAviso,
   type Preferencias,
 } from "@/lib/notificacoes";
 import { enviarNotificacaoTeste, salvarPreferenciasNotificacao } from "./actions";
 
 // ordem fixa das chaves: a comparação com o que está salvo é por texto
-function assinatura(desativados: Grupo[], venda: Record<CampoVenda, boolean>, cobranca: Record<CampoCobranca, boolean>) {
+function assinatura(desativados: GrupoAviso[], venda: Record<CampoVenda, boolean>, cobranca: Record<CampoCobranca, boolean>) {
   return JSON.stringify([
     [...desativados].sort(),
     CAMPOS_VENDA.map((c) => venda[c.id]),
@@ -24,105 +25,80 @@ function assinatura(desativados: Grupo[], venda: Record<CampoVenda, boolean>, co
   ]);
 }
 
-function Opcao({
-  rotulo,
-  descricao,
-  marcado,
-  onChange,
-}: {
-  rotulo: string;
-  descricao?: string;
-  marcado: boolean;
-  onChange: () => void;
-}) {
+// uma linha de interruptor dentro de um Grupo sem padding
+function Linha({ id, titulo, ajuda, ligado, onMudar }: { id: string; titulo: string; ajuda?: string; ligado: boolean; onMudar: () => void }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line p-3">
-      <input type="checkbox" checked={marcado} onChange={onChange} className="mt-1" />
-      <span>
-        <span className="text-sm font-medium text-ink">{rotulo}</span>
-        {descricao && <span className="block text-xs text-ink-muted">{descricao}</span>}
-      </span>
-    </label>
+    <div className="border-t border-line px-4 py-3 first:border-t-0">
+      <Interruptor name={id} padrao={ligado} titulo={titulo} ajuda={ajuda} onMudar={onMudar} />
+    </div>
   );
 }
 
 export function NotificacoesPreferencias({ atual }: { atual: Preferencias }) {
   const { isPending, run } = useAction();
-  const [desativados, setDesativados] = useState<Grupo[]>(atual.desativados);
+  const [desativados, setDesativados] = useState<GrupoAviso[]>(atual.desativados);
   const [venda, setVenda] = useState(atual.dados.venda);
   const [cobranca, setCobranca] = useState(atual.dados.cobranca);
 
   const alterado =
     assinatura(desativados, venda, cobranca) !== assinatura(atual.desativados, atual.dados.venda, atual.dados.cobranca);
 
-  function alternarGrupo(grupo: Grupo) {
+  function alternarGrupo(grupo: GrupoAviso) {
     setDesativados((d) => (d.includes(grupo) ? d.filter((g) => g !== grupo) : [...d, grupo]));
   }
 
   return (
-    <form action={(formData) => run(() => salvarPreferenciasNotificacao(formData))} className="flex flex-col gap-5">
+    <form action={(formData) => run(() => salvarPreferenciasNotificacao(formData))} className="flex flex-col gap-7">
       <input type="hidden" name="desativados" value={JSON.stringify(desativados)} />
       <input type="hidden" name="dados" value={JSON.stringify({ venda, cobranca })} />
 
-      <section>
-        <h3 className="mb-2 text-sm font-semibold text-ink">O que receber</h3>
-        <div className="flex flex-col gap-2">
-          {GRUPOS.map((g) => (
-            <Opcao
-              key={g.id}
-              rotulo={g.rotulo}
-              descricao={g.descricao}
-              marcado={!desativados.includes(g.id)}
-              onChange={() => alternarGrupo(g.id)}
-            />
-          ))}
-        </div>
-      </section>
+      <Grupo titulo="O que receber" semPadding rodape="Os avisos mudam de frase a cada vez, é surpresa.">
+        {GRUPOS.map((g) => (
+          <Linha
+            key={g.id}
+            id={`receber_${g.id}`}
+            titulo={g.rotulo}
+            ajuda={g.descricao}
+            ligado={!desativados.includes(g.id)}
+            onMudar={() => alternarGrupo(g.id)}
+          />
+        ))}
+      </Grupo>
 
-      <section>
-        <h3 className="mb-1 text-sm font-semibold text-ink">Dados no aviso de venda</h3>
-        <p className="mb-2 text-xs text-ink-muted">Quanto menos, mais limpo. O essencial é produto, valor e lucro.</p>
-        <div className="flex flex-wrap gap-2">
-          {CAMPOS_VENDA.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={venda[c.id]}
-              onClick={() => setVenda((v) => ({ ...v, [c.id]: !v[c.id] }))}
-              className={`rounded-full px-3 py-1.5 text-sm transition ${venda[c.id] ? "bg-brand-fill text-on-brand" : "bg-fill text-ink-2 hover:bg-fill-strong"}`}
-            >
-              {c.rotulo}
-            </button>
-          ))}
-        </div>
-      </section>
+      <Grupo titulo="Dados no aviso de venda" semPadding rodape="Quanto menos, mais limpo. O essencial é produto, valor e lucro.">
+        {CAMPOS_VENDA.map((c) => (
+          <Linha
+            key={c.id}
+            id={`venda_${c.id}`}
+            titulo={c.rotulo}
+            ligado={venda[c.id]}
+            onMudar={() => setVenda((v) => ({ ...v, [c.id]: !v[c.id] }))}
+          />
+        ))}
+      </Grupo>
 
-      <section>
-        <h3 className="mb-2 text-sm font-semibold text-ink">Dados no lembrete de cobrança</h3>
-        <div className="flex flex-wrap gap-2">
-          {CAMPOS_COBRANCA.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={cobranca[c.id]}
-              onClick={() => setCobranca((v) => ({ ...v, [c.id]: !v[c.id] }))}
-              className={`rounded-full px-3 py-1.5 text-sm transition ${cobranca[c.id] ? "bg-brand-fill text-on-brand" : "bg-fill text-ink-2 hover:bg-fill-strong"}`}
-            >
-              {c.rotulo}
-            </button>
-          ))}
-        </div>
-      </section>
+      <Grupo titulo="Dados no lembrete de cobrança" semPadding>
+        {CAMPOS_COBRANCA.map((c) => (
+          <Linha
+            key={c.id}
+            id={`cobranca_${c.id}`}
+            titulo={c.rotulo}
+            ligado={cobranca[c.id]}
+            onMudar={() => setCobranca((v) => ({ ...v, [c.id]: !v[c.id] }))}
+          />
+        ))}
+      </Grupo>
 
-      <div className="flex flex-wrap gap-2">
-        <button type="submit" disabled={isPending || !alterado} className={btnPrimary}>
+      <div className="-mt-3 flex flex-col gap-2 sm:flex-row">
+        {/* o destaque só aparece quando há o que salvar; senão o teste é a ação da vez */}
+        <button type="submit" disabled={isPending || !alterado} className={`${alterado ? btnPrimary : btnSecondary} w-full sm:w-auto`}>
           <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar"}</RotuloAcao>
         </button>
         <button
           type="button"
           disabled={isPending || alterado}
           onClick={() => run(() => enviarNotificacaoTeste())}
-          className={btnSecondary}
+          className={`${btnSecondary} w-full sm:w-auto`}
           title={alterado ? "Salve antes de testar" : "Manda um aviso de exemplo para este aparelho"}
         >
           Enviar um teste

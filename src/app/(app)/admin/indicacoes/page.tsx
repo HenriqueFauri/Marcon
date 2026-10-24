@@ -5,8 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adminConfirmado } from "@/lib/admin";
 import { formatBRL, formatData } from "@/lib/format";
 import { COMISSAO_MAXIMA, COMISSAO_PERCENTUAL, resumoDoAfiliado } from "@/lib/indicacao";
-import { Badge, EmptyState, ErrorMessage, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
-import { AbasAdmin } from "../abas";
+import { Badge, ErrorMessage, PageHeader, StatCard, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { AcoesSaque } from "./acoes-saque";
 import { PercentualAfiliado } from "./percentual-afiliado";
 
@@ -22,6 +22,14 @@ interface Saque {
   resolvido_em: string | null;
 }
 
+const voltar = { href: "/admin", label: "Administração" };
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+// linha vazia dentro de um Grupo sem padding
+function Vazio({ children }: { children: string }) {
+  return <p className="px-4 py-3 text-[15px] text-ink-muted">{children}</p>;
+}
+
 export default async function IndicacoesAdminPage() {
   const supabase = await createClient();
   const {
@@ -33,7 +41,7 @@ export default async function IndicacoesAdminPage() {
   if (!admin) {
     return (
       <div className="mx-auto max-w-5xl">
-        <PageHeader title="Indicações" back={{ href: "/admin", label: "Administração" }} />
+        <PageHeader title="Indicações" back={voltar} />
         <ErrorMessage>Defina SUPABASE_SERVICE_ROLE_KEY no servidor para ver os saques.</ErrorMessage>
       </div>
     );
@@ -49,7 +57,7 @@ export default async function IndicacoesAdminPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-5xl">
-        <PageHeader title="Indicações" back={{ href: "/admin", label: "Administração" }} />
+        <PageHeader title="Indicações" back={voltar} />
         <ErrorMessage>Não consegui ler os saques. Rode a migration 0023_indicacoes.sql.</ErrorMessage>
       </div>
     );
@@ -92,120 +100,120 @@ export default async function IndicacoesAdminPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader title="Administração" />
-      <AbasAdmin ativa="indicacoes" />
+      <PageHeader title="Indicações" back={voltar} />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Saques para pagar"
           value={formatBRL(pendentes.reduce((s, p) => s + Number(p.valor), 0))}
           tone={pendentes.length > 0 ? "warning" : "neutral"}
-          hint={`${pendentes.length} ${pendentes.length === 1 ? "pedido" : "pedidos"}`}
+          hint={plural(pendentes.length, "pedido", "pedidos")}
         />
         <StatCard label="Já pode sacar" value={formatBRL(resumo.disponivel)} hint="Saldo liberado, ainda não pedido" />
         <StatCard label="Em carência" value={formatBRL(resumo.aLiberar)} hint="Ainda não liberado" />
         <StatCard label="Indicados" value={indicados} hint={`${formatBRL(resumo.sacado)} já pagos`} />
       </div>
 
-      <h2 className="mb-1 text-sm font-semibold text-ink">Afiliados e percentual</h2>
-      <p className="mb-3 text-[13px] text-ink-muted">
-        Vazio = padrão de {COMISSAO_PERCENTUAL}%. Máximo de {COMISSAO_MAXIMA}%. Vale para as próximas comissões; as que já foram geradas não mudam. O afiliado aparece aqui depois de abrir a tela Indique e ganhe uma vez.
-      </p>
-      {afiliados.length === 0 ? (
-        <EmptyState title="Nenhum afiliado ainda" />
-      ) : (
-        <Table>
-          <thead className={theadClass}>
-            <tr>
-              <th className={thClass}>Afiliado</th>
-              <th className={thClass}>Código</th>
-              <th className={`${thClass} text-right`}>Indicados</th>
-              <th className={`${thClass} text-right`}>Ganho</th>
-              <th className={`${thClass} text-right`}>Percentual</th>
-            </tr>
-          </thead>
-          <tbody className={tbodyClass}>
-            {afiliados.map((a) => (
-              <tr key={a.owner_id}>
-                <td className={tdClass}>
-                  <p className="font-medium text-ink">{rotuloDe.get(a.owner_id)?.nome}</p>
-                  <p className="text-[13px] text-ink-muted">{rotuloDe.get(a.owner_id)?.email}</p>
-                </td>
-                <td className={`${tdClass} font-mono text-[13px] text-ink-2`}>{a.codigo}</td>
-                <td className={`${tdClass} text-right tabular-nums text-ink`}>{indicadosPor.get(a.owner_id) ?? 0}</td>
-                <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(ganhoPor.get(a.owner_id) ?? 0)}</td>
-                <td className={tdClass}>
-                  <PercentualAfiliado id={a.owner_id} atual={a.percentual === null ? null : Number(a.percentual)} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+      <div className="flex flex-col gap-7">
+        {/* primeiro o que pede ação: os saques para pagar */}
+        <Grupo titulo="Para pagar" semPadding>
+          {pendentes.length === 0 ? (
+            <Vazio>Nenhum saque pendente.</Vazio>
+          ) : (
+            pendentes.map((s) => (
+              <div key={s.id} className="flex flex-col gap-2 border-t border-line px-4 py-3 first:border-t-0 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[17px] text-ink">{rotuloDe.get(s.afiliado_id)?.nome}</span>
+                    <span className="block truncate text-[13px] text-ink-muted">
+                      {rotuloDe.get(s.afiliado_id)?.email} · pediu em {formatData(s.pedido_em.slice(0, 10))}
+                    </span>
+                    <span className="block break-all font-mono text-[13px] text-ink-2">PIX {s.chave_pix}</span>
+                  </span>
+                  <span className="shrink-0 text-[17px] font-semibold tabular-nums text-ink">{formatBRL(Number(s.valor))}</span>
+                </div>
+                <AcoesSaque id={s.id} valor={Number(s.valor)} chavePix={s.chave_pix} />
+              </div>
+            ))
+          )}
+        </Grupo>
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold text-ink">Para pagar</h2>
-      {pendentes.length === 0 ? (
-        <EmptyState title="Nenhum saque pendente" />
-      ) : (
-        <Table>
-          <thead className={theadClass}>
-            <tr>
-              <th className={thClass}>Afiliado</th>
-              <th className={thClass}>Chave PIX</th>
-              <th className={`${thClass} text-right`}>Valor</th>
-              <th className={thClass}>
-                <span className="sr-only">Ações</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className={tbodyClass}>
-            {pendentes.map((s) => (
-              <tr key={s.id}>
-                <td className={tdClass}>
-                  <p className="font-medium text-ink">{rotuloDe.get(s.afiliado_id)?.nome}</p>
-                  <p className="text-[13px] text-ink-muted">
-                    {rotuloDe.get(s.afiliado_id)?.email} · pediu em {formatData(s.pedido_em.slice(0, 10))}
-                  </p>
-                </td>
-                <td className={`${tdClass} font-mono text-[13px] text-ink-2`}>{s.chave_pix}</td>
-                <td className={`${tdClass} text-right font-semibold tabular-nums text-ink`}>{formatBRL(Number(s.valor))}</td>
-                <td className={`${tdClass} text-right`}>
-                  <AcoesSaque id={s.id} valor={Number(s.valor)} chavePix={s.chave_pix} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+        <Grupo
+          titulo="Afiliados e percentual"
+          semPadding
+          rodape={`Vazio é o padrão de ${COMISSAO_PERCENTUAL}%. Máximo de ${COMISSAO_MAXIMA}%. Vale para as próximas comissões; as que já foram geradas não mudam. O afiliado aparece aqui depois de abrir a tela Indique e ganhe uma vez.`}
+        >
+          {afiliados.length === 0 ? (
+            <Vazio>Nenhum afiliado ainda.</Vazio>
+          ) : (
+            <>
+              {/* celular: lista; o percentual fica na linha de baixo */}
+              <ul className="divide-y divide-line sm:hidden">
+                {afiliados.map((a) => (
+                  <li key={a.owner_id} className="flex flex-col gap-2 px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[17px] text-ink">{rotuloDe.get(a.owner_id)?.nome}</span>
+                        <span className="block truncate text-[13px] text-ink-muted">
+                          {[a.codigo, plural(indicadosPor.get(a.owner_id) ?? 0, "indicado", "indicados")].join(" · ")}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[17px] tabular-nums text-ink">{formatBRL(ganhoPor.get(a.owner_id) ?? 0)}</span>
+                    </div>
+                    <PercentualAfiliado id={a.owner_id} atual={a.percentual === null ? null : Number(a.percentual)} />
+                  </li>
+                ))}
+              </ul>
 
-      {resolvidos.length > 0 && (
-        <>
-          <h2 className="mb-3 mt-8 text-sm font-semibold text-ink">Últimos resolvidos</h2>
-          <Table>
-            <thead className={theadClass}>
-              <tr>
-                <th className={thClass}>Afiliado</th>
-                <th className={thClass}>Situação</th>
-                <th className={`${thClass} text-right`}>Valor</th>
-              </tr>
-            </thead>
-            <tbody className={tbodyClass}>
-              {resolvidos.map((s) => (
-                <tr key={s.id}>
-                  <td className={tdClass}>
-                    <p className="font-medium text-ink">{rotuloDe.get(s.afiliado_id)?.nome}</p>
-                    <p className="text-[13px] text-ink-muted">{s.resolvido_em ? formatData(s.resolvido_em.slice(0, 10)) : ""}</p>
-                  </td>
-                  <td className={tdClass}>
-                    <Badge tone={s.status === "pago" ? "positive" : "negative"}>{s.status === "pago" ? "Pago" : "Recusado"}</Badge>
-                  </td>
-                  <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(Number(s.valor))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </>
-      )}
+              {/* computador: tabela */}
+              <div className="hidden overflow-x-auto sm:block">
+                <table className="w-full text-sm">
+                  <thead className={theadClass}>
+                    <tr>
+                      <th className={thClass}>Afiliado</th>
+                      <th className={thClass}>Código</th>
+                      <th className={`${thClass} text-right`}>Indicados</th>
+                      <th className={`${thClass} text-right`}>Ganho</th>
+                      <th className={`${thClass} text-right`}>Percentual</th>
+                    </tr>
+                  </thead>
+                  <tbody className={tbodyClass}>
+                    {afiliados.map((a) => (
+                      <tr key={a.owner_id}>
+                        <td className={tdClass}>
+                          <p className="font-medium text-ink">{rotuloDe.get(a.owner_id)?.nome}</p>
+                          <p className="text-[13px] text-ink-muted">{rotuloDe.get(a.owner_id)?.email}</p>
+                        </td>
+                        <td className={`${tdClass} font-mono text-[13px] text-ink-2`}>{a.codigo}</td>
+                        <td className={`${tdClass} text-right tabular-nums text-ink`}>{indicadosPor.get(a.owner_id) ?? 0}</td>
+                        <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(ganhoPor.get(a.owner_id) ?? 0)}</td>
+                        <td className={tdClass}>
+                          <PercentualAfiliado id={a.owner_id} atual={a.percentual === null ? null : Number(a.percentual)} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </Grupo>
+
+        {resolvidos.length > 0 && (
+          <Grupo titulo="Últimos resolvidos" semPadding>
+            {resolvidos.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 border-t border-line px-4 py-3 first:border-t-0">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[17px] text-ink">{rotuloDe.get(s.afiliado_id)?.nome}</span>
+                  {s.resolvido_em && <span className="block text-[13px] text-ink-muted">{formatData(s.resolvido_em.slice(0, 10))}</span>}
+                </span>
+                <Badge tone={s.status === "pago" ? "positive" : "negative"}>{s.status === "pago" ? "Pago" : "Recusado"}</Badge>
+                <span className="shrink-0 text-[17px] tabular-nums text-ink">{formatBRL(Number(s.valor))}</span>
+              </div>
+            ))}
+          </Grupo>
+        )}
+      </div>
     </div>
   );
 }

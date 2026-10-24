@@ -72,7 +72,7 @@ export function InterruptorVenda({ ligado }: { ligado: boolean }) {
         name="lancar_venda"
         padrao={ligado}
         titulo="Lançar vendas por aqui"
-        ajuda="Antes de lançar, o assistente sempre pede o seu SIM."
+        ajuda="Mande a venda pelo Zap e o assistente registra."
         desabilitado={isPending}
         onMudar={(v) => run(() => alterarLancarVenda(v))}
       />
@@ -88,7 +88,7 @@ export function InterruptorConfirmacao({ grupo, pedir, titulo }: { grupo: string
         name={`confirmar_${grupo}`}
         padrao={pedir}
         titulo={titulo}
-        ajuda={pedir ? "Mostro o resumo e espero o seu SIM." : "Lanço na hora e aviso o que fiz."}
+        ajuda={pedir ? "O assistente mostra o resumo e espera o seu SIM." : "O assistente lança na hora e conta o que fez."}
         desabilitado={isPending}
         onMudar={(v) => run(() => alterarConfirmacaoWhatsapp(grupo, v))}
       />
