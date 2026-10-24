@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Venda } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { comecarNaPrimeira, resolverPeriodo } from "@/lib/periodo";
-import { PeriodoPicker } from "@/components/periodo-picker";
+import { SeletorPeriodo } from "@/components/seletor-periodo";
 import {
   Badge,
   EmptyState,
@@ -107,7 +107,7 @@ export default async function VendasPage({ searchParams }: PageProps<"/vendas">)
       <PageHeader title="Vendas" action={novaVenda} />
 
       <div className="mb-4 flex flex-col gap-3">
-        <PeriodoPicker periodo={periodo} basePath="/vendas" />
+        <SeletorPeriodo tipo="caixa" periodo={periodo} basePath="/vendas" />
         {!noMes && (
           <p className="text-[13px] text-ink-muted">
             {periodo.modo === "todo" ? `Desde a primeira venda, ${formatData(periodo.de)}, até hoje` : `De ${formatData(periodo.de)} até ${formatData(periodo.ate)}`}

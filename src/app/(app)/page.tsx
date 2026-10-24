@@ -8,6 +8,7 @@ import type { ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
 import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes, somarDias } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
 import { EmptyState, btnPrimary } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { PainelMetas, PainelVendas, PeriodoProvider, type DadosPeriodo, type DadosPorPeriodo, type Periodo, type VendaResumo } from "./painel-periodo";
 import { AvisoNotificacoes } from "./aviso-notificacoes";
 import { IconAlert, IconBox, IconCheck, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
@@ -31,7 +32,7 @@ function projecaoDoMes(faturamento: number, meta: number | null, dia: number, di
 }
 
 function resumoItens(itens: { produto_nome: string; quantidade: number }[] | null) {
-  if (!itens?.length) return "—";
+  if (!itens?.length) return "";
   const [primeiro, ...resto] = itens;
   const base = primeiro.quantidade > 1 ? `${primeiro.quantidade} × ${primeiro.produto_nome}` : primeiro.produto_nome;
   return resto.length ? `${base} +${resto.length}` : base;
@@ -54,20 +55,11 @@ function horaDaVenda(iso: string) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
 
-function Grupo({ titulo, children, className = "" }: { titulo: string; children: ReactNode; className?: string }) {
-  return (
-    <section className={className}>
-      <h2 className="mb-1.5 px-4 text-[13px] uppercase text-ink-muted">{titulo}</h2>
-      <div className="hairline overflow-hidden rounded-3xl bg-surface">{children}</div>
-    </section>
-  );
-}
-
 function LinhaAtencao({
   href, tom, icone, texto, valor,
 }: { href: string; tom: string; icone: ReactNode; texto: string; valor?: string }) {
   return (
-    <Link href={href} className={`flex items-center gap-3 border-t border-line py-2.5 text-sm text-ink first:border-t-0 ${linkPendente}`}>
+    <Link href={href} className={`flex items-center gap-3 border-t border-line px-4 py-3 text-[15px] text-ink transition first:border-t-0 hover:bg-fill/60 active:bg-fill ${linkPendente}`}>
       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] ${tom}`}>{icone}</span>
       <span className="flex-1">{texto}</span>
       {valor ? <span className="font-semibold tabular-nums">{valor}</span> : <SetaLink className="text-ink-muted" />}
@@ -78,7 +70,7 @@ function LinhaAtencao({
 function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; feito: boolean }[] }) {
   const feitos = passos.filter((p) => p.feito).length;
   return (
-    <Grupo titulo={`Primeiros passos · ${feitos} de ${passos.length}`}>
+    <Grupo titulo={`Primeiros passos · ${feitos} de ${passos.length}`} semPadding>
       {passos.map((p) => (
         <Link
           key={p.href}
@@ -205,7 +197,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   };
   const dadosPorPeriodo: DadosPorPeriodo = { hoje: dadosDe("hoje"), semana: dadosDe("semana"), mes: dadosDe("mes") };
 
-  // dinheiro em caixa = saldo acumulado até hoje (não só o movimento do dia)
+  // saldo em caixa = saldo acumulado até hoje (não só o movimento do dia)
   const movimentoHoje = (caixaData ?? [])
     .filter((l) => l.data === hoje)
     .reduce((s, l) => s + (l.tipo === "entrada" ? Number(l.valor) : -Number(l.valor)), 0);
@@ -235,7 +227,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const primeirosPassos = passos.some((p) => !p.feito);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-end justify-between gap-3 px-1">
         <div>
           <p className="text-[15px] font-semibold uppercase tracking-wide text-ink-muted">{dataPorExtenso()}</p>
@@ -271,10 +263,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         />
       ) : (
         <PeriodoProvider inicial={periodo} dados={dadosPorPeriodo}>
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
             <PainelMetas metaMensalVendas={metaMensalVendas} metaMensalLucro={metaMensalLucro} />
 
-            <Grupo titulo="Resumo" className="lg:hidden">
+            <Grupo titulo="Resumo" className="lg:hidden" semPadding>
               <LinhaResumo
                 href="/contas-a-receber"
                 icone={<IconReceipt width={17} height={17} />}
@@ -301,13 +293,21 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 href="/fluxo-de-caixa"
                 icone={<IconWallet width={17} height={17} />}
                 tom="bg-tile-positive text-on-tile-positive"
-                rotulo="Dinheiro em caixa"
+                rotulo="Saldo em caixa"
                 valor={formatBRL(caixaHoje)}
               />
             </Grupo>
 
-            <section className="hairline hidden flex-col rounded-3xl bg-surface p-[22px] lg:flex">
-              <h2 className="pb-2 text-[13px] font-semibold text-ink-muted">Precisa de atenção</h2>
+            <Grupo
+              titulo="Precisa de atenção"
+              className="hidden lg:block"
+              semPadding
+              rodape={
+                <>
+                  Saldo em caixa: <strong className="font-semibold text-ink">{formatBRL(caixaHoje)}</strong> ({textoMovimentoHoje})
+                </>
+              }
+            >
               <LinhaAtencao
                 href="/contas-a-receber?status=atrasadas"
                 tom="bg-tile-danger text-on-tile-danger"
@@ -328,10 +328,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 texto={vencemNaSemana.length ? `${vencemNaSemana.length} ${vencemNaSemana.length === 1 ? "vence" : "vencem"} esta semana` : "Nada vence esta semana"}
                 valor={vencemNaSemana.length ? formatBRL(valorVencemNaSemana) : undefined}
               />
-              <p className="mt-auto pt-3 text-xs text-ink-muted">
-                Dinheiro em caixa: <strong className="font-semibold text-ink">{formatBRL(caixaHoje)}</strong> ({textoMovimentoHoje})
-              </p>
-            </section>
+            </Grupo>
           </div>
 
           <PainelVendas />

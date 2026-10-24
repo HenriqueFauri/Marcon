@@ -19,7 +19,7 @@ import {
   theadClass,
 } from "@/components/ui";
 import { NovoLancamentoForm } from "./novo-lancamento-form";
-import { PeriodoPicker } from "@/components/periodo-picker";
+import { SeletorPeriodo } from "@/components/seletor-periodo";
 import { excluirLancamento } from "./actions";
 
 export const metadata: Metadata = { title: "Fluxo de caixa" };
@@ -114,7 +114,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
       />
 
       <div className="mb-4 flex flex-col gap-3">
-        <PeriodoPicker periodo={periodo} basePath="/fluxo-de-caixa" params={{ tipo }} />
+        <SeletorPeriodo tipo="caixa" periodo={periodo} basePath="/fluxo-de-caixa" params={{ tipo }} />
         {!noMes && (
           <p className="text-[13px] text-ink-muted">
             {periodo.modo === "todo" ? <>Desde o primeiro lançamento, {formatData(periodo.de)}, até hoje</> : <>De {formatData(periodo.de)} até {formatData(periodo.ate)}</>}
