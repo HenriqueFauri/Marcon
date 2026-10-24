@@ -64,7 +64,7 @@ export default async function ReposicaoPage() {
 
     const vendido30 = vendidos.get(p.id as string) ?? 0;
     // repõe o que se vende em 30 dias (ou o dobro do alerta, se vendeu menos) menos o que sobrou
-    const sugestao = Math.max(Math.max(vendido30, (alerta ?? 0) * 2) - Math.max(estoque, 0), 1);
+    const sugestao = Math.max(Math.max(vendido30, (alerta ?? 0) * 2) - estoque, 1);
 
     const f = p.fornecedor_id ? fornecedores.get(p.fornecedor_id as string) : undefined;
     const nomeManual = (p.fornecedor_nome as string | null)?.trim();
