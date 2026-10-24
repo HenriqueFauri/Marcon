@@ -4,8 +4,8 @@ import { lerTudo } from "@/lib/ler-tudo";
 import type { Cliente } from "@/types/domain";
 import { formatBRL, formatDataCurta, linkWhatsApp } from "@/lib/format";
 import { vendasConcluidas } from "@/lib/relatorios";
+import Link from "next/link";
 import { ContatoModal } from "@/components/contato-modal";
-import { ConfirmButton } from "@/components/confirm-button";
 import { SearchInput } from "@/components/search-input";
 import {
   EmptyState,
@@ -20,8 +20,8 @@ import {
   thClass,
   theadClass,
 } from "@/components/ui";
-import { IconPencil, IconPlus, IconWhatsapp } from "@/components/icons";
-import { atualizarCliente, criarCliente, excluirCliente } from "./actions";
+import { IconPlus, IconWhatsapp } from "@/components/icons";
+import { criarCliente } from "./actions";
 
 export const metadata: Metadata = { title: "Clientes" };
 
@@ -156,9 +156,15 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
               const comprou = compras.get(c.id);
               const whatsapp = linkWhatsApp(c.telefone);
               return (
-                <tr key={c.id} className="hover:bg-fill/50">
+                // a linha inteira abre a ficha: o link do nome cobre a linha (after:inset-0); o WhatsApp fica por cima
+                <tr key={c.id} className="relative hover:bg-fill/50">
                   <td className={tdClass}>
-                    <p className="text-[17px] text-ink sm:text-[15px] sm:font-medium">{c.nome}</p>
+                    <Link
+                      href={`/clientes/${c.id}`}
+                      className="block text-[17px] text-ink after:absolute after:inset-0 after:content-[''] sm:text-[15px] sm:font-medium"
+                    >
+                      {c.nome}
+                    </Link>
                     <p className="text-[13px] text-ink-muted sm:hidden">
                       {[c.telefone, saldo ? `${formatBRL(saldo.valor)} em aberto` : null].filter(Boolean).join(" · ") || "Sem telefone"}
                     </p>
@@ -185,35 +191,16 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
                           href={whatsapp}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={btnIcon}
+                          className={`${btnIcon} relative z-10`}
                           aria-label={`Abrir WhatsApp de ${c.nome}`}
                           title="WhatsApp"
                         >
                           <IconWhatsapp width={16} height={16} />
                         </a>
                       )}
-                      <ContatoModal
-                        titulo="Editar cliente"
-                        trigger={<IconPencil width={16} height={16} />}
-                        triggerClassName={btnIcon}
-                        triggerLabel={`Editar ${c.nome}`}
-                        valores={c}
-                        comDocumento
-                        onSave={atualizarCliente.bind(null, c.id)}
-                        successMessage="Cliente atualizado."
-                        rodape={
-                          <ConfirmButton
-                            title={`Excluir “${c.nome}”?`}
-                            description="As vendas já feitas para esse cliente continuam no histórico com o nome registrado."
-                            ariaLabel={`Excluir ${c.nome}`}
-                            successMessage="Cliente excluído."
-                            onConfirm={excluirCliente.bind(null, c.id)}
-                            className="inline-flex items-center rounded-full px-4 py-2 text-[15px] font-medium text-danger transition hover:bg-danger-tint"
-                          >
-                            Excluir cliente
-                          </ConfirmButton>
-                        }
-                      />
+                      <span aria-hidden="true" className="w-4 text-center text-lg text-ink-faint">
+                        ›
+                      </span>
                     </div>
                   </td>
                 </tr>
