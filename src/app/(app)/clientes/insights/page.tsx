@@ -11,9 +11,9 @@ import { BarraEmpilhada } from "@/components/graficos/rosca";
 import { SeletorPeriodo } from "@/components/seletor-periodo";
 import { LinhaCliente, detalheCompras, detalheSumido } from "../../relatorios/clientes-secao";
 
-export const metadata: Metadata = { title: "Clientes: insights" };
+export const metadata: Metadata = { title: "Clientes: análises" };
 
-export default async function ClientesInsightsPage({ searchParams }: PageProps<"/clientes/insights">) {
+export default async function ClientesAnalisesPage({ searchParams }: PageProps<"/clientes/insights">) {
   const sp = await searchParams;
   const texto = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
   const periodo = resolverPeriodoRelatorio({ p: texto(sp.p), de: texto(sp.de), ate: texto(sp.ate) });
@@ -41,7 +41,7 @@ export default async function ClientesInsightsPage({ searchParams }: PageProps<"
         className="mb-6 w-full sm:w-80"
         itens={[
           { href: "/clientes", label: "Lista", ativo: false },
-          { href: "/clientes/insights", label: "Insights", ativo: true },
+          { href: "/clientes/insights", label: "Análises", ativo: true },
         ]}
       />
 
@@ -61,13 +61,13 @@ export default async function ClientesInsightsPage({ searchParams }: PageProps<"
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Já compraram" value={String(a.compradores)} hint="Clientes com alguma compra" />
             <StatCard label="Novos" value={String(np.novos)} tone="positive" hint={`${formatBRL(np.receitaNovos)} no período`} />
-            <StatCard label="Voltaram" value={String(np.recorrentes)} hint={`${formatBRL(np.receitaRecorrentes)} no período`} />
+            <StatCard label="Clientes que voltaram" value={String(np.recorrentes)} hint={`${formatBRL(np.receitaRecorrentes)} no período`} />
             <StatCard label={`Sumidos há ${a.diasSumido} dias`} value={String(a.sumidos.length)} tone={a.sumidos.length > 0 ? "warning" : "neutral"} hint="Para chamar de volta" />
           </div>
 
           <div className="flex flex-col gap-3">
             <SeletorPeriodo tipo="relatorio" periodo={periodo} basePath="/clientes/insights" />
-            <Grupo titulo="Novos e recorrentes">
+            <Grupo titulo="Novos e clientes que voltaram">
               {np.novos + np.recorrentes === 0 ? (
                 <p className="text-[15px] text-ink-muted">Nenhum cliente cadastrado comprou nesse período.</p>
               ) : (
@@ -75,7 +75,7 @@ export default async function ClientesInsightsPage({ searchParams }: PageProps<"
                   formatar={(v) => `${v} ${v === 1 ? "cliente" : "clientes"}`}
                   fatias={[
                     { nome: "Novos", valor: np.novos, detalhe: `${formatBRL(np.receitaNovos)} comprados` },
-                    { nome: "Voltaram a comprar", valor: np.recorrentes, detalhe: `${formatBRL(np.receitaRecorrentes)} comprados` },
+                    { nome: "Clientes que voltaram", valor: np.recorrentes, detalhe: `${formatBRL(np.receitaRecorrentes)} comprados` },
                   ]}
                 />
               )}

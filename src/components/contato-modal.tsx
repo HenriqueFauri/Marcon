@@ -25,7 +25,10 @@ export function ContatoModal({
   comDocumento = false,
   onSave,
   successMessage,
+  rodape,
 }: {
+  // opcional: ação destrutiva no fim da janela (ex.: Excluir cliente), abaixo do Salvar
+  rodape?: ReactNode;
   titulo: string;
   trigger: ReactNode;
   triggerClassName: string;
@@ -106,6 +109,7 @@ export function ContatoModal({
             </button>
           </div>
         </form>
+        {rodape && <div className="mt-5 flex justify-center border-t border-line pt-4">{rodape}</div>}
       </Modal>
     </>
   );

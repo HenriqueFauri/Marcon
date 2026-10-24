@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatBRL } from "@/lib/format";
+import { SetaLink, linkPendente } from "@/components/seta-link";
 import { quantidadeDeItens, rotuloDoAndamento, type PedidoRecebido } from "@/lib/vitrine";
 
 // "agora", "há 5 min", "há 3 h", "ontem", "12/10"
@@ -26,7 +27,7 @@ export function LinhaDoPedido({ pedido: p }: { pedido: PedidoRecebido }) {
   return (
     <Link
       href={`/vitrine/pedidos/${p.id}`}
-      className="flex items-center gap-3 border-t border-line px-4 py-3 transition first:border-t-0 hover:bg-fill/60 active:bg-fill"
+      className={`flex items-center gap-3 border-t border-line px-4 py-3 transition first:border-t-0 hover:bg-fill/60 active:bg-fill ${linkPendente}`}
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[17px] text-ink">
@@ -37,9 +38,7 @@ export function LinhaDoPedido({ pedido: p }: { pedido: PedidoRecebido }) {
       <span className={`shrink-0 text-[15px] tabular-nums ${p.status === "novo" ? "font-semibold text-ink" : "text-ink-muted"}`}>
         {formatBRL(p.total)}
       </span>
-      <span aria-hidden="true" className="text-lg text-ink-faint">
-        ›
-      </span>
+      <SetaLink />
     </Link>
   );
 }

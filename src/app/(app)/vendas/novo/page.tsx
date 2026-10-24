@@ -104,7 +104,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         chave: `${p.id}:${v.id}`,
         produto_id: p.id,
         variacao_id: v.id,
-        nome: `${p.nome} — ${v.nome_combinacao}`,
+        nome: `${p.nome} · ${v.nome_combinacao}`,
         produto_nome: p.nome,
         rotulo: v.nome_combinacao,
         detalhe: [p.marca, v.sku].filter(Boolean).join(" · "),

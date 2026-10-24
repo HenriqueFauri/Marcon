@@ -4,7 +4,7 @@ import { lerUso } from "@/lib/uso";
 import { Badge, Card, PageHeader, btnPrimary } from "@/components/ui";
 import { CabecalhoVitrine, LarguraVitrine } from "./abas";
 
-// Menu Vitrine dividido em subpáginas (visão geral, produtos, personalizar, configurações, cupons).
+// Menu Vitrine dividido em subpáginas (visão geral, produtos, personalizar, ajustes da loja, cupons).
 // O plano é conferido aqui uma vez: no grátis, nenhuma subpágina abre, só o convite para assinar.
 export default async function VitrineLayout({ children }: LayoutProps<"/vitrine">) {
   const supabase = await createClient();

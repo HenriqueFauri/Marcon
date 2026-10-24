@@ -5,7 +5,7 @@ import { enderecoDoApp } from "@/lib/indicacao-servidor";
 import { ConfiguracaoForm } from "./configuracao-form";
 import { RegioesDeFrete } from "./regioes-de-frete";
 
-export const metadata: Metadata = { title: "Vitrine | Configurações" };
+export const metadata: Metadata = { title: "Vitrine | Ajustes da loja" };
 
 export default async function VitrineConfiguracoesPage() {
   const supabase = await createClient();

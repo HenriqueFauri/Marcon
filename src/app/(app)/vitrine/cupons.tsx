@@ -7,7 +7,8 @@ import { formatBRL, formatData } from "@/lib/format";
 import { rotuloDoCupom } from "@/lib/vitrine";
 import { Badge, Field, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconPlus } from "@/components/icons";
-import { Grupo } from "./campos";
+import { Modal } from "@/components/modal";
+import { Grupo, Segmentado, SoInterruptor } from "./campos";
 import { alternarCupom, criarCupom, excluirCupom } from "./actions";
 
 export interface CupomDaLista {
@@ -30,45 +31,40 @@ export function Cupons({ cupons, hoje }: { cupons: CupomDaLista[]; hoje: string 
   const [criando, setCriando] = useState(cupons.length === 0);
   const [tipo, setTipo] = useState<"percentual" | "valor">("percentual");
   const formRef = useRef<HTMLFormElement>(null);
+  // cupom aberto na folha (detalhes e Excluir, no fim, longe do switch da linha)
+  const [abertoId, setAbertoId] = useState<string | null>(null);
+  const aberto = cupons.find((c) => c.id === abertoId) ?? null;
+
+  function detalheDoCupom(c: CupomDaLista) {
+    return `${rotuloDoCupom(c)}${c.minimo ? ` em pedidos a partir de ${formatBRL(c.minimo)}` : ""}${
+      c.validade ? `. Vale até ${formatData(c.validade)}` : ""
+    }`;
+  }
 
   return (
     <div className="flex flex-col gap-7">
       {cupons.length > 0 && (
-        <Grupo titulo="Seus cupons" semPadding>
+        <Grupo titulo="Seus cupons" semPadding rodape="Toque num cupom para ver os detalhes ou excluir.">
           <ul className="divide-y divide-line">
             {cupons.map((c) => {
               const venceu = vencido(c, hoje);
               return (
                 <li key={c.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-[15px] font-semibold tracking-wide text-ink">{c.codigo}</span>
+                  <button type="button" onClick={() => setAbertoId(c.id)} className="min-w-0 flex-1 text-left">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-mono text-[17px] font-semibold tracking-wide text-ink">{c.codigo}</span>
                       {venceu ? <Badge tone="warning">Vencido</Badge> : !c.ativo && <Badge>Desligado</Badge>}
-                    </div>
-                    <p className="mt-0.5 text-[13px] leading-snug text-ink-muted">
-                      {rotuloDoCupom(c)}
-                      {c.minimo ? ` em pedidos a partir de ${formatBRL(c.minimo)}` : ""}
-                      {c.validade ? `. Vale até ${formatData(c.validade)}` : ""}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={c.ativo}
-                    aria-label={c.ativo ? `Desligar o cupom ${c.codigo}` : `Ligar o cupom ${c.codigo}`}
-                    disabled={isPending}
-                    onClick={() => run(() => alternarCupom(c.id, !c.ativo))}
-                    className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors disabled:opacity-60 ${c.ativo ? "bg-positive" : "bg-fill-strong"}`}
-                  >
-                    <span
-                      className={`absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform ${c.ativo ? "translate-x-5" : ""}`}
-                    />
+                    </span>
+                    <span className="mt-0.5 block text-[13px] leading-snug text-ink-muted">{detalheDoCupom(c)}</span>
                   </button>
-                  <ConfirmButton
-                    title={`Excluir o cupom ${c.codigo}?`}
-                    description="Quem já tem o código não consegue mais usar."
-                    onConfirm={() => excluirCupom(c.id)}
-                    ariaLabel={`Excluir o cupom ${c.codigo}`}
+                  {/* a key muda com o valor: o switch acompanha a lista quando ela volta do servidor */}
+                  <SoInterruptor
+                    key={`${c.id}-${c.ativo}`}
+                    name={`cupom_${c.id}`}
+                    ligado={c.ativo}
+                    rotulo={`Cupom ${c.codigo} ligado`}
+                    desabilitado={isPending}
+                    onMudar={(ligado) => run(() => alternarCupom(c.id, ligado))}
                   />
                 </li>
               );
@@ -119,22 +115,17 @@ export function Cupons({ cupons, hoje }: { cupons: CupomDaLista[]; hoje: string 
               <div className="min-w-0">
                 <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">Desconto</span>
                 <div className="flex gap-2">
-                  <input type="hidden" name="tipo" value={tipo} />
-                  <div className="flex shrink-0 rounded-xl bg-fill p-[3px]" role="radiogroup" aria-label="Tipo de desconto">
-                    {(["percentual", "valor"] as const).map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        role="radio"
-                        aria-checked={tipo === t}
-                        onClick={() => setTipo(t)}
-                        className={`w-11 rounded-[9px] text-[15px] transition ${
-                          tipo === t ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-muted"
-                        }`}
-                      >
-                        {t === "percentual" ? "%" : "R$"}
-                      </button>
-                    ))}
+                  <div className="w-28 shrink-0 self-center">
+                    <Segmentado
+                      name="tipo"
+                      rotulo="Tipo de desconto"
+                      valor={tipo}
+                      onMudar={setTipo}
+                      opcoes={[
+                        { valor: "percentual", label: "%" },
+                        { valor: "valor", label: "R$" },
+                      ]}
+                    />
                   </div>
                   <input
                     name="valor"
@@ -166,6 +157,30 @@ export function Cupons({ cupons, hoje }: { cupons: CupomDaLista[]; hoje: string 
           </form>
         </Grupo>
       )}
+
+      <Modal open={!!aberto} onClose={() => setAbertoId(null)} title={aberto ? `Cupom ${aberto.codigo}` : "Cupom"} size="sm" folha>
+        {aberto && (
+          <div className="flex flex-col gap-5">
+            <p className="text-[15px] text-ink-2">
+              {detalheDoCupom(aberto)}.{" "}
+              {vencido(aberto, hoje) ? "Já venceu." : aberto.ativo ? "Está ligado." : "Está desligado."}
+            </p>
+            {/* ação destrutiva no fim, como texto vermelho discreto */}
+            <div className="flex justify-center border-t border-line pt-4">
+              <ConfirmButton
+                title={`Excluir o cupom ${aberto.codigo}?`}
+                description="Quem já tem o código não consegue mais usar."
+                onConfirm={() => excluirCupom(aberto.id)}
+                onDone={() => setAbertoId(null)}
+                ariaLabel={`Excluir o cupom ${aberto.codigo}`}
+                className="inline-flex items-center rounded-full px-4 py-2 text-[15px] font-medium text-danger transition hover:bg-danger-tint"
+              >
+                Excluir cupom
+              </ConfirmButton>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
