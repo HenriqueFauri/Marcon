@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { lerTudo } from "@/lib/ler-tudo";
+import { lerCapas } from "@/lib/capas";
 import type { ProdutoComEstoque } from "@/types/domain";
 import { SearchInput } from "@/components/search-input";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/components/ui";
@@ -27,10 +29,24 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   const vista: Vista = vistaParam === "galeria" ? "galeria" : "lista";
 
   const supabase = await createClient();
-  const [{ data, error }, { data: anunciosData }, { data: fotosData }] = await Promise.all([
-    supabase.from("produtos_com_estoque").select("*, categorias(nome)").neq("status", "inativo").order("nome"),
-    supabase.from("produto_anuncios").select("produto_id, titulo, descricao"),
-    supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
+  // tudo página a página (o PostgREST corta cada consulta em 1000 linhas); das fotos vem só a capa de cada produto
+  const [{ data, error }, anunciosData, capas] = await Promise.all([
+    lerTudo((de, ate) =>
+      supabase
+        .from("produtos_com_estoque")
+        .select("*, categorias(nome)")
+        .neq("status", "inativo")
+        .order("nome")
+        .order("id")
+        .range(de, ate),
+    ).then(
+      (linhas) => ({ data: linhas, error: null }),
+      (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
+    ),
+    lerTudo((de, ate) => supabase.from("produto_anuncios").select("produto_id, titulo, descricao").order("id").range(de, ate)).catch(
+      () => [],
+    ),
+    lerCapas(supabase),
   ]);
 
   if (error) {
@@ -48,16 +64,9 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   for (const a of anunciosData ?? []) {
     if (a.titulo || a.descricao) comAnuncio.add(a.produto_id);
   }
-  const capaPorProduto = new Map<string, string>();
-  const capaGeral = new Map<string, string>();
-  const totalFotos = new Map<string, number>();
-  for (const f of fotosData ?? []) {
-    // a capa é a primeira foto geral; foto de variação só entra se o produto não tiver nenhuma geral
-    if (f.variacao_id === null && !capaGeral.has(f.produto_id)) capaGeral.set(f.produto_id, f.path);
-    if (!capaPorProduto.has(f.produto_id)) capaPorProduto.set(f.produto_id, f.path);
-    totalFotos.set(f.produto_id, (totalFotos.get(f.produto_id) ?? 0) + 1);
-  }
-  for (const [produtoId, path] of capaGeral) capaPorProduto.set(produtoId, path);
+  // a capa é a primeira foto geral; foto de variação só entra se o produto não tiver nenhuma geral
+  const capaPorProduto = new Map([...capas].map(([id, c]) => [id, c.path]));
+  const totalFotos = new Map([...capas].map(([id, c]) => [id, c.totalFotos]));
 
   const lista = produtos.filter((p) => {
     const tem = comAnuncio.has(p.id);

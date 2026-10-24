@@ -351,24 +351,18 @@ export async function executarFerramenta(nome: string, entrada: Entrada, ctx: Co
       const ate = String(entrada.ate ?? "");
       if (!DATA.test(de) || !DATA.test(ate)) return { erro: "Datas inválidas, use AAAA-MM-DD" };
       const inicio = de < somarDias(ate, -730) ? somarDias(ate, -730) : de;
-      const [periodo, acumulado] = await Promise.all([
-        db.from("lancamentos_caixa").select("tipo, valor, categoria").eq("owner_id", owner).gte("data", inicio).lte("data", ate).limit(10000),
+      // totais somados no banco, com a mesma conta da tela (resumo_caixa e saldo_caixa, versões com o dono
+      // explícito porque aqui não há sessão): somar no app esbarrava no corte de linhas do PostgREST
+      const [resumo, saldoHoje] = await Promise.all([
+        db.rpc("resumo_caixa_como", { p_owner: owner, p_inicio: inicio, p_fim_exclusivo: somarDias(ate, 1) }),
         // saldo em caixa: o que já aconteceu até hoje e conta no caixa (mesma regra da tela)
-        db.from("lancamentos_caixa").select("tipo, valor").eq("owner_id", owner).eq("afeta_caixa", true).lte("data", hojeISO()).limit(50000),
+        db.rpc("saldo_caixa_como", { p_owner: owner, p_ate: hojeISO() }),
       ]);
-      if (periodo.error) throw periodo.error;
-      if (acumulado.error) throw acumulado.error;
-      let entradas = 0;
-      let saidas = 0;
-      const categorias = new Map<string, number>();
-      for (const l of periodo.data ?? []) {
-        if (l.tipo === "entrada") entradas += Number(l.valor);
-        else {
-          saidas += Number(l.valor);
-          categorias.set(l.categoria, (categorias.get(l.categoria) ?? 0) + Number(l.valor));
-        }
-      }
-      const saldo = (acumulado.data ?? []).reduce((s, l) => s + (l.tipo === "entrada" ? Number(l.valor) : -Number(l.valor)), 0);
+      if (resumo.error) throw resumo.error;
+      if (saldoHoje.error) throw saldoHoje.error;
+      const totais = (resumo.data ?? {}) as { entradas?: number; saidas?: number; categorias?: { categoria: string; valor: number }[] };
+      const entradas = Number(totais.entradas ?? 0);
+      const saidas = Number(totais.saidas ?? 0);
       const r2 = (n: number) => Math.round(n * 100) / 100;
       return {
         de: inicio,
@@ -376,11 +370,8 @@ export async function executarFerramenta(nome: string, entrada: Entrada, ctx: Co
         entradas: r2(entradas),
         saidas: r2(saidas),
         resultado: r2(entradas - saidas),
-        maioresSaidas: [...categorias.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([categoria, valor]) => ({ categoria, valor: r2(valor) })),
-        saldoEmCaixaHoje: r2(saldo),
+        maioresSaidas: (totais.categorias ?? []).map((c) => ({ categoria: c.categoria, valor: r2(Number(c.valor)) })),
+        saldoEmCaixaHoje: r2(Number(saldoHoje.data ?? 0)),
       };
     }
 
