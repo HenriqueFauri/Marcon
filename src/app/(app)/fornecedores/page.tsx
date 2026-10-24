@@ -74,10 +74,7 @@ export default async function FornecedoresPage({ searchParams }: PageProps<"/for
 
   return (
     <div>
-      <PageHeader
-        title="Fornecedores"
-        action={novo}
-      />
+      <PageHeader title="Fornecedores" action={<>{atalhos}{novo}</>} />
 
       <div className="mb-4">
         <SearchInput placeholder="Buscar fornecedor..." />

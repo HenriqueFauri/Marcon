@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { comprimirImagem, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { registrarFoto } from "../actions";
 import { AutoTextarea } from "@/components/auto-textarea";
-import { Grupo, LinhaLink } from "@/components/ajustes";
+import { Grupo, LinhaLink, Segmentado } from "@/components/ajustes";
 import { Card, Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconBox, IconChevronDown, IconPlus, IconTrash } from "@/components/icons";
 
@@ -182,6 +182,32 @@ function VariacoesNovas({ custoPadrao, precoPadrao }: { custoPadrao: number | nu
   );
 }
 
+type OrigemEstoque = "ja_era_meu" | "comprei";
+
+// De onde veio o estoque inicial: "Já era meu" (padrão, não sai do caixa) ou "Comprei agora" (sai do caixa).
+// Fica junto do estoque, só quando há estoque a lançar.
+function OrigemDoEstoque({ valor, onMudar }: { valor: OrigemEstoque; onMudar: (v: OrigemEstoque) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Segmentado
+        name="estoque_origem"
+        rotulo="De onde veio esse estoque"
+        valor={valor}
+        onMudar={onMudar}
+        opcoes={[
+          { valor: "ja_era_meu", label: "Já era meu" },
+          { valor: "comprei", label: "Comprei agora" },
+        ]}
+      />
+      <p className="text-xs text-ink-muted">
+        {valor === "comprei"
+          ? "Entra como compra e sai do caixa hoje."
+          : "Você já tinha pago antes. O estoque entra e nada sai do caixa."}
+      </p>
+    </div>
+  );
+}
+
 function valorInicial(v: number | null | undefined) {
   return v == null ? "" : Number(v).toFixed(2);
 }
@@ -307,7 +333,9 @@ export function ProdutoForm({
   const { isPending, run } = useAction();
   const [erro, setErro] = useState<string | null>(null);
   const [temVariacoes, setTemVariacoes] = useState(produto?.tem_variacoes ?? false);
-  const [estoqueJaPago, setEstoqueJaPago] = useState(false);
+  const [origemEstoque, setOrigemEstoque] = useState<OrigemEstoque>("ja_era_meu");
+  const [estoque, setEstoque] = useState("0");
+  const estoqueN = Math.trunc(Number(estoque) || 0);
   const [fornecedorId, setFornecedorId] = useState(base?.fornecedor_id ?? "");
   const [custo, setCusto] = useState(valorInicial(base?.custo));
   const [preco, setPreco] = useState(valorInicial(base?.preco_varejo));
@@ -317,6 +345,7 @@ export function ProdutoForm({
   // com variações marcadas a seção fica aberta: os campos obrigatórios delas não podem ficar escondidos
   const aberto = mais || temVariacoes;
   const toast = useToast();
+  const resultadoId = useRef<string | null>(null);
 
   const custoN = paraNumero(custo);
   const precoN = paraNumero(preco);
@@ -333,6 +362,7 @@ export function ProdutoForm({
         run(
           async () => {
             const resultado = await onSave(formData);
+            resultadoId.current = resultado.ok ? (resultado.id ?? null) : null;
             if (resultado.ok && foto && resultado.id) await enviarFotoDeCapa(resultado.id, foto, toast);
             return resultado;
           },
@@ -340,7 +370,9 @@ export function ProdutoForm({
             onError: setErro,
             onSuccess: () => {
               setErro(null);
-              router.push(produto ? `/produtos/${produto.id}` : "/produtos");
+              // produto novo abre a página dele (dali se adiciona foto, anúncio e vitrine)
+              const id = produto?.id ?? resultadoId.current;
+              router.push(id ? `/produtos/${id}` : "/produtos");
             },
           },
         );
@@ -393,7 +425,7 @@ export function ProdutoForm({
             {!editando && (
               <Field
                 label="Estoque"
-                hint={temVariacoes ? "Controlado por variação." : estoqueJaPago ? "Não sai do caixa." : "Entra como compra no caixa."}
+                hint={temVariacoes ? "Controlado por variação." : undefined}
                 className="col-span-2 sm:col-span-1"
               >
                 <input
@@ -402,13 +434,16 @@ export function ProdutoForm({
                   inputMode="numeric"
                   min="0"
                   step="1"
-                  defaultValue={0}
+                  value={estoque}
+                  onChange={(e) => setEstoque(e.target.value)}
                   disabled={temVariacoes}
                   className={inputClass}
                 />
               </Field>
             )}
           </div>
+
+          {!editando && !temVariacoes && estoqueN > 0 && <OrigemDoEstoque valor={origemEstoque} onMudar={setOrigemEstoque} />}
 
           {lucroUnit !== null && (
             <p className={`text-sm ${lucroUnit >= 0 ? "text-ink-muted" : "text-danger"}`}>
@@ -515,25 +550,6 @@ export function ProdutoForm({
               <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3 text-sm text-ink">
                 <input
                   type="checkbox"
-                  name="estoque_ja_pago"
-                  value="true"
-                  checked={estoqueJaPago}
-                  onChange={(e) => setEstoqueJaPago(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-brand"
-                />
-                <span>
-                  Esse estoque já era meu
-                  <span className="mt-0.5 block text-xs text-ink-muted">
-                    Marque se você já tinha pago por ele antes de usar o Marcon. O estoque entra, mas nada sai do caixa agora.
-                  </span>
-                </span>
-              </label>
-            )}
-
-            {!editando && (
-              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3 text-sm text-ink">
-                <input
-                  type="checkbox"
                   name="tem_variacoes"
                   value="true"
                   checked={temVariacoes}
@@ -590,7 +606,11 @@ export function ProdutoForm({
 
         {!editando && temVariacoes && (
           <Card title="Variações">
-            <VariacoesNovas custoPadrao={custoN} precoPadrao={precoN} />
+            <div className="flex flex-col gap-4">
+              <VariacoesNovas custoPadrao={custoN} precoPadrao={precoN} />
+              {/* vale para o estoque de todas as variações */}
+              <OrigemDoEstoque valor={origemEstoque} onMudar={setOrigemEstoque} />
+            </div>
           </Card>
         )}
       </div>

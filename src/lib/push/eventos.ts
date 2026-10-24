@@ -1,6 +1,8 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { hojeISO, mesAtual, somarDias } from "@/lib/format";
 import { enviarNotificacao } from "@/lib/push/send";
+// as rotinas diárias leem página a página (o PostgREST corta em 1000 linhas)
+import { lerTudo } from "@/lib/ler-tudo";
 import {
   NIVEIS,
   eventoAtivo,
@@ -34,18 +36,6 @@ async function enviarEvento(
   if (!eventoAtivo(pref, evento)) return null;
   const { titulo, corpo } = montarNotificacao(evento, posicao, linhaDeDados, ownerId);
   return enviarNotificacao(ownerId, titulo, corpo, url, cliente);
-}
-
-// O PostgREST devolve no máximo 1000 linhas por consulta: as rotinas diárias leem página a página.
-const PAGINA = 1000;
-async function lerTudo<T>(pagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: unknown }>) {
-  const tudo: T[] = [];
-  for (let de = 0; ; de += PAGINA) {
-    const { data, error } = await pagina(de, de + PAGINA - 1);
-    if (error) throw error;
-    tudo.push(...(data ?? []));
-    if (!data || data.length < PAGINA) return tudo;
-  }
 }
 
 interface VendaRegistrada extends DadosVendaNotificacao {

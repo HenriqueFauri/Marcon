@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { lerTudo } from "@/lib/ler-tudo";
 import type { Cliente } from "@/types/domain";
 import { formatBRL, formatDataCurta, linkWhatsApp } from "@/lib/format";
 import { vendasConcluidas } from "@/lib/relatorios";
@@ -29,15 +30,27 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
 
   const supabase = await createClient();
-  let query = supabase.from("clientes").select("*").order("nome");
-  if (q) {
-    const termo = `%${q.replace(/[%_,()]/g, " ")}%`;
-    query = query.or(`nome.ilike.${termo},telefone.ilike.${termo},email.ilike.${termo},cpf_cnpj.ilike.${termo}`);
-  }
+  const termo = q ? `%${q.replace(/[%_,()]/g, " ")}%` : null;
 
-  const [{ data, error }, { data: abertasData }, vendasFeitas] = await Promise.all([
-    query,
-    supabase.from("parcelas_com_status").select("valor, status_efetivo, vendas(cliente_id)").neq("status", "pago"),
+  // clientes e parcelas em aberto vêm página a página: o PostgREST corta cada consulta em 1000 linhas
+  const [{ data, error }, abertasData, vendasFeitas] = await Promise.all([
+    lerTudo((de, ate) => {
+      let query = supabase.from("clientes").select("*").order("nome").order("id");
+      if (termo) query = query.or(`nome.ilike.${termo},telefone.ilike.${termo},email.ilike.${termo},cpf_cnpj.ilike.${termo}`);
+      return query.range(de, ate);
+    }).then(
+      (linhas) => ({ data: linhas, error: null }),
+      (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
+    ),
+    // saldo em aberto por cliente: se falhar, a lista segue sem esse detalhe
+    lerTudo((de, ate) =>
+      supabase
+        .from("parcelas_com_status")
+        .select("valor, status_efetivo, vendas(cliente_id)")
+        .neq("status", "pago")
+        .order("id")
+        .range(de, ate),
+    ).catch(() => []),
     // total comprado e última compra: se falhar, a lista segue sem esse detalhe
     vendasConcluidas(supabase, "2000-01-01", null).catch(() => []),
   ]);
