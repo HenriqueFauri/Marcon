@@ -108,7 +108,7 @@ function CancelarLink({ aoCancelar }: { aoCancelar: () => void }) {
   return (
     <ConfirmButton
       title="Cancelar assinatura?"
-      description="Nenhuma nova cobrança será feita. Seus dados continuam guardados e você passa para o plano grátis."
+      description="Nenhuma nova cobrança será feita. O plano continua liberado até o fim do período que você já pagou; depois a conta passa para o grátis, com os dados guardados."
       confirmLabel="Cancelar assinatura"
       onConfirm={cancelarPlano}
       onDone={aoCancelar}
@@ -148,8 +148,9 @@ export function AssinaturaPainel({
 
   const { tipo } = situacao;
   const ativa = tipo === "ativa";
-  // cortesia: plano liberado pelo admin, sem cobrança
-  const liberada = ativa || tipo === "cortesia";
+  // cortesia: plano liberado pelo admin, sem cobrança; cancelada: liberado até o fim do período pago
+  const cancelada = tipo === "cancelada";
+  const liberada = ativa || tipo === "cortesia" || cancelada;
   const aguardando = !liberada && (esperandoPagamento || (voltouDoPagamento && tipo === "pendente"));
 
   useEffect(() => {
@@ -221,6 +222,13 @@ export function AssinaturaPainel({
         {situacao.proximoVencimento && ` Próxima cobrança em ${formatData(situacao.proximoVencimento)}.`}
       </BlocoSituacao>
     );
+  } else if (cancelada) {
+    situacaoBloco = (
+      <BlocoSituacao titulo={`Plano ${PLANO.nome} ${CICLOS[situacao.ciclo].rotulo.toLowerCase()}`} selo={<Badge>Cancelada</Badge>}>
+        {situacao.proximoVencimento &&
+          `Você cancelou, sem nova cobrança. O plano continua liberado até ${formatData(situacao.proximoVencimento)}; depois a conta passa para o grátis. Se assinar de novo antes disso, a primeira cobrança só vem nesse dia.`}
+      </BlocoSituacao>
+    );
   } else if (tipo === "atrasada") {
     situacaoBloco = (
       <>
@@ -285,11 +293,12 @@ export function AssinaturaPainel({
   }
 
   // depois do clique em "Assinar" o painel ainda não sabe que virou pendente
-  const esperandoAntesDoServidor = esperandoPagamento && tipo !== "pendente" && tipo !== "atrasada" && !liberada;
+  const esperandoAntesDoServidor = esperandoPagamento && tipo !== "pendente" && tipo !== "atrasada" && (!liberada || cancelada);
+  // quem cancelou e ainda está no período pago pode assinar de novo (a cobrança começa quando o período acaba)
+  const mostraAssinar = (!liberada || cancelada) && tipo !== "atrasada";
   // mensal ou anual só se escolhe ao assinar; assinado (ou atrasado), mostra o ciclo que a pessoa tem
-  const podeEscolherCiclo = cobrancaDisponivel && !liberada && tipo !== "atrasada";
+  const podeEscolherCiclo = cobrancaDisponivel && mostraAssinar;
   const cicloMostrado: Ciclo = podeEscolherCiclo ? ciclo : liberada || tipo === "atrasada" ? situacao.ciclo : "mensal";
-  const mostraAssinar = !liberada && tipo !== "atrasada";
 
   return (
     <div className="flex flex-col gap-7">
@@ -388,7 +397,9 @@ export function AssinaturaPainel({
                       ? "Abrindo pagamento..."
                       : tipo === "pendente" && ciclo === situacao.ciclo
                         ? "Continuar pagamento"
-                        : `Assinar por ${formatBRL(CICLOS[ciclo].valor)}${CICLOS[ciclo].sufixo}`}
+                        : cancelada
+                          ? `Assinar de novo por ${formatBRL(CICLOS[ciclo].valor)}${CICLOS[ciclo].sufixo}`
+                          : `Assinar por ${formatBRL(CICLOS[ciclo].valor)}${CICLOS[ciclo].sufixo}`}
                   </button>
                   {esperandoAntesDoServidor && (
                     <p className="text-[13px] text-ink-2">
