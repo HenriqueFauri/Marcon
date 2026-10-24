@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { lerTudo } from "@/lib/ler-tudo";
@@ -13,6 +14,7 @@ import {
   StatCard,
   Table,
   btnIcon,
+  btnSmallNeutro,
   tbodyClass,
   tdClass,
   thClass,
@@ -21,6 +23,7 @@ import {
 import { IconWhatsapp } from "@/components/icons";
 import { CaixaTopo } from "../caixa/topo";
 import { ReceberButton } from "./receber-button";
+import { DesfazerRecebimento } from "./desfazer-recebimento";
 
 export const metadata: Metadata = { title: "Caixa" };
 
@@ -50,7 +53,7 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
     lerTudo((de, ate) =>
       supabase
         .from("parcelas_com_status")
-        .select("*, vendas(cliente_nome, cliente_id, clientes(telefone))")
+        .select("*, vendas(cliente_nome, cliente_id, status, clientes(telefone))")
         .order("vencimento")
         .order("created_at")
         .order("id")
@@ -141,8 +144,28 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
         {aberta && <ReceberButton id={p.id} valor={Number(p.valor)} numero={p.numero_parcela} cliente={cliente} />}
       </>
     );
-    return { p, cliente, atrasada, detalhe, acoes };
+    // parcela recebida: tocar abre os dados do recebimento, com desfazer no fim
+    const janela = (trigger: ReactNode, triggerClassName: string, triggerLabel?: string) => (
+      <DesfazerRecebimento
+        id={p.id}
+        valor={Number(p.valor)}
+        numero={p.numero_parcela}
+        cliente={cliente}
+        dataPagamento={p.data_pagamento}
+        vencimento={p.vencimento}
+        parcial={p.parcial}
+        entrada={p.entrada}
+        cancelada={(p.vendas as { status?: string } | null)?.status === "cancelada"}
+        vendaHref={`/vendas/${p.venda_id}`}
+        trigger={trigger}
+        triggerClassName={triggerClassName}
+        triggerLabel={triggerLabel}
+      />
+    );
+    return { p, cliente, aberta, atrasada, detalhe, acoes, janela };
   });
+
+  const rodapePagas = "Toque na parcela recebida pra ver o recebimento ou desfazer.";
 
   return (
     <div>
@@ -192,27 +215,38 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
             semPadding
             className="sm:hidden"
             rodape={
-              abertas.length > 0 ? (
+              filtro === "pagas" ? rodapePagas : abertas.length > 0 ? (
                 <Rodape chavePix={chavePix} />
               ) : undefined
             }
           >
             <ul className="divide-y divide-line">
-              {linhas.map(({ p, cliente, atrasada, detalhe, acoes }) => (
-                <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-                  <Link href={`/vendas/${p.venda_id}`} className="min-w-0 flex-1">
+              {linhas.map(({ p, cliente, aberta, atrasada, detalhe, acoes, janela }) => {
+                const texto = (
+                  <>
                     <span className="flex items-center gap-2">
                       <span className="truncate text-[17px] text-ink">{cliente ?? "Sem nome"}</span>
                       {atrasada && <Badge tone="negative">Atrasada</Badge>}
                     </span>
                     <span className="block text-[13px] leading-snug text-ink-muted">{detalhe}</span>
-                  </Link>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <span className="text-[17px] tabular-nums text-ink">{formatBRL(p.valor)}</span>
-                    <div className="flex items-center gap-1">{acoes}</div>
-                  </div>
-                </li>
-              ))}
+                  </>
+                );
+                return (
+                  <li key={p.id} className="flex items-center gap-3 px-4 py-3">
+                    {aberta ? (
+                      <Link href={`/vendas/${p.venda_id}`} className="min-w-0 flex-1">
+                        {texto}
+                      </Link>
+                    ) : (
+                      janela(texto, "block min-w-0 flex-1 text-left")
+                    )}
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <span className="text-[17px] tabular-nums text-ink">{formatBRL(p.valor)}</span>
+                      <div className="flex items-center gap-1">{acoes}</div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </Grupo>
         )}
@@ -231,7 +265,7 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
                 </tr>
               </thead>
               <tbody className={tbodyClass}>
-                {linhas.map(({ p, cliente, atrasada, detalhe, acoes }) => (
+                {linhas.map(({ p, cliente, aberta, atrasada, detalhe, acoes, janela }) => (
                   <tr key={p.id} className="hover:bg-fill/50">
                     <td className={`${tdClass} whitespace-nowrap ${atrasada ? "text-danger" : "text-ink-2"}`}>{formatData(p.vencimento)}</td>
                     <td className={tdClass}>
@@ -245,13 +279,18 @@ export default async function ContasAReceberPage({ searchParams }: PageProps<"/c
                     </td>
                     <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(p.valor)}</td>
                     <td className={`${tdClass} text-right`}>
-                      <div className="flex items-center justify-end gap-1">{acoes}</div>
+                      <div className="flex items-center justify-end gap-1">
+                        {acoes}
+                        {!aberta && janela("Detalhes", btnSmallNeutro, "Ver recebimento ou desfazer")}
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </Table>
-            {abertas.length > 0 && (
+            {filtro === "pagas" ? (
+              <p className="mt-1.5 px-4 text-[13px] leading-snug text-ink-muted">{rodapePagas}</p>
+            ) : abertas.length > 0 && (
               <p className="mt-1.5 px-4 text-[13px] leading-snug text-ink-muted">
                 <Rodape chavePix={chavePix} />
               </p>

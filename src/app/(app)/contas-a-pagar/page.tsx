@@ -8,6 +8,7 @@ import { CaixaTopo } from "../caixa/topo";
 import { atualizarConta, criarConta, excluirConta } from "./actions";
 import { ContaModal } from "./conta-modal";
 import { PagarButton } from "./pagar-button";
+import { DesfazerPagamento } from "./desfazer-pagamento";
 
 export const metadata: Metadata = { title: "Caixa" };
 
@@ -135,7 +136,7 @@ export default async function ContasAPagarPage({ searchParams }: PageProps<"/con
         ) : (
           <Grupo
             semPadding
-            rodape={filtro === "pagas" ? undefined : "Toque na conta para editar. Conta que repete todo mês abre a do mês seguinte quando você paga."}
+            rodape={filtro === "pagas" ? "Toque na conta pra ver o pagamento ou desfazer." : "Toque na conta para editar. Conta que repete todo mês abre a do mês seguinte quando você paga."}
           >
             <ul className="divide-y divide-line">
               {visiveis.map((c) => {
@@ -187,7 +188,18 @@ export default async function ContasAPagarPage({ searchParams }: PageProps<"/con
                         }}
                       />
                     ) : (
-                      <div className="min-w-0 flex-1">{texto}</div>
+                      // a conta paga abre os dados do pagamento, com desfazer no fim
+                      <DesfazerPagamento
+                        id={c.id}
+                        descricao={c.descricao}
+                        valor={Number(c.valor)}
+                        dataPagamento={c.data_pagamento}
+                        vencimento={c.vencimento}
+                        mensal={c.recorrencia === "mensal"}
+                        fornecedor={c.fornecedores?.nome}
+                        trigger={texto}
+                        triggerClassName="block min-w-0 flex-1 text-left"
+                      />
                     )}
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <span className="text-[17px] tabular-nums text-ink">{formatBRL(c.valor)}</span>
