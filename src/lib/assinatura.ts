@@ -3,11 +3,12 @@ import { hojeISO } from "@/lib/format";
 
 // Onde o usuário está no ciclo de assinatura. O teste corre a partir da criação
 // da conta e não exige linha na tabela assinaturas.
-export type TipoSituacao = "teste" | "gratis" | "pendente" | "ativa" | "atrasada" | "cortesia";
+// "cancelada": cancelou, mas o período já pago ainda não acabou; o plano vale até proximoVencimento.
+export type TipoSituacao = "teste" | "gratis" | "pendente" | "ativa" | "atrasada" | "cortesia" | "cancelada";
 
 export interface Situacao {
   tipo: TipoSituacao;
-  diasRestantes: number; // no teste e na cortesia com prazo
+  diasRestantes: number; // no teste, na cortesia com prazo e na cancelada que ainda vale
   fimDoTeste: string; // yyyy-mm-dd
   plano: string | null;
   ciclo: Ciclo; // mensal ou anual; sem assinatura, mensal
@@ -31,6 +32,20 @@ interface LinhaAssinatura {
 export function cortesiaVale(linha: Pick<LinhaAssinatura, "status" | "cortesia_ate"> | null | undefined) {
   if (linha?.status !== "cortesia") return false;
   return !linha.cortesia_ate || linha.cortesia_ate >= hojeISO();
+}
+
+// Cancelada mantém o plano até o fim do período já pago (proximo_vencimento, esse dia incluído).
+export function canceladaVale(linha: Pick<LinhaAssinatura, "status" | "proximo_vencimento"> | null | undefined) {
+  if (linha?.status !== "cancelada" || !linha.proximo_vencimento) return false;
+  return linha.proximo_vencimento >= hojeISO();
+}
+
+// Fim do período já pago que ainda não acabou, de quem cancelou ou assinou de novo depois de cancelar
+// (a linha volta a pendente guardando a data). Pendente comum não tem data e devolve null.
+export function periodoPagoAte(linha: Pick<LinhaAssinatura, "status" | "proximo_vencimento"> | null | undefined) {
+  if (linha?.status !== "cancelada" && linha?.status !== "pendente") return null;
+  if (!linha.proximo_vencimento || linha.proximo_vencimento < hojeISO()) return null;
+  return linha.proximo_vencimento;
 }
 
 // dias que faltam, contando hoje: no último dia vale 1
@@ -65,7 +80,9 @@ export function situacaoDaAssinatura(linha: LinhaAssinatura | null, contaCriadaE
   }
   if (linha?.status === "atrasada") return { ...base, tipo: "atrasada" };
   if (linha?.status === "pendente") return { ...base, tipo: "pendente" };
-  // sem linha, ou assinatura cancelada: volta ao teste enquanto ele durar, depois ao grátis
+  // cancelou: o plano vale até o dia da cobrança que não vai acontecer, igual à regra do banco (plano_do_usuario)
+  if (canceladaVale(linha)) return { ...base, tipo: "cancelada", diasRestantes: diasAteIso(linha!.proximo_vencimento!) };
+  // sem linha, ou cancelada com o período já acabado: volta ao teste enquanto ele durar, depois ao grátis
   return { ...base, tipo: restanteMs > 0 ? "teste" : "gratis" };
 }
 
@@ -86,6 +103,11 @@ export function rotuloDaSituacao(s: Situacao) {
       return { texto: "Plano Marcon", tom: "positive" as const };
     case "atrasada":
       return { texto: "Pagamento atrasado", tom: "warning" as const };
+    case "cancelada":
+      return {
+        texto: s.diasRestantes === 1 ? "Plano: último dia" : `Plano: ${s.diasRestantes} dias`,
+        tom: s.diasRestantes <= 3 ? ("warning" as const) : ("neutral" as const),
+      };
     case "cortesia":
       // com prazo, o chip conta os dias como no teste e esquenta nos últimos 3
       if (!s.cortesiaAte) return { texto: "Plano Marcon", tom: "positive" as const };

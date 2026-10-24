@@ -1,7 +1,7 @@
 "use server";
 
 import { formatData } from "@/lib/format";
-import { cortesiaVale } from "@/lib/assinatura";
+import { cortesiaVale, periodoPagoAte } from "@/lib/assinatura";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { falha, ok, type ActionResult } from "@/lib/action";
@@ -96,7 +96,8 @@ export async function assinarPlano(documento: string, cicloEscolhido: Ciclo = "m
         ciclo: dadosCiclo.asaas,
         descricao: `Marcon, plano ${dadosPlano.nome} ${dadosCiclo.rotulo.toLowerCase()}`,
         ownerId: user.id,
-        primeiroVencimento: hojeEmBrasilia(),
+        // cancelou e o período pago ainda não acabou: a nova assinatura só cobra quando ele acabar
+        primeiroVencimento: periodoPagoAte(atual) ?? hojeEmBrasilia(),
       };
       // o Asaas recusa o retorno se o domínio não bater com o cadastrado na conta;
       // nesse caso cria sem redirecionamento em vez de impedir a assinatura
@@ -124,7 +125,8 @@ export async function assinarPlano(documento: string, cicloEscolhido: Ciclo = "m
         plano,
         ciclo,
         status: "pendente",
-        proximo_vencimento: null,
+        // assinou de novo dentro do período já pago: guarda o fim dele, o plano segue liberado até lá (plano_do_usuario)
+        proximo_vencimento: periodoPagoAte(atual),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "owner_id" },
@@ -166,7 +168,12 @@ export async function cancelarPlano(): Promise<ActionResult> {
     if (error) throw error;
 
     revalidatePath("/assinatura");
-    return ok("Assinatura cancelada. Nenhuma nova cobrança será feita.");
+    const ate = periodoPagoAte({ status: "cancelada", proximo_vencimento: atual.proximo_vencimento });
+    return ok(
+      ate
+        ? `Assinatura cancelada. Nenhuma nova cobrança será feita, e o plano continua liberado até ${formatData(ate)}.`
+        : "Assinatura cancelada. Nenhuma nova cobrança será feita.",
+    );
   } catch (e) {
     return falha(e);
   }
