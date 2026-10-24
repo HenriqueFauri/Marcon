@@ -23,6 +23,7 @@ export interface NovaVendaInput {
   outrosGastos: number; // motoboy, embalagem...: custo do lojista nesta venda
   data: string | null;
   pedidoId?: string | null; // pedido da vitrine que virou esta venda
+  encomenda?: boolean; // a pessoa confirmou vender além do estoque: o estoque fica negativo
 }
 
 const DATA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -107,6 +108,8 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
       p_forma_pagamento_id: input.formaPagamentoId || null,
       // só manda quando há gasto: o banco ainda sem a migration 0018 segue registrando vendas normais
       ...(outrosGastos > 0 ? { p_outros_gastos: outrosGastos } : {}),
+      // encomenda (migration 0065): só vai quando é true, então a venda normal não depende da migration
+      ...(input.encomenda === true ? { p_encomenda: true } : {}),
     };
     const { data: vendaId, error } =
       entrada > 0

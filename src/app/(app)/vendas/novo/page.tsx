@@ -39,12 +39,11 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         .from("produtos_com_estoque")
         .select("*")
         .neq("status", "inativo")
-        .gt("estoque_total", 0)
         .order("nome")
         .order("id")
         .range(de, ate),
     ).catch(() => []),
-    // sem filtro de estoque: variação esgotada aparece em cinza no seletor, em vez de sumir
+    // sem filtro de estoque: produto e variação zerados também aparecem (venda de encomenda)
     lerTudo((de, ate) => supabase.from("produto_variacoes").select("*").order("nome_combinacao").order("id").range(de, ate)).catch(
       () => [],
     ),
@@ -58,8 +57,17 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
   const uso = await lerUso(supabase);
   const vendasRestantes = uso ? restante(uso.vendasMes, uso.limites.vendasMes) : null;
 
-  const produtos = (produtosData ?? []) as ProdutoComEstoque[];
   const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
+  // com estoque primeiro, zerados no fim (cada parte na ordem de nome que já vem do banco).
+  // Com variações conta só o que é positivo: uma variação negativa não esconde as outras
+  const positivoPorProduto = new Map<string, number>();
+  for (const v of variacoes) {
+    positivoPorProduto.set(v.produto_id, (positivoPorProduto.get(v.produto_id) ?? 0) + Math.max(Number(v.estoque), 0));
+  }
+  const temEstoque = (p: ProdutoComEstoque) =>
+    (p.tem_variacoes ? (positivoPorProduto.get(p.id) ?? 0) : Number(p.estoque_total)) > 0;
+  const lidos = (produtosData ?? []) as ProdutoComEstoque[];
+  const produtos = [...lidos.filter(temEstoque), ...lidos.filter((p) => !temEstoque(p))];
 
   // capa de cada produto à venda: a primeira foto geral; foto de variação só se não houver nenhuma geral.
   // Uma chamada de assinatura para a lista toda
@@ -151,7 +159,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         desconto: Number(pedidoRecebido.desconto),
         clienteNome: pedidoRecebido.cliente_nome,
         pagamento: pedidoRecebido.pagamento,
-        // itens que acabaram no estoque depois do pedido não dá para vender
+        // itens que saíram de venda (inativos ou apagados) depois do pedido
         semEstoque: pedidoRecebido.itens
           .filter((i) => !chaves.has(i.variacao_id ? `${i.produto_id}:${i.variacao_id}` : i.produto_id))
           .map((i) => (i.variacao ? `${i.nome} (${i.variacao})` : i.nome)),
@@ -182,8 +190,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         />
       ) : vendaveis.length === 0 ? (
         <EmptyState
-          title="Nenhum produto com estoque"
-          description="Cadastre um produto ou registre uma entrada de estoque para poder vender."
+          title="Nenhum produto cadastrado"
+          description="Cadastre um produto pra poder vender."
           action={
             <Link href="/produtos" className={btnPrimary}>
               Ir para produtos

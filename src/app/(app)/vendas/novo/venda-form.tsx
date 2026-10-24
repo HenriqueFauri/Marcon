@@ -220,15 +220,13 @@ export function SelectOuTexto({
   );
 }
 
-// deixa apagar e digitar à vontade; ao sair do campo volta a mostrar o valor já limitado ao estoque
+// deixa apagar e digitar à vontade; ao sair do campo volta a mostrar o valor valendo
 function CampoQuantidade({
   valor,
-  max,
   label,
   onChange,
 }: {
   valor: number;
-  max: number;
   label: string;
   onChange: (q: number) => void;
 }) {
@@ -238,7 +236,6 @@ function CampoQuantidade({
       type="number"
       inputMode="numeric"
       min={1}
-      max={max}
       value={texto ?? valor}
       onChange={(e) => {
         setTexto(e.target.value);
@@ -308,10 +305,10 @@ export function VendaForm({
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarMeses(hoje, 1));
   // o 1º vencimento acompanha a data da venda (um mês depois) até a pessoa escolher outro
   const [vencimentoEscolhido, setVencimentoEscolhido] = useState(false);
-  // item em que a quantidade pedida passou do estoque (e foi cortada): mostra o aviso nele
-  const [estoqueBatido, setEstoqueBatido] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmarZero, setConfirmarZero] = useState(false);
+  // venda além do estoque (encomenda): pergunta antes de registrar
+  const [confirmarEncomenda, setConfirmarEncomenda] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   // atalhos no computador: "/" vai para a busca; Ctrl ou Cmd + Enter registra a venda
@@ -348,6 +345,8 @@ export function VendaForm({
     .map((item) => ({ item, produto: porChave.get(item.chave)! }))
     .filter((l) => l.produto);
   const semPreco = linhas.filter((l) => paraNumero(l.item.preco) === 0);
+  // itens que passam do estoque: a venda segue como encomenda e o estoque fica negativo
+  const alemDoEstoque = linhas.filter((l) => l.item.quantidade > l.produto.estoque);
   const subtotal = linhas.reduce((s, l) => s + l.item.quantidade * paraNumero(l.item.preco), 0);
   const custo = linhas.reduce((s, l) => s + l.item.quantidade * l.produto.custo, 0);
   const valorDesconto = paraNumero(desconto);
@@ -370,26 +369,21 @@ export function VendaForm({
     if (!vencimentoEscolhido && /^d{4}-d{2}-d{2}$/.test(nova)) setPrimeiroVencimento(somarMeses(nova, 1));
   }
 
+  // além do estoque não corta: o item mostra o aviso de encomenda e a venda pede confirmação
   function adicionar(v: Vendavel) {
     setErro(null);
-    const noCarrinho = carrinho.find((i) => i.chave === v.chave)?.quantidade ?? 0;
-    setEstoqueBatido(noCarrinho + 1 > v.estoque ? v.chave : null);
     setCarrinho((prev) => {
       const existente = prev.find((i) => i.chave === v.chave);
       if (existente) {
-        return prev.map((i) =>
-          i.chave === v.chave ? { ...i, quantidade: Math.min(i.quantidade + 1, v.estoque) } : i,
-        );
+        return prev.map((i) => (i.chave === v.chave ? { ...i, quantidade: i.quantidade + 1 } : i));
       }
       return [...prev, { chave: v.chave, quantidade: 1, preco: emTexto(precoPadrao(v)) }];
     });
   }
 
   function alterarQuantidade(chave: string, quantidade: number) {
-    const max = porChave.get(chave)?.estoque ?? 1;
-    setEstoqueBatido(quantidade > max ? chave : (atual) => (atual === chave ? null : atual));
     setCarrinho((prev) =>
-      prev.map((i) => (i.chave === chave ? { ...i, quantidade: Math.min(Math.max(quantidade, 1), max) } : i)),
+      prev.map((i) => (i.chave === chave ? { ...i, quantidade: Math.min(Math.max(Math.trunc(quantidade), 1), 9999) } : i)),
     );
   }
 
@@ -428,6 +422,15 @@ export function VendaForm({
       setConfirmarZero(true);
       return;
     }
+    conferirEstoque();
+  }
+
+  // item além do estoque: confirma a encomenda antes de registrar
+  function conferirEstoque() {
+    if (alemDoEstoque.length > 0) {
+      setConfirmarEncomenda(true);
+      return;
+    }
     registrar();
   }
 
@@ -455,6 +458,7 @@ export function VendaForm({
           outrosGastos: valorOutros,
           data,
           pedidoId: pedido?.id ?? null,
+          encomenda: alemDoEstoque.length > 0,
         }).then((r) => {
           if (r.ok && r.id) router.push(`/vendas/${r.id}`);
           return r;
@@ -474,7 +478,7 @@ export function VendaForm({
           ) : (
             <>Do pedido <strong className="text-ink">#{pedido.codigo}</strong> da vitrine. Confira e registre.</>
           )}
-          {pedido.semEstoque.length > 0 && <> Sem estoque agora, ficou de fora: {pedido.semEstoque.join(", ")}.</>}
+          {pedido.semEstoque.length > 0 && <> Não tá mais à venda, ficou de fora: {pedido.semEstoque.join(", ")}.</>}
         </p>
       )}
       <div className="flex flex-col items-center gap-0.5 pb-1 pt-2 lg:hidden" aria-live="polite">
@@ -592,7 +596,6 @@ export function VendaForm({
                       </button>
                       <CampoQuantidade
                         valor={item.quantidade}
-                        max={produto.estoque}
                         label={`Quantidade de ${produto.nome}`}
                         onChange={(q) => alterarQuantidade(item.chave, q)}
                       />
@@ -601,15 +604,14 @@ export function VendaForm({
                         className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
                         aria-label="Aumentar quantidade"
                         onClick={() => alterarQuantidade(item.chave, item.quantidade + 1)}
-                        disabled={item.quantidade >= produto.estoque}
                       >
                         +
                       </button>
                     </div>
                   </div>
-                  {estoqueBatido === item.chave && (
+                  {item.quantidade > produto.estoque && (
                     <p role="status" className="text-right text-[13px] text-warning">
-                      Só {produto.estoque === 1 ? "tem 1 unidade" : `tem ${produto.estoque} unidades`} em estoque.
+                      Vai ficar com estoque negativo (encomenda).
                     </p>
                   )}
                 </li>
@@ -842,11 +844,38 @@ export function VendaForm({
             type="button"
             onClick={() => {
               setConfirmarZero(false);
-              registrar();
+              conferirEstoque();
             }}
             className={btnPrimary}
           >
             Registrar assim mesmo
+          </button>
+        </div>
+      </Modal>
+      <Modal
+        open={confirmarEncomenda}
+        onClose={() => setConfirmarEncomenda(false)}
+        title="Vender sem estoque?"
+        description={
+          alemDoEstoque.length === 1
+            ? `${nomeCompleto(alemDoEstoque[0].produto)} vai ficar com estoque negativo (encomenda).`
+            : `${alemDoEstoque.length} itens vão ficar com estoque negativo (encomenda): ${alemDoEstoque.map((l) => nomeCompleto(l.produto)).join(", ")}.`
+        }
+        size="sm"
+      >
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={() => setConfirmarEncomenda(false)} className={btnGhost}>
+            Voltar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmarEncomenda(false);
+              registrar();
+            }}
+            className={btnPrimary}
+          >
+            Registrar encomenda
           </button>
         </div>
       </Modal>
