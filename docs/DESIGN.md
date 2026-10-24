@@ -40,8 +40,8 @@ Toda tela segue a mesma ordem, de cima para baixo. O que não tiver uso, fica de
 4. **Corpo:** `Grupo`s separados por `gap-7` (`flex flex-col gap-7`), cada um com título de 13 px em maiúsculas (o próprio `titulo` do `Grupo`).
 5. **Formulário:**
    - Sim ou não: `Interruptor`. Nunca checkbox solto nem dois botões.
-   - Escolha de até 4 opções: `Segmentado`. Mais que 4: `select` ou linha que abre a lista.
-   - Linha com `›` (`LinhaLink`) para o que abre outra tela, acima dos campos do grupo.
+   - Escolha de até 4 opções: `Segmentado`. Mais que 4: linha com o valor à direita e `›`, que abre a lista.
+   - Linha com `›` (`LinhaLink`) para o que abre outra tela.
 6. **Botão principal:** um só `btnPrimary` visível por estado da tela. O resto é `btnSecondary`, `btnGhost` ou `btnSmall`.
 7. **Excluir e cancelar:** no fim da tela, como texto vermelho discreto (`text-danger`). Nunca lixeira na linha da lista.
 8. **Vazio:** `EmptyState` com título, uma frase e o próximo passo como ação.
