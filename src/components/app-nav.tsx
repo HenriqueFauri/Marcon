@@ -12,7 +12,6 @@ import {
   IconMegaphone,
   IconMore,
   IconPlus,
-  IconReceipt,
   IconSettings,
   IconShield,
   IconStore,
@@ -30,40 +29,51 @@ interface NavItem {
   href: string;
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
+  // outras rotas que acendem o mesmo item (as abas do Caixa)
+  tambem?: string[];
 }
 
 const NAV: NavItem[] = [
   { href: "/", label: "Início", icon: IconHome },
   { href: "/vendas", label: "Vendas", icon: IconCart },
-  { href: "/produtos", label: "Produtos", icon: IconBox },
+  { href: "/clientes", label: "Clientes", icon: IconUsers },
   { href: "/anuncios", label: "Anúncios", icon: IconMegaphone },
   { href: "/vitrine", label: "Vitrine", icon: IconStore },
-  { href: "/contas-a-receber", label: "Contas a receber", icon: IconReceipt },
-  { href: "/contas-a-pagar", label: "Contas a pagar", icon: IconReceipt },
-  { href: "/fluxo-de-caixa", label: "Fluxo de caixa", icon: IconWallet },
-  { href: "/clientes", label: "Clientes", icon: IconUsers },
-  { href: "/relatorios", label: "Relatórios", icon: IconChart },
+  { href: "/produtos", label: "Produtos", icon: IconBox },
   { href: "/fornecedores", label: "Fornecedores", icon: IconTruck },
+  // Caixa: abas Extrato (/fluxo-de-caixa), A receber e A pagar
+  { href: "/fluxo-de-caixa", label: "Caixa", icon: IconWallet, tambem: ["/contas-a-receber", "/contas-a-pagar", "/caixa"] },
+  { href: "/relatorios", label: "Relatórios", icon: IconChart },
   { href: "/indique", label: "Indique e ganhe", icon: IconGift },
   { href: "/configuracoes", label: "Configurações", icon: IconSettings },
   // só aparece para admin (ADMIN_EMAILS)
   { href: "/admin", label: "Administração", icon: IconShield },
 ];
 
-// atalhos da barra inferior no celular; o resto fica no "Mais", com Vitrine, Contas a receber e Caixa em destaque
-const NAV_MOBILE = ["/", "/vendas", "/produtos"];
-const NAV_DESTAQUE = ["/vitrine", "/contas-a-receber", "/fluxo-de-caixa"];
-const ROTULO_DESTAQUE: Record<string, string> = { "/contas-a-receber": "A receber", "/fluxo-de-caixa": "Caixa" };
+// atalhos da barra inferior no celular; o resto fica no "Mais", com Caixa em destaque (e nada repetido)
+const NAV_MOBILE = ["/", "/vendas", "/produtos", "/anuncios"];
+const NAV_DESTAQUE = ["/fluxo-de-caixa", "/clientes", "/vitrine"];
 
-// no desktop o menu se divide em grupos, como na barra lateral do Mac
+// no computador o menu se divide em grupos, como na barra lateral do Mac
 const GRUPOS: { titulo: string | null; hrefs: string[] }[] = [
-  { titulo: "Loja", hrefs: ["/", "/vendas", "/produtos", "/anuncios", "/vitrine", "/fornecedores"] },
-  { titulo: "Dinheiro", hrefs: ["/contas-a-receber", "/contas-a-pagar", "/fluxo-de-caixa", "/clientes", "/relatorios"] },
+  { titulo: "Vender", hrefs: ["/", "/vendas", "/clientes", "/anuncios", "/vitrine"] },
+  { titulo: "Estoque", hrefs: ["/produtos", "/fornecedores"] },
+  { titulo: "Dinheiro", hrefs: ["/fluxo-de-caixa", "/relatorios"] },
   { titulo: null, hrefs: ["/indique", "/configuracoes"] },
 ];
 
-function ativo(pathname: string, href: string) {
+function naRota(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+}
+
+function ativo(pathname: string, item: NavItem) {
+  return [item.href, ...(item.tambem ?? [])].some((h) => naRota(pathname, h));
+}
+
+// contagem do item: a do Caixa soma as das abas (o layout manda as parcelas em aberto em /contas-a-receber)
+function contagemDe(item: NavItem, contagens?: Contagens) {
+  if (!contagens) return undefined;
+  return [item.href, ...(item.tambem ?? [])].reduce((s, h) => s + (contagens[h] ?? 0), 0) || undefined;
 }
 
 function Marca({ nomeNegocio, nome }: { nomeNegocio: string; nome: string }) {
@@ -111,7 +121,7 @@ function PlanoLink({ plano, pathname, onNavigate }: { plano: PlanoNav; pathname:
 }
 
 function ItemNav({ item, pathname, onNavigate, contagem }: { item: NavItem; pathname: string; onNavigate?: () => void; contagem?: number }) {
-  const isAtivo = ativo(pathname, item.href);
+  const isAtivo = ativo(pathname, item);
   const Icone = item.icon;
   return (
     <Link
@@ -143,21 +153,29 @@ function ListaNav({
   onNavigate,
   contagens,
   admin,
+  sem = [],
 }: {
   pathname: string;
   onNavigate?: () => void;
   contagens?: Contagens;
   admin?: boolean;
+  // itens que já aparecem em outro lugar (no celular: barra de baixo e destaques do Mais)
+  sem?: string[];
 }) {
   const porHref = new Map(NAV.map((i) => [i.href, i]));
+  const grupos = GRUPOS.map((g) => ({
+    titulo: g.titulo,
+    hrefs: (g.titulo === null && admin ? [...g.hrefs, "/admin"] : g.hrefs).filter((h) => !sem.includes(h)),
+  })).filter((g) => g.hrefs.length > 0);
   return (
     <nav className="flex flex-col gap-4" aria-label="Menu principal">
-      {GRUPOS.map((g, idx) => (
+      {grupos.map((g, idx) => (
         <div key={idx} className="flex flex-col gap-0.5">
           {g.titulo && <p className="px-3 pb-1 text-xs font-semibold text-ink-muted">{g.titulo}</p>}
-          {(g.titulo === null && admin ? [...g.hrefs, "/admin"] : g.hrefs).map((h) => (
-            <ItemNav key={h} item={porHref.get(h)!} pathname={pathname} onNavigate={onNavigate} contagem={contagens?.[h]} />
-          ))}
+          {g.hrefs.map((h) => {
+            const item = porHref.get(h)!;
+            return <ItemNav key={h} item={item} pathname={pathname} onNavigate={onNavigate} contagem={contagemDe(item, contagens)} />;
+          })}
         </div>
       ))}
     </nav>
@@ -248,10 +266,10 @@ export function MobileNav({
 
       <nav
         aria-label="Atalhos"
-        className={`glass fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-4 right-[5.25rem] z-40 ${emVenda ? "hidden" : "grid"} grid-cols-4 items-center rounded-full p-1 shadow-lg shadow-black/15 ring-1 ring-line/60 lg:hidden`}
+        className={`glass fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-4 right-[5.25rem] z-40 ${emVenda ? "hidden" : "grid"} grid-cols-5 items-center rounded-full p-1 shadow-lg shadow-black/15 ring-1 ring-line/60 lg:hidden`}
       >
         {atalhos.map((item) => {
-          const isAtivo = ativo(pathname, item.href);
+          const isAtivo = ativo(pathname, item);
           const Icone = item.icon;
           return (
             <Link
@@ -312,26 +330,45 @@ export function MobileNav({
             </button>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            {NAV.filter((i) => NAV_DESTAQUE.includes(i.href)).map((item) => {
+            {NAV_DESTAQUE.map((h) => NAV.find((i) => i.href === h)!).map((item) => {
               const Icone = item.icon;
-              const isAtivo = ativo(pathname, item.href);
+              const isAtivo = ativo(pathname, item);
+              const contagem = contagemDe(item, contagens);
+              const selo = contagem && SELOS[item.href] ? SELOS[item.href](contagem) : null;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setAberto(false)}
                   aria-current={isAtivo ? "page" : undefined}
-                  className={`flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[13px] font-medium ${
+                  aria-label={contagem ? `${item.label}, ${selo ?? contagem}` : undefined}
+                  className={`relative flex min-h-[72px] flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[13px] font-medium ${
                     isAtivo ? "bg-brand-tint text-brand-text" : "bg-fill text-ink"
                   }`}
                 >
                   <Icone width={22} height={22} className="text-brand-text" />
-                  <span className="max-w-full truncate">{ROTULO_DESTAQUE[item.href] ?? item.label}</span>
+                  <span className="max-w-full truncate">{item.label}</span>
+                  {contagem ? (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums ${
+                        selo ? "bg-danger text-on-danger" : "bg-surface text-ink-muted"
+                      }`}
+                    >
+                      {contagem > 99 ? "99+" : contagem}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}
           </div>
-          <ListaNav pathname={pathname} onNavigate={() => setAberto(false)} contagens={contagens} admin={admin} />
+          <ListaNav
+            pathname={pathname}
+            onNavigate={() => setAberto(false)}
+            contagens={contagens}
+            admin={admin}
+            sem={[...NAV_MOBILE, ...NAV_DESTAQUE]}
+          />
           <PlanoLink plano={plano} pathname={pathname} onNavigate={() => setAberto(false)} />
           <ThemeToggle />
           <SignOutButton />

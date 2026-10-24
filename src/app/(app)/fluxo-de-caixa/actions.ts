@@ -45,6 +45,45 @@ export async function criarLancamentoManual(formData: FormData): Promise<ActionR
   }
 }
 
+// só lançamentos manuais: os automáticos (vendas, parcelas, compras de estoque) mudam na ação de origem
+export async function atualizarLancamento(id: string, formData: FormData): Promise<ActionResult> {
+  try {
+    const tipo = texto(formData, "tipo");
+    const descricao = texto(formData, "descricao");
+    const valor = numero(formData, "valor");
+    const categoria = texto(formData, "categoria") || "Outros";
+    const dataBruta = texto(formData, "data");
+
+    if (tipo !== "entrada" && tipo !== "saida") return { ok: false, error: "Escolha entrada ou saída." };
+    if (!descricao) return { ok: false, error: "A descrição é obrigatória." };
+    if (valor === null || !(valor > 0)) return { ok: false, error: "O valor precisa ser maior que zero." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataBruta)) return { ok: false, error: "Informe a data." };
+
+    const supabase = await createClient();
+    const { data: lancamento } = await supabase
+      .from("lancamentos_caixa")
+      .select("venda_id, parcela_id, movimento_estoque_id, origem")
+      .eq("id", id)
+      .maybeSingle();
+    if (!lancamento) return { ok: false, error: "Esse lançamento não existe mais." };
+    if (lancamento.venda_id || lancamento.parcela_id || lancamento.movimento_estoque_id || lancamento.origem === "compra") {
+      return { ok: false, error: "Esse lançamento foi gerado automaticamente. Mude na venda ou no estoque." };
+    }
+
+    const { error } = await supabase
+      .from("lancamentos_caixa")
+      .update({ tipo, descricao, categoria, valor: Math.round(valor * 100) / 100, data: dataBruta })
+      .eq("id", id);
+    if (error) return falha(error);
+
+    revalidatePath("/fluxo-de-caixa");
+    revalidatePath("/");
+    return ok("Lançamento atualizado.");
+  } catch (e) {
+    return falha(e);
+  }
+}
+
 export async function excluirLancamento(id: string): Promise<ActionResult> {
   try {
     const supabase = await createClient();

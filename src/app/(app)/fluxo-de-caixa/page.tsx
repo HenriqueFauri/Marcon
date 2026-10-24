@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { LancamentoCaixa } from "@/types/domain";
 import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
 import { mensagemDeErro } from "@/lib/action";
 import { comecarNaPrimeira, paramsDoPeriodo, resolverPeriodo } from "@/lib/periodo";
-import { ConfirmButton } from "@/components/confirm-button";
+import { Grupo } from "@/components/ajustes";
+import { SetaLink, linkPendente } from "@/components/seta-link";
 import {
-  Badge,
   EmptyState,
   ErrorMessage,
-  PageHeader,
+  Segmentos,
   StatCard,
   Table,
   tbodyClass,
@@ -18,11 +19,11 @@ import {
   thClass,
   theadClass,
 } from "@/components/ui";
-import { NovoLancamentoForm } from "./novo-lancamento-form";
 import { SeletorPeriodo } from "@/components/seletor-periodo";
-import { excluirLancamento } from "./actions";
+import { CaixaTopo } from "../caixa/topo";
+import { LancamentoForm } from "./novo-lancamento-form";
 
-export const metadata: Metadata = { title: "Fluxo de caixa" };
+export const metadata: Metadata = { title: "Caixa" };
 
 // a lista mostra os mais recentes; os totais vêm do banco (resumo_caixa) e valem para o período todo
 const LIMITE_LISTA = 300;
@@ -33,11 +34,26 @@ interface ResumoCaixa {
   categorias: { categoria: string; valor: number }[];
 }
 
+// de onde veio o lançamento; vai como texto no detalhe da linha (selo só para estado raro)
 function origem(l: LancamentoCaixa) {
-  if (l.parcela_id) return { label: "Parcela", tone: "positive" as const };
-  if (l.venda_id) return l.tipo === "saida" || l.origem === "ajuste" ? { label: "Estorno", tone: "negative" as const } : { label: "Venda", tone: "positive" as const };
-  if (l.movimento_estoque_id || l.origem === "compra") return { label: "Estoque", tone: "info" as const };
-  return { label: "Manual", tone: "neutral" as const };
+  if (l.parcela_id) return "Parcela";
+  if (l.venda_id) return l.tipo === "saida" || l.origem === "ajuste" ? "Estorno" : "Venda";
+  if (l.movimento_estoque_id || l.origem === "compra") return "Estoque";
+  return "Manual";
+}
+
+function detalhe(l: LancamentoCaixa) {
+  const o = origem(l);
+  return o === l.categoria || o === "Manual" ? l.categoria : `${o} · ${l.categoria}`;
+}
+
+function Valor({ l, className = "" }: { l: LancamentoCaixa; className?: string }) {
+  return (
+    <span className={`whitespace-nowrap tabular-nums ${l.tipo === "entrada" ? "text-positive" : "text-ink"} ${className}`}>
+      {l.tipo === "entrada" ? "+ " : "− "}
+      {formatBRL(l.valor)}
+    </span>
+  );
 }
 
 export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/fluxo-de-caixa">) {
@@ -64,13 +80,13 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
   if (tipo) query = query.eq("tipo", tipo);
 
   const hoje = hojeISO();
-  // saldo real: até hoje (lançamento com data futura ainda não está no caixa) ou
-  // até o fim do período consultado; tudo somado no banco pra não cortar em 1000 linhas
+  // saldo no fim de um período que já passou (o saldo de hoje fica no topo da área)
   const ultimoDia = somarDias(fimExclusivo, -1);
+  const periodoPassado = ultimoDia < hoje;
   const [{ data, error, count }, { data: saldoFinalData }, { data: saldoAnteriorData }, { data: resumoData, error: resumoError }] =
     await Promise.all([
       query,
-      supabase.rpc("saldo_caixa", { p_ate: ultimoDia < hoje ? ultimoDia : hoje }),
+      supabase.rpc("saldo_caixa", { p_ate: periodoPassado ? ultimoDia : hoje }),
       supabase.rpc("saldo_caixa", { p_ate: somarDias(inicio, -1) }),
       supabase.rpc("resumo_caixa", { p_inicio: inicio, p_fim_exclusivo: fimExclusivo }),
     ]);
@@ -79,8 +95,8 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
   if (erroCarregar) {
     return (
       <div>
-        <PageHeader title="Fluxo de caixa" />
-        <ErrorMessage>Não foi possível carregar o fluxo de caixa: {mensagemDeErro(erroCarregar)}</ErrorMessage>
+        <CaixaTopo aba="extrato" />
+        <ErrorMessage>Não foi possível carregar o extrato: {mensagemDeErro(erroCarregar)}</ErrorMessage>
       </div>
     );
   }
@@ -94,7 +110,7 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
   const saidas = Number(resumo.saidas);
   const resultado = entradas - saidas;
   const saldoAnterior = Number(saldoAnteriorData ?? 0);
-  const saldoEmCaixa = Number(saldoFinalData ?? 0);
+  const saldoFinal = Number(saldoFinalData ?? 0);
 
   // maiores gastos por categoria no período
   const topCategorias = resumo.categorias.map((c) => [c.categoria, Number(c.valor)] as const);
@@ -106,147 +122,186 @@ export default async function FluxoDeCaixaPage({ searchParams }: PageProps<"/flu
     return s ? `/fluxo-de-caixa?${s}` : "/fluxo-de-caixa";
   };
 
+  // lista do celular separada por dia, como em Vendas
+  const porDia = new Map<string, LancamentoCaixa[]>();
+  for (const l of lancamentos) porDia.set(l.data, [...(porDia.get(l.data) ?? []), l]);
+
+  // a linha leva à venda ou ao produto; lançamento manual abre a janela de editar (com excluir no fim)
+  const linha = (l: LancamentoCaixa, conteudo: ReactNode, classe: string, comSeta: boolean): ReactNode => {
+    const seta = comSeta ? <SetaLink /> : null;
+    if (l.venda_id || l.produto_id) {
+      return (
+        <Link href={l.venda_id ? `/vendas/${l.venda_id}` : `/produtos/${l.produto_id}`} className={`${classe} ${linkPendente}`}>
+          {conteudo}
+          {seta}
+        </Link>
+      );
+    }
+    if (origem(l) === "Manual") {
+      return (
+        <LancamentoForm
+          hoje={hoje}
+          categorias={categorias}
+          lancamento={{ id: l.id, tipo: l.tipo, descricao: l.descricao, valor: Number(l.valor), data: l.data, categoria: l.categoria }}
+          triggerClassName={`${classe} w-full text-left`}
+          trigger={
+            <>
+              {conteudo}
+              {comSeta && (
+                <span aria-hidden="true" className="text-lg text-ink-faint">
+                  ›
+                </span>
+              )}
+            </>
+          }
+        />
+      );
+    }
+    return <div className={classe}>{conteudo}</div>;
+  };
+
   return (
     <div>
-      <PageHeader
-        title="Fluxo de caixa"
-        action={<NovoLancamentoForm hoje={hoje} categorias={categorias} />}
-      />
+      <CaixaTopo aba="extrato" action={<LancamentoForm hoje={hoje} categorias={categorias} />} />
 
-      <div className="mb-4 flex flex-col gap-3">
-        <SeletorPeriodo tipo="caixa" periodo={periodo} basePath="/fluxo-de-caixa" params={{ tipo }} />
-        {!noMes && (
-          <p className="text-[13px] text-ink-muted">
-            {periodo.modo === "todo" ? <>Desde o primeiro lançamento, {formatData(periodo.de)}, até hoje</> : <>De {formatData(periodo.de)} até {formatData(periodo.ate)}</>}
-          </p>
-        )}
-        {/* mesmo controle segmentado do período, para os filtros da tela terem um estilo só */}
-        <div className="grid w-full grid-cols-3 gap-0.5 rounded-full bg-fill p-[3px] sm:w-80" role="group" aria-label="Tipo">
-          {[
-            [undefined, "Tudo"],
-            ["entrada", "Entradas"],
-            ["saida", "Saídas"],
-          ].map(([valor, rotulo]) => (
-            <Link
-              key={rotulo}
-              href={filtroHref(valor)}
-              aria-current={tipo === valor ? "page" : undefined}
-              className={`rounded-full px-2 py-2 text-center text-[13px] transition ${tipo === valor ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"}`}
-            >
-              {rotulo}
-            </Link>
-          ))}
+      <div className="flex flex-col gap-7">
+        <div className="flex flex-col gap-3">
+          <SeletorPeriodo tipo="caixa" periodo={periodo} basePath="/fluxo-de-caixa" params={{ tipo }} />
+          {!noMes && (
+            <p className="px-1 text-[13px] text-ink-muted">
+              {periodo.modo === "todo" ? <>Desde o primeiro lançamento, {formatData(periodo.de)}, até hoje</> : <>De {formatData(periodo.de)} até {formatData(periodo.ate)}</>}
+            </p>
+          )}
+          <Segmentos
+            rotulo="Tipo de lançamento"
+            className="sm:w-80"
+            itens={[
+              { href: filtroHref(), label: "Tudo", ativo: !tipo },
+              { href: filtroHref("entrada"), label: "Entradas", ativo: tipo === "entrada" },
+              { href: filtroHref("saida"), label: "Saídas", ativo: tipo === "saida" },
+            ]}
+          />
         </div>
-      </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={noMes ? "Entradas no mês" : "Entradas no período"} value={formatBRL(entradas)} tone="positive" />
-        <StatCard label={noMes ? "Saídas no mês" : "Saídas no período"} value={formatBRL(saidas)} tone="negative" />
-        <StatCard
-          label={noMes ? "Resultado do mês" : "Resultado do período"}
-          value={formatBRL(resultado)}
-          tone={resultado >= 0 ? "positive" : "negative"}
-          hint="Entrou menos saiu"
-        />
-        <StatCard
-          label="Saldo em caixa"
-          value={formatBRL(saldoEmCaixa)}
-          tone={saldoEmCaixa >= 0 ? "neutral" : "negative"}
-          hint={`${formatBRL(saldoAnterior)} ${noMes ? "do mês anterior" : "antes do período"}`}
-        />
-      </div>
-
-      {!tipo && topCategorias.length > 0 && (
-        <div className="hairline mb-6 rounded-3xl bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold text-ink">Para onde foi o dinheiro</h2>
-          <ul className="space-y-2">
-            {topCategorias.map(([cat, valor]) => (
-              <li key={cat} className="text-sm">
-                <div className="mb-1 flex justify-between">
-                  <span className="text-ink-2">{cat}</span>
-                  <span className="tabular-nums text-ink-muted">{formatBRL(valor)}</span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-fill">
-                  <div className="h-full rounded-full bg-danger/70" style={{ width: `${(valor / saidas) * 100}%` }} />
-                </div>
-              </li>
-            ))}
-          </ul>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label={noMes ? "Entradas no mês" : "Entradas no período"} value={formatBRL(entradas)} tone="positive" />
+          <StatCard label={noMes ? "Saídas no mês" : "Saídas no período"} value={formatBRL(saidas)} tone="negative" />
+          <StatCard
+            label={noMes ? "Resultado do mês" : "Resultado do período"}
+            value={formatBRL(resultado)}
+            tone={resultado >= 0 ? "positive" : "negative"}
+            hint="Entrou menos saiu"
+            className={periodoPassado ? "" : "col-span-2 lg:col-span-1"}
+          />
+          {periodoPassado && (
+            <StatCard
+              label={noMes ? "Saldo no fim do mês" : "Saldo no fim do período"}
+              value={formatBRL(saldoFinal)}
+              tone={saldoFinal >= 0 ? "neutral" : "negative"}
+              hint={`Começou com ${formatBRL(saldoAnterior)}`}
+            />
+          )}
         </div>
-      )}
 
-      {lancamentos.length === 0 ? (
-        <EmptyState
-          title="Nenhum lançamento neste período"
-          description="Vendas à vista, parcelas recebidas e compras de estoque entram aqui automaticamente."
-        />
-      ) : (
-        <>
-        <Table compacta>
-          <thead className={theadClass}>
-            <tr>
-              <th className={thClass}>Data</th>
-              <th className={thClass}>Descrição</th>
-              <th className={`${thClass} hidden sm:table-cell`}>Categoria</th>
-              <th className={`${thClass} text-right`}>Valor</th>
-              <th className={`${thClass} text-right`}>
-                <span className="sr-only">Ações</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className={tbodyClass}>
-            {lancamentos.map((l) => {
-              const o = origem(l);
-              const manual = o.label === "Manual";
-              return (
-                <tr key={l.id} className="hover:bg-fill/50">
-                  <td className={`${tdClass} whitespace-nowrap text-ink-2`}>{formatData(l.data)}</td>
-                  <td className={tdClass}>
-                    {l.venda_id ? (
-                      <Link href={`/vendas/${l.venda_id}`} className="text-ink hover:underline">
-                        {l.descricao}
-                      </Link>
-                    ) : l.produto_id ? (
-                      <Link href={`/produtos/${l.produto_id}`} className="text-ink hover:underline">
-                        {l.descricao}
-                      </Link>
-                    ) : (
-                      <span className="text-ink">{l.descricao}</span>
-                    )}
-                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                      <Badge tone={o.tone}>{o.label}</Badge>
-                      <span className="text-xs text-ink-muted sm:hidden">{l.categoria}</span>
-                    </span>
-                  </td>
-                  <td className={`${tdClass} hidden text-ink-muted sm:table-cell`}>{l.categoria}</td>
-                  <td
-                    className={`${tdClass} whitespace-nowrap text-right font-medium tabular-nums ${l.tipo === "entrada" ? "text-positive" : "text-danger"}`}
-                  >
-                    {l.tipo === "entrada" ? "+ " : "− "}
-                    {formatBRL(l.valor)}
-                  </td>
-                  <td className={`${tdClass} text-right`}>
-                    {manual && (
-                      <ConfirmButton
-                        title="Excluir este lançamento?"
-                        description={`${l.descricao}: ${formatBRL(l.valor)}`}
-                        ariaLabel="Excluir lançamento"
-                        onConfirm={excluirLancamento.bind(null, l.id)}
-                      />
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
-        {totalDeLancamentos > lancamentos.length && (
-          <p className="mt-3 px-1 text-[13px] text-ink-muted">
-            Mostrando os {lancamentos.length} mais recentes de {totalDeLancamentos}. Os totais acima contam todos. Escolha um período menor para ver o resto.
-          </p>
+        {!tipo && topCategorias.length > 0 && (
+          <Grupo titulo="Para onde foi o dinheiro">
+            <ul className="flex flex-col gap-3">
+              {topCategorias.map(([cat, valor]) => (
+                <li key={cat}>
+                  <div className="mb-1 flex justify-between gap-3 text-[15px]">
+                    <span className="truncate text-ink">{cat}</span>
+                    <span className="shrink-0 tabular-nums text-ink-muted">{formatBRL(valor)}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-fill">
+                    <div className="h-full rounded-full bg-danger/70" style={{ width: `${saidas > 0 ? (valor / saidas) * 100 : 0}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Grupo>
         )}
-        </>
-      )}
+
+        {lancamentos.length === 0 ? (
+          <EmptyState
+            title="Nenhum lançamento neste período"
+            description="Vendas à vista, parcelas recebidas e compras de estoque entram aqui sozinhas."
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {/* celular: lista agrupada por dia */}
+            <div className="flex flex-col gap-6 sm:hidden">
+              {Array.from(porDia).map(([dia, doDia]) => (
+                <section key={dia}>
+                  <h2 className="mb-1.5 px-4 text-[13px] uppercase text-ink-muted">{dia === hoje ? "Hoje" : formatData(dia)}</h2>
+                  <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface">
+                    {doDia.map((l) => (
+                      <li key={l.id}>
+                        {linha(
+                          l,
+                          <>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[17px] text-ink">{l.descricao}</span>
+                              <span className="block truncate text-[13px] text-ink-muted">{detalhe(l)}</span>
+                            </span>
+                            <Valor l={l} className="shrink-0 text-[17px]" />
+                          </>,
+                          "flex items-center gap-3 px-4 py-3 transition active:bg-fill",
+                          true,
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+
+            {/* computador: tabela */}
+            <div className="hidden sm:block">
+              <Table compacta>
+                <thead className={theadClass}>
+                  <tr>
+                    <th className={thClass}>Data</th>
+                    <th className={thClass}>Descrição</th>
+                    <th className={thClass}>Categoria</th>
+                    <th className={`${thClass} text-right`}>Valor</th>
+                  </tr>
+                </thead>
+                <tbody className={tbodyClass}>
+                  {lancamentos.map((l) => {
+                    const o = origem(l);
+                    return (
+                      <tr key={l.id} className="hover:bg-fill/50">
+                        <td className={`${tdClass} whitespace-nowrap text-ink-2`}>{formatData(l.data)}</td>
+                        <td className={tdClass}>
+                          {linha(
+                            l,
+                            <span className="min-w-0">
+                              <span className="block text-ink hover:underline">{l.descricao}</span>
+                              <span className="block text-xs text-ink-muted">{o}</span>
+                            </span>,
+                            "block",
+                            false,
+                          )}
+                        </td>
+                        <td className={`${tdClass} text-ink-muted`}>{l.categoria}</td>
+                        <td className={`${tdClass} text-right font-medium`}>
+                          <Valor l={l} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+
+            {totalDeLancamentos > lancamentos.length && (
+              <p className="px-4 text-[13px] text-ink-muted">
+                Mostrando os {lancamentos.length} mais recentes de {totalDeLancamentos}. Os totais acima contam todos. Escolha um período menor para ver o resto.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
