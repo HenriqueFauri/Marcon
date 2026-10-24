@@ -5,7 +5,7 @@ import { situacaoEstoque } from "@/lib/estoque";
 import { EmptyState, ErrorMessage, PageHeader } from "@/components/ui";
 import { ListaReposicao, type GrupoReposicao } from "./lista-reposicao";
 
-export const metadata: Metadata = { title: "O que comprar" };
+export const metadata: Metadata = { title: "Repor estoque" };
 
 const PAGINA = 1000;
 
@@ -48,7 +48,7 @@ export default async function ReposicaoPage() {
   if (erro) {
     return (
       <div>
-        <PageHeader title="O que comprar" back={{ href: "/fornecedores", label: "Fornecedores" }} />
+        <PageHeader title="Repor estoque" back={{ href: "/fornecedores", label: "Fornecedores" }} />
         <ErrorMessage>Não foi possível montar a lista: {erro}</ErrorMessage>
       </div>
     );
@@ -88,11 +88,11 @@ export default async function ReposicaoPage() {
 
   return (
     <div>
-      <PageHeader title="O que comprar" back={{ href: "/fornecedores", label: "Fornecedores" }} />
+      <PageHeader title="Repor estoque" back={{ href: "/fornecedores", label: "Fornecedores" }} />
       {lista.length === 0 ? (
         <EmptyState
           title="Nada acabando"
-          description="Os produtos que chegarem no alerta de estoque baixo (ou zerarem) aparecem aqui, com a quantidade sugerida."
+          description="Produto acabando ou zerado aparece aqui, já com a quantidade pra repor."
         />
       ) : (
         <ListaReposicao grupos={lista} />

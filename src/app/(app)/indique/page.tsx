@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Badge, Card, EmptyState, PageHeader, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Badge, EmptyState, PageHeader, StatCard } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { formatBRL, formatData } from "@/lib/format";
 import { PLANOS } from "@/lib/planos";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
@@ -119,15 +120,17 @@ export default async function IndiquePage() {
     ...saques.map((s) => ({ tipo: "saque" as const, data: s.pedido_em, s })),
   ].sort((a, b) => b.data.localeCompare(a.data));
 
+  const LINHA = "flex items-center gap-3 border-t border-line px-4 py-3 first:border-t-0";
+
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="Indique e ganhe" />
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-7">
         <CompartilharCard
           link={link}
           mensagem={mensagemDeConvite(link)}
-          descricao={`Você ganha ${percentual}% (${formatBRL(comissaoPorMes)}) de cada mensalidade de quem assinar pelo seu link, todo mês, enquanto a pessoa continuar assinando. No plano anual, ${formatBRL(comissaoPorAno)} a cada ano pago.`}
+          descricao={`Você ganha ${percentual}% de cada cobrança paga por quem assinar pelo seu link, enquanto a pessoa continuar assinando: ${formatBRL(comissaoPorMes)} por mês no mensal, ${formatBRL(comissaoPorAno)} por ano no anual.`}
         />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -143,107 +146,97 @@ export default async function IndiquePage() {
 
         <SaqueCard disponivel={resumo.disponivel} chavePix={afiliado.chave_pix} emPedido={resumo.emPedido} />
 
-        <section>
-          <h2 className="mb-3 text-sm font-semibold text-ink">Quem você indicou</h2>
-          {indicados.length === 0 ? (
-            <EmptyState
-              title="Ninguém ainda"
-              description="Mande o link pra quem vende no Marketplace ou no WhatsApp e ainda anota tudo no caderno. Quando a pessoa criar a conta, ela aparece aqui."
-            />
-          ) : (
-            <Table compacta>
-              <thead className={theadClass}>
-                <tr>
-                  <th className={thClass}>Pessoa</th>
-                  <th className={thClass}>Situação</th>
-                  <th className={`${thClass} text-right`}>Você ganhou</th>
-                </tr>
-              </thead>
-              <tbody className={tbodyClass}>
-                {indicados.map((i) => (
-                  <tr key={i.id}>
-                    <td className={tdClass}>
-                      <p className="font-medium text-ink">{i.nome}</p>
-                      <p className="text-[13px] text-ink-muted">
-                        {i.negocio ? `${i.negocio} · ` : ""}entrou em {formatData(i.desde)}
+        {indicados.length === 0 ? (
+          <EmptyState
+            title="Ninguém indicado ainda"
+            description="Mande o link pra quem vende no Marketplace ou no WhatsApp. Quando a pessoa criar a conta, ela aparece aqui."
+          />
+        ) : (
+          <Grupo titulo="Quem você indicou" semPadding>
+            {indicados.map((i) => {
+              // selo só para o que pede atenção (pagamento pendente ou atrasado, teste acabando)
+              const alerta = i.situacao?.tom === "warning";
+              const detalhe = [i.negocio, `entrou em ${formatData(i.desde)}`, !alerta ? i.situacao?.texto : null]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <div key={i.id} className={LINHA}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[17px] text-ink">{i.nome}</p>
+                    <p className="text-[13px] text-ink-muted">{detalhe}</p>
+                    {alerta && i.situacao && (
+                      <p className="mt-1">
+                        <Badge tone="warning">{i.situacao.texto}</Badge>
                       </p>
-                    </td>
-                    <td className={tdClass}>{i.situacao && <Badge tone={i.situacao.tom}>{i.situacao.texto}</Badge>}</td>
-                    <td className={`${tdClass} text-right tabular-nums text-ink`}>{formatBRL(ganhoPorIndicado.get(i.id) ?? 0)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          )}
-        </section>
-
-        {extrato.length > 0 && (
-          <section>
-            <h2 className="mb-3 text-sm font-semibold text-ink">Extrato</h2>
-            <Table compacta>
-              <thead className={theadClass}>
-                <tr>
-                  <th className={thClass}>O que foi</th>
-                  <th className={thClass}>Situação</th>
-                  <th className={`${thClass} text-right`}>Valor</th>
-                </tr>
-              </thead>
-              <tbody className={tbodyClass}>
-                {extrato.map((linha) =>
-                  linha.tipo === "comissao" ? (
-                    <tr key={linha.c.id}>
-                      <td className={tdClass}>
-                        <p className="font-medium text-ink">Mensalidade de {nomeDe.get(linha.c.indicado_id) ?? "alguém"}</p>
-                        <p className="text-[13px] text-ink-muted">{formatData(linha.data.slice(0, 10))}</p>
-                      </td>
-                      <td className={tdClass}>
-                        {linha.c.estornada_em ? (
-                          <Badge tone="negative">Estornada</Badge>
-                        ) : new Date(linha.c.liberada_em) > new Date() ? (
-                          <Badge tone="info">Libera em {formatData(linha.c.liberada_em.slice(0, 10))}</Badge>
-                        ) : (
-                          <Badge tone="positive">Liberada</Badge>
-                        )}
-                      </td>
-                      <td className={`${tdClass} text-right tabular-nums ${linha.c.estornada_em ? "text-ink-muted line-through" : "text-ink"}`}>
-                        {formatBRL(Number(linha.c.valor))}
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={linha.s.id}>
-                      <td className={tdClass}>
-                        <p className="font-medium text-ink">Saque por PIX</p>
-                        <p className="text-[13px] text-ink-muted">
-                          {formatData(linha.data.slice(0, 10))} · {linha.s.chave_pix}
-                        </p>
-                      </td>
-                      <td className={tdClass}>
-                        <Badge tone={linha.s.status === "pago" ? "positive" : linha.s.status === "recusado" ? "negative" : "warning"}>
-                          {linha.s.status === "pago" ? "Pago" : linha.s.status === "recusado" ? "Recusado" : "Aguardando pagamento"}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3.5 text-right tabular-nums text-ink">− {formatBRL(Number(linha.s.valor))}</td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </Table>
-          </section>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-[17px] tabular-nums text-ink">{formatBRL(ganhoPorIndicado.get(i.id) ?? 0)}</span>
+                </div>
+              );
+            })}
+          </Grupo>
         )}
 
-        <Card title="As regras">
-          <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[15px] text-ink-2">
-            <li>
-              Você ganha {percentual}% de cada mensalidade paga por quem indicou, inclusive nas renovações.
-            </li>
-            <li>
-              O valor vira saldo {CARENCIA_DIAS} dias depois do pagamento, porque é quando o dinheiro da mensalidade chega ao Marcon e o prazo de estorno do cartão passa.
-            </li>
-            <li>Saque a partir de {formatBRL(SAQUE_MINIMO)}, por PIX.</li>
-            <li>Se o pagamento for estornado, a comissão dele é cancelada.</li>
-            <li>Vale só para conta nova. Indicar a própria conta não conta.</li>
-          </ul>
-        </Card>
+        {extrato.length > 0 && (
+          <Grupo titulo="Extrato" semPadding>
+            {extrato.map((linha) => {
+              if (linha.tipo === "comissao") {
+                const estornada = !!linha.c.estornada_em;
+                const aLiberar = !estornada && new Date(linha.c.liberada_em) > new Date();
+                const situacao = aLiberar ? `libera em ${formatData(linha.c.liberada_em.slice(0, 10))}` : estornada ? null : "liberada";
+                return (
+                  <div key={linha.c.id} className={LINHA}>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[17px] text-ink">Assinatura de {nomeDe.get(linha.c.indicado_id) ?? "alguém"}</p>
+                      <p className="text-[13px] text-ink-muted">
+                        {[formatData(linha.data.slice(0, 10)), situacao].filter(Boolean).join(" · ")}
+                      </p>
+                      {estornada && (
+                        <p className="mt-1">
+                          <Badge tone="negative">Estornada</Badge>
+                        </p>
+                      )}
+                    </div>
+                    <span className={`shrink-0 text-[17px] tabular-nums ${estornada ? "text-ink-muted line-through" : "text-ink"}`}>
+                      {formatBRL(Number(linha.c.valor))}
+                    </span>
+                  </div>
+                );
+              }
+              const s = linha.s;
+              return (
+                <div key={s.id} className={LINHA}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[17px] text-ink">Saque por PIX</p>
+                    <p className="truncate text-[13px] text-ink-muted">
+                      {[formatData(linha.data.slice(0, 10)), s.status === "pago" ? "pago" : null, s.chave_pix].filter(Boolean).join(" · ")}
+                    </p>
+                    {s.status !== "pago" && (
+                      <p className="mt-1">
+                        <Badge tone={s.status === "recusado" ? "negative" : "warning"}>
+                          {s.status === "recusado" ? "Recusado" : "Aguardando pagamento"}
+                        </Badge>
+                      </p>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-[17px] tabular-nums text-ink">− {formatBRL(Number(s.valor))}</span>
+                </div>
+              );
+            })}
+          </Grupo>
+        )}
+
+        <Grupo titulo="Regras" semPadding>
+          <p className={`${LINHA} text-[15px] text-ink`}>
+            {percentual}% de cada cobrança paga, mensal ou anual, inclusive nas renovações.
+          </p>
+          <p className={`${LINHA} text-[15px] text-ink`}>
+            Vira saldo {CARENCIA_DIAS} dias depois do pagamento, quando passa o prazo de estorno do cartão.
+          </p>
+          <p className={`${LINHA} text-[15px] text-ink`}>Saque por PIX, a partir de {formatBRL(SAQUE_MINIMO)}.</p>
+          <p className={`${LINHA} text-[15px] text-ink`}>Pagamento estornado cancela a comissão dele.</p>
+          <p className={`${LINHA} text-[15px] text-ink`}>Vale só para conta nova. Indicar a própria conta não conta.</p>
+        </Grupo>
       </div>
     </div>
   );
