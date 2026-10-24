@@ -1,5 +1,5 @@
-import { EsqueletoLista } from "@/components/esqueleto";
+import { EsqueletoDetalhe } from "@/components/esqueleto";
 
 export default function Loading() {
-  return <EsqueletoLista />;
+  return <EsqueletoDetalhe />;
 }

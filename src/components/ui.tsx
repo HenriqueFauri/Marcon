@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 // Classes compartilhadas: mantêm o visual consistente entre telas sem precisar
 // de uma biblioteca de componentes.
@@ -15,6 +15,12 @@ export const btnPrimary = `${btnBase} bg-brand-fill px-5 py-2.5 text-on-brand sh
 export const btnSecondary = `${btnBase} bg-fill px-5 py-2.5 text-ink hover:bg-fill-strong`;
 export const btnGhost = `${btnBase} px-4 py-2.5 font-medium text-ink-2 hover:bg-fill hover:text-ink`;
 export const btnDanger = `${btnBase} bg-danger px-5 py-2.5 text-on-danger hover:bg-danger/90`;
+// Pílula pequena para ação dentro de uma linha de lista (Pagar, Receber, Copiar): não disputa
+// com o btnPrimary da tela. Some a cor: `${btnSmall} bg-fill text-ink hover:bg-fill-strong` (neutra)
+// ou `${btnSmall} bg-brand-fill text-on-brand` (destaque, no máximo uma por linha).
+export const btnSmall =
+  "inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold transition outline-none focus-visible:ring-4 focus-visible:ring-brand/40 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
+export const btnSmallNeutro = `${btnSmall} bg-fill text-ink hover:bg-fill-strong`;
 export const btnIcon =
   "inline-flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition hover:bg-fill hover:text-ink disabled:opacity-50";
 export const btnIconDanger =
@@ -135,20 +141,40 @@ export function StatCard({
   );
 }
 
+// gráfico fantasma dos relatórios: no lugar de uma tela em branco
+function GraficoFantasma() {
+  return (
+    <svg viewBox="0 0 120 64" width={120} height={64} aria-hidden="true" className="mb-1 text-fill-strong">
+      <rect x="6" y="38" width="14" height="22" rx="4" fill="currentColor" />
+      <rect x="28" y="26" width="14" height="34" rx="4" fill="currentColor" />
+      <rect x="50" y="42" width="14" height="18" rx="4" fill="currentColor" />
+      <rect x="72" y="14" width="14" height="46" rx="4" fill="currentColor" />
+      <rect x="94" y="30" width="14" height="30" rx="4" fill="currentColor" />
+      <path d="M4 62h112" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Estado vazio de qualquer lista ou relatório: título, uma frase e o próximo passo.
+// ilustracao="grafico" mostra o gráfico fantasma (relatórios); um ReactNode entra no lugar dele.
+// As ações ocupam a largura toda no celular e ficam lado a lado no computador.
 export function EmptyState({
   title,
   description,
   action,
+  ilustracao,
 }: {
-  title: string;
+  title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  ilustracao?: "grafico" | ReactNode;
 }) {
   return (
-    <div className="hairline flex flex-col items-center gap-2 rounded-3xl bg-surface px-6 py-14 text-center">
-      <p className="text-[17px] font-semibold text-ink">{title}</p>
+    <div className="hairline flex flex-col items-center gap-2 rounded-3xl bg-surface px-6 py-12 text-center">
+      {ilustracao === "grafico" ? <GraficoFantasma /> : ilustracao}
+      <p className="text-[17px] font-semibold tracking-tight text-ink">{title}</p>
       {description && <p className="max-w-sm text-[15px] text-ink-muted">{description}</p>}
-      {action && <div className="mt-2">{action}</div>}
+      {action && <div className="mt-2 flex w-full max-w-xs flex-col gap-2 sm:w-auto sm:max-w-none sm:flex-row">{action}</div>}
     </div>
   );
 }
@@ -221,18 +247,30 @@ export function Segmentos({
   rotulo,
   className = "",
   substituir = true,
+  colunasCelular,
 }: {
   itens: { href: string; label: ReactNode; ativo: boolean }[];
   rotulo: string;
   className?: string;
   // filtros trocam a URL sem empilhar histórico; abas de seção empilham (o Voltar volta para a aba anterior)
   substituir?: boolean;
+  // mais de 4 opções: no celular quebra em fileiras com esse número de colunas (ex.: 6 opções, 3 colunas)
+  // e volta a uma fileira só a partir de sm. Sem ele, sempre uma fileira.
+  colunasCelular?: number;
 }) {
+  const quebra = !!colunasCelular && colunasCelular < itens.length;
+  const estilo = (quebra
+    ? { "--cols": colunasCelular, "--cols-sm": itens.length }
+    : { gridTemplateColumns: `repeat(${itens.length}, minmax(0, 1fr))` }) as CSSProperties;
   return (
     <nav
       aria-label={rotulo}
-      className={`grid gap-0.5 rounded-full bg-fill p-[3px] ${className}`}
-      style={{ gridTemplateColumns: `repeat(${itens.length}, minmax(0, 1fr))` }}
+      className={`grid gap-0.5 bg-fill p-[3px] ${
+        quebra
+          ? "grid-cols-[repeat(var(--cols),minmax(0,1fr))] rounded-2xl sm:grid-cols-[repeat(var(--cols-sm),minmax(0,1fr))] sm:rounded-full"
+          : "rounded-full"
+      } ${className}`}
+      style={estilo}
     >
       {itens.map((i) => (
         <Link
@@ -240,7 +278,7 @@ export function Segmentos({
           href={i.href}
           replace={substituir}
           aria-current={i.ativo ? "page" : undefined}
-          className={`flex min-w-0 items-center justify-center gap-1 rounded-full px-2 py-2 text-[13px] transition ${
+          className={`flex min-w-0 items-center justify-center gap-1 px-2 py-2 text-[13px] transition ${quebra ? "rounded-xl sm:rounded-full" : "rounded-full"} ${
             i.ativo ? "bg-surface font-semibold text-ink shadow-sm" : "font-medium text-ink-2 hover:text-ink"
           }`}
         >

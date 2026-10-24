@@ -6,10 +6,9 @@ import { mensagemDeErro } from "@/lib/action";
 import { resolverPeriodoRelatorio } from "@/lib/relatorios";
 import { analiseClientes } from "@/lib/relatorios-dados";
 import { Grupo } from "@/components/ajustes";
-import { PageHeader, ErrorMessage, Segmentos, StatCard, btnPrimary } from "@/components/ui";
+import { PageHeader, ErrorMessage, Segmentos, StatCard, btnPrimary, EmptyState } from "@/components/ui";
 import { BarraEmpilhada } from "@/components/graficos/rosca";
-import { EstadoVazio } from "@/components/graficos/vazio";
-import { SeletorPeriodo } from "../../relatorios/seletor-periodo";
+import { SeletorPeriodo } from "@/components/seletor-periodo";
 import { LinhaCliente, detalheCompras, detalheSumido } from "../../relatorios/clientes-secao";
 
 export const metadata: Metadata = { title: "Clientes: insights" };
@@ -47,10 +46,11 @@ export default async function ClientesInsightsPage({ searchParams }: PageProps<"
       />
 
       {a.compradores === 0 ? (
-        <EstadoVazio
-          titulo="Ainda sem compras de clientes"
-          texto="Quando você registrar vendas com um cliente cadastrado, aqui aparece quem mais compra e quem sumiu."
-          acoes={
+        <EmptyState
+          ilustracao="grafico"
+          title="Ainda sem compras de clientes"
+          description="Quando você registrar vendas com um cliente cadastrado, aqui aparece quem mais compra e quem sumiu."
+          action={
             <Link href="/vendas/novo" className={btnPrimary}>
               Nova venda
             </Link>
@@ -66,7 +66,7 @@ export default async function ClientesInsightsPage({ searchParams }: PageProps<"
           </div>
 
           <div className="flex flex-col gap-3">
-            <SeletorPeriodo periodo={periodo} basePath="/clientes/insights" />
+            <SeletorPeriodo tipo="relatorio" periodo={periodo} basePath="/clientes/insights" />
             <Grupo titulo="Novos e recorrentes">
               {np.novos + np.recorrentes === 0 ? (
                 <p className="text-[15px] text-ink-muted">Nenhum cliente cadastrado comprou nesse período.</p>
