@@ -6,7 +6,7 @@ import { lerTudo } from "@/lib/ler-tudo";
 import { lerCapas } from "@/lib/capas";
 import type { ProdutoComEstoque } from "@/types/domain";
 import { SearchInput } from "@/components/search-input";
-import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/components/ui";
+import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, btnPrimary } from "@/components/ui";
 import { IconBox } from "@/components/icons";
 import { FotoProduto } from "@/components/foto-produto";
 import { VistaToggle, type Vista } from "./vista-toggle";
@@ -94,26 +94,29 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
 
   return (
     <div>
-      <PageHeader
-        title="Anúncios"
-      />
+      <PageHeader title="Anúncios" />
 
       <div className="mb-4 flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <SearchInput placeholder="Buscar produto..." />
-          <VistaToggle vista={vista} hrefLista={href({ vista: "lista" })} hrefGaleria={href({ vista: "galeria" })} />
-        </div>
         <Segmentos
           rotulo="Filtrar anúncios"
           className="sm:w-96"
           itens={FILTROS.map((f) => ({ href: href({ filtro: f.valor }), label: f.label, ativo: filtro === f.valor }))}
         />
+        <div className="flex items-center gap-3">
+          <SearchInput placeholder="Buscar produto..." />
+          <VistaToggle vista={vista} hrefLista={href({ vista: "lista" })} hrefGaleria={href({ vista: "galeria" })} />
+        </div>
       </div>
 
       {produtos.length === 0 ? (
         <EmptyState
           title="Nenhum produto cadastrado"
           description="Cadastre um produto para montar os anúncios dele."
+          action={
+            <Link href="/produtos/novo" className={btnPrimary}>
+              Cadastrar produto
+            </Link>
+          }
         />
       ) : lista.length === 0 ? (
         <EmptyState title="Nenhum produto encontrado" description="Tente outro termo de busca ou filtro." />
@@ -135,7 +138,8 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                     <IconBox width={32} height={32} />
                   )}
                   <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-                    {tem && <Badge tone="positive">Anúncio pronto</Badge>}                  </div>
+                    {tem && <Badge tone="positive">Com anúncio</Badge>}
+                  </div>
                   {fotos > 1 && (
                     <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
                       {fotos} fotos
@@ -169,9 +173,10 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                     {p.nome}
                   </Link>
                   <p className="mt-0.5 truncate text-[13px] text-ink-muted">
-                    <span className={tem ? "text-positive" : ""}>{tem ? "Anúncio pronto" : "Sem anúncio"}</span>
+                    <span className={tem ? "text-positive" : ""}>{tem ? "Com anúncio" : "Sem anúncio"}</span>
                     {" · "}
-                    {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "sem fotos"}                  </p>
+                    {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "Sem fotos"}
+                  </p>
                 </div>
               </li>
             );

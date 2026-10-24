@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
-import { Card, btnSecondary } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { mensagemDeErro } from "@/lib/action";
 import { IconPlus, IconX } from "@/components/icons";
 import { comprimirImagem, MAX_FOTOS_POR_ITEM, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { excluirFoto, registrarFoto, reordenarFotos } from "../../produtos/actions";
 import { baixarBlob, buscarImagem, copiarImagemParaAreaDeTransferencia, nomeArquivo } from "./fotos-utils";
-import { TituloPasso } from "./passo";
 
 export interface FotoComUrl {
   id: string;
@@ -73,7 +72,7 @@ export function FotosSection({
         baixarBlob(arquivo, arquivo.name);
         await new Promise((r) => setTimeout(r, 250));
       }
-      toast.success(`${arquivos.length} foto(s) baixada(s).`);
+      toast.success(arquivos.length === 1 ? "1 foto baixada." : `${arquivos.length} fotos baixadas.`);
     } catch (e) {
       if ((e as Error).name !== "AbortError") toast.error("Não foi possível preparar as fotos.");
     } finally {
@@ -81,50 +80,34 @@ export function FotosSection({
     }
   }
 
-  const grupo = (variacaoId: string | null) => (
-    <GrupoFotos
-      produtoId={produtoId}
-      nomeProduto={nomeProduto}
-      variacaoId={variacaoId}
-      fotos={fotos.filter((f) => f.variacao_id === variacaoId)}
-      maxFotos={maxFotos}
-    />
-  );
+  // "Baixar todas" fica no rodapé do primeiro bloco, como link discreto
+  const baixarTodas =
+    comUrl.length > 1 ? (
+      <button type="button" onClick={levarTodas} disabled={ocupado} className="font-medium text-brand-text hover:underline disabled:opacity-50">
+        {ocupado ? "Preparando..." : "Baixar todas"}
+      </button>
+    ) : null;
+
+  const blocos: { variacaoId: string | null; titulo: string }[] =
+    variacoes.length === 0
+      ? [{ variacaoId: null, titulo: "Fotos" }]
+      : [{ variacaoId: null, titulo: "Fotos gerais" }, ...variacoes.map((v) => ({ variacaoId: v.id, titulo: v.nome_combinacao }))];
 
   return (
-    <Card
-      title={
-        <TituloPasso n={1} feito={comUrl.length > 0}>
-          Fotos
-        </TituloPasso>
-      }
-      rodape="A primeira é a capa. Na hora de publicar, copie ou baixe as fotos aqui."
-      action={
-        comUrl.length > 1 ? (
-          <button type="button" onClick={levarTodas} disabled={ocupado} className={`${btnSecondary} px-4 py-1.5 text-sm`}>
-            {ocupado ? "Preparando..." : "Baixar todas"}
-          </button>
-        ) : undefined
-      }
-    >
-      {variacoes.length === 0 ? (
-        grupo(null)
-      ) : (
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-1 text-sm font-semibold text-ink">Fotos gerais</h3>
-            <p className="mb-3 text-xs text-ink-muted">Aparecem em qualquer variação que não tenha foto própria.</p>
-            {grupo(null)}
-          </div>
-          {variacoes.map((v) => (
-            <div key={v.id}>
-              <h3 className="mb-3 text-sm font-semibold text-ink">{v.nome_combinacao}</h3>
-              {grupo(v.id)}
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
+    <>
+      {blocos.map((b, i) => (
+        <GrupoFotos
+          key={b.variacaoId ?? "geral"}
+          titulo={b.titulo}
+          produtoId={produtoId}
+          nomeProduto={nomeProduto}
+          variacaoId={b.variacaoId}
+          fotos={fotos.filter((f) => f.variacao_id === b.variacaoId)}
+          maxFotos={maxFotos}
+          extraRodape={i === 0 ? baixarTodas : null}
+        />
+      ))}
+    </>
   );
 }
 
@@ -133,12 +116,16 @@ export function FotosSection({
 // segurar um instante e arrastar (para não brigar com a rolagem da tela). Soltar arquivos
 // de imagem em cima do bloco envia as fotos.
 function GrupoFotos({
+  titulo,
+  extraRodape,
   produtoId,
   nomeProduto,
   variacaoId,
   fotos,
   maxFotos,
 }: {
+  titulo: string;
+  extraRodape: ReactNode;
   produtoId: string;
   nomeProduto: string;
   variacaoId: string | null;
@@ -284,11 +271,13 @@ function GrupoFotos({
     }
     let lista = Array.from(files);
     if (lista.length > vagas) {
-      toast.error(`Só cabem mais ${vagas} foto(s). ${lista.length - vagas} ficou de fora.`);
+      const fora = lista.length - vagas;
+      toast.error(`Só ${vagas === 1 ? "cabe mais 1 foto" : `cabem mais ${vagas} fotos`}. ${fora === 1 ? "1 ficou" : `${fora} ficaram`} de fora.`);
       lista = lista.slice(0, vagas);
     }
     const grandes = lista.filter((f) => f.size > TAMANHO_ORIGINAL_MAX);
-    if (grandes.length) toast.error(`${grandes.length} foto(s) acima de 30 MB foram ignoradas.`);
+    if (grandes.length)
+      toast.error(grandes.length === 1 ? "1 foto acima de 30 MB foi ignorada." : `${grandes.length} fotos acima de 30 MB foram ignoradas.`);
     const validas = lista.filter((f) => f.size <= TAMANHO_ORIGINAL_MAX);
     if (!validas.length) return;
 
@@ -336,8 +325,26 @@ function GrupoFotos({
   }
 
   const cabe = fotos.length < maxFotos;
+  const noLimiteDoPlano = limitadoPeloPlano && fotos.length >= maxFotos;
+
+  const rodape = (
+    <>
+      {fotos.length === 0 ? "Dá pra enviar várias de uma vez." : "A primeira é a capa."}
+      {noLimiteDoPlano && (
+        <>
+          {" "}
+          <Link href="/assinatura" className="font-medium text-brand-text hover:underline">
+            Assine pra ter até {MAX_FOTOS_POR_ITEM}
+          </Link>
+          .
+        </>
+      )}
+      {extraRodape && <> {extraRodape}</>}
+    </>
+  );
 
   return (
+    <Grupo titulo={`${titulo} · ${fotos.length} de ${maxFotos}`} rodape={rodape}>
     <div
       onDragOver={(e) => {
         if (!cabe || enviando || !e.dataTransfer.types.includes("Files")) return;
@@ -452,22 +459,7 @@ function GrupoFotos({
         tabIndex={-1}
         aria-hidden="true"
       />
-      <p className="mt-3 text-xs text-ink-muted">
-        {fotos.length === 0
-          ? "Dá pra enviar várias de uma vez. O Marcon reduz o tamanho sozinho."
-          : `${fotos.length} de ${maxFotos} ${maxFotos === 1 ? "foto" : "fotos"}.`}
-        {fotos.length > 1 && " Segure e arraste pra mudar a ordem."}
-        {limitadoPeloPlano && fotos.length >= maxFotos && (
-          <>
-            {" "}
-            No plano grátis cada produto tem até {maxFotos} fotos.{" "}
-            <Link href="/assinatura" className="font-medium text-brand-text underline-offset-2 hover:underline">
-              Assine o Marcon
-            </Link>{" "}
-            para ter até {MAX_FOTOS_POR_ITEM}.
-          </>
-        )}
-      </p>
     </div>
+    </Grupo>
   );
 }

@@ -9,8 +9,9 @@ import { useAction } from "@/components/use-action";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Margem } from "@/components/margem";
 import { Modal } from "@/components/modal";
-import { Badge, Field, btnGhost, btnIcon, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
-import { IconPencil, IconPlus } from "@/components/icons";
+import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
+import { Grupo, Segmentado } from "@/components/ajustes";
+import { IconPlus } from "@/components/icons";
 import { atualizarVariacao, criarVariacao, excluirVariacao } from "../actions";
 
 function textoValor(v: number | null) {
@@ -114,13 +115,31 @@ function EditarVariacao({
       <p className="col-span-2 text-xs text-ink-muted sm:col-span-4">
         O estoque muda por entrada, saída e venda. O custo é recalculado a cada entrada.
       </p>
-      <div className="col-span-2 flex justify-end gap-2 sm:col-span-4">
-        <button type="button" onClick={onFechar} className={btnGhost}>
-          Cancelar
-        </button>
-        <button type="submit" disabled={isPending} className={btnPrimary}>
-          <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Salvar variação"}</RotuloAcao>
-        </button>
+      <div className="col-span-2 flex flex-col-reverse gap-2 sm:col-span-4 sm:flex-row sm:items-center sm:justify-between">
+        <ConfirmButton
+          title={`Excluir a variação “${variacao.nome_combinacao}”?`}
+          description={
+            variacao.estoque > 0
+              ? `Ela ainda tem ${variacao.estoque === 1 ? "1 unidade" : `${variacao.estoque} unidades`} em estoque, que deixarão de ser contadas.`
+              : undefined
+          }
+          ariaLabel={`Excluir variação ${variacao.nome_combinacao}`}
+          onConfirm={() => excluirVariacao(variacao.id, produtoId)}
+          onDone={onFechar}
+          className="rounded-full px-4 py-2.5 text-[15px] font-medium text-danger transition hover:bg-danger-tint"
+        >
+          Excluir variação
+        </ConfirmButton>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <button type="button" onClick={onFechar} className={btnGhost}>
+            Cancelar
+          </button>
+          <button type="submit" disabled={isPending} className={`${btnPrimary} w-full sm:w-auto`}>
+            <RotuloAcao pendente={isPending} ocupado="Salvando...">
+              Salvar variação
+            </RotuloAcao>
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -141,7 +160,7 @@ export function VariacoesSection({
   const [nome, setNome] = useState("");
   const [sku, setSku] = useState("");
   const [estoque, setEstoque] = useState("0");
-  const [jaPago, setJaPago] = useState(false);
+  const [origem, setOrigem] = useState<"ja_era_meu" | "comprei">("ja_era_meu");
   const [custo, setCusto] = useState("");
   const [preco, setPreco] = useState("");
   const [editando, setEditando] = useState<ProdutoVariacao | null>(null);
@@ -150,7 +169,7 @@ export function VariacoesSection({
     setNome("");
     setSku("");
     setEstoque("0");
-    setJaPago(false);
+    setOrigem("ja_era_meu");
     setCusto("");
     setPreco("");
   }
@@ -158,119 +177,127 @@ export function VariacoesSection({
   const qtdInicial = Number(lerNumero(estoque) ?? 0);
 
   return (
-    <div>
-      {variacoes.length > 0 ? (
-        <ul className="mb-5 divide-y divide-line rounded-2xl border border-line">
-          {variacoes.map((v) => {
-            const custoV = v.custo ?? custoPadrao;
-            const precoV = v.preco_venda ?? precoPadrao;
-            const margem = precoV > 0 ? ((precoV - custoV) / precoV) * 100 : null;
-            return (
-              <li key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 text-sm">
-                <div className="min-w-0 flex-1 basis-48">
-                  <p className="truncate font-medium text-ink">{v.nome_combinacao}</p>
-                  <p className="text-xs text-ink-muted">
-                    {[v.sku && `SKU ${v.sku}`, `custo ${formatBRL(custoV)}`, `venda ${formatBRL(precoV)}`].filter(Boolean).join(" · ")}
-                  </p>
-                  {margem !== null && (
-                    <p className={`text-xs ${precoV - custoV >= 0 ? "text-positive" : "text-danger"}`}>
-                      Lucro de {formatBRL(precoV - custoV)} · margem de {margem.toFixed(1)}%
-                    </p>
-                  )}
-                </div>
-                <Badge tone={v.estoque > 0 ? "positive" : "negative"}>{v.estoque} em estoque</Badge>
-                <div className="flex items-center">
+    <>
+      <Grupo titulo="Variações" semPadding>
+        {variacoes.length > 0 ? (
+          <ul className="divide-y divide-line">
+            {variacoes.map((v) => {
+              const custoV = v.custo ?? custoPadrao;
+              const precoV = v.preco_venda ?? precoPadrao;
+              const lucro = precoV - custoV;
+              const margem = precoV > 0 ? (lucro / precoV) * 100 : null;
+              return (
+                <li key={v.id}>
                   <button
                     type="button"
                     onClick={() => setEditando(v)}
                     aria-label={`Editar variação ${v.nome_combinacao}`}
-                    className={btnIcon}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-fill/60 active:bg-fill"
                   >
-                    <IconPencil width={16} height={16} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[17px] text-ink">{v.nome_combinacao}</p>
+                      <p className="truncate text-[13px] text-ink-muted">
+                        {[
+                          v.sku && `SKU ${v.sku}`,
+                          `custo ${formatBRL(custoV)}`,
+                          margem !== null ? `${lucro >= 0 ? "lucro" : "prejuízo"} de ${formatBRL(Math.abs(lucro))} (${margem.toFixed(0)}%)` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[17px] tabular-nums text-ink">{formatBRL(precoV)}</p>
+                      <p className={`text-[13px] tabular-nums ${v.estoque > 0 ? "text-ink-muted" : "text-danger"}`}>
+                        {v.estoque > 0 ? `${v.estoque} em estoque` : "Zerado"}
+                      </p>
+                    </div>
+                    <span aria-hidden="true" className="text-lg text-ink-faint">
+                      ›
+                    </span>
                   </button>
-                  <ConfirmButton
-                    title={`Excluir a variação “${v.nome_combinacao}”?`}
-                    description={v.estoque > 0 ? `Ela ainda tem ${v.estoque} unidade(s) em estoque, que deixarão de ser contadas.` : undefined}
-                    ariaLabel={`Excluir variação ${v.nome_combinacao}`}
-                    onConfirm={() => excluirVariacao(v.id, produtoId)}
-                  />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="mb-4 rounded-lg border border-warning/30 bg-warning-tint px-3 py-2 text-sm text-warning">
-          Nenhuma variação ainda. Adicione a primeira abaixo (ex: &quot;Azul / M&quot;).
-        </p>
-      )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="px-4 py-3 text-[15px] text-ink-muted">Nenhuma variação ainda. Adicione a primeira abaixo (ex.: &quot;Azul / M&quot;).</p>
+        )}
+      </Grupo>
 
-      <h3 className="mb-3 text-[15px] font-semibold text-ink">Nova variação</h3>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const formData = new FormData(e.currentTarget);
-          run(() => criarVariacao(formData), { onSuccess: limpar });
-        }}
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-      >
-        <input type="hidden" name="produto_id" value={produtoId} />
-        <Field label="Nome *" className="col-span-2">
-          <input
-            name="nome_combinacao"
-            required
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            className={inputClass}
-            placeholder="Ex: Azul / M"
+      <Grupo titulo="Nova variação">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            run(() => criarVariacao(formData), { onSuccess: limpar });
+          }}
+          className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+        >
+          <input type="hidden" name="produto_id" value={produtoId} />
+          <Field label="Nome *" className="col-span-2">
+            <input
+              name="nome_combinacao"
+              required
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className={inputClass}
+              placeholder="Ex: Azul / M"
+            />
+          </Field>
+          <Field label="SKU">
+            <input name="sku" value={sku} onChange={(e) => setSku(e.target.value)} className={inputClass} placeholder="Opcional" />
+          </Field>
+          <Field label="Estoque inicial">
+            <input
+              name="estoque"
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="1"
+              value={estoque}
+              onChange={(e) => setEstoque(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <CustoEPreco
+            custo={custo}
+            setCusto={setCusto}
+            preco={preco}
+            setPreco={setPreco}
+            custoPadrao={custoPadrao}
+            precoPadrao={precoPadrao}
           />
-        </Field>
-        <Field label="SKU">
-          <input name="sku" value={sku} onChange={(e) => setSku(e.target.value)} className={inputClass} placeholder="Opcional" />
-        </Field>
-        <Field label="Estoque inicial">
-          <input
-            name="estoque"
-            type="number"
-            inputMode="numeric"
-            min="0"
-            step="1"
-            value={estoque}
-            onChange={(e) => setEstoque(e.target.value)}
-            className={inputClass}
-          />
-        </Field>
-        <CustoEPreco
-          custo={custo}
-          setCusto={setCusto}
-          preco={preco}
-          setPreco={setPreco}
-          custoPadrao={custoPadrao}
-          precoPadrao={precoPadrao}
-        />
-        <div className="col-span-2 sm:col-span-4">
-          <button type="submit" disabled={isPending} className={btnSecondary}>
-            <IconPlus width={16} height={16} />
-            <RotuloAcao pendente={isPending} ocupado="Salvando...">{"Adicionar variação"}</RotuloAcao>
-          </button>
+          {/* mesma escolha do cadastro do produto: de onde veio o estoque inicial */}
           {qtdInicial > 0 && (
-            <label className="mt-3 flex cursor-pointer items-start gap-2 text-xs text-ink-muted">
-              <input
-                type="checkbox"
-                name="estoque_ja_pago"
-                value="true"
-                checked={jaPago}
-                onChange={(e) => setJaPago(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-brand"
+            <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-4">
+              <Segmentado
+                name="estoque_origem"
+                rotulo="De onde veio esse estoque"
+                valor={origem}
+                onMudar={setOrigem}
+                opcoes={[
+                  { valor: "ja_era_meu", label: "Já era meu" },
+                  { valor: "comprei", label: "Comprei agora" },
+                ]}
               />
-              <span>
-                Esse estoque já era meu, não sai do caixa.
-                {!jaPago && ` Senão, entra como compra e sai do caixa (${formatBRL(qtdInicial * (lerNumero(custo) ?? custoPadrao))}).`}
-              </span>
-            </label>
+              <p className="text-xs text-ink-muted">
+                {origem === "comprei"
+                  ? `Entra como compra e sai do caixa hoje (${formatBRL(qtdInicial * (lerNumero(custo) ?? custoPadrao))}).`
+                  : "Você já tinha pago antes. O estoque entra e nada sai do caixa."}
+              </p>
+            </div>
           )}
-        </div>
-      </form>
+          <div className="col-span-2 sm:col-span-4">
+            <button type="submit" disabled={isPending} className={`${btnSecondary} w-full sm:w-auto`}>
+              <IconPlus width={16} height={16} />
+              <RotuloAcao pendente={isPending} ocupado="Salvando...">
+                Adicionar variação
+              </RotuloAcao>
+            </button>
+          </div>
+        </form>
+      </Grupo>
 
       <Modal open={!!editando} onClose={() => setEditando(null)} title="Editar variação" size="lg">
         {editando && (
@@ -284,6 +311,6 @@ export function VariacoesSection({
           />
         )}
       </Modal>
-    </div>
+    </>
   );
 }
