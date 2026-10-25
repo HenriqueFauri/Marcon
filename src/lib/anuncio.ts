@@ -3,7 +3,7 @@ import type { ProdutoVariacao } from "@/types/domain";
 // Um padrão só, que serve em qualquer plataforma (Marketplace, OLX, Mercado Livre, Shopee,
 // Instagram, WhatsApp): título curto, descrição em texto simples, sem emoji, sem link e sem preço
 // no texto (o preço tem campo próprio em todas).
-export const LIMITE_TITULO = 60;
+export const LIMITE_TITULO = 120;
 export const LIMITE_DESCRICAO = 2000;
 
 function normalizar(texto: string) {

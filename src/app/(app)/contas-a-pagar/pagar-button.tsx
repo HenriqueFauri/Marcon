@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useAction } from "@/components/use-action";
 import { Modal } from "@/components/modal";
 import { IconCheck } from "@/components/icons";
-import { Field, btnPrimary, inputClass } from "@/components/ui";
+import { Field, btnPrimary, btnSmall, inputClass } from "@/components/ui";
 import { formatBRL, hojeISO } from "@/lib/format";
 import { pagarConta } from "./actions";
 
@@ -23,10 +23,10 @@ export function PagarButton({ id, descricao, valor, mensal }: { id: string; desc
           setData(hojeISO());
           setAberto(true);
         }}
-        className="inline-flex min-h-9 items-center gap-1 whitespace-nowrap rounded-full bg-brand-fill px-3.5 py-1.5 text-[13px] font-semibold text-on-brand transition active:scale-[0.98]"
+        className={`${btnSmall} min-h-9 bg-brand-fill text-on-brand`}
       >
         <IconCheck width={14} height={14} />
-        Paguei
+        Pagar
       </button>
 
       <Modal

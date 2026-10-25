@@ -4,6 +4,7 @@ import { RotuloAcao } from "@/components/rotulo-acao";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
+import { Interruptor } from "@/components/ajustes";
 import { useAction } from "@/components/use-action";
 import { btnDanger, btnGhost } from "@/components/ui";
 import { IconTrash } from "@/components/icons";
@@ -27,20 +28,15 @@ export function ExcluirProdutoButton({ produtoId, nome }: { produtoId: string; n
         description="O produto será apagado. As compras e lançamentos de caixa que ele já gerou são seus. Escolha o que fazer com eles."
         size="sm"
       >
-        <label className="mb-4 flex items-start gap-3 rounded-2xl border border-line p-3 text-sm text-ink-2">
-          <input
-            type="checkbox"
-            checked={apagarHistorico}
-            onChange={(e) => setApagarHistorico(e.target.checked)}
-            className="mt-0.5 h-4 w-4 accent-danger"
+        <div className="mb-4">
+          <Interruptor
+            name="apagar_historico"
+            padrao={apagarHistorico}
+            onMudar={setApagarHistorico}
+            titulo="Apagar também o histórico"
+            ajuda="Estoque e caixa deste produto. Desligado (recomendado), o dinheiro que ele já movimentou continua nos relatórios."
           />
-          <span>
-            Apagar também o histórico de estoque e os lançamentos de caixa deste produto
-            <span className="mt-1 block text-xs text-ink-muted">
-              Desmarcado (recomendado): o produto some, mas o dinheiro que ele já movimentou continua nos seus relatórios.
-            </span>
-          </span>
-        </label>
+        </div>
 
         <div className="flex justify-end gap-2">
           <button onClick={() => setOpen(false)} className={btnGhost}>

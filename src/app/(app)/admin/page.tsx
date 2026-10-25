@@ -7,13 +7,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adminConfirmado, ehAdmin } from "@/lib/admin";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
-import { PLANOS } from "@/lib/planos";
+import { ANUAL_POR_MES, PLANOS } from "@/lib/planos";
 import { rotuloDoMotivo } from "@/lib/cortesia";
-import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
+import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
 import { bloqueada, contaGerenciavel, type ResumoConta } from "./dados";
-import { AbasAdmin } from "./abas";
 import { AcoesRapidas } from "./gerenciar-conta";
+
+const vendas = (n: number) => `${n} ${n === 1 ? "venda" : "vendas"}`;
 
 export const metadata: Metadata = { title: "Administração" };
 
@@ -56,7 +57,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
 
   const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }] = await Promise.all([
     todasAsContas(admin),
-    admin.from("assinaturas").select("owner_id, plano, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
+    admin.from("assinaturas").select("owner_id, plano, ciclo, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
     admin.rpc("admin_resumo_por_conta"),
     admin.from("whatsapp_liberados").select("owner_id, lancar"),
     admin.from("whatsapp_vinculos").select("owner_id, telefone"),
@@ -112,14 +113,22 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     return qs ? `/admin?${qs}` : "/admin";
   };
 
-  const pagantes = linhas.filter((l) => l.situacao.tipo === "ativa" || l.situacao.tipo === "atrasada").length;
-  const receitaMensal = pagantes * PLANOS.marcon.valor;
+  const listaPagantes = linhas.filter((l) => l.situacao.tipo === "ativa" || l.situacao.tipo === "atrasada");
+  const pagantes = listaPagantes.length;
+  // anual entra pelo equivalente mensal (R$ 149 / 12), para o número continuar sendo "por mês"
+  const receitaMensal = listaPagantes.reduce((s, l) => s + (l.situacao.ciclo === "anual" ? ANUAL_POR_MES : PLANOS.marcon.valor), 0);
   const vendidoNoMes = linhas.reduce((s, l) => s + Number(l.resumo?.valor_mes ?? 0), 0);
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="Administração" />
-      <AbasAdmin ativa="contas" />
+      <PageHeader
+        title="Administração"
+        action={
+          <Link href="/admin/indicacoes" className={btnSecondary}>
+            Indicações
+          </Link>
+        }
+      />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Contas" value={linhas.length} hint={`${linhas.filter((l) => criadaNaUltimaSemana(l.u)).length} nos últimos 7 dias`} />
@@ -170,7 +179,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       {u.id === user!.id && <span className="text-ink-muted"> (você)</span>}
                     </span>
                     <span className="block truncate text-[13px] text-ink-muted">
-                      {[bloqueada(u) ? "Bloqueada" : rotulo.texto, `${resumo?.vendas_mes ?? 0} vendas no mês`, assistente ? "Assistente" : null].filter(Boolean).join(" · ")}
+                      {[bloqueada(u) ? "Bloqueada" : rotulo.texto, `${vendas(resumo?.vendas_mes ?? 0)} no mês`, assistente ? "Assistente" : null].filter(Boolean).join(" · ")}
                     </span>
                   </span>
                   <span className="shrink-0 text-right">
@@ -218,13 +227,13 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     </td>
                     <td className={tdClass}>
                       <Badge tone={rotulo.tom}>{rotulo.texto}</Badge>
-                      {motivo && <span className="mt-0.5 block text-[12px] text-ink-muted">{motivo}</span>}
+                      {motivo && <span className="mt-0.5 block text-[13px] text-ink-muted">{motivo}</span>}
                     </td>
                     <td className={`${tdClass} text-right tabular-nums`}>{resumo?.produtos ?? 0}</td>
                     <td className={`${tdClass} text-right tabular-nums`}>
                       {formatBRL(Number(resumo?.valor_mes ?? 0))}
-                      <span className="block text-[12px] text-ink-muted">
-                        {resumo?.vendas_mes ?? 0} vendas{resumo?.ultima_venda ? `, última ${formatDataCurta(resumo.ultima_venda)}` : ""}
+                      <span className="block text-[13px] text-ink-muted">
+                        {vendas(resumo?.vendas_mes ?? 0)}{resumo?.ultima_venda ? `, última ${formatDataCurta(resumo.ultima_venda)}` : ""}
                       </span>
                     </td>
                     <td className={`${tdClass} text-right tabular-nums ${Number(resumo?.lucro_mes ?? 0) < 0 ? "text-danger" : "text-positive"}`}>

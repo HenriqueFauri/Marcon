@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { lerTudo } from "@/lib/ler-tudo";
+import { lerCapas } from "@/lib/capas";
 import type { CanalVenda, Cliente, FormaPagamento, ProdutoComEstoque, ProdutoVariacao } from "@/types/domain";
 import { EmptyState, PageHeader, btnPrimary } from "@/components/ui";
 import { hojeISO } from "@/lib/format";
@@ -29,41 +31,51 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         supabase.from("venda_itens").select("produto_id, variacao_id, produto_nome, quantidade").eq("venda_id", repetirId),
       ])
     : [{ data: null }, { data: null }];
-  const [
-    { data: produtosData },
-    { data: variacoesData },
-    { data: clientesData },
-    { data: canaisData },
-    { data: formasData },
-    { data: fotosData },
-  ] = await Promise.all([
-    supabase.from("produtos_com_estoque").select("*").neq("status", "inativo").gt("estoque_total", 0).order("nome"),
-    // sem filtro de estoque: variação esgotada aparece em cinza no seletor, em vez de sumir
-    supabase.from("produto_variacoes").select("*").order("nome_combinacao"),
-    supabase.from("clientes").select("*").order("nome"),
+  // listas que podem passar de 1000 linhas vêm página a página (o PostgREST corta cada consulta em 1000);
+  // das fotos vem só a capa de cada produto
+  const [produtosData, variacoesData, clientesData, { data: canaisData }, { data: formasData }, capas] = await Promise.all([
+    lerTudo((de, ate) =>
+      supabase
+        .from("produtos_com_estoque")
+        .select("*")
+        .neq("status", "inativo")
+        .order("nome")
+        .order("id")
+        .range(de, ate),
+    ).catch(() => []),
+    // sem filtro de estoque: produto e variação zerados também aparecem (venda de encomenda)
+    lerTudo((de, ate) => supabase.from("produto_variacoes").select("*").order("nome_combinacao").order("id").range(de, ate)).catch(
+      () => [],
+    ),
+    lerTudo((de, ate) => supabase.from("clientes").select("*").order("nome").order("id").range(de, ate)).catch(() => []),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
-    supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
+    lerCapas(supabase).catch(() => new Map<string, { path: string; totalFotos: number }>()),
   ]);
 
   // plano grátis: 30 vendas por mês. O banco barra; aqui só se explica antes de o erro aparecer
   const uso = await lerUso(supabase);
   const vendasRestantes = uso ? restante(uso.vendasMes, uso.limites.vendasMes) : null;
 
-  const produtos = (produtosData ?? []) as ProdutoComEstoque[];
   const variacoes = (variacoesData ?? []) as ProdutoVariacao[];
+  // com estoque primeiro, zerados no fim (cada parte na ordem de nome que já vem do banco).
+  // Com variações conta só o que é positivo: uma variação negativa não esconde as outras
+  const positivoPorProduto = new Map<string, number>();
+  for (const v of variacoes) {
+    positivoPorProduto.set(v.produto_id, (positivoPorProduto.get(v.produto_id) ?? 0) + Math.max(Number(v.estoque), 0));
+  }
+  const temEstoque = (p: ProdutoComEstoque) =>
+    (p.tem_variacoes ? (positivoPorProduto.get(p.id) ?? 0) : Number(p.estoque_total)) > 0;
+  const lidos = (produtosData ?? []) as ProdutoComEstoque[];
+  const produtos = [...lidos.filter(temEstoque), ...lidos.filter((p) => !temEstoque(p))];
 
   // capa de cada produto à venda: a primeira foto geral; foto de variação só se não houver nenhuma geral.
-  // Uma consulta e uma chamada de assinatura para a lista toda
-  const aVenda = new Set(produtos.map((p) => p.id));
+  // Uma chamada de assinatura para a lista toda
   const capa = new Map<string, string>();
-  const capaGeral = new Map<string, string>();
-  for (const f of fotosData ?? []) {
-    if (!aVenda.has(f.produto_id)) continue;
-    if (f.variacao_id === null && !capaGeral.has(f.produto_id)) capaGeral.set(f.produto_id, f.path);
-    if (!capa.has(f.produto_id)) capa.set(f.produto_id, f.path);
+  for (const p of produtos) {
+    const c = capas.get(p.id);
+    if (c) capa.set(p.id, c.path);
   }
-  for (const [id, path] of capaGeral) capa.set(id, path);
   const caminhos = [...new Set(capa.values())];
   const { data: assinadas } = caminhos.length
     ? await supabase.storage.from("produto-fotos").createSignedUrls(caminhos, 3600)
@@ -100,7 +112,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         chave: `${p.id}:${v.id}`,
         produto_id: p.id,
         variacao_id: v.id,
-        nome: `${p.nome} — ${v.nome_combinacao}`,
+        nome: `${p.nome} · ${v.nome_combinacao}`,
         produto_nome: p.nome,
         rotulo: v.nome_combinacao,
         detalhe: [p.marca, v.sku].filter(Boolean).join(" · "),
@@ -147,7 +159,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         desconto: Number(pedidoRecebido.desconto),
         clienteNome: pedidoRecebido.cliente_nome,
         pagamento: pedidoRecebido.pagamento,
-        // itens que acabaram no estoque depois do pedido não dá para vender
+        // itens que saíram de venda (inativos ou apagados) depois do pedido
         semEstoque: pedidoRecebido.itens
           .filter((i) => !chaves.has(i.variacao_id ? `${i.produto_id}:${i.variacao_id}` : i.produto_id))
           .map((i) => (i.variacao ? `${i.nome} (${i.variacao})` : i.nome)),
@@ -178,8 +190,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
         />
       ) : vendaveis.length === 0 ? (
         <EmptyState
-          title="Nenhum produto com estoque"
-          description="Cadastre um produto ou registre uma entrada de estoque para poder vender."
+          title="Nenhum produto cadastrado"
+          description="Cadastre um produto pra poder vender."
           action={
             <Link href="/produtos" className={btnPrimary}>
               Ir para produtos

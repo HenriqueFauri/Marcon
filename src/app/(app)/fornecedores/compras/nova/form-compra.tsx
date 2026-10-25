@@ -4,10 +4,10 @@ import { RotuloAcao } from "@/components/rotulo-acao";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAction } from "@/components/use-action";
-import { Grupo } from "@/components/ajustes";
+import { Grupo, Segmentado } from "@/components/ajustes";
 import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconPlus, IconTrash } from "@/components/icons";
-import { formatBRL, hojeISO } from "@/lib/format";
+import { formatBRL, formatData, hojeISO, somarDias } from "@/lib/format";
 import { registrarPedidoCompra } from "../actions";
 
 export interface ProdutoOpcao {
@@ -54,6 +54,9 @@ export function FormCompra({
   const [data, setData] = useState(hojeISO());
   const [frete, setFrete] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [pagamento, setPagamento] = useState<"agora" | "prazo">("agora");
+  const [parcelas, setParcelas] = useState(1);
+  const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarDias(hojeISO(), 30));
   const [linhas, setLinhas] = useState<Linha[]>(() =>
     inicial.itens.length > 0
       ? inicial.itens.map((it, i) => ({
@@ -109,8 +112,15 @@ export function FormCompra({
       })
     : [];
 
-  const podeSalvar = linhasOk && freteValido && !isPending;
   const totalGeral = totalItens + (freteValido ? valorFrete : 0);
+  const aPrazo = pagamento === "prazo";
+  const vencimentoOk = !aPrazo || (/^\d{4}-\d{2}-\d{2}$/.test(primeiroVencimento) && primeiroVencimento >= data);
+  // mesma divisão do banco: parcelas iguais e os centavos que sobram na última
+  const centavos = Math.round(totalGeral * 100);
+  const valorParcela = Math.floor(centavos / parcelas) / 100;
+  const ultimaParcela = (centavos - Math.floor(centavos / parcelas) * (parcelas - 1)) / 100;
+  const prazoOk = !aPrazo || (linhasOk && centavos >= parcelas);
+  const podeSalvar = linhasOk && freteValido && vencimentoOk && prazoOk && !isPending;
 
   function salvar() {
     run(
@@ -120,6 +130,9 @@ export function FormCompra({
           data,
           frete: freteValido ? valorFrete : 0,
           observacoes,
+          a_prazo: aPrazo,
+          parcelas: aPrazo ? parcelas : 1,
+          primeiro_vencimento: aPrazo ? primeiroVencimento : undefined,
           itens: linhas.map((l, i) => ({
             produto_id: l.produtoId,
             variacao_id: l.variacaoId || null,
@@ -253,9 +266,65 @@ export function FormCompra({
         </Field>
         <p className="text-[15px] text-ink" role="status">
           {linhasOk
-            ? `Itens ${formatBRL(totalItens)} + frete ${formatBRL(freteValido ? valorFrete : 0)} = ${formatBRL(totalGeral)}, uma saída só no caixa.`
+            ? `Itens ${formatBRL(totalItens)} + frete ${formatBRL(freteValido ? valorFrete : 0)} = ${formatBRL(totalGeral)}${aPrazo ? "." : ", uma saída só no caixa."}`
             : "Complete os itens pra ver o total."}
         </p>
+      </Grupo>
+
+      <Grupo
+        titulo="Pagamento"
+        rodape={
+          aPrazo
+            ? "Não sai do caixa agora. Cada parcela vai pra A pagar e sai do caixa quando você marcar como paga."
+            : "Sai do caixa na data da compra."
+        }
+      >
+        <Segmentado
+          rotulo="Pagamento"
+          valor={pagamento}
+          onMudar={setPagamento}
+          opcoes={[
+            { valor: "agora", label: "Paguei agora" },
+            { valor: "prazo", label: "A prazo" },
+          ]}
+        />
+        {aPrazo && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Parcelas">
+                <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))} className={inputClass}>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      {n === 1 ? "1 vez" : `${n} vezes`}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label="1º vencimento"
+                hint={!vencimentoOk ? <span className="text-danger">Não pode ser antes da compra.</span> : undefined}
+              >
+                <input
+                  type="date"
+                  value={primeiroVencimento}
+                  min={data}
+                  onChange={(e) => setPrimeiroVencimento(e.target.value)}
+                  required
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+            <p className="text-[15px] text-ink" role="status">
+              {!linhasOk
+                ? "Complete os itens pra ver as parcelas."
+                : !prazoOk
+                  ? "O valor é pequeno demais pra tantas parcelas."
+                  : parcelas === 1
+                    ? `${formatBRL(totalGeral)} vence ${vencimentoOk ? formatData(primeiroVencimento) : "na data escolhida"}.`
+                    : `${parcelas} × ${formatBRL(valorParcela)}${ultimaParcela !== valorParcela ? ` (a última ${formatBRL(ultimaParcela)})` : ""}, todo mês a partir de ${vencimentoOk ? formatData(primeiroVencimento) : "o 1º vencimento"}.`}
+            </p>
+          </>
+        )}
       </Grupo>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

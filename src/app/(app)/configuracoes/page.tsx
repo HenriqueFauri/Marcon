@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import type { CanalVenda, FormaPagamento } from "@/types/domain";
-import { Card, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import { ListaSimples } from "./lista-simples";
 import { criarCanal, excluirCanal, criarFormaPagamento, excluirFormaPagamento } from "./actions";
 import { NotificacoesConfig } from "./notificacoes-config";
@@ -10,7 +10,7 @@ import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 import { Grupo, LinhaLink } from "@/components/ajustes";
-import { IconWhatsapp } from "@/components/icons";
+import { IconBox, IconWhatsapp } from "@/components/icons";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 
 export const metadata: Metadata = { title: "Configurações" };
@@ -44,12 +44,31 @@ export default async function ConfiguracoesPage() {
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Configurações" />
 
-      <div className="flex flex-col gap-6">
-        <Card title="Perfil">
-          <PerfilForm nome={nome} email={user?.email ?? ""} />
-        </Card>
+      <div className="flex flex-col gap-7">
+        <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez.">
+          <LinhaLink
+            href="/importar"
+            icone={<IconBox className="h-[17px] w-[17px]" />}
+            tom="bg-brand text-on-brand"
+            rotulo="Trazer produtos e vendas"
+            detalhe="Planilha ou PDF"
+          />
+          {whatsappLiberado && (
+            <LinhaLink
+              href="/configuracoes/whatsapp"
+              icone={<IconWhatsapp className="h-[17px] w-[17px]" />}
+              tom="bg-tile-positive text-on-tile-positive"
+              rotulo="Assistente no WhatsApp"
+              detalhe={vinculoWhatsapp ? "Vinculado" : "Ativar"}
+            />
+          )}
+        </Grupo>
 
-        <Card title="Dados da empresa" rodape="O nome aparece no menu. O resto é opcional e vai nos recibos.">
+        <Grupo titulo="Perfil">
+          <PerfilForm nome={nome} email={user?.email ?? ""} />
+        </Grupo>
+
+        <Grupo titulo="Empresa" rodape="O nome aparece no menu. O resto é opcional e vai no recibo; o PIX vai junto na cobrança pelo WhatsApp.">
           <EmpresaForm
             nomeNegocio={nomeNegocio}
             telefone={(meta.empresa_telefone as string | undefined) ?? ""}
@@ -59,61 +78,37 @@ export default async function ConfiguracoesPage() {
             pix={(meta.empresa_pix as string | undefined) ?? ""}
             logoUrl={logoSignedUrl?.signedUrl ?? null}
           />
-        </Card>
-
-        {whatsappLiberado && (
-          <Grupo semPadding>
-            <LinhaLink
-              href="/configuracoes/whatsapp"
-              icone={<IconWhatsapp className="h-[17px] w-[17px]" />}
-              tom="bg-tile-positive text-on-tile-positive"
-              rotulo="Assistente no WhatsApp"
-              detalhe={vinculoWhatsapp ? "Vinculado" : "Ativar"}
-            />
-          </Grupo>
-        )}
-
-        <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez.">
-          <LinhaLink href="/importar" rotulo="Importar dados" detalhe="PDF" />
         </Grupo>
 
-        <Grupo semPadding titulo="Exportar" rodape="Planilha pra abrir no Excel ou guardar uma cópia.">
+        <ListaSimples
+          titulo="Canais de venda"
+          rodape="Onde você vende. Você escolhe o canal na hora de registrar a venda."
+          itens={(canais ?? []) as CanalVenda[]}
+          placeholder="Ex: Facebook Marketplace, OLX..."
+          sugestoes={["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre"]}
+          onCriar={criarCanal}
+          onExcluir={excluirCanal}
+        />
+
+        <ListaSimples
+          titulo="Formas de pagamento"
+          itens={(formas ?? []) as FormaPagamento[]}
+          placeholder="Ex: PIX, Dinheiro, Cartão..."
+          sugestoes={["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito"]}
+          onCriar={criarFormaPagamento}
+          onExcluir={excluirFormaPagamento}
+        />
+
+        <NotificacoesConfig />
+
+        <NotificacoesPreferencias atual={lerPreferencias(meta)} />
+
+        <Grupo titulo="Dados" semPadding rodape="Planilha pra abrir no Excel ou guardar uma cópia.">
           <LinhaLink href="/api/exportar/produtos" externo rotulo="Produtos" detalhe="CSV" />
           <LinhaLink href="/api/exportar/vendas" externo rotulo="Vendas" detalhe="CSV" />
           <LinhaLink href="/api/exportar/clientes" externo rotulo="Clientes" detalhe="CSV" />
           <LinhaLink href="/api/exportar/caixa" externo rotulo="Caixa" detalhe="CSV" />
         </Grupo>
-
-        <Card title="Canais de venda" rodape="Onde você vende. Aparecem na venda e nos anúncios.">
-          <ListaSimples
-            itens={(canais ?? []) as CanalVenda[]}
-            placeholder="Ex: Facebook Marketplace, OLX..."
-            sugestoes={["Facebook Marketplace", "OLX", "WhatsApp", "Instagram", "Mercado Livre"]}
-            onCriar={criarCanal}
-            onExcluir={excluirCanal}
-          />
-        </Card>
-
-        <Card title="Formas de pagamento">
-          <ListaSimples
-            itens={(formas ?? []) as FormaPagamento[]}
-            placeholder="Ex: PIX, Dinheiro, Cartão..."
-            sugestoes={["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito"]}
-            onCriar={criarFormaPagamento}
-            onExcluir={excluirFormaPagamento}
-          />
-        </Card>
-
-        <Card title="Notificações">
-          <NotificacoesConfig />
-        </Card>
-
-        <Card
-          title="O que aparece nas notificações"
-          description="Os avisos mudam de frase a cada vez, é surpresa. Aqui você escolhe o que receber e quais dados mostrar."
-        >
-          <NotificacoesPreferencias atual={lerPreferencias(meta)} />
-        </Card>
       </div>
     </div>
   );

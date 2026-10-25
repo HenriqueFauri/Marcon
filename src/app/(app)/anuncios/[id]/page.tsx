@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { iaDisponivel } from "@/lib/ia-anuncio";
-import type { AnuncioPublicacao, ProdutoAnuncio, ProdutoComEstoque, ProdutoFoto, ProdutoVariacao } from "@/types/domain";
-import { Badge, PageHeader, btnSecondary } from "@/components/ui";
+import type { ProdutoAnuncio, ProdutoComEstoque, ProdutoFoto, ProdutoVariacao } from "@/types/domain";
+import { Badge, PageHeader } from "@/components/ui";
 import { lerUso } from "@/lib/uso";
-import { hojeISO } from "@/lib/format";
 import { AnunciosEditor } from "./anuncios-editor";
 import { FotosSection } from "./fotos-section";
-import { PublicacoesCard } from "./publicacoes-card";
 
 export async function generateMetadata({ params }: PageProps<"/anuncios/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -22,14 +19,13 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: produto }, { data: variacoesData }, { data: fotosData }, { data: anunciosData }, { data: publicacaoData }, uso] =
+  const [{ data: produto }, { data: variacoesData }, { data: fotosData }, { data: anunciosData }, uso] =
     await Promise.all([
       supabase.from("produtos_com_estoque").select("*, categorias(nome)").eq("id", id).maybeSingle(),
       supabase.from("produto_variacoes").select("*").eq("produto_id", id).order("nome_combinacao"),
       supabase.from("produto_fotos").select("*").eq("produto_id", id).order("ordem").order("created_at"),
       // o anúncio do produto é a versão mais recente; as outras (de quando havia um anúncio por canal) ficam guardadas
       supabase.from("produto_anuncios").select("*").eq("produto_id", id).order("updated_at", { ascending: false }),
-      supabase.from("anuncio_publicacoes").select("*").eq("produto_id", id).maybeSingle(),
       lerUso(supabase),
     ]);
 
@@ -40,7 +36,6 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
   const fotos = (fotosData ?? []) as ProdutoFoto[];
   const anuncios = (anunciosData ?? []) as ProdutoAnuncio[];
   const anuncio = anuncios.find((a) => a.variacao_id === null) ?? anuncios[0] ?? null;
-  const publicacao = (publicacaoData ?? undefined) as AnuncioPublicacao | undefined;
 
   const { data: assinadas } = fotos.length
     ? await supabase.storage.from("produto-fotos").createSignedUrls(fotos.map((f) => f.path), 3600)
@@ -53,7 +48,7 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
   }));
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl pb-24 lg:pb-0">
       <PageHeader
         back={{ href: "/anuncios", label: "Anúncios" }}
         title={
@@ -62,17 +57,10 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
             {p.status === "inativo" && <Badge>Inativo</Badge>}
           </span>
         }
-        description={[p.categorias?.nome ?? "Sem categoria", p.marca, p.sku ? `SKU ${p.sku}` : null].filter(Boolean).join(" · ")}
-        action={
-          <>
-            <Link href={`/produtos/${p.id}`} className={btnSecondary}>
-              Ver produto
-            </Link>
-          </>
-        }
+        description={[p.categorias?.nome, p.marca].filter(Boolean).join(" · ") || undefined}
       />
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-7">
       <FotosSection
         produtoId={p.id}
         nomeProduto={p.nome}
@@ -94,7 +82,6 @@ export default async function AnunciosProdutoPage({ params }: PageProps<"/anunci
           variacoes,
         }}
       />
-        <PublicacoesCard produtoId={p.id} publicacao={publicacao} hoje={hojeISO()} />
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { hojeISO, mesAtual, somarDias } from "@/lib/format";
 import { enviarNotificacao } from "@/lib/push/send";
-import { situacaoDaPublicacao } from "@/lib/publicacao";
+// as rotinas diárias leem página a página (o PostgREST corta em 1000 linhas)
+import { lerTudo } from "@/lib/ler-tudo";
 import {
   NIVEIS,
   eventoAtivo,
@@ -13,7 +14,6 @@ import {
   linhaDoEstoqueZerado,
   linhaDoNivel,
   linhaDoPedido,
-  linhaDoRenovarAnuncio,
   linhaDoResumo,
   montarNotificacao,
   type DadosResumoNotificacao,
@@ -36,18 +36,6 @@ async function enviarEvento(
   if (!eventoAtivo(pref, evento)) return null;
   const { titulo, corpo } = montarNotificacao(evento, posicao, linhaDeDados, ownerId);
   return enviarNotificacao(ownerId, titulo, corpo, url, cliente);
-}
-
-// O PostgREST devolve no máximo 1000 linhas por consulta: as rotinas diárias leem página a página.
-const PAGINA = 1000;
-async function lerTudo<T>(pagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: unknown }>) {
-  const tudo: T[] = [];
-  for (let de = 0; ; de += PAGINA) {
-    const { data, error } = await pagina(de, de + PAGINA - 1);
-    if (error) throw error;
-    tudo.push(...(data ?? []));
-    if (!data || data.length < PAGINA) return tudo;
-  }
 }
 
 interface VendaRegistrada extends DadosVendaNotificacao {
@@ -264,45 +252,6 @@ export async function enviarCobrancasDoDia(admin: SupabaseClient) {
     } catch (e) {
       // um usuário com problema não pode impedir os demais
       console.error("[push] lembrete de cobrança", { ownerId, erro: e instanceof Error ? e.message : String(e) });
-    }
-  }
-  return { usuarios: porDono.size, enviados };
-}
-
-// Rotina diária (junto da das 8h): um aviso por usuário com os anúncios publicados que já passaram do prazo
-// de renovar (a data e o prazo vêm de "Onde está publicado", em Anúncios). Repete todo dia até a pessoa
-// marcar "Renovei hoje". Quem desligou o grupo "Renovar anúncios" não recebe.
-export async function enviarRenovacoesDeAnuncios(admin: SupabaseClient) {
-  const hoje = hojeISO();
-  const publicacoes = await lerTudo((de, ate) =>
-    admin
-      .from("anuncio_publicacoes")
-      .select("owner_id, produto_id, publicado_em, renovar_dias, produtos(nome, status)")
-      .order("id")
-      .range(de, ate),
-  );
-
-  const porDono = new Map<string, { produtoId: string; nome: string }[]>();
-  for (const p of publicacoes) {
-    if (situacaoDaPublicacao(p.publicado_em, p.renovar_dias, hoje).tipo !== "vencido") continue;
-    const produto = p.produtos as unknown as { nome: string; status: string } | null;
-    if (!produto || produto.status === "inativo") continue;
-    const lista = porDono.get(p.owner_id) ?? [];
-    lista.push({ produtoId: p.produto_id, nome: produto.nome });
-    porDono.set(p.owner_id, lista);
-  }
-
-  let enviados = 0;
-  for (const [ownerId, lista] of porDono) {
-    try {
-      const { data } = await admin.auth.admin.getUserById(ownerId);
-      const pref = lerPreferencias(data.user?.user_metadata);
-      if (!eventoAtivo(pref, "renovar_anuncio")) continue;
-      const url = lista.length === 1 ? `/anuncios/${lista[0].produtoId}` : "/anuncios";
-      await enviarEvento(ownerId, pref, "renovar_anuncio", numeroDoDia(hoje), linhaDoRenovarAnuncio(lista.map((a) => a.nome)), url, admin);
-      enviados++;
-    } catch (e) {
-      console.error("[push] renovar anúncios", { ownerId, erro: e instanceof Error ? e.message : String(e) });
     }
   }
   return { usuarios: porDono.size, enviados };

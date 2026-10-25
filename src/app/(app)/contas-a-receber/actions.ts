@@ -64,3 +64,26 @@ export async function receberParcela(parcelaId: string, valor: number, data?: st
     return falha(e);
   }
 }
+
+// Desfaz um recebimento: a entrada sai do caixa e o valor volta para o que está em aberto
+// (função desfazer_recebimento, migration 0067). Devolve em `id` a parcela em aberto que ficou
+// com o valor, para o "Desfazer" do aviso poder receber de novo.
+export async function desfazerRecebimento(parcelaId: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const { data: resultado, error } = await supabase.rpc("desfazer_recebimento", { p_parcela: parcelaId });
+    if (error) return falha(error);
+
+    const volta = ((resultado ?? {}) as { parcela_id?: string }).parcela_id ?? parcelaId;
+    const { data: parcela } = await supabase.from("parcelas").select("venda_id").eq("id", volta).maybeSingle();
+    if (parcela) revalidatePath(`/vendas/${parcela.venda_id}`);
+
+    revalidatePath("/contas-a-receber");
+    revalidatePath("/fluxo-de-caixa");
+    revalidatePath("/clientes");
+    revalidatePath("/");
+    return { ok: true, message: "Recebimento desfeito.", id: volta };
+  } catch (e) {
+    return falha(e);
+  }
+}

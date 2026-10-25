@@ -6,12 +6,11 @@ import { mensagemDeErro } from "@/lib/action";
 import { formatPct, hrefRelatorio, resolverPeriodoRelatorio } from "@/lib/relatorios";
 import { capasDeProdutos, ordenarProdutos, produtosVendidos, type OrdemProdutos } from "@/lib/relatorios-dados";
 import { Grupo } from "@/components/ajustes";
-import { ErrorMessage, PageHeader, Segmentos, btnPrimary } from "@/components/ui";
+import { ErrorMessage, PageHeader, Segmentos, btnPrimary, EmptyState } from "@/components/ui";
 import { LinhaBarra } from "@/components/graficos/barras";
-import { EstadoVazio } from "@/components/graficos/vazio";
 import { FotoProduto } from "@/components/foto-produto";
 import { AbasRelatorios } from "../abas";
-import { SeletorPeriodo } from "../seletor-periodo";
+import { SeletorPeriodo } from "@/components/seletor-periodo";
 
 export const metadata: Metadata = { title: "Produtos: relatórios" };
 
@@ -55,14 +54,15 @@ export default async function RelatorioProdutosPage({ searchParams }: PageProps<
       <AbasRelatorios atual="produtos" periodo={periodo} />
 
       <div className="mb-6">
-        <SeletorPeriodo periodo={periodo} basePath="/relatorios/produtos" extra={{ ordem: ordem === "vendidos" ? undefined : ordem }} />
+        <SeletorPeriodo tipo="relatorio" periodo={periodo} basePath="/relatorios/produtos" params={{ ordem: ordem === "vendidos" ? undefined : ordem }} />
       </div>
 
       {lista.length === 0 ? (
-        <EstadoVazio
-          titulo="Nenhum produto vendido nesse período"
-          texto="Registre vendas ou escolha outro período para ver quais produtos mais saem e mais rendem."
-          acoes={
+        <EmptyState
+          ilustracao="grafico"
+          title="Nenhum produto vendido nesse período"
+          description="Registre vendas ou escolha outro período para ver quais produtos mais saem e mais rendem."
+          action={
             <Link href="/vendas/novo" className={btnPrimary}>
               Nova venda
             </Link>

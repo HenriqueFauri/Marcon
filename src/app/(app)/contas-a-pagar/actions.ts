@@ -104,3 +104,18 @@ export async function excluirConta(id: string): Promise<ActionResult> {
     return falha(e);
   }
 }
+
+// Desfaz o pagamento: a saída sai do caixa, a conta volta para em aberto e, se for mensal, a do mês
+// seguinte que ainda não foi mexida sai da lista (função desfazer_pagamento, migration 0067).
+export async function desfazerPagamento(id: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("desfazer_pagamento", { p_conta: id });
+    if (error) return falha(error);
+
+    revalidar();
+    return ok("Pagamento desfeito.");
+  } catch (e) {
+    return falha(e);
+  }
+}

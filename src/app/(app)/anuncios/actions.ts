@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Anthropic from "@anthropic-ai/sdk";
-import { falha, mensagemDeErro, ok, type ActionResult } from "@/lib/action";
+import { falha, mensagemDeErro, type ActionResult } from "@/lib/action";
 import { LIMITE_DESCRICAO, LIMITE_TITULO, cortar } from "@/lib/anuncio";
 import { MODELO_IA, escreverAnuncioComIA, iaDisponivel } from "@/lib/ia-anuncio";
 import { limparPerguntas, type PerguntasIA } from "@/lib/ia-perguntas";
@@ -140,58 +140,5 @@ export async function escreverAnuncioIA(dados: {
     };
   } catch (e) {
     return { ok: false, error: mensagemDeErro(e) };
-  }
-}
-
-// F24: guarda onde o anúncio está publicado (link, data e de quantos em quantos dias renovar): um registro por produto
-export async function salvarPublicacao(dados: {
-  produtoId: string;
-  link: string;
-  publicadoEm: string;
-  renovarDias: number;
-}): Promise<ActionResult> {
-  try {
-    const link = dados.link.trim();
-    if (link && !/^https?:\/\/\S+$/i.test(link)) return { ok: false, error: "O link precisa começar com http:// ou https://." };
-    if (link.length > 500) return { ok: false, error: "O link é comprido demais." };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dados.publicadoEm)) return { ok: false, error: "Informe a data da publicação." };
-    const dias = Math.round(dados.renovarDias);
-    if (!(dias >= 1 && dias <= 365)) return { ok: false, error: "Renovar em quantos dias: de 1 a 365." };
-
-    const supabase = await createClient();
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
-
-    const { error } = await supabase.from("anuncio_publicacoes").upsert(
-      {
-        owner_id: auth.user.id,
-        produto_id: dados.produtoId,
-        link: link || null,
-        publicado_em: dados.publicadoEm,
-        renovar_dias: dias,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "produto_id" },
-    );
-    if (error) return falha(error);
-
-    revalidatePath(`/anuncios/${dados.produtoId}`);
-    revalidatePath("/anuncios");
-    return ok("Publicação salva.");
-  } catch (e) {
-    return falha(e);
-  }
-}
-
-export async function removerPublicacao(produtoId: string): Promise<ActionResult> {
-  try {
-    const supabase = await createClient();
-    const { error } = await supabase.from("anuncio_publicacoes").delete().eq("produto_id", produtoId);
-    if (error) return falha(error);
-    revalidatePath(`/anuncios/${produtoId}`);
-    revalidatePath("/anuncios");
-    return ok("Publicação removida.");
-  } catch (e) {
-    return falha(e);
   }
 }

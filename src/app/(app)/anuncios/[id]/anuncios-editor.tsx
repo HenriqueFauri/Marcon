@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import type { ProdutoAnuncio } from "@/types/domain";
 import { LIMITE_DESCRICAO, LIMITE_TITULO, gerarAnuncio } from "@/lib/anuncio";
 import type { DadosAnuncio } from "@/lib/anuncio";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
-import { Card, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
-import { IconSparkles } from "@/components/icons";
+import { btnGhost, btnPrimary, btnSecondary, btnSmallNeutro } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
+import { Modal } from "@/components/modal";
+import { IconCheck, IconSparkles } from "@/components/icons";
+import { RotuloAcao } from "@/components/rotulo-acao";
 import { ENTREGAS, ESTADOS, LIMITE_ACOMPANHA, LIMITE_DICA, PERGUNTAS_VAZIAS, rotuloDoEstado, type PerguntasIA } from "@/lib/ia-perguntas";
 import { AutoTextarea } from "@/components/auto-textarea";
-import { formatBRL } from "@/lib/format";
 import { escreverAnuncioIA, salvarAnuncio } from "../actions";
 
 function useCopiar() {
@@ -18,7 +20,7 @@ function useCopiar() {
   return async function copiar(texto: string, rotulo: string) {
     try {
       await navigator.clipboard.writeText(texto);
-      toast.success(`${rotulo} copiado.`);
+      toast.success(`${rotulo} copiado. Agora é só colar.`);
     } catch {
       toast.error("Não foi possível copiar.");
     }
@@ -44,8 +46,8 @@ function useEscreverComIA() {
         usar(r);
         toast.success(
           r.restantes === null
-            ? "Anúncio escrito. Revise antes de usar."
-            : `Anúncio escrito. Revise antes de usar. Restam ${r.restantes} escrita(s) com IA este mês.`,
+            ? "Anúncio escrito. Dê uma revisada."
+            : `Anúncio escrito. Dê uma revisada. ${r.restantes === 1 ? "Resta 1 escrita" : `Restam ${r.restantes} escritas`} com IA este mês.`,
         );
       } catch {
         toast.error("A IA não conseguiu escrever agora. Tente de novo.");
@@ -56,106 +58,92 @@ function useEscreverComIA() {
   return { escrevendo, escrever };
 }
 
-const linkAcao = "text-[13px] font-medium text-brand-text hover:underline disabled:opacity-40 disabled:no-underline";
+const linhaClass = "flex items-center gap-3 border-t border-line px-4 py-3 text-[17px] first:border-t-0";
+const campoLinhaClass = "min-w-0 bg-transparent text-[17px] text-ink outline-none placeholder:text-ink-faint";
 
-// Escolha única em botões: tocar de novo na opção marcada desmarca ("não informar").
-function Escolha({
+// Linha com o valor à direita e "›": abre uma folha com a lista de opções (mais de 4, ou rótulos longos).
+function LinhaEscolha({
   rotulo,
   opcoes,
   valor,
   onChange,
 }: {
   rotulo: string;
-  opcoes: readonly { id: string; curto: string }[];
+  opcoes: readonly { id: string; rotulo: string; curto: string }[];
   valor: string;
   onChange: (id: string) => void;
 }) {
+  const [aberta, setAberta] = useState(false);
+  const atual = opcoes.find((o) => o.id === valor);
+  const escolher = (id: string) => {
+    onChange(id);
+    setAberta(false);
+  };
   return (
-    <div role="group" aria-label={rotulo}>
-      <p className="mb-1.5 text-[13px] font-medium text-ink-muted">{rotulo}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {opcoes.map((o) => {
-          const marcada = o.id === valor;
-          return (
-            <button
-              key={o.id}
-              type="button"
-              aria-pressed={marcada}
-              onClick={() => onChange(marcada ? "" : o.id)}
-              className={`rounded-full px-3.5 py-1.5 text-sm transition ${
-                marcada ? "bg-brand-fill font-semibold text-on-brand" : "bg-surface text-ink-2 hover:bg-fill-strong"
-              }`}
-            >
-              {o.curto}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <>
+      <button type="button" onClick={() => setAberta(true)} className={`${linhaClass} w-full text-left transition hover:bg-fill/60 active:bg-fill`}>
+        <span className="min-w-0 flex-1 truncate text-ink">{rotulo}</span>
+        <span className={`max-w-[55%] truncate ${atual ? "text-ink-muted" : "text-ink-faint"}`}>{atual?.curto ?? "Escolher"}</span>
+        <span aria-hidden="true" className="text-lg text-ink-faint">
+          ›
+        </span>
+      </button>
+      <Modal open={aberta} onClose={() => setAberta(false)} title={rotulo} size="sm" folha>
+        <div role="radiogroup" aria-label={rotulo} className="hairline overflow-hidden rounded-2xl">
+          {[...opcoes, { id: "", rotulo: "Não informar", curto: "" }].map((o) => {
+            const marcada = o.id === valor;
+            return (
+              <button
+                key={o.id || "nada"}
+                type="button"
+                role="radio"
+                aria-checked={marcada}
+                onClick={() => escolher(o.id)}
+                className={`${linhaClass} w-full text-left transition hover:bg-fill/60 active:bg-fill`}
+              >
+                <span className={`min-w-0 flex-1 ${o.id ? "text-ink" : "text-ink-muted"}`}>{o.rotulo}</span>
+                {marcada && <IconCheck width={18} height={18} className="shrink-0 text-brand-text" />}
+              </button>
+            );
+          })}
+        </div>
+      </Modal>
+    </>
   );
 }
 
-// Perguntas rápidas + botão de escrever. O que fica em branco a IA não diz.
-function GeradorIA({
-  perguntas,
-  onChange,
-  onGerar,
-  ocupado,
-  escrevendo,
-  temAnuncio,
+// Um campo do texto final: rótulo, contador e "Copiar" na linha de cima, o texto embaixo.
+function CampoTexto({
+  id,
+  rotulo,
+  valor,
+  limite,
+  onCopiar,
+  children,
 }: {
-  perguntas: PerguntasIA;
-  onChange: (p: PerguntasIA) => void;
-  onGerar: () => void;
-  ocupado: boolean;
-  escrevendo: boolean;
-  temAnuncio: boolean;
+  id: string;
+  rotulo: string;
+  valor: string;
+  limite: number;
+  onCopiar: () => void;
+  children: ReactNode;
 }) {
   return (
-    <div className="mb-4 rounded-2xl bg-fill p-4">
-      <div className="flex flex-col gap-4">
-        <div>
-          <div className="mb-1.5 flex items-baseline justify-between gap-2">
-            <label htmlFor="ia-dica" className="text-[13px] font-medium text-ink-muted">
-              Conte sobre o produto
-            </label>
-            {perguntas.dica.length > LIMITE_DICA * 0.8 && (
-              <span className="text-xs text-ink-muted">
-                {perguntas.dica.length}/{LIMITE_DICA}
-              </span>
-            )}
-          </div>
-          <AutoTextarea
-            id="ia-dica"
-            rows={3}
-            value={perguntas.dica}
-            onChange={(e) => onChange({ ...perguntas, dica: e.target.value })}
-            maxLength={LIMITE_DICA}
-            placeholder="Cole a ficha do fornecedor ou escreva do seu jeito: material, medidas, pra que serve, o que destacar..."
-            className={`${inputClass} !bg-surface`}
-          />
-        </div>
-        <Escolha rotulo="Retirada e entrega" opcoes={ENTREGAS} valor={perguntas.entrega} onChange={(entrega) => onChange({ ...perguntas, entrega })} />
-        <div>
-          <label htmlFor="ia-acompanha" className="mb-1.5 block text-[13px] font-medium text-ink-muted">
-            O que acompanha
-          </label>
-          <input
-            id="ia-acompanha"
-            value={perguntas.acompanha}
-            onChange={(e) => onChange({ ...perguntas, acompanha: e.target.value })}
-            maxLength={LIMITE_ACOMPANHA}
-            placeholder="Caixa, cabo, divisor de áudio..."
-            className={`${inputClass} !bg-surface`}
-          />
-        </div>
+    <div className="border-t border-line px-4 py-3 first:border-t-0">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <label htmlFor={id} className="text-[13px] text-ink-muted">
+          {rotulo}
+        </label>
+        <span className="flex items-center gap-3">
+          <span className={`text-[13px] tabular-nums ${valor.length > limite ? "text-danger" : "text-ink-muted"}`}>
+            {valor.length}/{limite}
+          </span>
+          <button type="button" disabled={!valor} onClick={onCopiar} className={btnSmallNeutro}>
+            Copiar
+          </button>
+        </span>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <button type="button" onClick={onGerar} disabled={ocupado || escrevendo} className={btnPrimary}>
-          <IconSparkles width={16} height={16} /> {escrevendo ? "Escrevendo..." : temAnuncio ? "Reescrever com IA" : "Escrever com IA"}
-        </button>
-        <span className="text-xs text-ink-muted">O que ficar em branco, a IA não diz.</span>
-      </div>
+      {children}
     </div>
   );
 }
@@ -179,7 +167,7 @@ export function AnunciosEditor({
   const [descricao, setDescricao] = useState(anuncio?.descricao ?? "");
   const [estilo, setEstilo] = useState(0);
   const alterado = titulo !== (anuncio?.titulo ?? "") || descricao !== (anuncio?.descricao ?? "");
-  const tituloEstourou = titulo.length > LIMITE_TITULO;
+  const temTexto = !!(titulo || descricao);
 
   function salvar(texto: { titulo: string; descricao: string }) {
     run(() => salvarAnuncio({ id: anuncio?.id ?? null, produtoId, variacaoId: anuncio?.variacao_id ?? null, ...texto }));
@@ -193,7 +181,7 @@ export function AnunciosEditor({
   }
 
   // O texto da IA custa uma escrita da cota: sem anúncio salvo ele já vai direto para o banco; com anúncio,
-  // entra nos campos e só substitui o texto salvo quando a pessoa tocar em Salvar.
+  // entra nos campos e só substitui o texto salvo quando a pessoa copiar ou salvar.
   function escreverComIA() {
     escrever({ produtoId, perguntas }, (texto) => {
       setTitulo(texto.titulo);
@@ -202,85 +190,116 @@ export function AnunciosEditor({
     });
   }
 
+  // copiar o anúncio inteiro já guarda o que mudou, pra ninguém perder o texto
+  function copiarTudo() {
+    void copiar([titulo, descricao].filter(Boolean).join("\n\n"), "Anúncio");
+    if (alterado) salvar({ titulo, descricao });
+  }
+
+  const ocupado = isPending || escrevendo;
+
+  // botão que escreve o texto: principal (barra de baixo) enquanto não há texto, secundário depois
+  const botaoEscrever = (classe: string) =>
+    iaDisponivel ? (
+      <button type="button" onClick={escreverComIA} disabled={ocupado} className={classe}>
+        <IconSparkles width={16} height={16} />
+        <RotuloAcao pendente={escrevendo} ocupado="Escrevendo...">
+          {temTexto ? "Reescrever com IA" : "Escrever com IA"}
+        </RotuloAcao>
+      </button>
+    ) : (
+      <button type="button" onClick={sugerir} className={classe}>
+        {temTexto ? "Gerar outro texto" : "Gerar texto"}
+      </button>
+    );
+
   return (
-    <Card title="Anúncio">
-      <p className="mb-4 text-sm text-ink-muted">
-        Um texto só, que serve em qualquer plataforma: Marketplace, OLX, Mercado Livre, Shopee, Instagram ou WhatsApp. É só copiar e colar.
-      </p>
-
-      <div className="mb-4 flex flex-col gap-4">
-        <Escolha rotulo="Condição" opcoes={ESTADOS} valor={perguntas.estado} onChange={(estado) => setPerguntas({ ...perguntas, estado })} />
-        <p className="text-[13px] text-ink-muted">
-          Preço: <span className="font-medium text-ink">{formatBRL(dados.precoVarejo)}</span> (o do cadastro do produto)
-        </p>
-      </div>
-
-      {iaDisponivel && (
-        <GeradorIA
-          perguntas={perguntas}
-          onChange={setPerguntas}
-          onGerar={escreverComIA}
-          ocupado={isPending}
-          escrevendo={escrevendo}
-          temAnuncio={!!anuncio}
-        />
-      )}
-
-      <div className="flex flex-col gap-4">
-        <div>
-          <div className="mb-1 flex items-baseline justify-between gap-2">
-            <label htmlFor="anuncio-titulo" className="text-[13px] font-medium text-ink-muted">
-              Título
+    <>
+      <Grupo titulo="Sobre o produto" rodape={iaDisponivel ? "O que ficar em branco, a IA não inventa." : undefined} semPadding>
+        <LinhaEscolha rotulo="Condição" opcoes={ESTADOS} valor={perguntas.estado} onChange={(estado) => setPerguntas({ ...perguntas, estado })} />
+        {iaDisponivel && (
+          <>
+            <LinhaEscolha rotulo="Entrega" opcoes={ENTREGAS} valor={perguntas.entrega} onChange={(entrega) => setPerguntas({ ...perguntas, entrega })} />
+            <label className={linhaClass}>
+              <span className="shrink-0 text-ink">O que acompanha</span>
+              <input
+                value={perguntas.acompanha}
+                onChange={(e) => setPerguntas({ ...perguntas, acompanha: e.target.value })}
+                maxLength={LIMITE_ACOMPANHA}
+                placeholder="Caixa, cabo..."
+                className={`${campoLinhaClass} flex-1 text-right`}
+              />
             </label>
-            <span className="flex items-baseline gap-3 text-xs">
-              <span className={tituloEstourou ? "text-danger" : "text-ink-muted"}>{titulo.length}/{LIMITE_TITULO}</span>
-              <button type="button" disabled={!titulo} onClick={() => copiar(titulo, "Título")} className={linkAcao}>
-                Copiar
-              </button>
-            </span>
-          </div>
-          <AutoTextarea umaLinha id="anuncio-titulo" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título do anúncio" className={inputClass} />
-          {tituloEstourou && <p className="mt-1 text-xs text-danger">Título curto funciona em todas as plataformas: tente até {LIMITE_TITULO} caracteres.</p>}
-        </div>
-
-        <div>
-          <div className="mb-1 flex items-baseline justify-between gap-2">
-            <label htmlFor="anuncio-descricao" className="text-[13px] font-medium text-ink-muted">
-              Descrição
-            </label>
-            <span className="flex items-baseline gap-3 text-xs">
-              <span className={descricao.length > LIMITE_DESCRICAO ? "text-danger" : "text-ink-muted"}>{descricao.length}/{LIMITE_DESCRICAO}</span>
-              <button type="button" disabled={!descricao} onClick={() => copiar(descricao, "Descrição")} className={linkAcao}>
-                Copiar
-              </button>
-            </span>
-          </div>
-          <AutoTextarea id="anuncio-descricao" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={6} placeholder="Descrição do anúncio" className={inputClass} />
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={!titulo && !descricao}
-            onClick={() => copiar([titulo, descricao].filter(Boolean).join("\n\n"), "Anúncio")}
-            className={`${btnSecondary} px-4 py-1.5 text-sm`}
-          >
-            Copiar tudo
-          </button>
-          <button type="button" onClick={sugerir} className={`${btnGhost} px-3 py-1 text-xs`}>
-            {anuncio || titulo || descricao ? "Outra sugestão (sem IA)" : "Gerar sugestão (sem IA)"}
-          </button>
-        </div>
-        {alterado ? (
-          <button type="button" onClick={() => salvar({ titulo, descricao })} disabled={isPending} className={`${btnPrimary} px-4 py-1.5 text-sm`}>
-            {isPending ? "Salvando..." : "Salvar anúncio"}
-          </button>
-        ) : (
-          <span className="text-xs text-ink-muted">{anuncio ? "Salvo" : ""}</span>
+            <div className="border-t border-line px-4 py-3">
+              <AutoTextarea
+                aria-label="Conte sobre o produto"
+                rows={3}
+                value={perguntas.dica}
+                onChange={(e) => setPerguntas({ ...perguntas, dica: e.target.value })}
+                maxLength={LIMITE_DICA}
+                placeholder="Conte sobre o produto: material, medidas, pra que serve. Pode colar a ficha do fornecedor."
+                className={`${campoLinhaClass} block w-full resize-none`}
+              />
+            </div>
+          </>
         )}
+        {temTexto && <div className="border-t border-line p-4">{botaoEscrever(`${btnSecondary} w-full`)}</div>}
+        {iaDisponivel && (
+          <div className={`flex justify-center px-4 pb-3 ${temTexto ? "" : "border-t border-line pt-3"}`}>
+            <button type="button" onClick={sugerir} className="text-[15px] font-medium text-brand-text hover:underline">
+              {temTexto ? "Outro modelo, sem IA" : "Usar um modelo, sem IA"}
+            </button>
+          </div>
+        )}
+      </Grupo>
+
+      <Grupo titulo="Anúncio" rodape="Serve no Marketplace e no Zap. O preço vai no campo de preço." semPadding>
+        <CampoTexto id="anuncio-titulo" rotulo="Título" valor={titulo} limite={LIMITE_TITULO} onCopiar={() => copiar(titulo, "Título")}>
+          <AutoTextarea
+            id="anuncio-titulo"
+            umaLinha
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            placeholder="Título do anúncio"
+            className={`${campoLinhaClass} block w-full resize-none`}
+          />
+        </CampoTexto>
+        <CampoTexto id="anuncio-descricao" rotulo="Descrição" valor={descricao} limite={LIMITE_DESCRICAO} onCopiar={() => copiar(descricao, "Descrição")}>
+          <AutoTextarea
+            id="anuncio-descricao"
+            rows={6}
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            placeholder="Descrição do anúncio"
+            className={`${campoLinhaClass} block w-full resize-none`}
+          />
+        </CampoTexto>
+      </Grupo>
+
+      {/* um só botão principal: fixo acima da barra de abas no celular, normal no computador */}
+      <div className="fixed inset-x-0 bottom-[calc(max(1.25rem,env(safe-area-inset-bottom))+4.5rem)] z-30 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-2 pt-6 lg:static lg:bg-none lg:p-0">
+        <div className="mx-auto flex max-w-4xl flex-col items-center gap-1 lg:flex-row lg:gap-3">
+          {temTexto ? (
+            <button
+              type="button"
+              onClick={copiarTudo}
+              disabled={isPending}
+              className={`${btnPrimary} h-[54px] w-full !text-[17px] shadow-lg shadow-brand/30 lg:h-auto lg:w-auto lg:py-3 lg:shadow-sm`}
+            >
+              Copiar anúncio
+            </button>
+          ) : (
+            botaoEscrever(`${btnPrimary} h-[54px] w-full !text-[17px] shadow-lg shadow-brand/30 lg:h-auto lg:w-auto lg:py-3 lg:shadow-sm`)
+          )}
+          {alterado && (
+            <button type="button" onClick={() => salvar({ titulo, descricao })} disabled={isPending} className={`${btnGhost} py-1.5 lg:py-2.5`}>
+              <RotuloAcao pendente={isPending} ocupado="Salvando...">
+                Salvar alterações
+              </RotuloAcao>
+            </button>
+          )}
+        </div>
       </div>
-    </Card>
+    </>
   );
 }

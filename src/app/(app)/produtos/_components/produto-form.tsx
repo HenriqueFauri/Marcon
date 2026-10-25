@@ -15,8 +15,8 @@ import { createClient } from "@/lib/supabase/client";
 import { comprimirImagem, TAMANHO_ENVIO_MAX, TAMANHO_ORIGINAL_MAX } from "@/lib/imagem";
 import { registrarFoto } from "../actions";
 import { AutoTextarea } from "@/components/auto-textarea";
-import { Grupo, LinhaLink } from "@/components/ajustes";
-import { Card, Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
+import { Grupo, Interruptor, LinhaLink, Segmentado } from "@/components/ajustes";
+import { Field, btnGhost, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconBox, IconChevronDown, IconPlus, IconTrash } from "@/components/icons";
 
 const UNIDADES = [
@@ -94,7 +94,7 @@ function LinhaVariacaoNova({
   const precoEfetivo = lerNumero(preco) ?? precoPadrao;
 
   return (
-    <div className="rounded-2xl border border-line p-3">
+    <div className="border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[13px] font-semibold text-ink-2">Variação {indice + 1}</span>
         {podeRemover && (
@@ -152,10 +152,7 @@ function VariacoesNovas({ custoPadrao, precoPadrao }: { custoPadrao: number | nu
   const [proximo, setProximo] = useState(1);
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-ink-muted">
-        Uma linha para cada combinação (ex: &quot;Azul / M&quot;). Custo e preço em branco usam os do produto.
-      </p>
+    <div className="flex flex-col gap-4">
       {linhas.map((id, i) => (
         <LinhaVariacaoNova
           key={id}
@@ -166,18 +163,44 @@ function VariacoesNovas({ custoPadrao, precoPadrao }: { custoPadrao: number | nu
           precoPadrao={precoPadrao}
         />
       ))}
-      <div>
+      <div className="border-t border-line pt-4">
         <button
           type="button"
           onClick={() => {
             setLinhas((l) => [...l, proximo]);
             setProximo((n) => n + 1);
           }}
-          className={btnSecondary}
+          className={`${btnSecondary} w-full sm:w-auto`}
         >
           <IconPlus width={16} height={16} /> Adicionar outra variação
         </button>
       </div>
+    </div>
+  );
+}
+
+type OrigemEstoque = "ja_era_meu" | "comprei";
+
+// De onde veio o estoque inicial: "Já era meu" (padrão, não sai do caixa) ou "Comprei agora" (sai do caixa).
+// Fica junto do estoque, só quando há estoque a lançar.
+function OrigemDoEstoque({ valor, onMudar }: { valor: OrigemEstoque; onMudar: (v: OrigemEstoque) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Segmentado
+        name="estoque_origem"
+        rotulo="De onde veio esse estoque"
+        valor={valor}
+        onMudar={onMudar}
+        opcoes={[
+          { valor: "ja_era_meu", label: "Já era meu" },
+          { valor: "comprei", label: "Comprei agora" },
+        ]}
+      />
+      <p className="text-xs text-ink-muted">
+        {valor === "comprei"
+          ? "Entra como compra e sai do caixa hoje."
+          : "Você já tinha pago antes. O estoque entra e nada sai do caixa."}
+      </p>
     </div>
   );
 }
@@ -307,7 +330,9 @@ export function ProdutoForm({
   const { isPending, run } = useAction();
   const [erro, setErro] = useState<string | null>(null);
   const [temVariacoes, setTemVariacoes] = useState(produto?.tem_variacoes ?? false);
-  const [estoqueJaPago, setEstoqueJaPago] = useState(false);
+  const [origemEstoque, setOrigemEstoque] = useState<OrigemEstoque>("ja_era_meu");
+  const [estoque, setEstoque] = useState("0");
+  const estoqueN = Math.trunc(Number(estoque) || 0);
   const [fornecedorId, setFornecedorId] = useState(base?.fornecedor_id ?? "");
   const [custo, setCusto] = useState(valorInicial(base?.custo));
   const [preco, setPreco] = useState(valorInicial(base?.preco_varejo));
@@ -317,6 +342,7 @@ export function ProdutoForm({
   // com variações marcadas a seção fica aberta: os campos obrigatórios delas não podem ficar escondidos
   const aberto = mais || temVariacoes;
   const toast = useToast();
+  const resultadoId = useRef<string | null>(null);
 
   const custoN = paraNumero(custo);
   const precoN = paraNumero(preco);
@@ -333,6 +359,7 @@ export function ProdutoForm({
         run(
           async () => {
             const resultado = await onSave(formData);
+            resultadoId.current = resultado.ok ? (resultado.id ?? null) : null;
             if (resultado.ok && foto && resultado.id) await enviarFotoDeCapa(resultado.id, foto, toast);
             return resultado;
           },
@@ -340,15 +367,17 @@ export function ProdutoForm({
             onError: setErro,
             onSuccess: () => {
               setErro(null);
-              router.push(produto ? `/produtos/${produto.id}` : "/produtos");
+              // produto novo abre a página dele (dali se adiciona foto, anúncio e vitrine)
+              const id = produto?.id ?? resultadoId.current;
+              router.push(id ? `/produtos/${id}` : "/produtos");
             },
           },
         );
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-7"
     >
       {/* o essencial para cadastrar em segundos: nome, custo, preço, estoque e foto. O resto fica em "Mais detalhes" */}
-      <Card title={editando ? "Produto" : "Cadastro rápido"}>
+      <Grupo titulo={editando ? "Produto" : "Cadastro rápido"}>
         <div className="flex flex-col gap-4">
           {!editando && <FotoDeCapa foto={foto} onChange={setFoto} />}
 
@@ -393,7 +422,7 @@ export function ProdutoForm({
             {!editando && (
               <Field
                 label="Estoque"
-                hint={temVariacoes ? "Controlado por variação." : estoqueJaPago ? "Não sai do caixa." : "Entra como compra no caixa."}
+                hint={temVariacoes ? "Controlado por variação." : undefined}
                 className="col-span-2 sm:col-span-1"
               >
                 <input
@@ -402,13 +431,16 @@ export function ProdutoForm({
                   inputMode="numeric"
                   min="0"
                   step="1"
-                  defaultValue={0}
+                  value={estoque}
+                  onChange={(e) => setEstoque(e.target.value)}
                   disabled={temVariacoes}
                   className={inputClass}
                 />
               </Field>
             )}
           </div>
+
+          {!editando && !temVariacoes && estoqueN > 0 && <OrigemDoEstoque valor={origemEstoque} onMudar={setOrigemEstoque} />}
 
           {lucroUnit !== null && (
             <p className={`text-sm ${lucroUnit >= 0 ? "text-ink-muted" : "text-danger"}`}>
@@ -419,7 +451,7 @@ export function ProdutoForm({
             </p>
           )}
         </div>
-      </Card>
+      </Grupo>
 
       <button
         type="button"
@@ -438,8 +470,8 @@ export function ProdutoForm({
       </button>
 
       {/* escondido (e não desmontado): os campos continuam no envio mesmo com a seção fechada */}
-      <div id="mais-detalhes" hidden={!aberto} className="flex flex-col gap-4">
-        <Card title="Informações">
+      <div id="mais-detalhes" hidden={!aberto} className="flex flex-col gap-7">
+        <Grupo titulo="Informações">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <CategoriaCampo categorias={categorias} inicial={base?.categorias?.nome ?? ""} />
@@ -474,9 +506,9 @@ export function ProdutoForm({
               />
             </Field>
           </div>
-        </Card>
+        </Grupo>
 
-        <Card title="Atacado, estoque e fornecedor">
+        <Grupo titulo="Atacado, estoque e fornecedor">
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Preço de atacado (R$)">
@@ -512,41 +544,17 @@ export function ProdutoForm({
             </div>
 
             {!editando && (
-              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  name="estoque_ja_pago"
-                  value="true"
-                  checked={estoqueJaPago}
-                  onChange={(e) => setEstoqueJaPago(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-brand"
+              <div>
+                {/* o servidor lê tem_variacoes === "true"; o interruptor só muda o estado */}
+                <input type="hidden" name="tem_variacoes" value={temVariacoes ? "true" : ""} />
+                <Interruptor
+                  name="tem_variacoes_ligado"
+                  padrao={temVariacoes}
+                  onMudar={setTemVariacoes}
+                  titulo="Tem variações"
+                  ajuda="Tamanho, cor... O estoque passa a ser por variação."
                 />
-                <span>
-                  Esse estoque já era meu
-                  <span className="mt-0.5 block text-xs text-ink-muted">
-                    Marque se você já tinha pago por ele antes de usar o Marcon. O estoque entra, mas nada sai do caixa agora.
-                  </span>
-                </span>
-              </label>
-            )}
-
-            {!editando && (
-              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-canvas/40 p-3 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  name="tem_variacoes"
-                  value="true"
-                  checked={temVariacoes}
-                  onChange={(e) => setTemVariacoes(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-brand"
-                />
-                <span>
-                  Este produto tem variações (tamanho, cor...)
-                  <span className="mt-0.5 block text-xs text-ink-muted">
-                    O estoque passa a ser controlado por variação. Preencha as variações logo abaixo.
-                  </span>
-                </span>
-              </label>
+              </div>
             )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -586,12 +594,16 @@ export function ProdutoForm({
               )}
             </div>
           </div>
-        </Card>
+        </Grupo>
 
         {!editando && temVariacoes && (
-          <Card title="Variações">
-            <VariacoesNovas custoPadrao={custoN} precoPadrao={precoN} />
-          </Card>
+          <Grupo titulo="Variações" rodape={<>Uma para cada combinação (ex.: &quot;Azul / M&quot;). Custo e preço em branco usam os do produto.</>}>
+            <div className="flex flex-col gap-4">
+              <VariacoesNovas custoPadrao={custoN} precoPadrao={precoN} />
+              {/* vale para o estoque de todas as variações */}
+              <OrigemDoEstoque valor={origemEstoque} onMudar={setOrigemEstoque} />
+            </div>
+          </Grupo>
         )}
       </div>
 
@@ -612,11 +624,11 @@ export function ProdutoForm({
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button type="button" onClick={() => router.back()} className={btnGhost}>
           Cancelar
         </button>
-        <button type="submit" disabled={isPending} className={btnPrimary}>
+        <button type="submit" disabled={isPending} className={`${btnPrimary} w-full py-3 sm:w-auto sm:py-2.5`}>
           <RotuloAcao pendente={isPending} ocupado="Salvando...">{editando ? "Salvar alterações" : "Cadastrar produto"}</RotuloAcao>
         </button>
       </div>

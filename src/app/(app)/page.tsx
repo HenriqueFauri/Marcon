@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
 import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes, somarDias } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
+import { lerUso } from "@/lib/uso";
 import { EmptyState, btnPrimary } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
 import { PainelMetas, PainelVendas, PeriodoProvider, type DadosPeriodo, type DadosPorPeriodo, type Periodo, type VendaResumo } from "./painel-periodo";
 import { AvisoNotificacoes } from "./aviso-notificacoes";
 import { IconAlert, IconBox, IconCheck, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
@@ -31,7 +33,7 @@ function projecaoDoMes(faturamento: number, meta: number | null, dia: number, di
 }
 
 function resumoItens(itens: { produto_nome: string; quantidade: number }[] | null) {
-  if (!itens?.length) return "—";
+  if (!itens?.length) return "";
   const [primeiro, ...resto] = itens;
   const base = primeiro.quantidade > 1 ? `${primeiro.quantidade} × ${primeiro.produto_nome}` : primeiro.produto_nome;
   return resto.length ? `${base} +${resto.length}` : base;
@@ -54,20 +56,11 @@ function horaDaVenda(iso: string) {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: FUSO, hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
 
-function Grupo({ titulo, children, className = "" }: { titulo: string; children: ReactNode; className?: string }) {
-  return (
-    <section className={className}>
-      <h2 className="mb-1.5 px-4 text-[13px] uppercase text-ink-muted">{titulo}</h2>
-      <div className="hairline overflow-hidden rounded-3xl bg-surface">{children}</div>
-    </section>
-  );
-}
-
 function LinhaAtencao({
   href, tom, icone, texto, valor,
 }: { href: string; tom: string; icone: ReactNode; texto: string; valor?: string }) {
   return (
-    <Link href={href} className={`flex items-center gap-3 border-t border-line py-2.5 text-sm text-ink first:border-t-0 ${linkPendente}`}>
+    <Link href={href} className={`flex items-center gap-3 border-t border-line px-4 py-3 text-[15px] text-ink transition first:border-t-0 hover:bg-fill/60 active:bg-fill ${linkPendente}`}>
       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] ${tom}`}>{icone}</span>
       <span className="flex-1">{texto}</span>
       {valor ? <span className="font-semibold tabular-nums">{valor}</span> : <SetaLink className="text-ink-muted" />}
@@ -78,7 +71,7 @@ function LinhaAtencao({
 function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; feito: boolean }[] }) {
   const feitos = passos.filter((p) => p.feito).length;
   return (
-    <Grupo titulo={`Primeiros passos · ${feitos} de ${passos.length}`}>
+    <Grupo titulo={`Primeiros passos · ${feitos} de ${passos.length}`} semPadding>
       {passos.map((p) => (
         <Link
           key={p.href}
@@ -97,6 +90,16 @@ function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; fe
         </Link>
       ))}
     </Grupo>
+  );
+}
+
+// calendário para as contas a pagar (o recibo já é das parcelas a receber)
+function IconCalendarioPagar({ size = 17 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="3" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+    </svg>
   );
 }
 
@@ -143,6 +146,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     { data: caixaData },
     { data: saldoData },
     { count: totalVendas },
+    { data: pagarData },
+    uso,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("produtos_com_estoque").select("*").neq("status", "inativo"),
@@ -162,6 +167,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     // saldo somado no banco: somar no app cortava em 1000 lançamentos
     supabase.rpc("saldo_caixa", { p_ate: hoje }),
     supabase.from("vendas").select("id", { count: "exact", head: true }).neq("status", "cancelada"),
+    // contas a pagar em aberto até daqui a 7 dias (as atrasadas entram: também pedem atenção)
+    supabase.from("contas_a_pagar").select("valor").eq("status", "aberta").lte("vencimento", somarDias(hoje, 7)),
+    // o plano diz se a vitrine abre (no grátis ela só mostra o convite para assinar)
+    lerUso(supabase),
   ]);
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
@@ -205,7 +214,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   };
   const dadosPorPeriodo: DadosPorPeriodo = { hoje: dadosDe("hoje"), semana: dadosDe("semana"), mes: dadosDe("mes") };
 
-  // dinheiro em caixa = saldo acumulado até hoje (não só o movimento do dia)
+  // saldo em caixa = saldo acumulado até hoje (não só o movimento do dia)
   const movimentoHoje = (caixaData ?? [])
     .filter((l) => l.data === hoje)
     .reduce((s, l) => s + (l.tipo === "entrada" ? Number(l.valor) : -Number(l.valor)), 0);
@@ -219,6 +228,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const vencemNaSemana = parcelas.filter((p) => p.status_efetivo !== "atrasado" && p.vencimento >= hoje && p.vencimento <= fimSemana);
   const valorVencemNaSemana = vencemNaSemana.reduce((s, p) => s + Number(p.valor), 0);
   const alertasEstoque = produtos.filter((p) => situacaoEstoque(p) !== "ok");
+  const aPagar = pagarData ?? [];
+  const valorAPagar = aPagar.reduce((s, c) => s + Number(c.valor), 0);
+  const textoAPagar = aPagar.length
+    ? `${aPagar.length} ${aPagar.length === 1 ? "conta" : "contas"} a pagar em 7 dias`
+    : "Nada a pagar em 7 dias";
 
   const primeiroNome = (
     (meta.nome as string | undefined) ?? (meta.full_name as string | undefined) ?? ""
@@ -226,16 +240,21 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
   const semNada = produtos.length === 0 && todasVendas.length === 0;
 
-  // checklist da conta nova; some sozinho quando os três passos estão feitos
+  // checklist da conta nova; some sozinho quando os três passos estão feitos.
+  // O 3º depende do plano: com vitrine, abrir a vitrine; no grátis (vitrine só convida a assinar),
+  // trazer os produtos de uma planilha (vale como feito a partir de 5 produtos cadastrados).
+  const temVitrine = uso ? uso.plano !== "gratis" : true;
   const passos = [
     { href: "/produtos/novo", texto: "Cadastrar um produto", feito: produtos.length > 0 },
     { href: "/vendas/novo", texto: "Registrar uma venda", feito: (totalVendas ?? 0) > 0 },
-    { href: "/vitrine", texto: "Abrir a vitrine", feito: produtos.some((p) => p.na_vitrine) },
+    temVitrine
+      ? { href: "/vitrine", texto: "Abrir a vitrine", feito: produtos.some((p) => p.na_vitrine) }
+      : { href: "/importar", texto: "Trazer seus produtos", feito: produtos.length >= 5 },
   ];
   const primeirosPassos = passos.some((p) => !p.feito);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-end justify-between gap-3 px-1">
         <div>
           <p className="text-[15px] font-semibold uppercase tracking-wide text-ink-muted">{dataPorExtenso()}</p>
@@ -271,10 +290,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         />
       ) : (
         <PeriodoProvider inicial={periodo} dados={dadosPorPeriodo}>
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
             <PainelMetas metaMensalVendas={metaMensalVendas} metaMensalLucro={metaMensalLucro} />
 
-            <Grupo titulo="Resumo" className="lg:hidden">
+            <Grupo titulo="Resumo" className="lg:hidden" semPadding>
               <LinhaResumo
                 href="/contas-a-receber"
                 icone={<IconReceipt width={17} height={17} />}
@@ -298,16 +317,31 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 valor={alertasEstoque.length ? `${alertasEstoque.length} ${alertasEstoque.length === 1 ? "item" : "itens"}` : "Tudo ok"}
               />
               <LinhaResumo
+                href="/contas-a-pagar"
+                icone={<IconCalendarioPagar />}
+                tom="bg-tile-warning text-on-tile-warning"
+                rotulo="A pagar em 7 dias"
+                valor={aPagar.length ? formatBRL(valorAPagar) : "Nada"}
+              />
+              <LinhaResumo
                 href="/fluxo-de-caixa"
                 icone={<IconWallet width={17} height={17} />}
                 tom="bg-tile-positive text-on-tile-positive"
-                rotulo="Dinheiro em caixa"
+                rotulo="Saldo em caixa"
                 valor={formatBRL(caixaHoje)}
               />
             </Grupo>
 
-            <section className="hairline hidden flex-col rounded-3xl bg-surface p-[22px] lg:flex">
-              <h2 className="pb-2 text-[13px] font-semibold text-ink-muted">Precisa de atenção</h2>
+            <Grupo
+              titulo="Precisa de atenção"
+              className="hidden lg:block"
+              semPadding
+              rodape={
+                <>
+                  Saldo em caixa: <strong className="font-semibold text-ink">{formatBRL(caixaHoje)}</strong> ({textoMovimentoHoje})
+                </>
+              }
+            >
               <LinhaAtencao
                 href="/contas-a-receber?status=atrasadas"
                 tom="bg-tile-danger text-on-tile-danger"
@@ -328,10 +362,14 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
                 texto={vencemNaSemana.length ? `${vencemNaSemana.length} ${vencemNaSemana.length === 1 ? "vence" : "vencem"} esta semana` : "Nada vence esta semana"}
                 valor={vencemNaSemana.length ? formatBRL(valorVencemNaSemana) : undefined}
               />
-              <p className="mt-auto pt-3 text-xs text-ink-muted">
-                Dinheiro em caixa: <strong className="font-semibold text-ink">{formatBRL(caixaHoje)}</strong> ({textoMovimentoHoje})
-              </p>
-            </section>
+              <LinhaAtencao
+                href="/contas-a-pagar"
+                tom="bg-tile-warning text-on-tile-warning"
+                icone={<IconCalendarioPagar size={15} />}
+                texto={textoAPagar}
+                valor={aPagar.length ? formatBRL(valorAPagar) : undefined}
+              />
+            </Grupo>
           </div>
 
           <PainelVendas />

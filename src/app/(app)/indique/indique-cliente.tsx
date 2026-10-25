@@ -5,7 +5,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "@/components/use-action";
 import { useToast } from "@/components/toaster";
-import { Card, Field, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
+import { Grupo } from "@/components/ajustes";
+import { Field, btnPrimary, btnSecondary, inputClass } from "@/components/ui";
 import { IconLink, IconWhatsapp } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
 import { SAQUE_MINIMO } from "@/lib/indicacao";
@@ -25,7 +26,7 @@ export function CompartilharCard({ link, mensagem, descricao }: { link: string; 
   }
 
   return (
-    <Card title="Seu link" rodape={descricao}>
+    <Grupo titulo="Seu link" rodape={descricao}>
       <div className="flex items-center gap-2">
         <input readOnly value={link} aria-label="Seu link de indicação" onFocus={(e) => e.currentTarget.select()} className={`${inputClass} font-mono text-[13px]`} />
         <button type="button" onClick={() => copiar(link, "Link copiado.")} className={`${btnSecondary} shrink-0`}>
@@ -33,23 +34,25 @@ export function CompartilharCard({ link, mensagem, descricao }: { link: string; 
         </button>
       </div>
 
-      <p className="mb-1.5 mt-5 text-xs font-medium text-ink-muted">Mensagem pronta</p>
-      <p className="rounded-2xl bg-fill px-4 py-3 text-[15px] text-ink-2">{mensagem}</p>
+      <div className="border-t border-line pt-4">
+        <p className="mb-1 text-[13px] text-ink-muted">Mensagem pronta</p>
+        <p className="text-[15px] text-ink">{mensagem}</p>
+      </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <a
           href={`https://wa.me/?text=${encodeURIComponent(mensagem)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className={btnPrimary}
+          className={`${btnPrimary} w-full sm:w-auto`}
         >
           <IconWhatsapp width={18} height={18} /> Mandar no WhatsApp
         </a>
-        <button type="button" onClick={() => copiar(mensagem, "Mensagem copiada.")} className={btnSecondary}>
+        <button type="button" onClick={() => copiar(mensagem, "Mensagem copiada.")} className={`${btnSecondary} w-full sm:w-auto`}>
           Copiar mensagem
         </button>
       </div>
-    </Card>
+    </Grupo>
   );
 }
 
@@ -70,30 +73,32 @@ export function SaqueCard({
 
   if (emPedido > 0 && !pode) {
     return (
-      <Card title="Saque pedido">
-        <p className="text-[15px] text-ink-2">
-          Você pediu {formatBRL(emPedido)} por PIX{chavePix ? ` para ${chavePix}` : ""}. Assim que o pagamento for feito, ele aparece no extrato como pago.
+      <Grupo titulo="Saque pedido" rodape="Quando o PIX cair, ele aparece no extrato como pago.">
+        <p className="text-[15px] text-ink">
+          {formatBRL(emPedido)} por PIX{chavePix ? ` para ${chavePix}` : ""}.
         </p>
-      </Card>
+      </Grupo>
     );
   }
 
   if (!pode) {
     const andamento = Math.min(100, Math.round((disponivel / SAQUE_MINIMO) * 100));
     return (
-      <Card title="Sacar" rodape={`O saque é por PIX, a partir de ${formatBRL(SAQUE_MINIMO)}.`}>
-        <div className="h-2 overflow-hidden rounded-full bg-fill" role="progressbar" aria-valuenow={andamento} aria-valuemin={0} aria-valuemax={100}>
-          <div className="h-full rounded-full bg-brand-fill transition-all" style={{ width: `${andamento}%` }} />
+      <Grupo titulo="Sacar" rodape={`O saque é por PIX, a partir de ${formatBRL(SAQUE_MINIMO)}.`}>
+        <div>
+          <div className="h-2 overflow-hidden rounded-full bg-fill" role="progressbar" aria-valuenow={andamento} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full rounded-full bg-brand-fill transition-all" style={{ width: `${andamento}%` }} />
+          </div>
+          <p className="mt-2 text-[13px] text-ink-muted">
+            {formatBRL(disponivel)} de {formatBRL(SAQUE_MINIMO)}. Faltam {formatBRL(SAQUE_MINIMO - disponivel)}.
+          </p>
         </div>
-        <p className="mt-2 text-[13px] text-ink-muted">
-          {formatBRL(disponivel)} de {formatBRL(SAQUE_MINIMO)}. Faltam {formatBRL(SAQUE_MINIMO - disponivel)}.
-        </p>
-      </Card>
+      </Grupo>
     );
   }
 
   return (
-    <Card title={`Sacar ${formatBRL(disponivel)}`}>
+    <Grupo titulo={`Sacar ${formatBRL(disponivel)}`}>
       <form
         className="flex flex-col gap-3 sm:flex-row sm:items-end"
         onSubmit={(e) => {
@@ -113,10 +118,10 @@ export function SaqueCard({
             />
           </Field>
         </div>
-        <button type="submit" disabled={isPending} className={`${btnPrimary} sm:mb-px`}>
+        <button type="submit" disabled={isPending} className={`${btnPrimary} w-full sm:mb-px sm:w-auto`}>
           <RotuloAcao pendente={isPending} ocupado="Pedindo...">{"Pedir saque"}</RotuloAcao>
         </button>
       </form>
-    </Card>
+    </Grupo>
   );
 }

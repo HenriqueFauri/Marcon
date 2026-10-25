@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { CanalVenda, Cliente, FormaPagamento } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { useAction } from "@/components/use-action";
-import { Card, Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
+import { Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
+import { Grupo, Segmentado } from "@/components/ajustes";
 import { IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { registrarVenda } from "../actions";
@@ -16,7 +17,7 @@ export interface Vendavel {
   chave: string;
   produto_id: string;
   variacao_id: string | null;
-  nome: string; // "Produto — Variação", usado em avisos e leitores de tela
+  nome: string; // "Produto · Variação", usado em avisos e leitores de tela
   produto_nome: string;
   rotulo: string | null; // nome da variação, ex.: "Azul / M"
   detalhe: string;
@@ -219,15 +220,13 @@ export function SelectOuTexto({
   );
 }
 
-// deixa apagar e digitar à vontade; ao sair do campo volta a mostrar o valor já limitado ao estoque
+// deixa apagar e digitar à vontade; ao sair do campo volta a mostrar o valor valendo
 function CampoQuantidade({
   valor,
-  max,
   label,
   onChange,
 }: {
   valor: number;
-  max: number;
   label: string;
   onChange: (q: number) => void;
 }) {
@@ -237,7 +236,6 @@ function CampoQuantidade({
       type="number"
       inputMode="numeric"
       min={1}
-      max={max}
       value={texto ?? valor}
       onChange={(e) => {
         setTexto(e.target.value);
@@ -305,8 +303,12 @@ export function VendaForm({
   const [numeroParcelas, setNumeroParcelas] = useState(2);
   const [data, setData] = useState(hoje);
   const [primeiroVencimento, setPrimeiroVencimento] = useState(() => somarMeses(hoje, 1));
+  // o 1º vencimento acompanha a data da venda (um mês depois) até a pessoa escolher outro
+  const [vencimentoEscolhido, setVencimentoEscolhido] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [confirmarZero, setConfirmarZero] = useState(false);
+  // venda além do estoque (encomenda): pergunta antes de registrar
+  const [confirmarEncomenda, setConfirmarEncomenda] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   // atalhos no computador: "/" vai para a busca; Ctrl ou Cmd + Enter registra a venda
@@ -343,6 +345,8 @@ export function VendaForm({
     .map((item) => ({ item, produto: porChave.get(item.chave)! }))
     .filter((l) => l.produto);
   const semPreco = linhas.filter((l) => paraNumero(l.item.preco) === 0);
+  // itens que passam do estoque: a venda segue como encomenda e o estoque fica negativo
+  const alemDoEstoque = linhas.filter((l) => l.item.quantidade > l.produto.estoque);
   const subtotal = linhas.reduce((s, l) => s + l.item.quantidade * paraNumero(l.item.preco), 0);
   const custo = linhas.reduce((s, l) => s + l.item.quantidade * l.produto.custo, 0);
   const valorDesconto = paraNumero(desconto);
@@ -360,23 +364,26 @@ export function VendaForm({
     return tabela === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
   }
 
+  function mudarData(nova: string) {
+    setData(nova);
+    if (!vencimentoEscolhido && /^d{4}-d{2}-d{2}$/.test(nova)) setPrimeiroVencimento(somarMeses(nova, 1));
+  }
+
+  // além do estoque não corta: o item mostra o aviso de encomenda e a venda pede confirmação
   function adicionar(v: Vendavel) {
     setErro(null);
     setCarrinho((prev) => {
       const existente = prev.find((i) => i.chave === v.chave);
       if (existente) {
-        return prev.map((i) =>
-          i.chave === v.chave ? { ...i, quantidade: Math.min(i.quantidade + 1, v.estoque) } : i,
-        );
+        return prev.map((i) => (i.chave === v.chave ? { ...i, quantidade: i.quantidade + 1 } : i));
       }
       return [...prev, { chave: v.chave, quantidade: 1, preco: emTexto(precoPadrao(v)) }];
     });
   }
 
   function alterarQuantidade(chave: string, quantidade: number) {
-    const max = porChave.get(chave)?.estoque ?? 1;
     setCarrinho((prev) =>
-      prev.map((i) => (i.chave === chave ? { ...i, quantidade: Math.min(Math.max(quantidade, 1), max) } : i)),
+      prev.map((i) => (i.chave === chave ? { ...i, quantidade: Math.min(Math.max(Math.trunc(quantidade), 1), 9999) } : i)),
     );
   }
 
@@ -415,6 +422,15 @@ export function VendaForm({
       setConfirmarZero(true);
       return;
     }
+    conferirEstoque();
+  }
+
+  // item além do estoque: confirma a encomenda antes de registrar
+  function conferirEstoque() {
+    if (alemDoEstoque.length > 0) {
+      setConfirmarEncomenda(true);
+      return;
+    }
     registrar();
   }
 
@@ -442,6 +458,7 @@ export function VendaForm({
           outrosGastos: valorOutros,
           data,
           pedidoId: pedido?.id ?? null,
+          encomenda: alemDoEstoque.length > 0,
         }).then((r) => {
           if (r.ok && r.id) router.push(`/vendas/${r.id}`);
           return r;
@@ -461,7 +478,7 @@ export function VendaForm({
           ) : (
             <>Do pedido <strong className="text-ink">#{pedido.codigo}</strong> da vitrine. Confira e registre.</>
           )}
-          {pedido.semEstoque.length > 0 && <> Sem estoque agora, ficou de fora: {pedido.semEstoque.join(", ")}.</>}
+          {pedido.semEstoque.length > 0 && <> Não tá mais à venda, ficou de fora: {pedido.semEstoque.join(", ")}.</>}
         </p>
       )}
       <div className="flex flex-col items-center gap-0.5 pb-1 pt-2 lg:hidden" aria-live="polite">
@@ -479,29 +496,22 @@ export function VendaForm({
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-4 lg:col-span-3">
-        <Card
-          title="Produtos"
-          action={
-            temAtacado && (
-              <div className="flex rounded-full bg-fill p-0.5 text-xs" role="group" aria-label="Tabela de preço">
-                {(["varejo", "atacado"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => trocarTabela(t)}
-                    aria-pressed={tabela === t}
-                    className={`rounded-full px-3 py-1 font-medium capitalize ${tabela === t ? "bg-surface text-ink shadow-sm" : "text-ink-muted"}`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )
-          }
-        >
+      <div className="flex flex-col gap-7 lg:col-span-3">
+        {/* overflow visível no cartão: com overflow-hidden a busca não gruda no topo */}
+        <Grupo titulo="Produtos" className="[&>div]:overflow-visible">
+          {temAtacado && (
+            <Segmentado
+              rotulo="Tabela de preço"
+              valor={tabela}
+              onMudar={trocarTabela}
+              opcoes={[
+                { valor: "varejo", label: "Varejo" },
+                { valor: "atacado", label: "Atacado" },
+              ]}
+            />
+          )}
           {/* a busca gruda no topo enquanto a lista rola com a página (sem rolagem dentro da rolagem) */}
-          <div className="sticky top-[env(safe-area-inset-top)] z-10 mb-1 bg-surface py-2">
+          <div className="sticky top-[env(safe-area-inset-top)] z-10 -my-2 bg-surface py-2">
             <div className="relative">
               <IconSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" width={16} height={16} />
               <input
@@ -523,9 +533,9 @@ export function VendaForm({
             onAdicionar={adicionar}
             abertoInicial={iniciais.length > 1 ? produtoInicial : null}
           />
-        </Card>
+        </Grupo>
 
-        <Card title={`Carrinho${linhas.length ? ` (${linhas.length})` : ""}`}>
+        <Grupo titulo={`Carrinho${linhas.length ? ` · ${linhas.length} ${linhas.length === 1 ? "item" : "itens"}` : ""}`}>
           {linhas.length === 0 ? (
             <p className="py-4 text-center text-sm text-ink-muted">Toque num produto acima para adicionar.</p>
           ) : (
@@ -586,7 +596,6 @@ export function VendaForm({
                       </button>
                       <CampoQuantidade
                         valor={item.quantidade}
-                        max={produto.estoque}
                         label={`Quantidade de ${produto.nome}`}
                         onChange={(q) => alterarQuantidade(item.chave, q)}
                       />
@@ -595,12 +604,16 @@ export function VendaForm({
                         className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink disabled:opacity-40"
                         aria-label="Aumentar quantidade"
                         onClick={() => alterarQuantidade(item.chave, item.quantidade + 1)}
-                        disabled={item.quantidade >= produto.estoque}
                       >
                         +
                       </button>
                     </div>
                   </div>
+                  {item.quantidade > produto.estoque && (
+                    <p role="status" className="text-right text-[13px] text-warning">
+                      Vai ficar com estoque negativo (encomenda).
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -618,47 +631,38 @@ export function VendaForm({
             </span>
             Adicionar produto
           </button>
-        </Card>
+        </Grupo>
 
-        <Card title="Cliente" className="!py-2 sm:!py-2">
-          <SelectOuTexto
-            label="Cliente"
-            opcoes={clientes}
-            id={clienteId}
-            setId={setClienteId}
-            texto={clienteNome}
-            setTexto={setClienteNome}
-            placeholder="Digite o nome do cliente (opcional)"
-            vazio="Avulso (sem cadastro)"
-          />
-        </Card>
+        <Grupo titulo="Cliente" semPadding>
+          <div className="px-4">
+            <SelectOuTexto
+              label="Cliente"
+              opcoes={clientes}
+              id={clienteId}
+              setId={setClienteId}
+              texto={clienteNome}
+              setTexto={setClienteNome}
+              placeholder="Digite o nome do cliente (opcional)"
+              vazio="Avulso (sem cadastro)"
+            />
+          </div>
+        </Grupo>
       </div>
 
-      <div className="flex flex-col gap-4 lg:col-span-2">
-        <Card title="Pagamento">
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-1 rounded-full bg-fill p-1" role="radiogroup" aria-label="Tipo de pagamento">
-              {(
-                [
-                  ["a_vista", "À vista"],
-                  ["a_prazo", "A prazo / parcelado"],
-                ] as const
-              ).map(([valor, rotulo]) => (
-                <label
-                  key={valor}
-                  className="cursor-pointer rounded-full py-2 text-center text-[15px] font-medium text-ink-2 transition has-[:checked]:bg-surface has-[:checked]:font-semibold has-[:checked]:shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/40 has-[:checked]:text-ink"
-                >
-                  <input
-                    type="radio"
-                    name="tipo_pagamento"
-                    value={valor}
-                    checked={tipoPagamento === valor}
-                    onChange={() => setTipoPagamento(valor)}
-                    className="sr-only"
-                  />
-                  {rotulo}
-                </label>
-              ))}
+      <div className="flex flex-col gap-7 lg:col-span-2">
+        <Grupo titulo="Pagamento" semPadding>
+          <div className="flex flex-col px-4">
+            <div className="py-3">
+              <Segmentado
+                name="tipo_pagamento"
+                rotulo="Tipo de pagamento"
+                valor={tipoPagamento}
+                onMudar={setTipoPagamento}
+                opcoes={[
+                  { valor: "a_vista", label: "À vista" },
+                  { valor: "a_prazo", label: "A prazo ou parcelado" },
+                ]}
+              />
             </div>
 
             {tipoPagamento === "a_prazo" && (
@@ -677,7 +681,7 @@ export function VendaForm({
             )}
 
             {tipoPagamento === "a_prazo" && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 border-t border-line py-3">
                 <Field label="Nº de parcelas">
                   <input
                     type="number"
@@ -693,14 +697,16 @@ export function VendaForm({
                   <input
                     type="date"
                     value={primeiroVencimento}
-                    onChange={(e) => setPrimeiroVencimento(e.target.value)}
+                    onChange={(e) => {
+                      setPrimeiroVencimento(e.target.value);
+                      setVencimentoEscolhido(true);
+                    }}
                     className={inputClass}
                   />
                 </Field>
               </div>
             )}
 
-            <div className="-mb-3">
             <SelectOuTexto
               label="Forma de pagamento"
               opcoes={formas}
@@ -750,14 +756,12 @@ export function VendaForm({
               />
             </Linha>
             <Linha rotulo="Data da venda">
-              <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} className={valorLinha} />
+              <input type="date" value={data} max={hoje} onChange={(e) => mudarData(e.target.value)} className={valorLinha} />
             </Linha>
-            </div>
-
           </div>
-        </Card>
+        </Grupo>
 
-        <Card className="lg:sticky lg:top-6">
+        <Grupo titulo="Resumo" className="lg:sticky lg:top-6">
           <dl className="space-y-1.5 text-sm">
             <div className="flex justify-between text-ink-muted">
               <dt>Subtotal</dt>
@@ -788,11 +792,11 @@ export function VendaForm({
           </dl>
 
           {tipoPagamento === "a_prazo" && total > 0 && (
-            <div className="mt-3 rounded-lg bg-fill/60 p-3 text-xs text-ink-muted">
+            <div className="border-t border-line pt-3 text-[13px] text-ink-muted">
               {valorEntrada > 0 && valorEntrada < total && (
-                <p className="mb-1 font-medium text-ink-2">Entrada de {formatBRL(valorEntrada)} hoje, mais</p>
+                <p className="mb-0.5 font-medium text-ink-2">Entrada de {formatBRL(valorEntrada)} hoje, mais</p>
               )}
-              <p className="mb-1 font-medium text-ink-2">
+              <p className="mb-0.5 font-medium text-ink-2">
                 {parcelasValidas}x de {formatBRL(valorParcela)}
               </p>
               {primeiroVencimento && (
@@ -805,12 +809,12 @@ export function VendaForm({
           )}
 
           {erro && (
-            <p role="alert" className="mt-3 text-sm text-danger">
+            <p role="alert" className="text-sm text-danger">
               {erro}
             </p>
           )}
 
-          <div className="fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 lg:static lg:mt-4 lg:bg-none lg:p-0">
+          <div className="fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 lg:static lg:bg-none lg:p-0">
             <button
               type="submit"
               disabled={isPending || linhas.length === 0}
@@ -819,7 +823,7 @@ export function VendaForm({
               {isPending ? "Registrando..." : `Registrar venda${linhas.length ? ` · ${formatBRL(total)}` : ""}`}
             </button>
           </div>
-        </Card>
+        </Grupo>
       </div>
       <Modal
         open={confirmarZero}
@@ -840,11 +844,38 @@ export function VendaForm({
             type="button"
             onClick={() => {
               setConfirmarZero(false);
-              registrar();
+              conferirEstoque();
             }}
             className={btnPrimary}
           >
             Registrar assim mesmo
+          </button>
+        </div>
+      </Modal>
+      <Modal
+        open={confirmarEncomenda}
+        onClose={() => setConfirmarEncomenda(false)}
+        title="Vender sem estoque?"
+        description={
+          alemDoEstoque.length === 1
+            ? `${nomeCompleto(alemDoEstoque[0].produto)} vai ficar com estoque negativo (encomenda).`
+            : `${alemDoEstoque.length} itens vão ficar com estoque negativo (encomenda): ${alemDoEstoque.map((l) => nomeCompleto(l.produto)).join(", ")}.`
+        }
+        size="sm"
+      >
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={() => setConfirmarEncomenda(false)} className={btnGhost}>
+            Voltar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmarEncomenda(false);
+              registrar();
+            }}
+            className={btnPrimary}
+          >
+            Registrar encomenda
           </button>
         </div>
       </Modal>

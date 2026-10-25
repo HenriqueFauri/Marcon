@@ -118,10 +118,23 @@ function lerVariacoes(formData: FormData): (LinhaVariacao | { erro: string })[] 
   return linhas;
 }
 
-// "Esse estoque já era meu": entra no estoque sem sair do caixa. O argumento só é mandado quando
-// marcado, então quem ainda não rodou a migration 0021 segue funcionando como antes.
+// Origem do estoque inicial. No cadastro de produto a escolha é "Já era meu" (padrão: entra no estoque
+// sem sair do caixa) ou "Comprei agora" (sai do caixa), no cadastro e na variação nova. estoque_ja_pago
+// é o campo antigo (caixinha), aceito por compatibilidade. O argumento só é mandado quando não sai do caixa.
+function estoqueJaPago(formData: FormData) {
+  const origem = formData.get("estoque_origem");
+  if (origem === "comprei") return false;
+  if (origem === "ja_era_meu") return true;
+  return formData.get("estoque_ja_pago") === "true";
+}
+
 function argsEstoqueJaPago(formData: FormData) {
-  return formData.get("estoque_ja_pago") === "true" ? { p_afeta_caixa: false } : {};
+  return estoqueJaPago(formData) ? { p_afeta_caixa: false } : {};
+}
+
+// função da 0064 ainda não criada neste banco: o cadastro cai no caminho antigo, em várias chamadas
+function semFuncao(error: { code?: string; message?: string }) {
+  return error.code === "PGRST202" || error.code === "42883";
 }
 
 export async function criarProduto(formData: FormData): Promise<ActionResult> {
@@ -148,6 +161,29 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
 
     const categoriaId = await resolverCategoria(supabase, user.id, texto(formData, "categoria"));
     const { fornecedorId, fornecedorNome } = await resolverFornecedor(supabase, formData);
+    const linhasVariacao = variacoes.filter((v): v is LinhaVariacao => !("erro" in v));
+
+    // tudo numa transação: produto, variações, estoque inicial e o lançamento no caixa (0064)
+    const { data: novoId, error: erroCadastro } = await supabase.rpc("criar_produto_cadastro", {
+      p_produto: {
+        ...lido.campos,
+        categoria_id: categoriaId,
+        tem_variacoes: temVariacoes,
+        fornecedor_nome: fornecedorNome,
+        fornecedor_id: fornecedorId,
+      },
+      p_variacoes: linhasVariacao,
+      p_estoque_inicial: estoqueInicial,
+      p_afeta_caixa: !estoqueJaPago(formData),
+      p_data: hojeISO(),
+    });
+    if (!erroCadastro) {
+      const id = String(novoId);
+      revalidarProduto(id);
+      if (estoqueInicial > 0 || linhasVariacao.some((v) => v.estoque > 0)) revalidatePath("/fluxo-de-caixa");
+      return { ok: true, message: "Produto cadastrado.", id };
+    }
+    if (!semFuncao(erroCadastro)) return erroCodigo(erroCadastro) ?? falha(erroCadastro);
 
     const { data: produto, error } = await supabase
       .from("produtos")
@@ -186,7 +222,6 @@ export async function criarProduto(formData: FormData): Promise<ActionResult> {
       revalidatePath("/fluxo-de-caixa");
     }
 
-    const linhasVariacao = variacoes.filter((v): v is LinhaVariacao => !("erro" in v));
     if (linhasVariacao.length > 0) {
       const { data: criadas, error: erroVariacoes } = await supabase
         .from("produto_variacoes")

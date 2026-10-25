@@ -19,7 +19,7 @@ export default async function AssinaturaPage({ searchParams }: PageProps<"/assin
     uso,
   ] = await Promise.all([
     supabase.auth.getUser(),
-    supabase.from("assinaturas").select("plano, status, proximo_vencimento, cortesia_ate, cortesia_em").maybeSingle(),
+    supabase.from("assinaturas").select("plano, ciclo, status, proximo_vencimento, cortesia_ate, cortesia_em").maybeSingle(),
     lerUso(supabase),
   ]);
 

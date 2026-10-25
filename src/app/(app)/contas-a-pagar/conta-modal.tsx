@@ -6,6 +6,7 @@ import type { ActionResult } from "@/lib/action";
 import { Modal } from "@/components/modal";
 import { useAction } from "@/components/use-action";
 import { Interruptor } from "@/components/ajustes";
+import { ConfirmButton } from "@/components/confirm-button";
 import { Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
 import { hojeISO } from "@/lib/format";
 
@@ -29,6 +30,7 @@ export function ContaModal({
   fornecedores,
   onSave,
   successMessage,
+  excluir,
 }: {
   titulo: string;
   trigger: ReactNode;
@@ -38,6 +40,8 @@ export function ContaModal({
   fornecedores: { id: string; nome: string }[];
   onSave: (formData: FormData) => Promise<ActionResult>;
   successMessage: string;
+  // na edição: excluir fica no fim da janela, como texto vermelho discreto (nunca lixeira na linha)
+  excluir?: { titulo: string; descricao: string; onConfirm: () => Promise<ActionResult> };
 }) {
   const [open, setOpen] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -143,6 +147,22 @@ export function ContaModal({
             </button>
           </div>
         </form>
+
+        {excluir && (
+          <div className="mt-5 border-t border-line pt-4 text-center">
+            <ConfirmButton
+              title={excluir.titulo}
+              description={excluir.descricao}
+              ariaLabel="Excluir conta"
+              successMessage="Conta excluída."
+              onConfirm={excluir.onConfirm}
+              onDone={() => setOpen(false)}
+              className="text-[15px] font-medium text-danger hover:opacity-80"
+            >
+              Excluir conta
+            </ConfirmButton>
+          </div>
+        )}
       </Modal>
     </>
   );

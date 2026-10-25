@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
+import { lerTudo } from "@/lib/ler-tudo";
 import type { Cliente } from "@/types/domain";
 import { formatBRL, formatDataCurta, linkWhatsApp } from "@/lib/format";
 import { vendasConcluidas } from "@/lib/relatorios";
+import Link from "next/link";
 import { ContatoModal } from "@/components/contato-modal";
-import { ConfirmButton } from "@/components/confirm-button";
 import { SearchInput } from "@/components/search-input";
 import {
   EmptyState,
@@ -19,8 +20,8 @@ import {
   thClass,
   theadClass,
 } from "@/components/ui";
-import { IconPencil, IconPlus, IconWhatsapp } from "@/components/icons";
-import { atualizarCliente, criarCliente, excluirCliente } from "./actions";
+import { IconPlus, IconWhatsapp } from "@/components/icons";
+import { criarCliente } from "./actions";
 
 export const metadata: Metadata = { title: "Clientes" };
 
@@ -29,15 +30,27 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
 
   const supabase = await createClient();
-  let query = supabase.from("clientes").select("*").order("nome");
-  if (q) {
-    const termo = `%${q.replace(/[%_,()]/g, " ")}%`;
-    query = query.or(`nome.ilike.${termo},telefone.ilike.${termo},email.ilike.${termo},cpf_cnpj.ilike.${termo}`);
-  }
+  const termo = q ? `%${q.replace(/[%_,()]/g, " ")}%` : null;
 
-  const [{ data, error }, { data: abertasData }, vendasFeitas] = await Promise.all([
-    query,
-    supabase.from("parcelas_com_status").select("valor, status_efetivo, vendas(cliente_id)").neq("status", "pago"),
+  // clientes e parcelas em aberto vêm página a página: o PostgREST corta cada consulta em 1000 linhas
+  const [{ data, error }, abertasData, vendasFeitas] = await Promise.all([
+    lerTudo((de, ate) => {
+      let query = supabase.from("clientes").select("*").order("nome").order("id");
+      if (termo) query = query.or(`nome.ilike.${termo},telefone.ilike.${termo},email.ilike.${termo},cpf_cnpj.ilike.${termo}`);
+      return query.range(de, ate);
+    }).then(
+      (linhas) => ({ data: linhas, error: null }),
+      (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
+    ),
+    // saldo em aberto por cliente: se falhar, a lista segue sem esse detalhe
+    lerTudo((de, ate) =>
+      supabase
+        .from("parcelas_com_status")
+        .select("valor, status_efetivo, vendas(cliente_id)")
+        .neq("status", "pago")
+        .order("id")
+        .range(de, ate),
+    ).catch(() => []),
     // total comprado e última compra: se falhar, a lista segue sem esse detalhe
     vendasConcluidas(supabase, "2000-01-01", null).catch(() => []),
   ]);
@@ -106,7 +119,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
         className="mb-4 w-full sm:w-80"
         itens={[
           { href: "/clientes", label: "Lista", ativo: true },
-          { href: "/clientes/insights", label: "Insights", ativo: false },
+          { href: "/clientes/insights", label: "Análises", ativo: false },
         ]}
       />
 
@@ -143,9 +156,15 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
               const comprou = compras.get(c.id);
               const whatsapp = linkWhatsApp(c.telefone);
               return (
-                <tr key={c.id} className="hover:bg-fill/50">
+                // a linha inteira abre a ficha: o link do nome cobre a linha (after:inset-0); o WhatsApp fica por cima
+                <tr key={c.id} className="relative hover:bg-fill/50">
                   <td className={tdClass}>
-                    <p className="text-[17px] text-ink sm:text-[15px] sm:font-medium">{c.nome}</p>
+                    <Link
+                      href={`/clientes/${c.id}`}
+                      className="block text-[17px] text-ink after:absolute after:inset-0 after:content-[''] sm:text-[15px] sm:font-medium"
+                    >
+                      {c.nome}
+                    </Link>
                     <p className="text-[13px] text-ink-muted sm:hidden">
                       {[c.telefone, saldo ? `${formatBRL(saldo.valor)} em aberto` : null].filter(Boolean).join(" · ") || "Sem telefone"}
                     </p>
@@ -157,13 +176,13 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
                     {c.observacoes && <p className="max-w-xs truncate text-xs text-ink-muted">{c.observacoes}</p>}
                   </td>
                   <td className={`${tdClass} hidden text-ink-2 sm:table-cell`}>
-                    <p>{c.telefone ?? "—"}</p>
+                    {c.telefone && <p>{c.telefone}</p>}
                     {c.email && <p className="text-xs text-ink-muted">{c.email}</p>}
                   </td>
                   <td
                     className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${saldo ? (saldo.atrasado ? "text-danger" : "text-warning") : "text-ink-faint"}`}
                   >
-                    {saldo ? formatBRL(saldo.valor) : "—"}
+                    {saldo ? formatBRL(saldo.valor) : null}
                   </td>
                   <td className={`${tdClass} text-right`}>
                     <div className="flex items-center justify-end gap-1">
@@ -172,30 +191,16 @@ export default async function ClientesPage({ searchParams }: PageProps<"/cliente
                           href={whatsapp}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={btnIcon}
+                          className={`${btnIcon} relative z-10`}
                           aria-label={`Abrir WhatsApp de ${c.nome}`}
                           title="WhatsApp"
                         >
                           <IconWhatsapp width={16} height={16} />
                         </a>
                       )}
-                      <ContatoModal
-                        titulo="Editar cliente"
-                        trigger={<IconPencil width={16} height={16} />}
-                        triggerClassName={btnIcon}
-                        triggerLabel={`Editar ${c.nome}`}
-                        valores={c}
-                        comDocumento
-                        onSave={atualizarCliente.bind(null, c.id)}
-                        successMessage="Cliente atualizado."
-                      />
-                      <ConfirmButton
-                        title={`Excluir “${c.nome}”?`}
-                        description="As vendas já feitas para esse cliente continuam no histórico com o nome registrado."
-                        ariaLabel={`Excluir ${c.nome}`}
-                        successMessage="Cliente excluído."
-                        onConfirm={excluirCliente.bind(null, c.id)}
-                      />
+                      <span aria-hidden="true" className="w-4 text-center text-lg text-ink-faint">
+                        ›
+                      </span>
                     </div>
                   </td>
                 </tr>

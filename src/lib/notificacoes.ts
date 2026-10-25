@@ -61,7 +61,6 @@ export const GRUPOS: { id: Grupo; rotulo: string; descricao: string }[] = [
   { id: "meta", rotulo: "Meta batida", descricao: "Comemora quando você bate a meta do mês." },
   { id: "niveis", rotulo: "Marcos de faturamento", descricao: "Quando o mês passa de R$ 1 mil, R$ 5 mil e R$ 10 mil." },
   { id: "cobranca", rotulo: "Lembrete de cobrança", descricao: "Todo dia às 8h, se houver parcela vencendo ou atrasada." },
-  { id: "anuncios", rotulo: "Renovar anúncios", descricao: "Todo dia às 8h, se algum anúncio publicado passou do prazo de renovar." },
   { id: "resumo", rotulo: "Resumo do dia", descricao: "Por volta das 20h, só nos dias em que você vendeu." },
 ];
 

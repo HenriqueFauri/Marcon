@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { lerTudo } from "@/lib/ler-tudo";
+import { lerCapas } from "@/lib/capas";
 import type { ProdutoComEstoque } from "@/types/domain";
 import { SearchInput } from "@/components/search-input";
-import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos } from "@/components/ui";
+import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, btnPrimary } from "@/components/ui";
 import { IconBox } from "@/components/icons";
-import { hojeISO } from "@/lib/format";
-import { situacaoDaPublicacao } from "@/lib/publicacao";
 import { FotoProduto } from "@/components/foto-produto";
 import { VistaToggle, type Vista } from "./vista-toggle";
 
@@ -29,11 +29,24 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   const vista: Vista = vistaParam === "galeria" ? "galeria" : "lista";
 
   const supabase = await createClient();
-  const [{ data, error }, { data: anunciosData }, { data: fotosData }, { data: publicacoesData }] = await Promise.all([
-    supabase.from("produtos_com_estoque").select("*, categorias(nome)").neq("status", "inativo").order("nome"),
-    supabase.from("produto_anuncios").select("produto_id, titulo, descricao"),
-    supabase.from("produto_fotos").select("produto_id, path, variacao_id").order("ordem").order("created_at"),
-    supabase.from("anuncio_publicacoes").select("produto_id, publicado_em, renovar_dias"),
+  // tudo página a página (o PostgREST corta cada consulta em 1000 linhas); das fotos vem só a capa de cada produto
+  const [{ data, error }, anunciosData, capas] = await Promise.all([
+    lerTudo((de, ate) =>
+      supabase
+        .from("produtos_com_estoque")
+        .select("*, categorias(nome)")
+        .neq("status", "inativo")
+        .order("nome")
+        .order("id")
+        .range(de, ate),
+    ).then(
+      (linhas) => ({ data: linhas, error: null }),
+      (e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }),
+    ),
+    lerTudo((de, ate) => supabase.from("produto_anuncios").select("produto_id, titulo, descricao").order("id").range(de, ate)).catch(
+      () => [],
+    ),
+    lerCapas(supabase),
   ]);
 
   if (error) {
@@ -51,22 +64,9 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
   for (const a of anunciosData ?? []) {
     if (a.titulo || a.descricao) comAnuncio.add(a.produto_id);
   }
-  // produtos com algum anúncio publicado que já passou do prazo de renovar
-  const hoje = hojeISO();
-  const paraRenovar = new Set<string>();
-  for (const pb of publicacoesData ?? []) {
-    if (situacaoDaPublicacao(pb.publicado_em, pb.renovar_dias, hoje).tipo === "vencido") paraRenovar.add(pb.produto_id);
-  }
-  const capaPorProduto = new Map<string, string>();
-  const capaGeral = new Map<string, string>();
-  const totalFotos = new Map<string, number>();
-  for (const f of fotosData ?? []) {
-    // a capa é a primeira foto geral; foto de variação só entra se o produto não tiver nenhuma geral
-    if (f.variacao_id === null && !capaGeral.has(f.produto_id)) capaGeral.set(f.produto_id, f.path);
-    if (!capaPorProduto.has(f.produto_id)) capaPorProduto.set(f.produto_id, f.path);
-    totalFotos.set(f.produto_id, (totalFotos.get(f.produto_id) ?? 0) + 1);
-  }
-  for (const [produtoId, path] of capaGeral) capaPorProduto.set(produtoId, path);
+  // a capa é a primeira foto geral; foto de variação só entra se o produto não tiver nenhuma geral
+  const capaPorProduto = new Map([...capas].map(([id, c]) => [id, c.path]));
+  const totalFotos = new Map([...capas].map(([id, c]) => [id, c.totalFotos]));
 
   const lista = produtos.filter((p) => {
     const tem = comAnuncio.has(p.id);
@@ -94,26 +94,29 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
 
   return (
     <div>
-      <PageHeader
-        title="Anúncios"
-      />
+      <PageHeader title="Anúncios" />
 
       <div className="mb-4 flex flex-col gap-3">
-        <div className="flex items-center gap-3">
-          <SearchInput placeholder="Buscar produto..." />
-          <VistaToggle vista={vista} hrefLista={href({ vista: "lista" })} hrefGaleria={href({ vista: "galeria" })} />
-        </div>
         <Segmentos
           rotulo="Filtrar anúncios"
           className="sm:w-96"
           itens={FILTROS.map((f) => ({ href: href({ filtro: f.valor }), label: f.label, ativo: filtro === f.valor }))}
         />
+        <div className="flex items-center gap-3">
+          <SearchInput placeholder="Buscar produto..." />
+          <VistaToggle vista={vista} hrefLista={href({ vista: "lista" })} hrefGaleria={href({ vista: "galeria" })} />
+        </div>
       </div>
 
       {produtos.length === 0 ? (
         <EmptyState
           title="Nenhum produto cadastrado"
           description="Cadastre um produto para montar os anúncios dele."
+          action={
+            <Link href="/produtos/novo" className={btnPrimary}>
+              Cadastrar produto
+            </Link>
+          }
         />
       ) : lista.length === 0 ? (
         <EmptyState title="Nenhum produto encontrado" description="Tente outro termo de busca ou filtro." />
@@ -135,8 +138,7 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                     <IconBox width={32} height={32} />
                   )}
                   <div className="absolute left-2 top-2 flex flex-wrap gap-1">
-                    {tem && <Badge tone="positive">Anúncio pronto</Badge>}
-                    {paraRenovar.has(p.id) && <Badge tone="warning">Renovar</Badge>}
+                    {tem && <Badge tone="positive">Com anúncio</Badge>}
                   </div>
                   {fotos > 1 && (
                     <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white">
@@ -171,10 +173,9 @@ export default async function AnunciosPage({ searchParams }: PageProps<"/anuncio
                     {p.nome}
                   </Link>
                   <p className="mt-0.5 truncate text-[13px] text-ink-muted">
-                    <span className={tem ? "text-positive" : ""}>{tem ? "Anúncio pronto" : "Sem anúncio"}</span>
+                    <span className={tem ? "text-positive" : ""}>{tem ? "Com anúncio" : "Sem anúncio"}</span>
                     {" · "}
-                    {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "sem fotos"}
-                    {paraRenovar.has(p.id) && <span className="font-medium text-warning">{" · "}renovar anúncio</span>}
+                    {fotos ? `${fotos} ${fotos === 1 ? "foto" : "fotos"}` : "Sem fotos"}
                   </p>
                 </div>
               </li>

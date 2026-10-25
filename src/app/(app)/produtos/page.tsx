@@ -121,13 +121,13 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
         <StatCard label="Produtos ativos" value={ativos.length} />
         <StatCard label="Valor em estoque (custo)" value={formatBRL(valorEstoque)} />
         <StatCard
-          label="Estoque baixo"
+          label="Acabando"
           value={contagem.baixo}
           tone={contagem.baixo ? "warning" : "neutral"}
           href={contagem.baixo ? "/produtos?filtro=baixo" : undefined}
         />
         <StatCard
-          label="Sem estoque"
+          label="Zerados"
           value={contagem.sem}
           tone={contagem.sem ? "negative" : "neutral"}
           href={contagem.sem ? "/produtos?filtro=sem" : undefined}
@@ -239,7 +239,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
                   <td
                     className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${margem === null ? "text-ink-faint" : margem < 0 ? "text-danger" : margem < 20 ? "text-warning" : "text-positive"}`}
                   >
-                    {margem === null ? "—" : `${margem.toFixed(0)}%`}
+                    {margem === null ? "" : `${margem.toFixed(0)}%`}
                   </td>
                   <td className={`${tdClass} text-right`}>
                     <Badge tone={situacao === "sem" ? "negative" : situacao === "baixo" ? "warning" : "positive"}>

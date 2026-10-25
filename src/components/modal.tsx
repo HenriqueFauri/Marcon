@@ -36,7 +36,11 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // o React propaga o close de um dialog aninhado (ex.: confirmar exclusão dentro do editar)
+      // até o dialog de fora; só fecha quando quem fechou foi este
+      onClose={(e) => {
+        if (e.target === ref.current) onClose();
+      }}
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}

@@ -15,7 +15,8 @@ function camposCliente(formData: FormData) {
 }
 
 function revalidar() {
-  revalidatePath("/clientes");
+  // layout: a lista e a ficha de cada cliente
+  revalidatePath("/clientes", "layout");
   revalidatePath("/vendas/novo");
 }
 

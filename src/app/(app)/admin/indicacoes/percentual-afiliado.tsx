@@ -18,7 +18,7 @@ export function PercentualAfiliado({ id, atual }: { id: string; atual: number | 
   const mudou = digitado !== atual;
 
   return (
-    <div className="flex items-center justify-end gap-3">
+    <div className="flex items-center gap-3 sm:justify-end">
       <div className="relative">
         <input
           type="text"
