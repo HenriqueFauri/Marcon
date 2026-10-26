@@ -185,7 +185,7 @@ export default async function FechamentoPage({ searchParams }: PageProps<"/relat
             <GraficoEvolucao pontos={atual.dias} tituloTotal={nomeDoMes(mes)} />
           </Grupo>
 
-          <div className="grid gap-7 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
             <Grupo titulo="Despesas por categoria">
               {atual.gastos.length === 0 ? (
                 <p className="text-[15px] text-ink-muted">Nenhuma despesa nesse mês.</p>

@@ -13,7 +13,7 @@ export default function Loading() {
       </div>
       <div className="mb-1.5 h-3 w-20 rounded bg-fill" />
       <div className="hairline mb-7 h-72 rounded-3xl bg-surface" />
-      <div className="grid gap-7 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
         <div className="hairline h-64 rounded-3xl bg-surface" />
         <div className="hairline h-64 rounded-3xl bg-surface" />
       </div>

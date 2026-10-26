@@ -129,7 +129,7 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
               <GraficoEvolucao pontos={d.serie.pontos} tituloTotal={periodo.rotulo} />
             </Grupo>
 
-            <div className="grid gap-7 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
               <Grupo titulo="Mais vendidos" semPadding>
                 <ul className="divide-y divide-line">
                   {d.maisVendidos.map((p) => (
@@ -165,7 +165,7 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
               </Grupo>
             </div>
 
-            <div className="grid gap-7 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
               <Grupo titulo="Margem por canal" semPadding rodape="Já desconta os outros gastos das vendas, como motoboy e embalagem.">
                 <ul className="divide-y divide-line">
                   {d.canais.map((c) => (
@@ -196,7 +196,7 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
         )}
 
         {(entradasESaidas || d.caixa.gastos.length > 0) && (
-          <div className="grid gap-7 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
             <Grupo
               titulo="Despesas por categoria"
               rodape={d.caixa.compras > 0 ? `Comprou de estoque: ${formatBRL(d.caixa.compras)}, fora das despesas (virou produto).` : undefined}
@@ -253,7 +253,7 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
           </div>
         )}
 
-        <div className="grid gap-7 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
           <Grupo titulo="Dinheiro parado" semPadding rodape="Estoque a custo de produtos que não vendem faz tempo.">
             {totalParado === 0 ? (
               <Mensagem>Nada parado há mais de 30 dias. Tudo girando.</Mensagem>
@@ -317,7 +317,7 @@ export default async function RelatoriosPage({ searchParams }: PageProps<"/relat
         </div>
 
         <div className="flex flex-col gap-7">
-          <div className="grid gap-7 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
             <Grupo titulo="Clientes no período">
               {np.novos + np.recorrentes === 0 ? (
                 <p className="text-[15px] text-ink-muted">Nenhum cliente cadastrado comprou nesse período.</p>
