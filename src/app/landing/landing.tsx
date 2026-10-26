@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { BarraTopo } from "./barra-topo";
 import {
   IconBox,
   IconCheck,
@@ -16,7 +16,7 @@ import {
   IconWhatsapp,
 } from "@/components/icons";
 import { formatBRL } from "@/lib/format";
-import { ANUAL_POR_MES, DIAS_DE_TESTE, ECONOMIA_ANUAL, PLANO_GRATIS, PLANOS } from "@/lib/planos";
+import { ANUAL_POR_MES, DIAS_DE_TESTE, MESES_GRATIS_ANUAL, PLANO_GRATIS, PLANOS } from "@/lib/planos";
 
 // Uma landing, várias portas de entrada: a geral (raiz do site) e uma para cada
 // canal, para mandar o link certo em cada grupo. Muda só o começo da conversa;
@@ -753,7 +753,7 @@ function Recurso({
 function PlanoItens({ itens }: { itens: readonly string[] }) {
   return (
     // flex-1 empurra o botão para o pé do cartão, alinhando os dois planos
-    <ul className="mt-6 flex flex-1 flex-col gap-2.5">
+    <ul className="mt-5 flex flex-1 flex-col gap-2">
       {itens.map((item) => (
         <li key={item} className="flex items-start gap-2.5 text-[15px] text-ink-2">
           <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-tint text-brand-text">
@@ -774,30 +774,7 @@ export function Landing({ publico }: { publico: Publico }) {
   const perguntas = comAssistente ? [PERGUNTAS[0], PERGUNTA_ASSISTENTE, ...PERGUNTAS.slice(1)] : PERGUNTAS;
   return (
     <div className="flex min-h-dvh flex-col bg-surface text-ink">
-      <header className="glass sticky top-0 z-20 flex h-11 items-center justify-between border-b border-line px-4 text-xs sm:justify-center sm:gap-5 md:gap-9">
-        <a href="#topo" aria-label="Marcon, voltar ao topo">
-          <Icone tamanho={18} />
-        </a>
-        <nav aria-label="Seções" className="hidden items-center gap-4 sm:flex md:gap-9">
-          {secoes.map((s) => (
-            <a key={s.id} href={`#${s.id}`} className="text-ink-2 transition hover:text-ink">
-              {s.rotulo}
-            </a>
-          ))}
-        </nav>
-        <span className="flex items-center gap-3 sm:absolute sm:right-4">
-          <Link href="/login" className="font-medium text-brand-text hover:underline">
-            Entrar
-          </Link>
-          <Link
-            href="/login?modo=signup"
-            className="bg-brand-fill inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold text-on-brand sm:hidden xl:inline-flex"
-          >
-            Começar grátis
-          </Link>
-          <ThemeToggle variante="icone" />
-        </span>
-      </header>
+      <BarraTopo secoes={secoes} logo={<Icone tamanho={28} />} />
 
       <main id="topo" className="flex flex-1 flex-col">
         <section className="relative flex flex-col items-center overflow-hidden px-5 pb-20 pt-14 text-center sm:pb-28 sm:pt-16">
@@ -1099,7 +1076,7 @@ export function Landing({ publico }: { publico: Publico }) {
               {DIAS_DE_TESTE} dias com tudo liberado, sem cartão. Depois você escolhe.
             </p>
 
-            <div className="mt-12 grid gap-6 sm:grid-cols-2 sm:gap-4">
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-4">
               <div className="hairline order-2 flex flex-col rounded-3xl bg-surface p-6 sm:order-none sm:p-8">
                 <h3 className="text-[19px] font-semibold tracking-tight">{PLANO_GRATIS.nome}</h3>
                 <p className="mt-1 text-[15px] text-ink-muted">Pra quem está começando.</p>
@@ -1127,13 +1104,13 @@ export function Landing({ publico }: { publico: Publico }) {
                 </p>
                 {/* o anual, sem chave de mensal/anual: os dois preços à vista, o anual com a conta feita */}
                 <p className="mt-1 text-[15px] text-ink-muted">
-                  ou <span className="font-semibold text-ink">{formatBRL(PLANOS.marcon.valorAnual)} por ano</span>, que sai{" "}
-                  {formatBRL(ANUAL_POR_MES)} por mês. Economia de {formatBRL(ECONOMIA_ANUAL)}.
+                  ou <span className="font-semibold text-ink">{formatBRL(PLANOS.marcon.valorAnual)} por ano</span> ({formatBRL(ANUAL_POR_MES)} por mês):{" "}
+                  {MESES_GRATIS_ANUAL}.
                 </p>
                 <PlanoItens itens={PLANOS.marcon.inclui} />
                 <Link
                   href="/login?modo=signup"
-                  className="bg-brand-fill mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"
+                  className="bg-brand-fill mt-6 inline-flex items-center justify-center rounded-full px-6 py-3 text-[17px] font-semibold text-on-brand shadow-sm shadow-brand/30 transition active:scale-[0.98]"
                 >
                   Começar teste grátis
                 </Link>

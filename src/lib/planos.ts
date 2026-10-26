@@ -16,12 +16,12 @@ export const PLANOS = {
       // na mesma ordem do plano grátis, para dar para comparar linha a linha; a vitrine, que só o
       // plano Marcon tem, vem por último. Sem "tudo do grátis": a lista já é completa.
       "Vendas e produtos ilimitados",
-      "Até 10 fotos por produto e por variação",
-      "Estoque, vendas a prazo e fluxo de caixa",
-      "Anúncios prontos e lembrete de cobrança",
-      "30 anúncios escritos com IA por mês",
-      "Importar produtos, vendas e caixa de outro sistema",
-      "Vitrine com link: o cliente monta o pedido e ele chega pronto no seu WhatsApp",
+      "Até 10 fotos por produto",
+      "Estoque, vendas a prazo e caixa",
+      "Anúncios e lembrete de cobrança",
+      "30 anúncios com IA por mês",
+      "Importar produtos, vendas e caixa",
+      "Vitrine com link pro seu WhatsApp",
     ],
   },
 } as const;
@@ -37,10 +37,10 @@ export const PLANO_GRATIS = {
   inclui: [
     "Até 20 vendas por mês",
     "Até 30 produtos, com 3 fotos cada",
-    "Estoque, vendas a prazo e fluxo de caixa",
-    "Anúncios prontos e lembrete de cobrança",
-    "10 anúncios escritos com IA por mês",
-    "Importar seus produtos de outro sistema",
+    "Estoque, vendas a prazo e caixa",
+    "Anúncios e lembrete de cobrança",
+    "10 anúncios com IA por mês",
+    "Importar seus produtos",
   ],
 } as const;
 
@@ -64,8 +64,14 @@ export function cicloDe(valor: unknown): Ciclo {
 const centavos = (n: number) => Math.round(n * 100) / 100;
 // R$ 149 por ano = R$ 12,42 por mês
 export const ANUAL_POR_MES = centavos(PLANOS.marcon.valorAnual / 12);
-// 12 x R$ 15,90 = R$ 190,80; no anual paga R$ 149 e economiza R$ 41,80
-export const ECONOMIA_ANUAL = centavos(PLANOS.marcon.valor * 12 - PLANOS.marcon.valorAnual);
+// 12 x R$ 15,90 = R$ 190,80; no anual paga R$ 149, o que equivale a 2,6 mensalidades de desconto.
+// Dito em meses, arredondado pra cima: "quase 3 meses grátis" (nunca promete mais que o desconto real).
+export const MESES_GRATIS_ANUAL = (() => {
+  const meses = (PLANOS.marcon.valor * 12 - PLANOS.marcon.valorAnual) / PLANOS.marcon.valor;
+  const n = Math.ceil(meses);
+  const exato = Math.abs(meses - n) < 0.05;
+  return `${exato ? "" : "quase "}${n} ${n === 1 ? "mês" : "meses"} grátis`;
+})();
 
 export function ehPlano(valor: unknown): valor is PlanoId {
   return typeof valor === "string" && valor in PLANOS;

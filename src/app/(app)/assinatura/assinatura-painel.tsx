@@ -9,7 +9,7 @@ import { IconCheck } from "@/components/icons";
 import { useToast } from "@/components/toaster";
 import { formatarDocumento, documentoValido } from "@/lib/documento";
 import { formatBRL, formatData } from "@/lib/format";
-import { ANUAL_POR_MES, CICLOS, DIAS_DE_TESTE, ECONOMIA_ANUAL, PLANO_GRATIS, PLANOS, type Ciclo } from "@/lib/planos";
+import { ANUAL_POR_MES, CICLOS, DIAS_DE_TESTE, MESES_GRATIS_ANUAL, PLANO_GRATIS, PLANOS, type Ciclo } from "@/lib/planos";
 import type { Situacao } from "@/lib/assinatura";
 import type { Uso } from "@/lib/uso";
 import { assinarPlano, cancelarPlano, regularizarPagamento, type ResultadoAssinar } from "./actions";
@@ -347,7 +347,7 @@ export function AssinaturaPainel({
             />
             {cicloMostrado === "anual" ? (
               <p className="mt-0.5 text-[13px] text-ink-muted">
-                Sai {formatBRL(ANUAL_POR_MES)} por mês. Você economiza {formatBRL(ECONOMIA_ANUAL)} em relação a 12 mensalidades.
+                Sai {formatBRL(ANUAL_POR_MES)} por mês: {MESES_GRATIS_ANUAL}.
               </p>
             ) : (
               mostraAssinar && (
