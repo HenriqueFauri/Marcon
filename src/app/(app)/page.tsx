@@ -7,11 +7,11 @@ import { createClient } from "@/lib/supabase/server";
 import type { ParcelaComVenda, ProdutoComEstoque, Venda } from "@/types/domain";
 import { formatBRL, formatDataCurta, hojeISO, intervaloDoMes, mesAtual, nomeDoMes, somarDias } from "@/lib/format";
 import { situacaoEstoque } from "@/lib/estoque";
-import { lerUso } from "@/lib/uso";
 import { EmptyState, btnPrimary } from "@/components/ui";
 import { Grupo } from "@/components/ajustes";
 import { PainelMetas, PainelVendas, PeriodoProvider, type DadosPeriodo, type DadosPorPeriodo, type Periodo, type VendaResumo } from "./painel-periodo";
 import { AvisoNotificacoes } from "./aviso-notificacoes";
+import { LinkPassoLucro } from "./passo-lucro";
 import { IconAlert, IconBox, IconCheck, IconPlus, IconReceipt, IconSearch, IconWallet } from "@/components/icons";
 
 export const metadata: Metadata = { title: "Início" };
@@ -68,14 +68,17 @@ function LinhaAtencao({
   );
 }
 
-function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; feito: boolean }[] }) {
+type Passo = { href: string; texto: string; feito: boolean; marcaLucro?: boolean };
+
+function PrimeirosPassos({ passos }: { passos: Passo[] }) {
   const feitos = passos.filter((p) => p.feito).length;
   return (
     <Grupo titulo={`Primeiros passos · ${feitos} de ${passos.length}`} semPadding>
       {passos.map((p) => (
-        <Link
-          key={p.href}
+        <LinkPassoLucro
+          key={p.texto}
           href={p.href}
+          marcar={!!p.marcaLucro}
           className={`flex min-h-11 items-center gap-3 border-t border-line px-4 py-3 text-[17px] first:border-t-0 hover:bg-fill/60 active:bg-fill ${linkPendente}`}
         >
           <span
@@ -87,7 +90,7 @@ function PrimeirosPassos({ passos }: { passos: { href: string; texto: string; fe
           <span className={`flex-1 ${p.feito ? "text-ink-muted line-through" : "text-ink"}`}>{p.texto}</span>
           {p.feito && <span className="sr-only">(feito)</span>}
           <SetaLink />
-        </Link>
+        </LinkPassoLucro>
       ))}
     </Grupo>
   );
@@ -126,7 +129,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const sp = await searchParams;
   // o período vem da URL (?periodo=), senão da última escolha (cookie); na primeira vez, o mês
   const periodoParam = Array.isArray(sp.periodo) ? sp.periodo[0] : sp.periodo;
-  const lembrado = (await cookies()).get("marcon-periodo")?.value;
+  const cookieStore = await cookies();
+  const lembrado = cookieStore.get("marcon-periodo")?.value;
   const escolhido = periodoParam ?? lembrado;
   const periodo: Periodo = escolhido === "hoje" || escolhido === "semana" ? escolhido : "mes";
   const supabase = await createClient();
@@ -145,9 +149,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     { data: parcelasData },
     { data: caixaData },
     { data: saldoData },
-    { count: totalVendas },
+    { data: ultimaVendaData, count: totalVendas },
     { data: pagarData },
-    uso,
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("produtos_com_estoque").select("*").neq("status", "inativo"),
@@ -166,11 +169,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     supabase.from("lancamentos_caixa").select("tipo, valor, data").gte("data", hoje).eq("afeta_caixa", true),
     // saldo somado no banco: somar no app cortava em 1000 lançamentos
     supabase.rpc("saldo_caixa", { p_ate: hoje }),
-    supabase.from("vendas").select("id", { count: "exact", head: true }).neq("status", "cancelada"),
+    // conta as vendas e traz a última (o passo "Ver o lucro da venda" abre ela)
+    supabase.from("vendas").select("id, created_at", { count: "exact" }).neq("status", "cancelada").order("created_at", { ascending: false }).limit(1),
     // contas a pagar em aberto até daqui a 7 dias (as atrasadas entram: também pedem atenção)
     supabase.from("contas_a_pagar").select("valor").eq("status", "aberta").lte("vencimento", somarDias(hoje, 7)),
-    // o plano diz se a vitrine abre (no grátis ela só mostra o convite para assinar)
-    lerUso(supabase),
   ]);
 
   const produtos = (produtosData ?? []) as ProdutoComEstoque[];
@@ -238,19 +240,36 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     (meta.nome as string | undefined) ?? (meta.full_name as string | undefined) ?? ""
   ).split(" ")[0];
 
-  const semNada = produtos.length === 0 && todasVendas.length === 0;
-
-  // checklist da conta nova; some sozinho quando os três passos estão feitos.
-  // O 3º depende do plano: com vitrine, abrir a vitrine; no grátis (vitrine só convida a assinar),
-  // trazer os produtos de uma planilha (vale como feito a partir de 5 produtos cadastrados).
-  const temVitrine = uso ? uso.plano !== "gratis" : true;
-  const passos = [
+  // checklist da conta nova; some sozinho quando os três passos estão feitos. O 3º mostra valor
+  // logo depois da primeira venda: abrir a venda e ver o lucro (fica feito ao abrir pelo checklist).
+  const ultimaVenda = ultimaVendaData?.[0] as { id: string; created_at: string } | undefined;
+  const ultimaVendaId = ultimaVenda?.id;
+  const temVenda = (totalVendas ?? 0) > 0;
+  // conta antiga não volta a ver o checklist: mais de uma venda, ou a única com mais de 7 dias, vale como visto
+  const vendaAntiga = !!ultimaVenda && ultimaVenda.created_at.slice(0, 10) < somarDias(hoje, -7);
+  const viuLucro = cookieStore.get("marcon-viu-lucro")?.value === "1" || (totalVendas ?? 0) > 1 || vendaAntiga;
+  const passos: Passo[] = [
     { href: "/produtos/novo", texto: "Cadastrar um produto", feito: produtos.length > 0 },
-    { href: "/vendas/novo", texto: "Registrar uma venda", feito: (totalVendas ?? 0) > 0 },
-    temVitrine
-      ? { href: "/vitrine", texto: "Abrir a vitrine", feito: produtos.some((p) => p.na_vitrine) }
-      : { href: "/importar", texto: "Trazer seus produtos", feito: produtos.length >= 5 },
+    { href: "/vendas/novo", texto: "Registrar uma venda", feito: temVenda },
+    ultimaVendaId
+      ? { href: `/vendas/${ultimaVendaId}`, texto: "Ver o lucro da venda", feito: viuLucro, marcaLucro: true }
+      : { href: "/vendas/novo", texto: "Ver o lucro da venda", feito: false },
   ];
+  // sem venda ainda, o Início mostra um próximo passo só, em vez do painel zerado
+  const proximo = !temVenda ? (produtos.length === 0 ? "produto" : "venda") : null;
+  // sem venda mas com caixa, contas ou estoque acabando, o painel continua (o passo vem acima dele)
+  const temOutrosDados = aPagar.length > 0 || parcelas.length > 0 || caixaHoje !== 0 || alertasEstoque.length > 0;
+  const passoVenda = (
+    <EmptyState
+      title="Registre sua primeira venda"
+      description="Estoque, lucro e caixa se atualizam sozinhos."
+      action={
+        <Link href="/vendas/novo" className={btnPrimary}>
+          <IconPlus width={14} height={14} strokeWidth={2.6} /> Registrar venda
+        </Link>
+      }
+    />
+  );
   const primeirosPassos = passos.some((p) => !p.feito);
 
   return (
@@ -273,22 +292,35 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
               className="w-full bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-muted"
             />
           </form>
-          <Link href="/vendas/novo" className={btnPrimary}>
-            <IconPlus width={14} height={14} strokeWidth={2.6} /> Nova venda
-          </Link>
+          {/* um botão principal por tela: sem venda, quem chama é o próximo passo lá embaixo */}
+          {!proximo && (
+            <Link href="/vendas/novo" className={btnPrimary}>
+              <IconPlus width={14} height={14} strokeWidth={2.6} /> Nova venda
+            </Link>
+          )}
         </div>
       </div>
 
-      <AvisoNotificacoes />
+      {/* o pedido de avisos só vem depois da primeira venda, quando o app já mostrou valor */}
+      {temVenda && <AvisoNotificacoes />}
 
       {primeirosPassos && <PrimeirosPassos passos={passos} />}
 
-      {semNada ? (
+      {proximo === "produto" ? (
         <EmptyState
-          title="Vamos começar?"
-          description="Cadastre seus produtos com custo e preço. Depois é só registrar as vendas: estoque, lucro e caixa se atualizam sozinhos."
+          title="Cadastre seu primeiro produto"
+          description="Com custo e preço, cada venda já mostra quanto você lucrou."
+          action={
+            <Link href="/produtos/novo" className={btnPrimary}>
+              <IconPlus width={14} height={14} strokeWidth={2.6} /> Cadastrar produto
+            </Link>
+          }
         />
+      ) : proximo === "venda" && !temOutrosDados ? (
+        passoVenda
       ) : (
+        <>
+        {proximo === "venda" && passoVenda}
         <PeriodoProvider inicial={periodo} dados={dadosPorPeriodo}>
           <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
             <PainelMetas metaMensalVendas={metaMensalVendas} metaMensalLucro={metaMensalLucro} />
@@ -374,6 +406,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
           <PainelVendas />
         </PeriodoProvider>
+        </>
       )}
     </div>
   );
