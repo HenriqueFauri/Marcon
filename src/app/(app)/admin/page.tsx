@@ -82,7 +82,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         situacao,
         rotulo: rotuloDaSituacao(situacao),
         resumo: resumoPorConta.get(u.id),
-        funil: etapaDoFunil(u, funilPorConta.get(u.id)),
+        // sem a função (erro ou migration 0069 não aplicada) não inventa "Sem produto"
+        funil: erroFunil ? null : etapaDoFunil(u, funilPorConta.get(u.id)),
         dias: Number(funilPorConta.get(u.id)?.dias_ativos ?? 0),
         titulo,
         negocio,
@@ -123,14 +124,15 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const receitaMensal = listaPagantes.reduce((s, l) => s + (l.situacao.ciclo === "anual" ? ANUAL_POR_MES : PLANOS.marcon.valor), 0);
   const vendidoNoMes = linhas.reduce((s, l) => s + Number(l.resumo?.valor_mes ?? 0), 0);
 
-  // funil: produto e venda contam quem chegou pelo menos até ali
+  // funil: produto e venda contam quem chegou pelo menos até ali; a conta admin fica fora da base
+  const base = linhas.filter((l) => !l.eAdmin);
   const funil = {
-    semProduto: linhas.filter((l) => l.funil.etapa === 0).length,
-    comProduto: linhas.filter((l) => l.funil.etapa >= 1).length,
-    comVenda: linhas.filter((l) => l.funil.etapa === 2).length,
-    voltaram: linhas.filter((l) => l.dias >= 3).length,
+    semProduto: base.filter((l) => l.funil?.etapa === 0).length,
+    comProduto: base.filter((l) => (l.funil?.etapa ?? 0) >= 1).length,
+    comVenda: base.filter((l) => l.funil?.etapa === 2).length,
+    voltaram: base.filter((l) => l.dias >= 3).length,
   };
-  const pct = (n: number) => `${linhas.length ? Math.round((n / linhas.length) * 100) : 0}%`;
+  const pct = (n: number) => `${base.length ? Math.round((n / base.length) * 100) : 0}%`;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -210,7 +212,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       {[
                         bloqueada(u) ? "Bloqueada" : rotulo.texto,
                         // quem ainda não vendeu mostra onde parou no funil
-                        etapa.etapa < 2 ? etapa.texto : `${vendas(resumo?.vendas_mes ?? 0)} no mês`,
+                        etapa && etapa.etapa < 2 ? etapa.texto : `${vendas(resumo?.vendas_mes ?? 0)} no mês`,
                         assistente ? "Assistente" : null,
                       ]
                         .filter(Boolean)
@@ -266,8 +268,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       {motivo && <span className="mt-0.5 block text-[13px] text-ink-muted">{motivo}</span>}
                     </td>
                     <td className={tdClass}>
-                      <Badge tone={etapa.tom}>{etapa.texto}</Badge>
-                      <span className="mt-0.5 block text-[13px] text-ink-muted">{diasAtivos(dias)}</span>
+                      {etapa ? (
+                        <>
+                          <Badge tone={etapa.tom}>{etapa.texto}</Badge>
+                          <span className="mt-0.5 block text-[13px] text-ink-muted">{diasAtivos(dias)}</span>
+                        </>
+                      ) : (
+                        <span className="text-ink-muted">?</span>
+                      )}
                     </td>
                     <td className={`${tdClass} text-right tabular-nums`}>{resumo?.produtos ?? 0}</td>
                     <td className={`${tdClass} text-right tabular-nums`}>

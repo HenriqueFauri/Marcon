@@ -1,5 +1,6 @@
 -- Funil por conta no admin: quando cadastrou o 1º produto, quando fez a 1ª venda
 -- e em quantos dias diferentes a conta usou o app (cadastrou produto ou lançou venda).
+-- Venda cancelada não conta, nem para a 1ª venda nem para os dias ativos (mesmo padrão de 0048).
 -- Só leitura, só para o service_role (mesmo padrão de admin_resumo_por_conta, 0048).
 
 create or replace function admin_funil_por_conta()
@@ -30,7 +31,7 @@ as $$
     from (
       select pr.owner_id, (pr.created_at at time zone 'America/Sao_Paulo')::date as dia from produtos pr
       union all
-      select ve.owner_id, (ve.created_at at time zone 'America/Sao_Paulo')::date from vendas ve
+      select ve.owner_id, (ve.created_at at time zone 'America/Sao_Paulo')::date from vendas ve where ve.status <> 'cancelada'
     ) x
     group by x.owner_id
   )
