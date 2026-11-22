@@ -1,5 +1,5 @@
 import { DIAS_DE_TESTE, cicloDe, type Ciclo } from "@/lib/planos";
-import { hojeISO } from "@/lib/format";
+import { hojeISO, somarDias } from "@/lib/format";
 
 // Onde o usuário está no ciclo de assinatura. O teste corre a partir da criação
 // da conta e não exige linha na tabela assinaturas.
@@ -16,6 +16,9 @@ export interface Situacao {
   cortesiaAte: string | null; // último dia da cortesia (yyyy-mm-dd); nulo em cortesia antiga, sem prazo
   cortesiaEm: string | null; // quando foi dada
   cortesiaNova: boolean; // dada nos últimos 2 dias: a tela avisa que ela chegou
+  // a conta caiu no grátis nas últimas 24 horas (fim do teste) ou ontem foi o último dia da cortesia:
+  // o aviso do topo explica o que mudou. Nulo no resto do tempo.
+  virouGratisHoje: "teste" | "cortesia" | null;
 }
 
 interface LinhaAssinatura {
@@ -69,6 +72,7 @@ export function situacaoDaAssinatura(linha: LinhaAssinatura | null, contaCriadaE
     cortesiaAte: null as string | null,
     cortesiaEm: null as string | null,
     cortesiaNova: false,
+    virouGratisHoje: null as Situacao["virouGratisHoje"],
   };
 
   if (linha?.status === "ativa") return { ...base, tipo: "ativa" };
@@ -83,7 +87,14 @@ export function situacaoDaAssinatura(linha: LinhaAssinatura | null, contaCriadaE
   // cancelou: o plano vale até o dia da cobrança que não vai acontecer, igual à regra do banco (plano_do_usuario)
   if (canceladaVale(linha)) return { ...base, tipo: "cancelada", diasRestantes: diasAteIso(linha!.proximo_vencimento!) };
   // sem linha, ou cancelada com o período já acabado: volta ao teste enquanto ele durar, depois ao grátis
-  return { ...base, tipo: restanteMs > 0 ? "teste" : "gratis" };
+  if (restanteMs > 0) return { ...base, tipo: "teste" };
+  const virouGratisHoje =
+    linha?.status === "cortesia" && linha.cortesia_ate === somarDias(hojeISO(), -1)
+      ? ("cortesia" as const)
+      : -restanteMs < DIA_MS
+        ? ("teste" as const)
+        : null;
+  return { ...base, tipo: "gratis", virouGratisHoje };
 }
 
 // texto curto para o menu

@@ -251,6 +251,12 @@ export function MobileNav({
   return (
     <>
       <header className={`sticky top-0 z-30 ${emVenda ? "hidden" : "flex"} items-center justify-end gap-2.5 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden`}>
+        {/* nos últimos dias do teste (ou com pagamento pendente) o plano sai do menu e fica à vista */}
+        {plano.tom === "warning" && pathname !== "/assinatura" && (
+          <Link href="/assinatura" aria-label={`Seu plano: ${plano.texto}`} className="mr-auto min-w-0">
+            <Badge tone={plano.tom}>{plano.texto}</Badge>
+          </Link>
+        )}
         <BuscaGlobal variante="icone" />
         <button
           onClick={() => setAberto(true)}

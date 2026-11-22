@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MobileNav, Sidebar } from "@/components/app-nav";
 import { BarraDeProgresso } from "@/components/barra-de-progresso";
 import { ToastProvider } from "@/components/toaster";
-import { AvisoCortesia } from "@/components/aviso-cortesia";
+import { AvisoPlano } from "@/components/aviso-plano";
 import { AvisoOffline } from "@/components/aviso-offline";
 import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { adminConfirmado } from "@/lib/admin";
@@ -23,10 +23,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   // conta nova abrindo o app pela primeira vez: avisa o admin (depois da resposta, sem atrasar a tela)
   after(() => avisarContaNova(user));
 
-  const [{ count: parcelasAbertas }, { count: pedidosNovos }, { data: assinaturaRow }] = await Promise.all([
+  const [{ count: parcelasAbertas }, { count: pedidosNovos }, { data: assinaturaRow }, { data: vitrineRow }] = await Promise.all([
     supabase.from("parcelas_com_status").select("id", { count: "exact", head: true }).neq("status", "pago"),
     supabase.from("vitrine_pedidos").select("id", { count: "exact", head: true }).eq("status", "novo"),
     supabase.from("assinaturas").select("plano, status, proximo_vencimento, cortesia_ate, cortesia_em").maybeSingle(),
+    // só para o aviso do fim do teste dizer que a vitrine sai do ar (RLS: só a do dono)
+    supabase.from("vitrines").select("ativa").maybeSingle(),
   ]);
   const situacao = situacaoDaAssinatura(assinaturaRow, user.created_at);
   const plano = rotuloDaSituacao(situacao);
@@ -52,7 +54,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <div className="flex min-w-0 flex-1 flex-col">
           <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-10 lg:pt-8">
-            <AvisoCortesia situacao={situacao} />
+            <AvisoPlano situacao={situacao} vitrineNoAr={vitrineRow?.ativa === true} />
             {children}
           </main>
         </div>
