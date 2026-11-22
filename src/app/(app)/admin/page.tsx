@@ -11,7 +11,7 @@ import { ANUAL_POR_MES, PLANOS } from "@/lib/planos";
 import { rotuloDoMotivo } from "@/lib/cortesia";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
-import { bloqueada, contaGerenciavel, type ResumoConta } from "./dados";
+import { bloqueada, contaGerenciavel, diasAtivos, etapaDoFunil, type FunilConta, type ResumoConta } from "./dados";
 import { AcoesRapidas } from "./gerenciar-conta";
 
 const vendas = (n: number) => `${n} ${n === 1 ? "venda" : "vendas"}`;
@@ -55,13 +55,15 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const busca = (typeof sp.q === "string" ? sp.q : "").trim().toLowerCase();
   const grupo = ["pagantes", "cortesia", "teste"].includes(String(sp.situacao)) ? String(sp.situacao) : "todas";
 
-  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }] = await Promise.all([
+  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }, { data: funis, error: erroFunil }] = await Promise.all([
     todasAsContas(admin),
     admin.from("assinaturas").select("owner_id, plano, ciclo, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
     admin.rpc("admin_resumo_por_conta"),
     admin.from("whatsapp_liberados").select("owner_id, lancar"),
     admin.from("whatsapp_vinculos").select("owner_id, telefone"),
+    admin.rpc("admin_funil_por_conta"),
   ]);
+  const funilPorConta = new Map(((funis ?? []) as FunilConta[]).map((f) => [f.owner_id, f]));
   // contas com o assistente no WhatsApp liberado no painel (o admin tem sempre)
   const liberadoPorConta = new Map((liberados ?? []).map((l) => [l.owner_id as string, l as { lancar: boolean | null }]));
   const telefonePorConta = new Map((vinculos ?? []).map((v) => [v.owner_id as string, v.telefone as string]));
@@ -80,6 +82,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         situacao,
         rotulo: rotuloDaSituacao(situacao),
         resumo: resumoPorConta.get(u.id),
+        funil: etapaDoFunil(u, funilPorConta.get(u.id)),
+        dias: Number(funilPorConta.get(u.id)?.dias_ativos ?? 0),
         titulo,
         negocio,
         nome,
@@ -119,6 +123,15 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const receitaMensal = listaPagantes.reduce((s, l) => s + (l.situacao.ciclo === "anual" ? ANUAL_POR_MES : PLANOS.marcon.valor), 0);
   const vendidoNoMes = linhas.reduce((s, l) => s + Number(l.resumo?.valor_mes ?? 0), 0);
 
+  // funil: produto e venda contam quem chegou pelo menos até ali
+  const funil = {
+    semProduto: linhas.filter((l) => l.funil.etapa === 0).length,
+    comProduto: linhas.filter((l) => l.funil.etapa >= 1).length,
+    comVenda: linhas.filter((l) => l.funil.etapa === 2).length,
+    voltaram: linhas.filter((l) => l.dias >= 3).length,
+  };
+  const pct = (n: number) => `${linhas.length ? Math.round((n / linhas.length) * 100) : 0}%`;
+
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -147,6 +160,21 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         </div>
       )}
 
+      {/* funil: até onde as contas chegaram */}
+      <h2 className="mb-2 px-4 text-[13px] uppercase text-ink-muted">Funil</h2>
+      {erroFunil ? (
+        <div className="mb-6">
+          <ErrorMessage>Não consegui ler o funil das contas. Rode a migration 0069_admin_funil_por_conta.sql.</ErrorMessage>
+        </div>
+      ) : (
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard label="Só cadastro" value={funil.semProduto} hint={`${pct(funil.semProduto)} das contas, sem produto`} />
+          <StatCard label="Com 1º produto" value={funil.comProduto} hint={`${pct(funil.comProduto)} das contas`} />
+          <StatCard label="Com 1ª venda" value={funil.comVenda} tone="positive" hint={`${pct(funil.comVenda)} das contas`} />
+          <StatCard label="3 dias ativos ou mais" value={funil.voltaram} hint={`${pct(funil.voltaram)} das contas`} />
+        </div>
+      )}
+
       <Segmentos
         rotulo="Filtrar contas"
         className="mb-3"
@@ -167,7 +195,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
         <>
           {/* celular: lista agrupada, cada conta abre o detalhe */}
           <ul className="hairline divide-y divide-line overflow-hidden rounded-3xl bg-surface sm:hidden">
-            {filtradas.map(({ u, rotulo, resumo, titulo, assistente, gerenciavel }) => (
+            {filtradas.map(({ u, rotulo, resumo, titulo, assistente, gerenciavel, funil: etapa }) => (
               <li key={u.id} className="flex items-center pr-2">
                 <Link
                   href={`/admin/contas/${u.id}`}
@@ -179,7 +207,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                       {u.id === user!.id && <span className="text-ink-muted"> (você)</span>}
                     </span>
                     <span className="block truncate text-[13px] text-ink-muted">
-                      {[bloqueada(u) ? "Bloqueada" : rotulo.texto, `${vendas(resumo?.vendas_mes ?? 0)} no mês`, assistente ? "Assistente" : null].filter(Boolean).join(" · ")}
+                      {[
+                        bloqueada(u) ? "Bloqueada" : rotulo.texto,
+                        // quem ainda não vendeu mostra onde parou no funil
+                        etapa.etapa < 2 ? etapa.texto : `${vendas(resumo?.vendas_mes ?? 0)} no mês`,
+                        assistente ? "Assistente" : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </span>
                   <span className="shrink-0 text-right">
@@ -199,6 +234,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                 <tr>
                   <th className={thClass}>Conta</th>
                   <th className={thClass}>Plano</th>
+                  <th className={thClass}>Funil</th>
                   <th className={`${thClass} text-right`}>Produtos</th>
                   <th className={`${thClass} whitespace-nowrap text-right`}>No mês</th>
                   <th className={`${thClass} whitespace-nowrap text-right`}>Lucro</th>
@@ -210,7 +246,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                 </tr>
               </thead>
               <tbody className={tbodyClass}>
-                {filtradas.map(({ u, rotulo, resumo, titulo, eAdmin, assistente, motivo, gerenciavel }) => (
+                {filtradas.map(({ u, rotulo, resumo, titulo, eAdmin, assistente, motivo, gerenciavel, funil: etapa, dias }) => (
                   <tr key={u.id} className={bloqueada(u) ? "opacity-60" : ""}>
                     <td className={tdClass}>
                       <Link href={`/admin/contas/${u.id}`} className="flex flex-wrap items-center gap-2 font-medium text-ink hover:underline">
@@ -228,6 +264,10 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
                     <td className={tdClass}>
                       <Badge tone={rotulo.tom}>{rotulo.texto}</Badge>
                       {motivo && <span className="mt-0.5 block text-[13px] text-ink-muted">{motivo}</span>}
+                    </td>
+                    <td className={tdClass}>
+                      <Badge tone={etapa.tom}>{etapa.texto}</Badge>
+                      <span className="mt-0.5 block text-[13px] text-ink-muted">{diasAtivos(dias)}</span>
                     </td>
                     <td className={`${tdClass} text-right tabular-nums`}>{resumo?.produtos ?? 0}</td>
                     <td className={`${tdClass} text-right tabular-nums`}>
