@@ -6,8 +6,9 @@ import { IconAlert, IconX } from "@/components/icons";
 
 // A inscrição de push é por aparelho e por endereço do app: se o endereço muda ou o app é
 // reinstalado, os avisos param sem ninguém ver. Este lembrete aparece no Início só em aparelho que
-// suporta push e está sem inscrição, e só depois da primeira venda (o Início decide: pedir antes de
-// o app mostrar valor faz o comerciante dispensar e nunca mais ativar). Dispensar vale para este aparelho; se as notificações forem
+// suporta push e está sem inscrição, e só depois da primeira venda (o Início
+// decide: pedir antes de o app mostrar valor faz o comerciante dispensar e nunca
+// mais ativar). Dispensar vale para este aparelho; se as notificações forem
 // ativadas e a inscrição sumir depois, ele volta a aparecer.
 const CHAVE = "marcon-aviso-push-dispensado";
 

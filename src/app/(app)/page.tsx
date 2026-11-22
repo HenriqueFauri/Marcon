@@ -170,7 +170,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     // saldo somado no banco: somar no app cortava em 1000 lançamentos
     supabase.rpc("saldo_caixa", { p_ate: hoje }),
     // conta as vendas e traz a última (o passo "Ver o lucro da venda" abre ela)
-    supabase.from("vendas").select("id", { count: "exact" }).neq("status", "cancelada").order("created_at", { ascending: false }).limit(1),
+    supabase.from("vendas").select("id, created_at", { count: "exact" }).neq("status", "cancelada").order("created_at", { ascending: false }).limit(1),
     // contas a pagar em aberto até daqui a 7 dias (as atrasadas entram: também pedem atenção)
     supabase.from("contas_a_pagar").select("valor").eq("status", "aberta").lte("vencimento", somarDias(hoje, 7)),
   ]);
@@ -242,10 +242,12 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
   // checklist da conta nova; some sozinho quando os três passos estão feitos. O 3º mostra valor
   // logo depois da primeira venda: abrir a venda e ver o lucro (fica feito ao abrir pelo checklist).
-  const ultimaVendaId = ultimaVendaData?.[0]?.id as string | undefined;
+  const ultimaVenda = ultimaVendaData?.[0] as { id: string; created_at: string } | undefined;
+  const ultimaVendaId = ultimaVenda?.id;
   const temVenda = (totalVendas ?? 0) > 0;
-  // quem já tem mais de uma venda já viu o lucro (conta antiga não volta a ver o checklist)
-  const viuLucro = cookieStore.get("marcon-viu-lucro")?.value === "1" || (totalVendas ?? 0) > 1;
+  // conta antiga não volta a ver o checklist: mais de uma venda, ou a única com mais de 7 dias, vale como visto
+  const vendaAntiga = !!ultimaVenda && ultimaVenda.created_at.slice(0, 10) < somarDias(hoje, -7);
+  const viuLucro = cookieStore.get("marcon-viu-lucro")?.value === "1" || (totalVendas ?? 0) > 1 || vendaAntiga;
   const passos: Passo[] = [
     { href: "/produtos/novo", texto: "Cadastrar um produto", feito: produtos.length > 0 },
     { href: "/vendas/novo", texto: "Registrar uma venda", feito: temVenda },
@@ -255,6 +257,19 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   ];
   // sem venda ainda, o Início mostra um próximo passo só, em vez do painel zerado
   const proximo = !temVenda ? (produtos.length === 0 ? "produto" : "venda") : null;
+  // sem venda mas com caixa, contas ou estoque acabando, o painel continua (o passo vem acima dele)
+  const temOutrosDados = aPagar.length > 0 || parcelas.length > 0 || caixaHoje !== 0 || alertasEstoque.length > 0;
+  const passoVenda = (
+    <EmptyState
+      title="Registre sua primeira venda"
+      description="Estoque, lucro e caixa se atualizam sozinhos."
+      action={
+        <Link href="/vendas/novo" className={btnPrimary}>
+          <IconPlus width={14} height={14} strokeWidth={2.6} /> Registrar venda
+        </Link>
+      }
+    />
+  );
   const primeirosPassos = passos.some((p) => !p.feito);
 
   return (
@@ -301,17 +316,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
             </Link>
           }
         />
-      ) : proximo === "venda" ? (
-        <EmptyState
-          title="Registre sua primeira venda"
-          description="Estoque, lucro e caixa se atualizam sozinhos."
-          action={
-            <Link href="/vendas/novo" className={btnPrimary}>
-              <IconPlus width={14} height={14} strokeWidth={2.6} /> Registrar venda
-            </Link>
-          }
-        />
+      ) : proximo === "venda" && !temOutrosDados ? (
+        passoVenda
       ) : (
+        <>
+        {proximo === "venda" && passoVenda}
         <PeriodoProvider inicial={periodo} dados={dadosPorPeriodo}>
           <div className="grid grid-cols-1 gap-7 lg:grid-cols-3">
             <PainelMetas metaMensalVendas={metaMensalVendas} metaMensalLucro={metaMensalLucro} />
@@ -397,6 +406,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
 
           <PainelVendas />
         </PeriodoProvider>
+        </>
       )}
     </div>
   );
