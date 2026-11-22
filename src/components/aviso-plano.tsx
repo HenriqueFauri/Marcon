@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { Situacao } from "@/lib/assinatura";
 import { formatData } from "@/lib/format";
 import { PLANO_GRATIS } from "@/lib/planos";
@@ -6,13 +9,15 @@ import { btnSmall } from "./ui";
 
 // Aviso no topo do app quando o plano está para mudar ou acabou de mudar, para o fim do teste ou da
 // cortesia não pegar ninguém de surpresa (o push sozinho não bastou):
-//  * teste e cortesia com prazo: nos 3 últimos dias, conta quantos faltam e diz o que muda;
+//  * teste (também de quem tocou em Assinar e não pagou): nos 3 últimos dias, conta quantos faltam e diz o que muda;
+//  * cortesia com prazo: nos 3 últimos dias, idem;
 //  * no dia em que a conta vira grátis: diz que virou e o que mudou;
 //  * cortesia que acabou de chegar: nos 2 primeiros dias, avisa que chegou.
-// No resto do tempo não aparece. Só exibe: limites e regra de cobrança moram no banco.
+// No resto do tempo, e na própria tela do plano, não aparece. Só exibe: limites e cobrança moram no banco.
 export function AvisoPlano({ situacao, vitrineNoAr }: { situacao: Situacao; vitrineNoAr: boolean }) {
+  const pathname = usePathname();
   const aviso = textoDoAviso(situacao, vitrineNoAr);
-  if (!aviso) return null;
+  if (!aviso || pathname === "/assinatura") return null;
 
   return (
     <div className="hairline mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-3xl bg-surface px-4 py-3">
@@ -43,7 +48,7 @@ function oQueMuda(vitrineNoAr: boolean, jaMudou: boolean) {
 }
 
 function textoDoAviso(s: Situacao, vitrineNoAr: boolean) {
-  if (s.tipo === "teste" && s.diasRestantes <= 3) {
+  if (s.contaComo === "teste" && s.diasRestantes <= 3) {
     return {
       titulo: s.diasRestantes <= 1 ? "Hoje é o último dia do seu teste." : `Seu teste termina em ${s.diasRestantes} dias.`,
       detalhe: `Depois a conta fica grátis: ${oQueMuda(vitrineNoAr, false)}`,
@@ -51,7 +56,7 @@ function textoDoAviso(s: Situacao, vitrineNoAr: boolean) {
     };
   }
 
-  if (s.tipo === "gratis" && s.virouGratisHoje) {
+  if (s.contaComo === "gratis" && s.virouGratisHoje) {
     return {
       titulo: s.virouGratisHoje === "teste" ? "Seu teste acabou." : "Sua cortesia acabou.",
       detalhe: `A conta agora é grátis: ${oQueMuda(vitrineNoAr, true)}`,
@@ -59,16 +64,21 @@ function textoDoAviso(s: Situacao, vitrineNoAr: boolean) {
     };
   }
 
+  // cortesia: a tela do plano só deixa assinar depois que ela acaba, então o link é "Ver plano"
   if (s.tipo === "cortesia" && s.cortesiaAte) {
     const ate = formatData(s.cortesiaAte);
     if (s.diasRestantes <= 3) {
+      // cortesia curta em conta nova: quando ela acaba o teste ainda vale, e a conta volta a ele
+      const voltaAoTeste = s.fimDoTeste > s.cortesiaAte;
       return {
         titulo:
           s.diasRestantes <= 1
             ? `Hoje é o último dia da sua cortesia (até ${ate}).`
             : `Sua cortesia termina em ${s.diasRestantes} dias (até ${ate}).`,
-        detalhe: `Depois a conta fica grátis: ${oQueMuda(vitrineNoAr, false)}`,
-        acao: "Assinar",
+        detalhe: voltaAoTeste
+          ? `Depois você volta ao teste, até ${formatData(s.fimDoTeste)}.`
+          : `Depois a conta fica grátis: ${oQueMuda(vitrineNoAr, false)}`,
+        acao: "Ver plano",
       };
     }
     if (s.cortesiaNova) {

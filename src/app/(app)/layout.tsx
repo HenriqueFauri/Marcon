@@ -32,6 +32,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   ]);
   const situacao = situacaoDaAssinatura(assinaturaRow, user.created_at);
   const plano = rotuloDaSituacao(situacao);
+  // no cabeçalho do celular: quem tocou em Assinar e não pagou vê o teste (o que o banco aplica), não "Pagamento pendente"
+  const planoCabecalho = situacao.tipo === "pendente" && situacao.contaComo ? rotuloDaSituacao({ ...situacao, tipo: situacao.contaComo }) : plano;
   const contagens = { "/contas-a-receber": parcelasAbertas ?? 0, "/vitrine": pedidosNovos ?? 0 };
   const admin = await adminConfirmado(user);
 
@@ -52,7 +54,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <div data-clarity-mask="true" className="flex min-h-dvh">
         <Sidebar nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} admin={admin} />
+          <MobileNav nomeNegocio={nomeNegocio} nome={nome} contagens={contagens} plano={plano} planoCabecalho={planoCabecalho} admin={admin} />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:pb-10 lg:pt-8">
             <AvisoPlano situacao={situacao} vitrineNoAr={vitrineRow?.ativa === true} />
             {children}
