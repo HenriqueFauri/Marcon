@@ -223,12 +223,14 @@ export function MobileNav({
   nome,
   contagens,
   plano,
+  planoCabecalho,
   admin,
 }: {
   nomeNegocio: string;
   nome: string;
   contagens?: Contagens;
   plano: PlanoNav;
+  planoCabecalho?: PlanoNav; // o que o cabeçalho mostra; sem ele, o mesmo do menu
   admin?: boolean;
 }) {
   const pathname = usePathname();
@@ -247,10 +249,17 @@ export function MobileNav({
   const atalhos = NAV.filter((i) => NAV_MOBILE.includes(i.href));
   // a Vitrine fica dentro do menu: o ponto no avatar avisa que tem pedido novo lá
   const pedidosNovos = contagens?.["/vitrine"] ?? 0;
+  const cabecalho = planoCabecalho ?? plano;
 
   return (
     <>
       <header className={`sticky top-0 z-30 ${emVenda ? "hidden" : "flex"} items-center justify-end gap-2.5 px-4 pb-1 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden`}>
+        {/* nos últimos dias do teste (ou com pagamento pendente) o plano sai do menu e fica à vista */}
+        {cabecalho.tom === "warning" && pathname !== "/assinatura" && (
+          <Link href="/assinatura" aria-label={`Seu plano: ${cabecalho.texto}`} className="mr-auto min-w-0">
+            <Badge tone={cabecalho.tom}>{cabecalho.texto}</Badge>
+          </Link>
+        )}
         <BuscaGlobal variante="icone" />
         <button
           onClick={() => setAberto(true)}

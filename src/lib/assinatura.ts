@@ -1,5 +1,5 @@
 import { DIAS_DE_TESTE, cicloDe, type Ciclo } from "@/lib/planos";
-import { hojeISO } from "@/lib/format";
+import { dataISONoFuso, hojeISO, somarDias } from "@/lib/format";
 
 // Onde o usuário está no ciclo de assinatura. O teste corre a partir da criação
 // da conta e não exige linha na tabela assinaturas.
@@ -16,6 +16,11 @@ export interface Situacao {
   cortesiaAte: string | null; // último dia da cortesia (yyyy-mm-dd); nulo em cortesia antiga, sem prazo
   cortesiaEm: string | null; // quando foi dada
   cortesiaNova: boolean; // dada nos últimos 2 dias: a tela avisa que ela chegou
+  // a conta caiu no grátis nas últimas 24 horas (fim do teste) ou ontem foi o último dia da cortesia:
+  // o aviso do topo explica o que mudou. Nulo no resto do tempo.
+  virouGratisHoje: "teste" | "cortesia" | null;
+  // sem plano pago valendo (teste, grátis ou pendente que nunca pagou): o que o banco aplica. Nulo com plano.
+  contaComo: "teste" | "gratis" | null;
 }
 
 interface LinhaAssinatura {
@@ -58,17 +63,33 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 export function situacaoDaAssinatura(linha: LinhaAssinatura | null, contaCriadaEm: string | Date): Situacao {
   const fim = new Date(new Date(contaCriadaEm).getTime() + DIAS_DE_TESTE * DIA_MS);
   const restanteMs = fim.getTime() - Date.now();
-  const diasRestantes = Math.max(0, Math.ceil(restanteMs / DIA_MS));
+  // último dia do teste no fuso do negócio (o teste acaba durante esse dia, na hora em que a conta foi criada)
+  const fimDoTeste = dataISONoFuso(fim);
+  // dias contados pelo calendário: "último dia" é o dia do fim, não as últimas 24 horas. No primeiro dia
+  // da conta o calendário pode dar 15; fica em 14.
+  const diasRestantes = restanteMs > 0 ? Math.min(DIAS_DE_TESTE, Math.max(1, diasAteIso(fimDoTeste))) : 0;
+  // o que o banco considera quando não há plano pago (plano_do_usuario): teste enquanto ele dura, depois grátis
+  const semPlano = restanteMs > 0 ? ("teste" as const) : ("gratis" as const);
+  const virouGratisHoje =
+    semPlano !== "gratis"
+      ? null
+      : linha?.status === "cortesia" && linha.cortesia_ate === somarDias(hojeISO(), -1)
+        ? ("cortesia" as const)
+        : -restanteMs < DIA_MS
+          ? ("teste" as const)
+          : null;
 
   const base = {
     diasRestantes,
-    fimDoTeste: fim.toISOString().slice(0, 10),
+    fimDoTeste,
     plano: linha?.plano ?? null,
     ciclo: cicloDe(linha?.ciclo),
     proximoVencimento: linha?.proximo_vencimento ?? null,
     cortesiaAte: null as string | null,
     cortesiaEm: null as string | null,
     cortesiaNova: false,
+    virouGratisHoje: null as Situacao["virouGratisHoje"],
+    contaComo: null as Situacao["contaComo"],
   };
 
   if (linha?.status === "ativa") return { ...base, tipo: "ativa" };
@@ -79,11 +100,15 @@ export function situacaoDaAssinatura(linha: LinhaAssinatura | null, contaCriadaE
     return { ...base, tipo: "cortesia", cortesiaAte: ate, cortesiaEm: em, cortesiaNova: nova, diasRestantes: ate ? diasAteIso(ate) : 0 };
   }
   if (linha?.status === "atrasada") return { ...base, tipo: "atrasada" };
-  if (linha?.status === "pendente") return { ...base, tipo: "pendente" };
+  if (linha?.status === "pendente") {
+    // pendente sem período pago (tocou em Assinar e não pagou): para o banco segue teste ou grátis
+    if (periodoPagoAte(linha)) return { ...base, tipo: "pendente" };
+    return { ...base, tipo: "pendente", contaComo: semPlano, virouGratisHoje };
+  }
   // cancelou: o plano vale até o dia da cobrança que não vai acontecer, igual à regra do banco (plano_do_usuario)
   if (canceladaVale(linha)) return { ...base, tipo: "cancelada", diasRestantes: diasAteIso(linha!.proximo_vencimento!) };
   // sem linha, ou cancelada com o período já acabado: volta ao teste enquanto ele durar, depois ao grátis
-  return { ...base, tipo: restanteMs > 0 ? "teste" : "gratis" };
+  return { ...base, tipo: semPlano, contaComo: semPlano, virouGratisHoje };
 }
 
 // texto curto para o menu

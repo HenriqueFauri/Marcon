@@ -17,7 +17,12 @@ export function formatDataCurta(value: string) {
 
 // "hoje" no fuso do negócio — toISOString() usa UTC e vira o dia seguinte depois das 21h em Brasília
 export function hojeISO() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(new Date());
+  return dataISONoFuso(new Date());
+}
+
+// yyyy-mm-dd de um instante, no fuso do negócio
+export function dataISONoFuso(d: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(d);
 }
 
 export function mesAtual() {
