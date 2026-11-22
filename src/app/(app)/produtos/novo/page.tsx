@@ -10,7 +10,10 @@ import { criarProduto } from "../actions";
 export const metadata: Metadata = { title: "Novo produto" };
 
 export default async function NovoProdutoPage({ searchParams }: PageProps<"/produtos/novo">) {
-  const { copiar } = await searchParams;
+  const { copiar, nome, voltar } = await searchParams;
+  // vindo da venda ("Cadastrar 'xyz'" na busca): o nome já vem preenchido e, ao salvar, volta para a venda
+  const nomeInicial = typeof nome === "string" ? nome.trim().slice(0, 200) : "";
+  const voltarParaVenda = voltar === "venda";
   const supabase = await createClient();
   const [{ data: fornecedores }, { data: categorias }, uso] = await Promise.all([
     supabase.from("fornecedores").select("*").order("nome"),
@@ -28,7 +31,10 @@ export default async function NovoProdutoPage({ searchParams }: PageProps<"/prod
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Novo produto" back={{ href: "/produtos", label: "Produtos" }} />
+      <PageHeader
+        title="Novo produto"
+        back={voltarParaVenda ? { href: "/vendas/novo", label: "Venda" } : { href: "/produtos", label: "Produtos" }}
+      />
       {uso && vagas === 0 ? (
         <LimiteAtingido
           titulo="Você chegou ao limite de produtos"
@@ -45,6 +51,8 @@ export default async function NovoProdutoPage({ searchParams }: PageProps<"/prod
             fornecedores={(fornecedores ?? []) as Fornecedor[]}
             categorias={(categorias ?? []).map((c) => c.nome as string)}
             modelo={(modelo ?? undefined) as ProdutoComEstoque | undefined}
+            nomeInicial={nomeInicial || undefined}
+            voltarParaVenda={voltarParaVenda}
             onSave={criarProduto}
           />
         </>

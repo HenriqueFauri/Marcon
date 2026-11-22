@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { Parcela, Venda, VendaItem } from "@/types/domain";
 import { formatBRL, formatData } from "@/lib/format";
 import { Badge, PageHeader, StatCard, Table, btnSecondary, btnSmallNeutro, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
-import { Grupo, LinhaInfo } from "@/components/ajustes";
+import { Grupo, LinhaInfo, LinhaLink } from "@/components/ajustes";
+import { IconHome, IconWallet } from "@/components/icons";
 import { CancelarVendaButton } from "./cancelar-venda-button";
 import { DevolverItemButton } from "./devolver-item-button";
 import { ReciboCard } from "./recibo-card";
@@ -48,6 +49,23 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
     supabase.auth.getUser(),
   ]);
   const nomeNegocio = (user?.user_metadata?.nome_negocio as string | undefined) || null;
+  // primeira venda da conta: a única registrada até agora (o RLS limita às vendas do dono).
+  // Mostra o que ela fez no app: lucro, estoque que baixou e o que entrou no caixa
+  const [{ count: totalVendas }, { data: entradasData }] = cancelada
+    ? [{ count: null }, { data: null }]
+    : await Promise.all([
+        supabase.from("vendas").select("id", { count: "exact", head: true }),
+        supabase
+          .from("lancamentos_caixa")
+          .select("valor")
+          .eq("venda_id", venda.id)
+          .eq("tipo", "entrada")
+          .eq("afeta_caixa", true),
+      ]);
+  const primeiraVenda = !cancelada && totalVendas === 1;
+  const entrouNoCaixa = (entradasData ?? []).reduce((s, l) => s + Number(l.valor), 0);
+  // item avulso (sem produto) não mexe no estoque
+  const unidadesDoEstoque = itens.filter((i) => i.produto_id).reduce((s, i) => s + i.quantidade, 0);
   // uma parcela recebida em partes ocupa mais de uma linha: o total é o maior número
   const totalParcelas = parcelas.reduce((m, p) => Math.max(m, p.numero_parcela), 0);
   const recebido = parcelas.filter((p) => p.status_efetivo === "pago").reduce((s, p) => s + Number(p.valor), 0);
@@ -88,6 +106,39 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
       />
 
       <div className="flex flex-col gap-7">
+        {primeiraVenda && (
+          <Grupo titulo="Primeira venda" semPadding>
+            <div className="px-4 py-4">
+              <p className="text-[15px] text-ink-2">Você lucrou</p>
+              <p className={`text-[28px] font-bold tracking-tight tabular-nums ${lucro >= 0 ? "text-positive" : "text-danger"}`}>
+                {formatBRL(lucro)}
+              </p>
+              <p className="text-[13px] text-ink-muted">Já descontado o custo dos produtos.</p>
+            </div>
+            {unidadesDoEstoque > 0 && (
+              <LinhaInfo
+                rotulo="Estoque"
+                valor={`baixou ${unidadesDoEstoque} ${unidadesDoEstoque === 1 ? "unidade" : "unidades"}`}
+              />
+            )}
+            <LinhaInfo
+              rotulo="Entrou no caixa"
+              valor={
+                venda.tipo_pagamento === "a_prazo" && entrouNoCaixa < Number(venda.valor_total)
+                  ? `${formatBRL(entrouNoCaixa)}, resto a receber`
+                  : formatBRL(entrouNoCaixa)
+              }
+            />
+            <LinhaLink
+              href="/caixa"
+              icone={<IconWallet width={17} height={17} />}
+              tom="bg-tile-positive text-on-tile-positive"
+              rotulo="Ver o caixa"
+            />
+            <LinhaLink href="/" icone={<IconHome width={17} height={17} />} tom="bg-brand text-on-brand" rotulo="Ir para o Início" />
+          </Grupo>
+        )}
+
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatCard label="Total" value={formatBRL(venda.valor_total)} />
           <StatCard

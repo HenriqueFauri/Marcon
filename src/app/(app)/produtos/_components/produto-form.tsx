@@ -3,6 +3,7 @@
 import { RotuloAcao } from "@/components/rotulo-acao";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Fornecedor, ProdutoComEstoque } from "@/types/domain";
 import type { ActionResult } from "@/lib/action";
 import { formatBRL } from "@/lib/format";
@@ -315,6 +316,8 @@ export function ProdutoForm({
   categorias,
   produto,
   modelo,
+  nomeInicial,
+  voltarParaVenda = false,
   onSave,
 }: {
   fornecedores: Fornecedor[];
@@ -322,6 +325,10 @@ export function ProdutoForm({
   produto?: ProdutoComEstoque;
   // "Duplicar": começa o cadastro com os dados de outro produto (sem SKU, código de barras nem variações)
   modelo?: ProdutoComEstoque;
+  // vindo da busca da venda: o nome digitado lá já entra no campo
+  nomeInicial?: string;
+  // cadastro aberto pela venda: ao salvar, volta para a venda com o produto no carrinho
+  voltarParaVenda?: boolean;
   onSave: (formData: FormData) => Promise<ActionResult>;
 }) {
   const router = useRouter();
@@ -343,6 +350,8 @@ export function ProdutoForm({
   const aberto = mais || temVariacoes;
   const toast = useToast();
   const resultadoId = useRef<string | null>(null);
+  // produto novo salvo: em vez de ir direto ao detalhe, oferece vender (o caminho até a primeira venda)
+  const [salvo, setSalvo] = useState<{ id: string; nome: string } | null>(null);
 
   const custoN = paraNumero(custo);
   const precoN = paraNumero(preco);
@@ -350,12 +359,46 @@ export function ProdutoForm({
   const margem = lucroUnit !== null && precoN ? (lucroUnit / precoN) * 100 : null;
   const markup = lucroUnit !== null && custoN ? (lucroUnit / custoN) * 100 : null;
 
+  if (salvo) {
+    return (
+      <Grupo titulo="Produto cadastrado">
+        <p className="break-words text-[17px] leading-snug text-ink">{salvo.nome}</p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Link href={`/vendas/novo?produto=${salvo.id}`} className={`${btnPrimary} w-full py-3 sm:w-auto sm:py-2.5`}>
+            Vender agora
+          </Link>
+          <Link href={`/produtos/${salvo.id}`} className={`${btnSecondary} w-full py-3 sm:w-auto sm:py-2.5`}>
+            Ver produto
+          </Link>
+          {/* volta ao formulário limpo (os campos sem estado remontam vazios) */}
+          <button
+            type="button"
+            onClick={() => {
+              setCusto(valorInicial(base?.custo));
+              setPreco(valorInicial(base?.preco_varejo));
+              setEstoque("0");
+              setCodigoBarras("");
+              setFoto(null);
+              setTemVariacoes(false);
+              setMais(false);
+              setSalvo(null);
+            }}
+            className={`${btnGhost} w-full sm:w-auto`}
+          >
+            Cadastrar outro
+          </button>
+        </div>
+      </Grupo>
+    );
+  }
+
   return (
     <form
       // onSubmit (e não action): o React limparia os campos ao enviar, e um erro faria a pessoa digitar tudo de novo
       onSubmit={(e) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
+        const nomeSalvo = String(formData.get("nome") ?? "").trim();
         run(
           async () => {
             const resultado = await onSave(formData);
@@ -367,9 +410,16 @@ export function ProdutoForm({
             onError: setErro,
             onSuccess: () => {
               setErro(null);
-              // produto novo abre a página dele (dali se adiciona foto, anúncio e vitrine)
               const id = produto?.id ?? resultadoId.current;
-              router.push(id ? `/produtos/${id}` : "/produtos");
+              if (editando || !id) {
+                router.push(id ? `/produtos/${id}` : "/produtos");
+              } else if (voltarParaVenda) {
+                // veio da venda: volta para ela com o produto já escolhido
+                router.push(`/vendas/novo?produto=${id}`);
+              } else {
+                setSalvo({ id, nome: nomeSalvo });
+                window.scrollTo({ top: 0 });
+              }
             },
           },
         );
@@ -387,7 +437,7 @@ export function ProdutoForm({
               name="nome"
               required
               autoFocus={!editando}
-              defaultValue={modelo ? `${modelo.nome} (cópia)` : produto?.nome}
+              defaultValue={modelo ? `${modelo.nome} (cópia)` : (produto?.nome ?? nomeInicial)}
               className={inputClass}
               placeholder="Ex: Smartwatch Pro X"
             />
