@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { formatBRL } from "@/lib/format";
 import { IconPlus } from "@/components/icons";
 import { FotoProduto } from "@/components/foto-produto";
@@ -186,12 +187,15 @@ export function ListaProdutos({
   noCarrinho,
   precoPadrao,
   onAdicionar,
+  busca = "",
   abertoInicial,
 }: {
   grupos: GrupoVendavel[];
   noCarrinho: Map<string, number>;
   precoPadrao: (v: Vendavel) => number;
   onAdicionar: (v: Vendavel) => void;
+  // termo da busca: sem resultado, vira atalho para cadastrar o produto com esse nome
+  busca?: string;
   abertoInicial?: string | null;
 }) {
   const [aberto, setAberto] = useState<string | null>(abertoInicial ?? null);
@@ -238,10 +242,28 @@ export function ListaProdutos({
   );
 
   if (grupos.length === 0) {
+    const termo = busca.trim();
+    // código de barras lido e não achado: vai para o campo de código, não para o nome
+    const ehCodigo = /^\d{8,14}$/.test(termo);
+    const destino = `/produtos/novo?${ehCodigo ? "codigo" : "nome"}=${encodeURIComponent(termo)}&voltar=venda`;
+    // com itens no carrinho o atalho não aparece: a venda montada vive só nesta tela e se perderia
+    const carrinhoVazio = noCarrinho.size === 0;
     return (
       <>
         {leitor}
-        <p className="px-3 py-6 text-center text-sm text-ink-muted">Nada encontrado.</p>
+        <div className="flex flex-col items-center gap-3 px-3 py-6 text-center">
+          <p className="text-sm text-ink-muted">Nada encontrado.</p>
+          {termo && carrinhoVazio && (
+            // o cadastro volta para a venda com o produto novo já no carrinho
+            <Link
+              href={destino}
+              className={`${btnSecondary} max-w-full`}
+            >
+              <IconPlus width={16} height={16} className="shrink-0" />
+              <span className="min-w-0 break-words">Cadastrar &quot;{termo}&quot;</span>
+            </Link>
+          )}
+        </div>
       </>
     );
   }

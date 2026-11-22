@@ -531,6 +531,7 @@ export function VendaForm({
             noCarrinho={noCarrinho}
             precoPadrao={precoPadrao}
             onAdicionar={adicionar}
+            busca={busca}
             abertoInicial={iniciais.length > 1 ? produtoInicial : null}
           />
         </Grupo>
