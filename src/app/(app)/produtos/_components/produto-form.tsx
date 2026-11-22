@@ -317,6 +317,7 @@ export function ProdutoForm({
   produto,
   modelo,
   nomeInicial,
+  codigoInicial,
   voltarParaVenda = false,
   onSave,
 }: {
@@ -327,6 +328,8 @@ export function ProdutoForm({
   modelo?: ProdutoComEstoque;
   // vindo da busca da venda: o nome digitado lá já entra no campo
   nomeInicial?: string;
+  // código de barras lido na venda e não achado: já entra no campo de código
+  codigoInicial?: string;
   // cadastro aberto pela venda: ao salvar, volta para a venda com o produto no carrinho
   voltarParaVenda?: boolean;
   onSave: (formData: FormData) => Promise<ActionResult>;
@@ -343,9 +346,9 @@ export function ProdutoForm({
   const [fornecedorId, setFornecedorId] = useState(base?.fornecedor_id ?? "");
   const [custo, setCusto] = useState(valorInicial(base?.custo));
   const [preco, setPreco] = useState(valorInicial(base?.preco_varejo));
-  const [codigoBarras, setCodigoBarras] = useState(produto?.codigo_barras ?? "");
+  const [codigoBarras, setCodigoBarras] = useState(produto?.codigo_barras ?? codigoInicial ?? "");
   const [foto, setFoto] = useState<File | null>(null);
-  const [mais, setMais] = useState(false);
+  const [mais, setMais] = useState(!!codigoInicial);
   // com variações marcadas a seção fica aberta: os campos obrigatórios delas não podem ficar escondidos
   const aberto = mais || temVariacoes;
   const toast = useToast();
@@ -377,6 +380,8 @@ export function ProdutoForm({
               setCusto(valorInicial(base?.custo));
               setPreco(valorInicial(base?.preco_varejo));
               setEstoque("0");
+              setOrigemEstoque("ja_era_meu");
+              setFornecedorId(base?.fornecedor_id ?? "");
               setCodigoBarras("");
               setFoto(null);
               setTemVariacoes(false);

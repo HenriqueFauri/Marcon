@@ -51,18 +51,17 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
   const nomeNegocio = (user?.user_metadata?.nome_negocio as string | undefined) || null;
   // primeira venda da conta: a única registrada até agora (o RLS limita às vendas do dono).
   // Mostra o que ela fez no app: lucro, estoque que baixou e o que entrou no caixa
-  const [{ count: totalVendas }, { data: entradasData }] = cancelada
-    ? [{ count: null }, { data: null }]
-    : await Promise.all([
-        supabase.from("vendas").select("id", { count: "exact", head: true }),
-        supabase
-          .from("lancamentos_caixa")
-          .select("valor")
-          .eq("venda_id", venda.id)
-          .eq("tipo", "entrada")
-          .eq("afeta_caixa", true),
-      ]);
-  const primeiraVenda = !cancelada && totalVendas === 1;
+  // basta saber se existe outra: duas linhas no máximo, sem contar a conta inteira
+  const { data: algumasVendas } = cancelada ? { data: null } : await supabase.from("vendas").select("id").limit(2);
+  const primeiraVenda = !cancelada && algumasVendas?.length === 1;
+  const { data: entradasData } = primeiraVenda
+    ? await supabase
+        .from("lancamentos_caixa")
+        .select("valor")
+        .eq("venda_id", venda.id)
+        .eq("tipo", "entrada")
+        .eq("afeta_caixa", true)
+    : { data: null };
   const entrouNoCaixa = (entradasData ?? []).reduce((s, l) => s + Number(l.valor), 0);
   // item avulso (sem produto) não mexe no estoque
   const unidadesDoEstoque = itens.filter((i) => i.produto_id).reduce((s, i) => s + i.quantidade, 0);
@@ -109,11 +108,11 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
         {primeiraVenda && (
           <Grupo titulo="Primeira venda" semPadding>
             <div className="px-4 py-4">
-              <p className="text-[15px] text-ink-2">Você lucrou</p>
+              <p className="text-[15px] text-ink-2">{lucro >= 0 ? "Você lucrou" : "Resultado"}</p>
               <p className={`text-[28px] font-bold tracking-tight tabular-nums ${lucro >= 0 ? "text-positive" : "text-danger"}`}>
                 {formatBRL(lucro)}
               </p>
-              <p className="text-[13px] text-ink-muted">Já descontado o custo dos produtos.</p>
+              <p className="text-[13px] text-ink-muted">Já descontados os custos.</p>
             </div>
             {unidadesDoEstoque > 0 && (
               <LinhaInfo
