@@ -11,6 +11,7 @@ import { IconHome, IconWallet } from "@/components/icons";
 import { CancelarVendaButton } from "./cancelar-venda-button";
 import { DevolverItemButton } from "./devolver-item-button";
 import { ReciboCard } from "./recibo-card";
+import { MarcaViuLucro } from "../../passo-lucro";
 import { ReceberButton } from "../../contas-a-receber/receber-button";
 import { DesfazerRecebimento } from "../../contas-a-receber/desfazer-recebimento";
 
@@ -109,6 +110,7 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
       <div className="flex flex-col gap-7">
         {primeiraVenda && (
           <Grupo titulo="Primeira venda" semPadding>
+            <MarcaViuLucro />
             <div className="px-4 py-4">
               <p className="text-[15px] text-ink-2">{lucro >= 0 ? "Você lucrou" : "Resultado"}</p>
               <p className={`text-[28px] font-bold tracking-tight tabular-nums ${lucro >= 0 ? "text-positive" : "text-danger"}`}>
