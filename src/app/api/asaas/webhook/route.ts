@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarComissao } from "@/lib/indicacao-servidor";
 import { CICLOS, cicloDe } from "@/lib/planos";
+import { avisarCobrancaFalhou } from "@/lib/email/ciclo";
 
 // Webhook do Asaas: mantém a tabela assinaturas igual ao que o Asaas diz.
 // Cadastre no painel do Asaas (Integrações > Webhooks) com o mesmo token de
@@ -82,6 +83,8 @@ export async function POST(request: Request) {
             .update({ ...mudanca, updated_at: new Date().toISOString() })
             .eq("asaas_subscription_id", assinaturaId);
           if (error) throw error;
+          // aviso por e-mail ao assinante; falha de e-mail nunca derruba o webhook
+          if (tipo === "PAYMENT_OVERDUE") await avisarCobrancaFalhou(admin, linha.owner_id, evento.payment?.id);
         }
       }
     }
