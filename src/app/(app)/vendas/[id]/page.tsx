@@ -51,8 +51,10 @@ export default async function VendaDetalhePage({ params }: PageProps<"/vendas/[i
   const nomeNegocio = (user?.user_metadata?.nome_negocio as string | undefined) || null;
   // primeira venda da conta: a única registrada até agora (o RLS limita às vendas do dono).
   // Mostra o que ela fez no app: lucro, estoque que baixou e o que entrou no caixa
-  // basta saber se existe outra: duas linhas no máximo, sem contar a conta inteira
-  const { data: algumasVendas } = cancelada ? { data: null } : await supabase.from("vendas").select("id").limit(2);
+  // basta saber se existe outra ativa (cancelada não conta): duas linhas no máximo, sem contar a conta inteira
+  const { data: algumasVendas } = cancelada
+    ? { data: null }
+    : await supabase.from("vendas").select("id").neq("status", "cancelada").limit(2);
   const primeiraVenda = !cancelada && algumasVendas?.length === 1;
   const { data: entradasData } = primeiraVenda
     ? await supabase
