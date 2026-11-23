@@ -311,6 +311,85 @@ export function VendaForm({
   const [confirmarEncomenda, setConfirmarEncomenda] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // "Cadastrar" na busca leva a outra tela: a venda montada fica guardada na aba e volta junto com o produto novo
+  const CHAVE_VENDA = "marcon:venda-em-andamento";
+  function guardarVenda() {
+    try {
+      sessionStorage.setItem(
+        CHAVE_VENDA,
+        JSON.stringify({
+          carrinho,
+          tabela,
+          campos: { clienteId, clienteNome, canalId, canalNome, formaId, formaNome, desconto, outrosGastos, entrada, tipoPagamento, numeroParcelas, data, primeiroVencimento, vencimentoEscolhido },
+          em: Date.now(),
+        }),
+      );
+    } catch {
+      // sem armazenamento: a venda recomeça, como antes
+    }
+  }
+  const restaurou = useRef(false);
+  useEffect(() => {
+    if (restaurou.current) return;
+    restaurou.current = true;
+    // venda vinda de pedido ou de "repetir" tem carrinho próprio: o guardado fica como está
+    if (pedido) return;
+    let guardado: {
+      carrinho?: ItemCarrinho[];
+      tabela?: string;
+      campos?: Record<string, unknown>;
+      em?: number;
+    } | null = null;
+    try {
+      const bruto = sessionStorage.getItem(CHAVE_VENDA);
+      guardado = bruto ? JSON.parse(bruto) : null;
+      if (bruto) sessionStorage.removeItem(CHAVE_VENDA);
+    } catch {
+      return;
+    }
+    // na volta do cadastro (produto novo na URL) vale 30 min; sem ele (cancelou o cadastro) só 5 min
+    const idade = Date.now() - (guardado?.em ?? 0);
+    if (!guardado || !Array.isArray(guardado.carrinho) || idade > (produtoInicial ? 30 : 5) * 60 * 1000) return;
+    const tabelaVolta = guardado.tabela === "atacado" ? "atacado" : "varejo";
+    const antigos = guardado.carrinho
+      .filter(
+        (i) =>
+          i && typeof i.chave === "string" && typeof i.preco === "string" && Number(i.quantidade) >= 1 && vendaveis.some((v) => v.chave === i.chave),
+      )
+      .map((i) => ({ ...i, quantidade: Math.min(Math.trunc(Number(i.quantidade)), 9999) }));
+    // o item novo (produto recém cadastrado) entra com o preço da tabela da venda, como em trocarTabela
+    const novos = (atual: ItemCarrinho[]) =>
+      atual
+        .filter((n) => !antigos.some((a) => a.chave === n.chave))
+        .map((n) => {
+          const v = porChave.get(n.chave);
+          if (!v) return n;
+          return { ...n, preco: emTexto(tabelaVolta === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo) };
+        });
+    const c = guardado.campos ?? {};
+    const texto = (k: string) => (typeof c[k] === "string" ? (c[k] as string) : null);
+    // lê o armazenamento da aba (sistema externo): só dá para fazer depois da montagem, senão o HTML do servidor diverge
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setTabela(tabelaVolta);
+    setCarrinho((atual) => [...antigos, ...novos(atual)]);
+    setClienteId(texto("clienteId") ?? "");
+    setClienteNome(texto("clienteNome") ?? "");
+    setCanalId(texto("canalId") ?? "");
+    setCanalNome(texto("canalNome") ?? "");
+    setFormaId(texto("formaId") ?? "");
+    setFormaNome(texto("formaNome") ?? "");
+    setDesconto(texto("desconto") ?? "");
+    setOutrosGastos(texto("outrosGastos") ?? "");
+    setEntrada(texto("entrada") ?? "");
+    if (c.tipoPagamento === "a_prazo") setTipoPagamento("a_prazo");
+    if (typeof c.numeroParcelas === "number" && c.numeroParcelas >= 2 && c.numeroParcelas <= 60) setNumeroParcelas(Math.trunc(c.numeroParcelas));
+    if (texto("data")) setData(texto("data")!);
+    if (texto("primeiroVencimento")) setPrimeiroVencimento(texto("primeiroVencimento")!);
+    setVencimentoEscolhido(c.vencimentoEscolhido === true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // atalhos no computador: "/" vai para a busca; Ctrl ou Cmd + Enter registra a venda
   useEffect(() => {
     function aoTeclar(e: KeyboardEvent) {
@@ -533,6 +612,7 @@ export function VendaForm({
             onAdicionar={adicionar}
             busca={busca}
             abertoInicial={iniciais.length > 1 ? produtoInicial : null}
+            aoCadastrar={guardarVenda}
           />
         </Grupo>
 
