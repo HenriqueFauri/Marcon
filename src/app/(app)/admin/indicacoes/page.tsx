@@ -93,7 +93,7 @@ export default async function IndicacoesAdminPage() {
   const rotuloDe = new Map(
     ids.map((id, i) => {
       const u = contas[i].data.user;
-      const nome = (u?.user_metadata?.nome as string | undefined) ?? (u?.user_metadata?.full_name as string | undefined) ?? "Sem nome";
+      const nome = (u?.user_metadata?.nome as string | undefined) ?? (u?.user_metadata?.full_name as string | undefined) ?? (u?.user_metadata?.nome_negocio as string | undefined) ?? u?.email ?? "Sem nome";
       return [id, { nome, email: u?.email ?? "" }];
     }),
   );

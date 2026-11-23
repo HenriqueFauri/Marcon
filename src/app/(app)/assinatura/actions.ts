@@ -78,6 +78,8 @@ export async function assinarPlano(documento: string, cicloEscolhido: Ciclo = "m
 
     const nome =
       (user.user_metadata?.nome as string | undefined) ||
+      (user.user_metadata?.full_name as string | undefined) ||
+      (user.user_metadata?.name as string | undefined) ||
       (user.user_metadata?.nome_negocio as string | undefined) ||
       user.email ||
       "Cliente Marcon";
