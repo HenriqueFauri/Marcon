@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+        env:
+          # Valores falsos so para o build compilar. Nenhum segredo real entra no CI.
+          NEXT_PUBLIC_SUPABASE_URL: https://exemplo.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: chave-falsa-so-para-build
+          SUPABASE_SERVICE_ROLE_KEY: chave-falsa-so-para-build
+          ASAAS_ENV: sandbox
+
+  guarda-de-risco:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Classificar risco do PR
+        run: node scripts/classificar-risco.mjs "origin/${{ github.base_ref }}"

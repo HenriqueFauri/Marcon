@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "risco": "node scripts/classificar-risco.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

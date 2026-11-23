@@ -53,7 +53,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
     lerCapas(supabase).catch(() => new Map<string, { path: string; totalFotos: number }>()),
   ]);
 
-  // plano grátis: 30 vendas por mês. O banco barra; aqui só se explica antes de o erro aparecer
+  // plano grátis: 20 vendas por mês. O banco barra; aqui só se explica antes de o erro aparecer
   const uso = await lerUso(supabase);
   const vendasRestantes = uso ? restante(uso.vendasMes, uso.limites.vendasMes) : null;
 
@@ -193,8 +193,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
           title="Nenhum produto cadastrado"
           description="Cadastre um produto pra poder vender."
           action={
-            <Link href="/produtos" className={btnPrimary}>
-              Ir para produtos
+            <Link href="/produtos/novo?voltar=venda" className={btnPrimary}>
+              Cadastrar produto
             </Link>
           }
         />

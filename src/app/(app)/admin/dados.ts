@@ -18,6 +18,27 @@ export interface ResumoConta {
   ultima_venda: string | null;
 }
 
+// funil de cada conta (função admin_funil_por_conta, migration 0069)
+export interface FunilConta {
+  owner_id: string;
+  primeiro_produto: string | null;
+  primeira_venda: string | null;
+  dias_ativos: number;
+}
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+const diasDepois = (de: string, ate: string) => Math.max(0, Math.floor((new Date(ate).getTime() - new Date(de).getTime()) / DIA_MS));
+const emDias = (n: number) => (n === 0 ? "no 1º dia" : `em ${n} ${n === 1 ? "dia" : "dias"}`);
+
+// até onde a conta chegou: cadastro (0), 1º produto (1), 1ª venda (2)
+export function etapaDoFunil(u: Pick<User, "created_at">, f: FunilConta | undefined) {
+  if (f?.primeira_venda) return { etapa: 2, tom: "positive" as const, texto: `1ª venda ${emDias(diasDepois(u.created_at, f.primeira_venda))}` };
+  if (f?.primeiro_produto) return { etapa: 1, tom: "warning" as const, texto: `1º produto ${emDias(diasDepois(u.created_at, f.primeiro_produto))}, sem venda` };
+  return { etapa: 0, tom: "neutral" as const, texto: "Sem produto" };
+}
+
+export const diasAtivos = (n: number) => `${n} ${n === 1 ? "dia ativo" : "dias ativos"}`;
+
 // detalhe de uma conta, só leitura (função admin_conta_detalhe, migration 0048)
 export interface DetalheConta {
   resumo: ResumoConta | null;
