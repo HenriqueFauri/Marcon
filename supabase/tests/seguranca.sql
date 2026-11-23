@@ -185,6 +185,23 @@ begin
   end;
   execute 'reset role';
 
+  if to_regprocedure('admin_funil_por_conta()') is not null then
+    execute 'set local role anon';
+    begin
+      perform admin_funil_por_conta();
+      falhas := array_append(falhas, 'anon chamou admin_funil_por_conta');
+    exception when insufficient_privilege then oks := oks + 1; end;
+    execute 'reset role';
+    execute 'set local role authenticated';
+    begin
+      perform admin_funil_por_conta();
+      falhas := array_append(falhas, 'authenticated chamou admin_funil_por_conta');
+    exception when insufficient_privilege then oks := oks + 1; end;
+    execute 'reset role';
+  else
+    pulados := array_append(pulados, '0069 (funil por conta)');
+  end if;
+
   if cardinality(falhas) = 0 then
     raise exception 'SEGURANCA OK: % testes passaram. Pulados: %. (resultado, tudo desfeito)', oks, pulados;
   else
