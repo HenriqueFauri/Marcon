@@ -341,7 +341,8 @@ export function ProdutoForm({
   const [erro, setErro] = useState<string | null>(null);
   const [temVariacoes, setTemVariacoes] = useState(produto?.tem_variacoes ?? false);
   const [origemEstoque, setOrigemEstoque] = useState<OrigemEstoque>("ja_era_meu");
-  const [estoque, setEstoque] = useState("0");
+  // vindo da venda, quem cadastra quer vender já: começa com 1 (dá para trocar, inclusive por 0)
+  const [estoque, setEstoque] = useState(voltarParaVenda ? "1" : "0");
   const estoqueN = Math.trunc(Number(estoque) || 0);
   const [fornecedorId, setFornecedorId] = useState(base?.fornecedor_id ?? "");
   const [custo, setCusto] = useState(valorInicial(base?.custo));
@@ -680,7 +681,7 @@ export function ProdutoForm({
       )}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button type="button" onClick={() => router.back()} className={btnGhost}>
+        <button type="button" onClick={() => (voltarParaVenda ? router.push("/vendas/novo?retorno=1") : router.back())} className={btnGhost}>
           Cancelar
         </button>
         <button type="submit" disabled={isPending} className={`${btnPrimary} w-full py-3 sm:w-auto sm:py-2.5`}>

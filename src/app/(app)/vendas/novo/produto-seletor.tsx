@@ -189,6 +189,7 @@ export function ListaProdutos({
   onAdicionar,
   busca = "",
   abertoInicial,
+  aoCadastrar,
 }: {
   grupos: GrupoVendavel[];
   noCarrinho: Map<string, number>;
@@ -197,6 +198,8 @@ export function ListaProdutos({
   // termo da busca: sem resultado, vira atalho para cadastrar o produto com esse nome
   busca?: string;
   abertoInicial?: string | null;
+  // toque em "Cadastrar": a venda guarda o carrinho antes de sair da tela
+  aoCadastrar?: () => void;
 }) {
   const [aberto, setAberto] = useState<string | null>(abertoInicial ?? null);
   const [limite, setLimite] = useState(PRIMEIROS);
@@ -246,17 +249,16 @@ export function ListaProdutos({
     // código de barras lido e não achado: vai para o campo de código, não para o nome
     const ehCodigo = /^\d{8,14}$/.test(termo);
     const destino = `/produtos/novo?${ehCodigo ? "codigo" : "nome"}=${encodeURIComponent(termo)}&voltar=venda`;
-    // com itens no carrinho o atalho não aparece: a venda montada vive só nesta tela e se perderia
-    const carrinhoVazio = noCarrinho.size === 0;
     return (
       <>
         {leitor}
         <div className="flex flex-col items-center gap-3 px-3 py-6 text-center">
           <p className="text-sm text-ink-muted">Nada encontrado.</p>
-          {termo && carrinhoVazio && (
-            // o cadastro volta para a venda com o produto novo já no carrinho
+          {termo && (
+            // o cadastro volta para a venda com o produto novo já no carrinho (a venda montada é guardada antes de sair)
             <Link
               href={destino}
+              onClick={aoCadastrar}
               className={`${btnSecondary} max-w-full`}
             >
               <IconPlus width={16} height={16} className="shrink-0" />
@@ -296,7 +298,7 @@ export function ListaProdutos({
                   ? `${emCarrinho} no carrinho · ${disponivel === 0 ? "sem mais estoque" : `${disponivel} restante${disponivel === 1 ? "" : "s"}`}`
                   : esgotado
                     ? "Zerado"
-                    : `${disponivel} disponível${disponivel === 1 ? "" : "is"}`}
+                    : `${disponivel} disponíve${disponivel === 1 ? "l" : "is"}`}
                 {g.detalhe ? ` · ${g.detalhe}` : ""}
               </span>
             </span>

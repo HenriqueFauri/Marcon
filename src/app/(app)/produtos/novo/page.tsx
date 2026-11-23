@@ -34,7 +34,7 @@ export default async function NovoProdutoPage({ searchParams }: PageProps<"/prod
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title="Novo produto"
-        back={voltarParaVenda ? { href: "/vendas/novo", label: "Venda" } : { href: "/produtos", label: "Produtos" }}
+        back={voltarParaVenda ? { href: "/vendas/novo?retorno=1", label: "Venda" } : { href: "/produtos", label: "Produtos" }}
       />
       {uso && vagas === 0 ? (
         <LimiteAtingido
