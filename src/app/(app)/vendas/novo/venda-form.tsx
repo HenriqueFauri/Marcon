@@ -311,6 +311,39 @@ export function VendaForm({
   const [confirmarEncomenda, setConfirmarEncomenda] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // "Cadastrar" na busca leva a outra tela: o carrinho montado fica guardado na aba e volta junto com o produto novo
+  const CHAVE_VENDA = "marcon:venda-em-andamento";
+  function guardarVenda() {
+    try {
+      sessionStorage.setItem(CHAVE_VENDA, JSON.stringify({ carrinho, tabela, em: Date.now() }));
+    } catch {
+      // sem armazenamento: a venda recomeça, como antes
+    }
+  }
+  const restaurou = useRef(false);
+  useEffect(() => {
+    if (restaurou.current) return;
+    restaurou.current = true;
+    let guardado: { carrinho?: ItemCarrinho[]; tabela?: "varejo" | "atacado"; em?: number } | null = null;
+    try {
+      const bruto = sessionStorage.getItem(CHAVE_VENDA);
+      sessionStorage.removeItem(CHAVE_VENDA);
+      guardado = bruto ? JSON.parse(bruto) : null;
+    } catch {
+      return;
+    }
+    // vale na volta do cadastro (ou ao cancelar); guardado há mais de 30 min é descartado
+    if (!guardado || pedido || !Array.isArray(guardado.carrinho) || Date.now() - (guardado.em ?? 0) > 30 * 60 * 1000) return;
+    const antigos = guardado.carrinho.filter(
+      (i) => i && typeof i.chave === "string" && Number(i.quantidade) >= 1 && vendaveis.some((v) => v.chave === i.chave),
+    );
+    // lê o armazenamento da aba (sistema externo): só dá para fazer depois da montagem, senão o HTML do servidor diverge
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (guardado.tabela === "varejo" || guardado.tabela === "atacado") setTabela(guardado.tabela);
+    setCarrinho((atual) => [...antigos, ...atual.filter((n) => !antigos.some((a) => a.chave === n.chave))]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // atalhos no computador: "/" vai para a busca; Ctrl ou Cmd + Enter registra a venda
   useEffect(() => {
     function aoTeclar(e: KeyboardEvent) {
@@ -533,6 +566,7 @@ export function VendaForm({
             onAdicionar={adicionar}
             busca={busca}
             abertoInicial={iniciais.length > 1 ? produtoInicial : null}
+            aoCadastrar={guardarVenda}
           />
         </Grupo>
 
