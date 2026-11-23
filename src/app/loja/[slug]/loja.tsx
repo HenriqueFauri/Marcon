@@ -834,7 +834,7 @@ function Setas({ alvo, total, atual }: { alvo: RefObject<HTMLDivElement | null>;
   if (total < 2) return null;
   const rolar = (direcao: number) => alvo.current?.scrollBy({ left: direcao * alvo.current.clientWidth, behavior: "smooth" });
   const base =
-    "absolute top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 [@media(hover:hover)]:flex";
+    "absolute top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 [@media(hover:hover)]:flex";
   return (
     <>
       {atual > 0 && (
@@ -882,7 +882,7 @@ function FotoAmpliada({ url, alt, onFechar }: { url: string | null; alt: string;
           <button
             type="button"
             aria-label="Fechar foto"
-            className="absolute right-4 top-[max(env(safe-area-inset-top),1rem)] flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
+            className="absolute right-4 top-[max(env(safe-area-inset-top),1rem)] flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
           >
             <IconX />
           </button>
@@ -995,7 +995,7 @@ function CartaoDoProduto({ produto: p, onAbrir }: { produto: VitrineProduto; onA
 }
 
 function Quantidade({ valor, onMudar }: { valor: number; onMudar: (delta: number) => void }) {
-  const base = "flex h-8 w-8 items-center justify-center rounded-full bg-fill text-base font-semibold transition hover:bg-fill-strong";
+  const base = "flex h-11 w-11 items-center justify-center rounded-full bg-fill text-base font-semibold transition hover:bg-fill-strong";
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <button type="button" aria-label="Tirar um" onClick={() => onMudar(-1)} className={base}>
