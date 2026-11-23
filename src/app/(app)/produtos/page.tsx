@@ -134,7 +134,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
         />
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-2">
           {/* key: ao ler um código, o campo recomeça com o termo novo da URL */}
           <SearchInput key={q} placeholder="Buscar por nome, marca, SKU ou código..." />
@@ -142,7 +142,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
         </div>
         <Segmentos
           rotulo="Filtrar produtos"
-          className="sm:w-[32rem]"
+          className="xl:w-[32rem]"
           itens={FILTROS.map((f) => ({ href: filtroHref(f.valor), label: f.label, ativo: filtro === f.valor }))}
         />
       </div>

@@ -59,10 +59,10 @@ Ler o diff inteiro, não só o resumo. Para cada item, achado vai como comentár
 
 ## Teste de tela no navegador (testador-marcon)
 
-O revisor só lê código; tela quebrada só aparece usando. **Todo PR que mexe em tela passa pelo agente `testador-marcon` (`.claude/agents/testador-marcon.md`) antes de ir para `main`.** Ele roda o app local contra o Staging, em 375 px (celular), com conta de teste, e devolve passou, falhou e não coberto.
+O revisor só lê código; tela quebrada só aparece usando. **Todo PR que mexe em tela passa pelo agente `testador-marcon` (`.claude/agents/testador-marcon.md`) antes de ir para `main`.** Ele roda o app local contra o Staging, nos três tamanhos (celular 375 px, tablet 768 px e desktop 1280 px ou mais), com conta de teste, e devolve passou, falhou e não coberto.
 
 - Vale para: `page.tsx`, componentes, estilo, texto de tela, fluxo de cadastro, venda, caixa, vitrine e planos. Não vale para mudança só de banco, lib sem efeito visível, CI ou docs.
-- O que ele confere: fluxo completo (preencher, enviar, ver o resultado), rolagem horizontal, botão atrás da barra de baixo, erro no console, resposta 4xx ou 5xx, texto fora da regra de copy ou em inglês.
+- O que ele confere, em cada tamanho: fluxo completo (preencher, enviar, ver o resultado), rolagem horizontal, layout quebrado, texto cortado, botão fora da tela ou atrás da barra de baixo, tabela no desktop e lista no celular, menu lateral vs barra de baixo, erro no console, resposta 4xx ou 5xx, texto fora da regra de copy ou em inglês.
 - Nunca produção, nunca senha no chat: a conta de teste é criada por `scripts/teste-navegador.mjs` (só roda no Staging) e a senha vai ao navegador pelo fragmento da URL.
 - Falha "quebra" ou "confunde" bloqueia o PR. Fora do alcance do testador (pagamento, e-mail, push, WhatsApp, IA, admin): fica listado como "não coberto" no PR para o dono olhar.
 - Sem o navegador do app disponível, o PR de tela não vai à produção sem o OK do dono.
@@ -75,7 +75,7 @@ O revisor só lê código; tela quebrada só aparece usando. **Todo PR que mexe 
 4. Abrir PR contra `staging` com: o que mudou, nível de risco, como testar, migration (sim ou não).
 5. Revisão independente (skill `/revisar-marcon`, que usa o agente `revisor-marcon`). Quem escreveu não é o único revisor. Se o PR mexe em tela, a mesma skill chama o `testador-marcon` (seção acima).
 6. CI verde + sem achado aberto: merge em `staging`. Migration, se houver, aplicada no Staging por `node scripts/run-migrations.mjs .env.staging`.
-7. Testar no Staging (o que mudou, mais o caminho principal: login, venda, produto, vitrine). Para tela, o `testador-marcon` em 375 px; o relatório dele entra na descrição do PR `staging` para `main`.
+7. Testar no Staging (o que mudou, mais o caminho principal: login, venda, produto, vitrine). Para tela, o `testador-marcon` em 375, 768 e 1280 px; o relatório dele entra na descrição do PR `staging` para `main`.
 8. Para a produção: PR `staging` para `main`. Se BAIXO, pode mergear. Se ALTO, parar e pedir o OK do dono, mostrando o resumo do que muda e do que foi testado.
 9. Depois do deploy em produção: conferir o site no ar, ver erros recentes na Vercel e, se teve migration, conferir o `ref` impresso na aplicação (`ouvxsfebfegqcvwmdume` é produção).
 

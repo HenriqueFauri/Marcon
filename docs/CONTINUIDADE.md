@@ -33,7 +33,7 @@ Dúvida entre pode e não pode: não pode.
 1. Marcar a tarefa como em andamento no Notion.
 2. Branch `claude/<assunto>`, mudança pequena e focada, uma tarefa por PR.
 3. Seguir `docs/REVISAO.md` (lint, typecheck, risco, revisão independente, Staging).
-4. Mergear e testar no Staging. Para tela, chamar o agente `testador-marcon` (navegador do app, 375 px, conta de teste no Staging; ver `docs/REVISAO.md`) e anexar o relatório ao PR. Sem ele ter rodado, tela não vai à produção. O que ele não alcança (pagamento, e-mail, push, WhatsApp, IA, admin) vai como "não coberto" para o dono.
+4. Mergear e testar no Staging. Para tela, chamar o agente `testador-marcon` (navegador do app, em 375, 768 e 1280 px, conta de teste no Staging; ver `docs/REVISAO.md`) e anexar o relatório ao PR. Sem ele ter rodado, tela não vai à produção. O que ele não alcança (pagamento, e-mail, push, WhatsApp, IA, admin) vai como "não coberto" para o dono.
 5. BAIXO: PR de `staging` para `main`, mergear e conferir o site no ar. ALTO: parar no Staging.
 6. Marcar a tarefa como Feita no Notion, com o link do PR.
 7. Fato técnico novo (armadilha, decisão de implementação) vai para a memória do projeto. Decisão de negócio vai para o vault. Nunca TODO em arquivo do repositório.
