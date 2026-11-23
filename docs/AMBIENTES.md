@@ -77,6 +77,8 @@ Variáveis do Staging:
 | `ASAAS_WEBHOOK_TOKEN` | o mesmo token do webhook do sandbox |
 | `ADMIN_EMAILS` | e-mail do dono, para ver `/admin` |
 
+E-mail (Resend, avisos de fim do teste e da cortesia e de cobrança que falhou): `RESEND_API_KEY` (opcional; sem ela o envio é no-op com log), `APP_URL` (base dos links do e-mail; sem ela vale `https://www.usemarcon.com`, então no Staging defina a URL do `marcon-staging`) e `EMAIL_REMETENTE` (opcional; padrão `UseMarcon <contato@usemarcon.com>`). Os avisos de fim de teste e cortesia só saem onde há `CRON_SECRET`.
+
 Deixar de fora de propósito: `CRON_SECRET`, `ANTHROPIC_API_KEY`, `EVOLUTION_*`, `WHATSAPP_*` e qualquer chave de produção. Mudou variável na Vercel: fazer Redeploy.
 
 ## Supabase Staging
