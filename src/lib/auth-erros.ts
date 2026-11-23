@@ -5,7 +5,7 @@ const TRADUCOES: [RegExp, string][] = [
   [/user already registered/i, "Já existe uma conta com esse e-mail. Tente entrar."],
   [/password should be at least/i, "A senha precisa ter pelo menos 6 caracteres."],
   [/rate limit|too many requests|security purposes/i, "Muitas tentativas seguidas. Aguarde um minuto e tente de novo."],
-  [/unable to validate email|invalid email/i, "E-mail inválido."],
+  [/unable to validate email|invalid email|email address .* is invalid/i, "E-mail inválido."],
   [/same password|different from the old/i, "A nova senha precisa ser diferente da atual."],
   [/fetch|network/i, "Sem conexão. Verifique sua internet."],
 ];

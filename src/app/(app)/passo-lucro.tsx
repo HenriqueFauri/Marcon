@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 // Cookie lido pelo Início para dar o passo "Ver o lucro da venda" como feito. Fica no aparelho:
 // em outro aparelho o passo volta a aparecer até ser aberto lá, o que não atrapalha.
@@ -20,4 +20,12 @@ export function LinkPassoLucro({ href, marcar, className, children }: { href: st
       {children}
     </Link>
   );
+}
+
+// Quem cai na primeira venda logo depois de registrá-la já viu o lucro: o passo do Início fecha sem outro toque.
+export function MarcaViuLucro() {
+  useEffect(() => {
+    document.cookie = `${COOKIE_VIU_LUCRO}=1; path=/; max-age=31536000; samesite=lax`;
+  }, []);
+  return null;
 }
