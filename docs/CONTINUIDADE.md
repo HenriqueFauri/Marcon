@@ -33,7 +33,7 @@ Dúvida entre pode e não pode: não pode.
 1. Marcar a tarefa como em andamento no Notion.
 2. Branch `claude/<assunto>`, mudança pequena e focada, uma tarefa por PR.
 3. Seguir `docs/REVISAO.md` (lint, typecheck, risco, revisão independente, Staging).
-4. Mergear e testar no Staging. Para tela, olhar no tamanho de celular.
+4. Mergear e testar no Staging. Para tela, chamar o agente `testador-marcon` (navegador do app, 375 px, conta de teste no Staging; ver `docs/REVISAO.md`) e anexar o relatório ao PR. Sem ele ter rodado, tela não vai à produção. O que ele não alcança (pagamento, e-mail, push, WhatsApp, IA, admin) vai como "não coberto" para o dono.
 5. BAIXO: PR de `staging` para `main`, mergear e conferir o site no ar. ALTO: parar no Staging.
 6. Marcar a tarefa como Feita no Notion, com o link do PR.
 7. Fato técnico novo (armadilha, decisão de implementação) vai para a memória do projeto. Decisão de negócio vai para o vault. Nunca TODO em arquivo do repositório.
@@ -46,6 +46,7 @@ Item ALTO pronto para produção: deixar o PR `staging` para `main` aberto, com 
 
 ## Armadilhas já conhecidas
 
+- Para o testador de tela: `cp` do `.env.staging` para o `.env.local` da worktree (sem abrir) e `node --env-file=.env.local scripts/teste-navegador.mjs criar`. O Staging recusa e-mail de domínio de exemplo (use o do script). Plano e aviso de fim do teste dependem de `auth.users.created_at`: ver o agente.
 - Produção e Staging têm bancos e chaves separados. Conferir o `ref` impresso por `run-migrations.mjs`.
 - `.env.local` aponta para a produção. Numa worktree apontada para o Staging, o script sem argumento também vai para o Staging.
 - A Vercel Hobby tem limite de 2 crons. Não criar um terceiro.
