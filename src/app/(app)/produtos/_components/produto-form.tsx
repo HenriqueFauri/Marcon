@@ -681,7 +681,7 @@ export function ProdutoForm({
       )}
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <button type="button" onClick={() => router.back()} className={btnGhost}>
+        <button type="button" onClick={() => (voltarParaVenda ? router.push("/vendas/novo?retorno=1") : router.back())} className={btnGhost}>
           Cancelar
         </button>
         <button type="submit" disabled={isPending} className={`${btnPrimary} w-full py-3 sm:w-auto sm:py-2.5`}>

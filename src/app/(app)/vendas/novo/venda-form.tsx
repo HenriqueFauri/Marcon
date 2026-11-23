@@ -257,6 +257,8 @@ export function VendaForm({
   hoje,
   produtoInicial,
   pedido = null,
+  uid = null,
+  retorno = false,
 }: {
   vendaveis: Vendavel[];
   clientes: Cliente[];
@@ -265,6 +267,10 @@ export function VendaForm({
   hoje: string;
   produtoInicial?: string | null;
   pedido?: PedidoParaVenda | null;
+  // conta logada: a venda guardada na aba só volta para a mesma conta
+  uid?: string | null;
+  // volta do cadastro de produto aberto pela busca (com produto novo ou cancelando)
+  retorno?: boolean;
 }) {
   const router = useRouter();
   const { isPending, run } = useAction();
@@ -318,6 +324,7 @@ export function VendaForm({
       sessionStorage.setItem(
         CHAVE_VENDA,
         JSON.stringify({
+          uid,
           carrinho,
           tabela,
           campos: { clienteId, clienteNome, canalId, canalNome, formaId, formaNome, desconto, outrosGastos, entrada, tipoPagamento, numeroParcelas, data, primeiroVencimento, vencimentoEscolhido },
@@ -335,6 +342,7 @@ export function VendaForm({
     // venda vinda de pedido ou de "repetir" tem carrinho próprio: o guardado fica como está
     if (pedido) return;
     let guardado: {
+      uid?: string;
       carrinho?: ItemCarrinho[];
       tabela?: string;
       campos?: Record<string, unknown>;
@@ -347,16 +355,16 @@ export function VendaForm({
     } catch {
       return;
     }
-    // na volta do cadastro (produto novo na URL) vale 30 min; sem ele (cancelou o cadastro) só 5 min
+    // só na volta do cadastro (produto novo ou cancelou), da mesma conta e em até 10 min; fora disso o guardado é descartado
     const idade = Date.now() - (guardado?.em ?? 0);
-    if (!guardado || !Array.isArray(guardado.carrinho) || idade > (produtoInicial ? 30 : 5) * 60 * 1000) return;
+    if (!guardado || !(produtoInicial || retorno) || !uid || guardado.uid !== uid || !Array.isArray(guardado.carrinho) || idade > 10 * 60 * 1000) return;
     const tabelaVolta = guardado.tabela === "atacado" ? "atacado" : "varejo";
     const antigos = guardado.carrinho
       .filter(
         (i) =>
-          i && typeof i.chave === "string" && typeof i.preco === "string" && Number(i.quantidade) >= 1 && vendaveis.some((v) => v.chave === i.chave),
+          i && typeof i.chave === "string" && typeof i.preco === "string" && Number.isInteger(i.quantidade) && i.quantidade >= 1 && i.quantidade <= 9999 && vendaveis.some((v) => v.chave === i.chave),
       )
-      .map((i) => ({ ...i, quantidade: Math.min(Math.trunc(Number(i.quantidade)), 9999) }));
+      .map((i) => ({ chave: i.chave, quantidade: i.quantidade, preco: i.preco }));
     // o item novo (produto recém cadastrado) entra com o preço da tabela da venda, como em trocarTabela
     const novos = (atual: ItemCarrinho[]) =>
       atual
