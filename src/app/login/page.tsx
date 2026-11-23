@@ -35,8 +35,6 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
-  const [nome, setNome] = useState("");
-  const [nomeNegocio, setNomeNegocio] = useState("");
   const [error, setError] = useState<string | null>(
     searchParams.get("erro") === "link" ? "O link expirou ou já foi usado. Tente de novo." : null,
   );
@@ -94,10 +92,8 @@ function LoginForm() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: { nome: nome.trim(), nome_negocio: nomeNegocio.trim() },
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
+          // nome do negócio fica para a tela de boas-vindas, logo depois de entrar
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/boas-vindas` },
         });
         if (error) throw error;
         if (!data.session) {
@@ -109,6 +105,9 @@ function LoginForm() {
         }
         // a conta já existe; falhar aqui não pode travar a entrada
         await vincularIndicacaoDoCadastro().catch(() => {});
+        router.push("/boas-vindas");
+        router.refresh();
+        return;
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -162,33 +161,27 @@ function LoginForm() {
           </p>
         )}
 
+        {mode !== "reset" && (
+          <>
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={googleLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-fill px-4 py-3 text-[15px] font-semibold text-ink transition hover:bg-fill-strong disabled:opacity-50"
+            >
+              <GoogleIcon />
+              {googleLoading ? "Aguarde..." : "Continuar com Google"}
+            </button>
+
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-fill" />
+              <span className="text-xs text-ink-muted">ou com e-mail</span>
+              <div className="h-px flex-1 bg-fill" />
+            </div>
+          </>
+        )}
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {mode === "signup" && (
-            <>
-              <Field label="Seu nome">
-                <input
-                  type="text"
-                  required
-                  autoComplete="name"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  className={inputClass}
-                  placeholder="Yasmin Souza"
-                />
-              </Field>
-              <Field label="Nome do negócio">
-                <input
-                  type="text"
-                  required
-                  autoComplete="organization"
-                  value={nomeNegocio}
-                  onChange={(e) => setNomeNegocio(e.target.value)}
-                  className={inputClass}
-                  placeholder="Desapegos da Yasmin"
-                />
-              </Field>
-            </>
-          )}
           <Field label="E-mail">
             <input
               type="email"
@@ -265,25 +258,6 @@ function LoginForm() {
           )}
         </form>
 
-        {mode !== "reset" && (
-          <>
-            <div className="my-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-fill" />
-              <span className="text-xs text-ink-muted">ou</span>
-              <div className="h-px flex-1 bg-fill" />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={googleLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-fill px-4 py-3 text-[15px] font-semibold text-ink transition hover:bg-fill-strong disabled:opacity-50"
-            >
-              <GoogleIcon />
-              {googleLoading ? "Aguarde..." : "Continuar com Google"}
-            </button>
-          </>
-        )}
       </div>
 
       <p className="mt-5 text-center text-sm text-ink-muted">
