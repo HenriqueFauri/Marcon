@@ -19,7 +19,11 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
   const produtoInicial = typeof sp.produto === "string" ? sp.produto : null;
   const pedidoId = typeof sp.pedido === "string" ? sp.pedido : null;
   const repetirId = typeof sp.repetir === "string" && /^[0-9a-f-]{36}$/i.test(sp.repetir) ? sp.repetir : null;
+  const retorno = sp.retorno === "1";
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   // vindo de um pedido da vitrine (Registrar venda): a venda abre preenchida
   const { data: pedidoData } = pedidoId
     ? await supabase.from("vitrine_pedidos").select("*").eq("id", pedidoId).eq("status", "novo").maybeSingle()
@@ -215,6 +219,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps<"/vendas
             hoje={hojeISO()}
             produtoInicial={produtoInicial}
             pedido={pedido ?? pedidoRepetido}
+            uid={user?.id ?? null}
+            retorno={retorno}
           />
         </>
       )}

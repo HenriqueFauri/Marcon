@@ -298,7 +298,7 @@ export function ListaProdutos({
                   ? `${emCarrinho} no carrinho · ${disponivel === 0 ? "sem mais estoque" : `${disponivel} restante${disponivel === 1 ? "" : "s"}`}`
                   : esgotado
                     ? "Zerado"
-                    : `${disponivel} disponível${disponivel === 1 ? "" : "is"}`}
+                    : `${disponivel} disponíve${disponivel === 1 ? "l" : "is"}`}
                 {g.detalhe ? ` · ${g.detalhe}` : ""}
               </span>
             </span>
