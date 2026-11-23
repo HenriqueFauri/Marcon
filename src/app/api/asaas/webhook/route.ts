@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarComissao } from "@/lib/indicacao-servidor";
 import { CICLOS, cicloDe } from "@/lib/planos";
@@ -84,7 +85,8 @@ export async function POST(request: Request) {
             .eq("asaas_subscription_id", assinaturaId);
           if (error) throw error;
           // aviso por e-mail ao assinante; falha de e-mail nunca derruba o webhook
-          if (tipo === "PAYMENT_OVERDUE") await avisarCobrancaFalhou(admin, linha.owner_id, evento.payment?.id);
+          // (after: responde ao Asaas primeiro, o envio roda depois da resposta)
+          if (tipo === "PAYMENT_OVERDUE") after(() => avisarCobrancaFalhou(admin, linha.owner_id, evento.payment?.id));
         }
       }
     }
