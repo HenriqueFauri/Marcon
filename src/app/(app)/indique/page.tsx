@@ -49,7 +49,8 @@ interface Indicado {
 
 function primeiroNome(meta: Record<string, unknown> | undefined) {
   const bruto = String(meta?.nome ?? meta?.full_name ?? meta?.name ?? "").trim();
-  return bruto.split(/\s+/)[0] || "Alguém";
+  // cadastro por e-mail não pede o nome da pessoa: cai para o nome do negócio
+  return bruto.split(/\s+/)[0] || String(meta?.nome_negocio ?? "").trim() || "Alguém";
 }
 
 // nome e situação de quem a pessoa indicou; só lê as contas que o banco já mostrou a ela
