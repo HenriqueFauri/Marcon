@@ -9,6 +9,7 @@ import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
 import { ANUAL_POR_MES, PLANOS } from "@/lib/planos";
 import { rotuloDoMotivo } from "@/lib/cortesia";
+import { MotivosDeCancelamento } from "./motivos-de-cancelamento";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
 import { bloqueada, contaGerenciavel, diasAtivos, etapaDoFunil, type FunilConta, type ResumoConta } from "./dados";
@@ -55,13 +56,14 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const busca = (typeof sp.q === "string" ? sp.q : "").trim().toLowerCase();
   const grupo = ["pagantes", "cortesia", "teste"].includes(String(sp.situacao)) ? String(sp.situacao) : "todas";
 
-  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }, { data: funis, error: erroFunil }] = await Promise.all([
+  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }, { data: funis, error: erroFunil }, { data: cancelamentos, error: erroCancelamentos }] = await Promise.all([
     todasAsContas(admin),
     admin.from("assinaturas").select("owner_id, plano, ciclo, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
     admin.rpc("admin_resumo_por_conta"),
     admin.from("whatsapp_liberados").select("owner_id, lancar"),
     admin.from("whatsapp_vinculos").select("owner_id, telefone"),
     admin.rpc("admin_funil_por_conta"),
+    admin.from("cancelamento_motivos").select("id, owner_id, motivo, comentario, ciclo, criado_em").order("criado_em", { ascending: false }).limit(20),
   ]);
   const funilPorConta = new Map(((funis ?? []) as FunilConta[]).map((f) => [f.owner_id, f]));
   // contas com o assistente no WhatsApp liberado no painel (o admin tem sempre)
@@ -301,6 +303,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           </div>
         </>
       )}
+
+      <MotivosDeCancelamento
+        falhou={!!erroCancelamentos}
+        respostas={(cancelamentos ?? []).map((c) => ({ ...c, conta: linhas.find((l) => l.u.id === c.owner_id)?.titulo ?? "Conta removida" }))}
+      />
     </div>
   );
 }

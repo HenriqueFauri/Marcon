@@ -202,6 +202,27 @@ begin
     pulados := array_append(pulados, '0069 (funil por conta)');
   end if;
 
+  if to_regclass('public.cancelamento_motivos') is not null then
+    execute 'set local role anon';
+    begin
+      perform 1 from cancelamento_motivos;
+      falhas := array_append(falhas, 'anon leu cancelamento_motivos');
+    exception when insufficient_privilege then oks := oks + 1; end;
+    execute 'reset role';
+    execute 'set local role authenticated';
+    begin
+      perform 1 from cancelamento_motivos;
+      falhas := array_append(falhas, 'authenticated leu cancelamento_motivos');
+    exception when insufficient_privilege then oks := oks + 1; end;
+    begin
+      insert into cancelamento_motivos (owner_id, assinatura_id, motivo) values (gen_random_uuid(), 'x', 'outro');
+      falhas := array_append(falhas, 'authenticated inseriu em cancelamento_motivos');
+    exception when insufficient_privilege then oks := oks + 1; end;
+    execute 'reset role';
+  else
+    pulados := array_append(pulados, '0071 (motivo do cancelamento)');
+  end if;
+
   if cardinality(falhas) = 0 then
     raise exception 'SEGURANCA OK: % testes passaram. Pulados: %. (resultado, tudo desfeito)', oks, pulados;
   else
