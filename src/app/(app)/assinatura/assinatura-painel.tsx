@@ -186,6 +186,8 @@ export function AssinaturaPainel({
         return;
       }
       avisou.current = false;
+      // assinou de novo: a pergunta do cancelamento perde o sentido
+      setPerguntarMotivo(false);
       setEsperandoPagamento(true);
       // a página de pagamento é do Asaas: o cartão nunca passa pelo Marcon
       if (janela) janela.location.href = r.url;
@@ -422,9 +424,11 @@ export function AssinaturaPainel({
           <CancelarLink
             aoCancelar={() => {
               setEsperandoPagamento(false);
+              // pendente é quem não concluiu o pagamento: a resposta não entra na leitura de quem cancelou
+              if (tipo === "pendente") return;
               setPerguntarMotivo(true);
               // o link fica no fim da tela e a pergunta aparece no topo
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              window.scrollTo({ top: 0 });
             }}
           />
         </div>

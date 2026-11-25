@@ -21,7 +21,7 @@ export function PerguntaDoCancelamento({ aoFechar }: { aoFechar: () => void }) {
         {MOTIVOS_CANCELAMENTO.map((m) => (
           <label
             key={m.valor}
-            className="flex min-h-11 cursor-pointer items-center justify-between gap-3 px-4 py-3 text-[17px] text-ink has-[:focus-visible]:bg-fill sm:px-5"
+            className="relative flex min-h-11 cursor-pointer items-center justify-between gap-3 px-4 py-3 text-[17px] text-ink has-[:focus-visible]:bg-fill sm:px-5"
           >
             <input
               type="radio"

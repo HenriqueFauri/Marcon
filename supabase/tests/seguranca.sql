@@ -219,6 +219,18 @@ begin
       falhas := array_append(falhas, 'authenticated inseriu em cancelamento_motivos');
     exception when insufficient_privilege then oks := oks + 1; end;
     execute 'reset role';
+    -- o insert acima também falharia só pelo RLS: confere o RLS e as permissões separadamente
+    if (select relrowsecurity from pg_class where oid = 'public.cancelamento_motivos'::regclass) then
+      oks := oks + 1;
+    else
+      falhas := array_append(falhas, 'cancelamento_motivos sem RLS');
+    end if;
+    if has_table_privilege('anon', 'public.cancelamento_motivos', 'insert, update, delete')
+       or has_table_privilege('authenticated', 'public.cancelamento_motivos', 'insert, update, delete') then
+      falhas := array_append(falhas, 'cancelamento_motivos com permissão de escrita');
+    else
+      oks := oks + 1;
+    end if;
   else
     pulados := array_append(pulados, '0071 (motivo do cancelamento)');
   end if;
