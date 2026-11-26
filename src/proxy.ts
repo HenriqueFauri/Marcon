@@ -19,7 +19,9 @@ export async function proxy(request: NextRequest) {
   }
 
   // marcas do link (utm e ref): guarda a primeira origem para registrar no cadastro
-  const marcas = marcasDoLink((campo) => request.nextUrl.searchParams.get(campo));
+  // vitrine e recibo ficam de fora: quem abre é o cliente de quem vende, e o link marcado é do lojista
+  const paginaDoLojista = /^\/(loja|r)\//.test(request.nextUrl.pathname);
+  const marcas = paginaDoLojista ? null : marcasDoLink((campo) => request.nextUrl.searchParams.get(campo));
   if (marcas && !request.cookies.has(COOKIE_ORIGEM)) {
     resposta.cookies.set(COOKIE_ORIGEM, JSON.stringify(marcas), {
       maxAge: DIAS_DO_COOKIE * 24 * 60 * 60,

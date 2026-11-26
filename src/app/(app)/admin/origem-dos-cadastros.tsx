@@ -43,9 +43,11 @@ export function OrigemDosCadastros({ contas, falhou, semFunil }: { contas: Conta
     );
   }
   const grupos = [
-    { titulo: "Cadastros por link", linhas: agrupar(contas, (c) => rotuloDoLink(c.origem)) },
+    { titulo: "Cadastros por link", rodape: undefined, linhas: agrupar(contas, (c) => rotuloDoLink(c.origem)) },
     {
       titulo: "Como conheceram",
+      // quem entra pelo Google vai direto ao Início e não vê a pergunta
+      rodape: "Resposta opcional das boas-vindas. Cadastro pelo Google não vê a pergunta.",
       linhas: agrupar(contas, (c) => (c.origem?.como_conheceu ? rotuloDeComoConheceu(c.origem.como_conheceu) : null)),
     },
   ].filter((g) => g.linhas.length > 0);
@@ -54,7 +56,7 @@ export function OrigemDosCadastros({ contas, falhou, semFunil }: { contas: Conta
   return (
     <div className="mb-6 grid items-start gap-7 lg:grid-cols-2">
       {grupos.map((g) => (
-        <Grupo key={g.titulo} titulo={g.titulo} semPadding>
+        <Grupo key={g.titulo} titulo={g.titulo} rodape={g.rodape} semPadding>
           <ul className="divide-y divide-line">
             {g.linhas.map(([nome, n]) => (
               <li key={nome} className="flex items-center gap-3 px-4 py-3">

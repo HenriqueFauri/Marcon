@@ -18,10 +18,11 @@ export async function registrarOrigem(user: Pick<User, "id" | "created_at">) {
     const jar = await cookies();
     const guardado = jar.get(COOKIE_ORIGEM)?.value;
     if (!guardado) return;
-    jar.delete(COOKIE_ORIGEM);
-
     const marcas = lerCookieDeOrigem(guardado);
-    if (!marcas || !contaRecente(user)) return;
+    if (!marcas || !contaRecente(user)) {
+      jar.delete(COOKIE_ORIGEM);
+      return;
+    }
 
     const admin = createAdminClient();
     if (!admin) return;
@@ -30,6 +31,8 @@ export async function registrarOrigem(user: Pick<User, "id" | "created_at">) {
       .from("cadastro_origem")
       .upsert({ owner_id: user.id, ...marcas }, { onConflict: "owner_id", ignoreDuplicates: true });
     if (error) throw error;
+    // só apaga depois de gravar: se o banco falhar, o próximo retorno do login tenta de novo
+    jar.delete(COOKIE_ORIGEM);
   } catch (e) {
     console.error("[origem] não consegui registrar", e);
   }
