@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { vincularIndicacao } from "@/lib/indicacao-servidor";
+import { registrarOrigem } from "@/lib/origem-servidor";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -14,7 +15,11 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       // cadastro por Google ou por link de confirmação: é aqui que a indicação é ligada
-      if (data.user) await vincularIndicacao(data.user);
+      // a origem do cadastro (marcas do link) também é gravada aqui
+      if (data.user) {
+        await vincularIndicacao(data.user);
+        await registrarOrigem(data.user);
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

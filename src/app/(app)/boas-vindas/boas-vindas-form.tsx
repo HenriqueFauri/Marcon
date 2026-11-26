@@ -6,9 +6,10 @@ import { Grupo } from "@/components/ajustes";
 import { RotuloAcao } from "@/components/rotulo-acao";
 import { useAction } from "@/components/use-action";
 import { Field, btnGhost, btnPrimary, inputClass } from "@/components/ui";
-import { salvarNomeDoNegocio } from "./actions";
+import { OPCOES_COMO_CONHECEU } from "@/lib/origem";
+import { salvarComoConheceu, salvarNomeDoNegocio } from "./actions";
 
-export function BoasVindasForm({ nomeNegocio }: { nomeNegocio: string }) {
+export function BoasVindasForm({ nomeNegocio, perguntarOrigem }: { nomeNegocio: string; perguntarOrigem: boolean }) {
   const router = useRouter();
   const { isPending, run } = useAction();
 
@@ -35,6 +36,21 @@ export function BoasVindasForm({ nomeNegocio }: { nomeNegocio: string }) {
           />
         </Field>
       </Grupo>
+
+      {perguntarOrigem && (
+        <Grupo titulo="Opcional">
+          <Field label="Como você conheceu o Marcon?">
+            <select defaultValue="" onChange={(e) => void salvarComoConheceu(e.target.value).catch(() => {})} className={inputClass}>
+              <option value="">Escolher</option>
+              {OPCOES_COMO_CONHECEU.map((o) => (
+                <option key={o.valor} value={o.valor}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </Grupo>
+      )}
 
       <div className="flex flex-col gap-2">
         <button type="submit" disabled={isPending} className={`${btnPrimary} w-full py-3`}>

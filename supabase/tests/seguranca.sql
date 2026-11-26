@@ -235,6 +235,34 @@ begin
     pulados := array_append(pulados, '0071 (motivo do cancelamento)');
   end if;
 
+  if to_regclass('public.cadastro_origem') is not null then
+    execute 'set local role anon';
+    begin
+      perform 1 from cadastro_origem;
+      falhas := array_append(falhas, 'anon leu cadastro_origem');
+    exception when insufficient_privilege then oks := oks + 1; end;
+    execute 'reset role';
+    execute 'set local role authenticated';
+    begin
+      perform 1 from cadastro_origem;
+      falhas := array_append(falhas, 'authenticated leu cadastro_origem');
+    exception when insufficient_privilege then oks := oks + 1; end;
+    execute 'reset role';
+    if (select relrowsecurity from pg_class where oid = 'public.cadastro_origem'::regclass) then
+      oks := oks + 1;
+    else
+      falhas := array_append(falhas, 'cadastro_origem sem RLS');
+    end if;
+    if has_table_privilege('anon', 'public.cadastro_origem', 'insert, update, delete')
+       or has_table_privilege('authenticated', 'public.cadastro_origem', 'insert, update, delete') then
+      falhas := array_append(falhas, 'cadastro_origem com permissão de escrita');
+    else
+      oks := oks + 1;
+    end if;
+  else
+    pulados := array_append(pulados, '0072 (origem do cadastro)');
+  end if;
+
   if cardinality(falhas) = 0 then
     raise exception 'SEGURANCA OK: % testes passaram. Pulados: %. (resultado, tudo desfeito)', oks, pulados;
   else
