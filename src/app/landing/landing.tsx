@@ -683,7 +683,7 @@ function TelaInicio() {
       <Grupo titulo="Resumo">
         <LinhaResumo icone={<IconReceipt width={15} height={15} />} tom="bg-tile-warning text-on-tile-warning" rotulo="A receber" valor="R$ 180,00" />
         <LinhaResumo icone={<IconBox width={15} height={15} />} tom="bg-brand text-on-brand" rotulo="Repor estoque" valor="3 itens" />
-        <LinhaResumo icone={<IconWallet width={15} height={15} />} tom="bg-tile-positive text-on-tile-positive" rotulo="Dinheiro em caixa" valor="R$ 2.318,40" />
+        <LinhaResumo icone={<IconWallet width={15} height={15} />} tom="bg-tile-positive text-on-tile-positive" rotulo="Saldo em caixa" valor="R$ 2.318,40" />
       </Grupo>
       <Grupo titulo="Vendas de hoje">
         <LinhaVenda cliente="Rafael Costa" sub="Pix · 14:32" valor="R$ 129,80" />
