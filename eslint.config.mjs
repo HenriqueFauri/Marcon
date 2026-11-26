@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     ".claude/**",
+    // extensão do navegador: build, lint e tipos próprios em extensao/
+    "extensao/**",
   ]),
 ]);
 

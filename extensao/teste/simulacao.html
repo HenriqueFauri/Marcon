@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Simulação da caixa do WhatsApp</title>
+    <style>
+      body { font: 15px/1.4 system-ui, sans-serif; margin: 0; background: #efeae2; }
+      header { background: #f0f2f5; padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      #side { position: fixed; left: 0; top: 56px; width: 220px; bottom: 0; background: #fff; padding: 12px; }
+      #main { margin-left: 244px; padding: 16px; }
+      footer { background: #f0f2f5; padding: 10px; border-radius: 8px; display: flex; gap: 8px; align-items: flex-end; }
+      [contenteditable] { flex: 1; min-height: 22px; max-height: 120px; overflow: auto; background: #fff; border-radius: 8px; padding: 9px 12px; outline: none; white-space: pre-wrap; }
+      #enviadas { margin-top: 12px; }
+      .msg { background: #d9fdd3; padding: 8px; border-radius: 8px; margin: 4px 0; white-space: pre-wrap; }
+      button { font: inherit; }
+      #log { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Simulação local</strong>
+      <label><input type="radio" name="modo" value="lexical" checked /> Editor com colar (como o WhatsApp)</label>
+      <label><input type="radio" name="modo" value="simples" /> Caixa simples</label>
+      <label><input type="radio" name="modo" value="sem-conversa" /> Sem conversa aberta</label>
+      <label><input type="radio" name="modo" value="layout" /> Layout mudou</label>
+    </header>
+    <div id="side">
+      <div contenteditable="true" role="textbox" data-tab="3" aria-label="Pesquisar">busca de conversas</div>
+    </div>
+    <div id="main">
+      <div data-marcon-caixa>
+        <footer>
+          <div id="caixa" contenteditable="true" role="textbox" data-tab="10" aria-label="Digite uma mensagem"></div>
+          <button id="enviar" type="button">Enviar</button>
+        </footer>
+      </div>
+      <p>
+        <button id="inserir" type="button">Inserir texto de exemplo</button>
+        <button id="inserir-var" type="button">Inserir variação</button>
+      </p>
+      <div id="enviadas"></div>
+      <div id="log"></div>
+    </div>
+    <script src="simulacao.js"></script>
+  </body>
+</html>
