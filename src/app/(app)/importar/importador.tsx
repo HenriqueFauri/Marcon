@@ -211,7 +211,6 @@ function SecaoProdutos({ analise, passo }: { analise: De<"produtos">; passo: { n
       categoria: p.categoria ?? "",
       custo: dinheiroTexto(p.custo),
       varejo: dinheiroTexto(p.precoVarejo),
-      atacado: p.precoAtacado == null ? "" : dinheiroTexto(p.precoAtacado),
       estoque: String(p.estoque),
       avisos: p.avisos,
     })),
@@ -234,7 +233,6 @@ function SecaoProdutos({ analise, passo }: { analise: De<"produtos">; passo: { n
           categoria: l.categoria.trim() || null,
           custo: num(l.custo),
           precoVarejo: num(l.varejo),
-          precoAtacado: l.atacado.trim() === "" ? null : num(l.atacado),
           estoque: Math.trunc(num(l.estoque)),
           avisos: [],
         })),
@@ -274,11 +272,10 @@ function SecaoProdutos({ analise, passo }: { analise: De<"produtos">; passo: { n
                     aria-label="Nome do produto"
                     className={`${inputClass} !py-1.5 text-[17px]`}
                   />
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <Campo rotulo="Categoria" valor={l.categoria} onChange={(v) => alterar(i, { categoria: v })} />
                     <Campo rotulo="Custo (R$)" valor={l.custo} onChange={(v) => alterar(i, { custo: v })} decimal />
-                    <Campo rotulo="Venda (R$)" valor={l.varejo} onChange={(v) => alterar(i, { varejo: v })} decimal />
-                    <Campo rotulo="Atacado (R$)" valor={l.atacado} onChange={(v) => alterar(i, { atacado: v })} decimal />
+                    <Campo rotulo="Preço (R$)" valor={l.varejo} onChange={(v) => alterar(i, { varejo: v })} decimal />
                     <Campo rotulo="Estoque" valor={l.estoque} onChange={(v) => alterar(i, { estoque: v })} />
                   </div>
                   {l.avisos.map((a) => (
