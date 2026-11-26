@@ -151,6 +151,7 @@ function rotuloEstoque(qtd: number) {
 
 function acoes(p: ProdutoBusca, variacaoId?: string) {
   const texto = () => formatarMensagem(p, variacaoId);
+  const alvo = variacaoId ? `${p.nome} ${p.variacoes.find((v) => v.id === variacaoId)?.nome ?? ""}`.trim() : p.nome;
   return h(
     "div",
     { class: "acoes" },
@@ -159,6 +160,7 @@ function acoes(p: ProdutoBusca, variacaoId?: string) {
       {
         class: "btn-pequeno destaque",
         type: "button",
+        "aria-label": `Inserir ${alvo}`,
         on: {
           click: async () => {
             const r = await pedir<string>({ tipo: "inserir", texto: texto() });
@@ -178,6 +180,7 @@ function acoes(p: ProdutoBusca, variacaoId?: string) {
       {
         class: "btn-pequeno neutro",
         type: "button",
+        "aria-label": `Copiar ${alvo}`,
         on: { click: async () => avisar((await copiar(texto())) ? "Texto copiado." : "Não deu para copiar.", false) },
       },
       "Copiar",
@@ -188,7 +191,13 @@ function acoes(p: ProdutoBusca, variacaoId?: string) {
 function itemProduto(p: ProdutoBusca) {
   const total = estoqueTotal(p);
   const marcaSku = [p.marca, p.sku].filter(Boolean).join(" · ");
-  const vitrine = p.link ? "Na vitrine" : p.naVitrine ? "Na vitrine, loja fora do ar" : "Fora da vitrine";
+  const vitrine = p.link
+    ? "Na vitrine"
+    : !p.naVitrine
+      ? "Fora da vitrine"
+      : p.vitrineConferida === false
+        ? "Na vitrine, link indisponível agora"
+        : "Na vitrine, loja fora do ar";
 
   let preco = formatarPreco(p.preco);
   if (p.variacoes.length > 0) {
@@ -253,7 +262,7 @@ function telaPrincipal(sessao: Sessao) {
   lupa.innerHTML = '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>';
 
   const resultados = h("div", { class: "grupo" });
-  avisoEl = h("div", { class: "aviso", hidden: "" });
+  avisoEl = h("div", { class: "aviso", hidden: "", role: "status", "aria-live": "polite" });
 
   let ultimo = 0;
   let timer: number | undefined;

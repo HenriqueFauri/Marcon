@@ -44,6 +44,10 @@ As duas versões têm o mesmo ID: instale uma de cada vez no mesmo navegador.
 
 Atualizar depois de um build novo: em `brave://extensions`, botão de recarregar do card do Marcon, e recarregue a aba do WhatsApp (F5).
 
+## Login com Google (Supabase)
+
+Precisa de duas Redirect URLs no Supabase, Staging primeiro e produção depois. Passo a passo em `docs/AMBIENTES.md`, seção "Extensão do WhatsApp Web". E-mail e senha funcionam sem isso.
+
 ## Testes
 
 ```bash

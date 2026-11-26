@@ -59,11 +59,14 @@ export async function inserirTexto(texto: string, doc: Document = document): Pro
   caixa.focus();
   cursorNoFim(caixa);
   const antes = normalizar(caixa.textContent ?? "");
+  // Já tem rascunho (ou outro produto inserido): começa em linha nova, para não grudar no link
+  // nem quebrar o negrito.
+  const separar = antes.length > 0;
 
   // 1) Evento de colar: o editor do WhatsApp trata as quebras de linha como no Ctrl+V.
   try {
     const dt = new DataTransfer();
-    dt.setData("text/plain", texto);
+    dt.setData("text/plain", separar ? `\n${texto}` : texto);
     caixa.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   } catch {
     // navegador sem DataTransfer construível: segue para o plano 2
@@ -78,7 +81,7 @@ export async function inserirTexto(texto: string, doc: Document = document): Pro
   cursorNoFim(caixa);
   const linhas = texto.split("\n");
   linhas.forEach((linha, i) => {
-    if (i > 0) doc.execCommand("insertLineBreak");
+    if (i > 0 || separar) doc.execCommand("insertLineBreak");
     if (linha) doc.execCommand("insertText", false, linha);
   });
   await esperar(60);

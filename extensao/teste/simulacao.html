@@ -7,7 +7,7 @@
       body { font: 15px/1.4 system-ui, sans-serif; margin: 0; background: #efeae2; }
       header { background: #f0f2f5; padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
       #side { position: fixed; left: 0; top: 56px; width: 220px; bottom: 0; background: #fff; padding: 12px; }
-      #main { margin-left: 244px; padding: 16px; }
+      #main, .conversa { margin-left: 244px; padding: 16px; }
       footer { background: #f0f2f5; padding: 10px; border-radius: 8px; display: flex; gap: 8px; align-items: flex-end; }
       [contenteditable] { flex: 1; min-height: 22px; max-height: 120px; overflow: auto; background: #fff; border-radius: 8px; padding: 9px 12px; outline: none; white-space: pre-wrap; }
       #enviadas { margin-top: 12px; }
@@ -27,7 +27,7 @@
     <div id="side">
       <div contenteditable="true" role="textbox" data-tab="3" aria-label="Pesquisar">busca de conversas</div>
     </div>
-    <div id="main">
+    <div id="main" class="conversa">
       <div data-marcon-caixa>
         <footer>
           <div id="caixa" contenteditable="true" role="textbox" data-tab="10" aria-label="Digite uma mensagem"></div>

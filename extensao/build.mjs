@@ -141,9 +141,10 @@ const manifesto = {
   content_scripts: [{ matches: ["https://web.whatsapp.com/*"], js: ["conteudo.js"], run_at: "document_idle" }],
   web_accessible_resources: [
     // painel embutido, só para o navegador sem painel lateral
-    { resources: ["painel.html", "painel.js", "painel.css", "icones/*"], matches: ["https://web.whatsapp.com/*"] },
+    // (só a página: o que ela carrega vem da própria extensão e não precisa ficar exposto)
+    { resources: ["painel.html"], matches: ["https://web.whatsapp.com/*"] },
     // volta do login com Google pela aba (plano B)
-    { resources: ["retorno.html", "retorno.js", "painel.css"], matches: [`${define.__SUPABASE_URL__.slice(1, -1)}/*`, "https://accounts.google.com/*"] },
+    { resources: ["retorno.html"], matches: [`${define.__SUPABASE_URL__.slice(1, -1)}/*`, "https://accounts.google.com/*"] },
   ],
   content_security_policy: { extension_pages: "script-src 'self'; object-src 'self'" },
 };

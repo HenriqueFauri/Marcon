@@ -19,6 +19,8 @@ export interface ProdutoBusca {
   preco: number;
   estoque: number;
   naVitrine: boolean;
+  // false quando não deu para conferir a vitrine agora (rede ou banco): sem link, sem afirmar nada
+  vitrineConferida?: boolean;
   capa: string | null;
   variacoes: VariacaoBusca[];
   // link do produto na vitrine, só quando vale (vitrine ativa, plano pago ou teste, produto na vitrine)

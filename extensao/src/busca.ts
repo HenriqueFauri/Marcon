@@ -28,13 +28,18 @@ export function esquecerVitrine() {
   cacheVitrine = null;
 }
 
-async function produtosComLink(db: SupabaseClient): Promise<{ slug: string | null; ids: Set<string> }> {
-  if (cacheVitrine && cacheVitrine.ate > Date.now()) return cacheVitrine;
+// Com erro de rede ou do banco, não guarda nada: devolve sem link e com conferida = false, para o
+// painel não afirmar que a loja está fora do ar.
+async function produtosComLink(db: SupabaseClient): Promise<{ slug: string | null; ids: Set<string>; conferida: boolean }> {
+  if (cacheVitrine && cacheVitrine.ate > Date.now()) return { ...cacheVitrine, conferida: true };
   let slug: string | null = null;
   const ids = new Set<string>();
-  const { data: vt } = await db.from("vitrines").select("slug, ativa").maybeSingle();
+  const semConferir = { slug: null, ids: new Set<string>(), conferida: false };
+  const { data: vt, error: erroVitrine } = await db.from("vitrines").select("slug, ativa").maybeSingle();
+  if (erroVitrine) return semConferir;
   if (vt?.ativa && vt.slug) {
-    const { data } = await db.rpc("vitrine_publica", { p_slug: vt.slug });
+    const { data, error } = await db.rpc("vitrine_publica", { p_slug: vt.slug });
+    if (error) return semConferir;
     const lista = (data as { produtos?: { id: string }[] } | null)?.produtos ?? [];
     if (lista.length > 0) {
       slug = vt.slug;
@@ -42,7 +47,7 @@ async function produtosComLink(db: SupabaseClient): Promise<{ slug: string | nul
     }
   }
   cacheVitrine = { ate: Date.now() + 2 * 60 * 1000, slug, ids };
-  return cacheVitrine;
+  return { ...cacheVitrine, conferida: true };
 }
 
 async function capas(db: SupabaseClient, ids: string[]): Promise<Map<string, string>> {
@@ -111,6 +116,7 @@ export async function buscarProdutos(db: SupabaseClient, bruto: string, baseLoja
       preco,
       estoque: l.estoque_atual,
       naVitrine: l.na_vitrine,
+      vitrineConferida: vitrine.conferida,
       capa: fotos.get(l.id) ?? null,
       variacoes,
       link: vitrine.slug && vitrine.ids.has(l.id) ? linkDoProduto(baseLoja, vitrine.slug, l.id) : null,

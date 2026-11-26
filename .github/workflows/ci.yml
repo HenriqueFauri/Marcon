@@ -32,6 +32,25 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: chave-falsa-so-para-build
           ASAAS_ENV: sandbox
 
+  extensao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: extensao
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: extensao/package-lock.json
+      - run: npm ci
+      - name: Typecheck da extensão
+        run: npm run typecheck
+      - name: Testes do formatador
+        run: npm test
+
   guarda-de-risco:
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -61,6 +61,7 @@ function traduzirErro(msg: string | undefined): string {
 }
 
 async function entrar(email: string, senha: string): Promise<Resposta<Sessao>> {
+  esquecerVitrine();
   const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
   if (error) return { ok: false, erro: traduzirErro(error.message) };
   const s = await sessaoAtual();
@@ -72,6 +73,7 @@ async function trocarCodigo(code: string): Promise<Resposta<Sessao>> {
   const marca = (await chrome.storage.local.get(CHAVE_FLUXO))[CHAVE_FLUXO] as number | undefined;
   await chrome.storage.local.remove(CHAVE_FLUXO);
   if (!marca || Date.now() - marca > 10 * 60 * 1000) return { ok: false, erro: "Login expirou. Tente de novo." };
+  esquecerVitrine();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) return { ok: false, erro: traduzirErro(error.message) };
   const s = await sessaoAtual();

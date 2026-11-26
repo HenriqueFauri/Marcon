@@ -87,6 +87,15 @@ Deixar de fora de propósito: `CRON_SECRET`, `ANTHROPIC_API_KEY`, `EVOLUTION_*`,
 - Login com Google no Staging exige cadastrar a URL do Staging também no OAuth do Google. Sem isso, usar e-mail e senha.
 - Plano Free: o projeto pausa após 7 dias sem uso. Reativar no painel (os dados ficam). O limite é de 2 projetos ativos por pessoa, somando todas as organizações.
 
+## Extensão do WhatsApp Web (login com Google)
+
+A extensão (`extensao/`, ID fixo `paecegdlhpfepcjinghnhgghpkidpfna`) precisa de duas URLs em Authentication, URL Configuration, Redirect URLs, nos dois projetos. **Staging primeiro**, produção depois:
+
+- `https://paecegdlhpfepcjinghnhgghpkidpfna.chromiumapp.org/google` (janela do navegador, `chrome.identity.launchWebAuthFlow`)
+- `chrome-extension://paecegdlhpfepcjinghnhgghpkidpfna/retorno.html` (plano B, login numa aba)
+
+Sem elas, o Supabase manda o login para o Site URL e a extensão diz "Login com Google cancelado". E-mail e senha funcionam sem nada disso. Nunca usar curinga (`chrome-extension://**`). No Staging o Google também exige o OAuth configurado para o projeto (seção acima). Build e instalação: `extensao/README.md`.
+
 ## Asaas sandbox
 
 Integrações, Webhooks, no painel do **sandbox**:
