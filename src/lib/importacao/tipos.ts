@@ -19,8 +19,7 @@ export interface ProdutoLido {
   nome: string;
   categoria: string | null;
   custo: number;
-  precoVarejo: number;
-  precoAtacado: number | null;
+  precoVarejo: number; // preço único; atacado da planilha é ignorado desde 26/11/2026
   estoque: number;
   avisos: string[];
 }

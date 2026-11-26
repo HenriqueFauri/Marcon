@@ -48,7 +48,7 @@ function CustoEPreco({
           placeholder={formatBRL(custoPadrao)}
         />
       </Field>
-      <Field label="Preço de venda (R$)">
+      <Field label="Preço (R$)">
         <input
           name="preco_venda"
           inputMode="decimal"
