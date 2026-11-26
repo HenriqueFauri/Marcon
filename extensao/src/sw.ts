@@ -4,6 +4,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AMBIENTE, BASE_LOJA, SUPABASE_ANON, SUPABASE_URL } from "./config.ts";
 import { buscarProdutos, esquecerVitrine } from "./busca.ts";
+import { carregarRespostas } from "./respostas-db.ts";
 import type { Pedido, PedidoAba, Resposta, Sessao } from "./mensagens.ts";
 import { mensagemDeFalha, type ResultadoInsercao } from "./inserir.ts";
 
@@ -172,6 +173,8 @@ async function atender(p: Pedido, remetente: chrome.runtime.MessageSender): Prom
       return { ok: true, dados: null };
     case "buscar":
       return buscarProdutos(supabase, String(p.termo ?? ""), BASE_LOJA);
+    case "respostas":
+      return carregarRespostas(supabase, BASE_LOJA);
     case "inserir":
       return inserir(String(p.texto ?? "").slice(0, 4000), remetente);
     case "fecharPainel":

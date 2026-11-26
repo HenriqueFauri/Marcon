@@ -263,6 +263,76 @@ begin
     pulados := array_append(pulados, '0072 (origem do cadastro)');
   end if;
 
+  -- 0073: respostas prontas. A cria, B não lê, não altera, não apaga, não reordena nem grava em nome
+  -- de A; anon não faz nada; o banco trava tamanho e atalho.
+  if to_regclass('public.respostas_prontas') is not null then
+    declare
+      rp_a uuid;
+      t text;
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      insert into respostas_prontas (titulo, texto, atalho, ordem) values ('Teste A', 'Oi, aqui é da {negocio}', 'testea', 7)
+        returning id into rp_a;
+      oks := oks + 1;
+
+      perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      select count(*) into n from respostas_prontas where id = rp_a;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'B leu resposta pronta de A'); end if;
+      update respostas_prontas set texto = 'INVADIDO' where id = rp_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'B alterou resposta pronta de A'); end if;
+      delete from respostas_prontas where id = rp_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'B apagou resposta pronta de A'); end if;
+      perform reordenar_respostas_prontas(array[rp_a]);
+      begin
+        insert into respostas_prontas (owner_id, titulo, texto) values (a, 'INJETADA', 'x');
+        falhas := array_append(falhas, 'B gravou resposta pronta em nome de A');
+      exception when others then oks := oks + 1; end;
+
+      execute 'reset role';
+      select texto into t from respostas_prontas where id = rp_a;
+      if t = 'Oi, aqui é da {negocio}' then oks := oks + 1; else falhas := array_append(falhas, 'resposta de A mudou depois de B'); end if;
+      select ordem::text into t from respostas_prontas where id = rp_a;
+      if t = '7' then oks := oks + 1; else falhas := array_append(falhas, 'B reordenou resposta de A'); end if;
+
+      execute 'set local role anon';
+      begin
+        perform 1 from respostas_prontas;
+        falhas := array_append(falhas, 'anon leu respostas_prontas');
+      exception when insufficient_privilege then oks := oks + 1; end;
+      begin
+        insert into respostas_prontas (owner_id, titulo, texto) values (a, 'ANON', 'x');
+        falhas := array_append(falhas, 'anon gravou respostas_prontas');
+      exception when others then oks := oks + 1; end;
+      begin
+        perform reordenar_respostas_prontas(array[rp_a]);
+        falhas := array_append(falhas, 'anon chamou reordenar_respostas_prontas');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
+
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      begin
+        insert into respostas_prontas (titulo, texto) values ('Longa', repeat('x', 2001));
+        falhas := array_append(falhas, 'texto acima de 2000 caracteres aceito');
+      exception when check_violation then oks := oks + 1; end;
+      begin
+        insert into respostas_prontas (titulo, texto, atalho) values ('Atalho', 'x', 'Com Espaço');
+        falhas := array_append(falhas, 'atalho fora do padrão aceito');
+      exception when check_violation then oks := oks + 1; end;
+      begin
+        insert into respostas_prontas (titulo, texto, atalho) values ('Repetido', 'x', 'testea');
+        falhas := array_append(falhas, 'atalho repetido na mesma conta aceito');
+      exception when unique_violation then oks := oks + 1; end;
+      execute 'reset role';
+    end;
+  else
+    pulados := array_append(pulados, '0073 (respostas prontas)');
+  end if;
+
   if cardinality(falhas) = 0 then
     raise exception 'SEGURANCA OK: % testes passaram. Pulados: %. (resultado, tudo desfeito)', oks, pulados;
   else
