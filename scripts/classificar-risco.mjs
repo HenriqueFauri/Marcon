@@ -27,6 +27,7 @@ const ALTO = [
   [/^scripts\/(run-migrations|db-ssl)\.mjs$/, "script de banco"],
   [/^package(-lock)?\.json$/, "dependências"],
   [/^\.env/, "variáveis de ambiente"],
+  [/^extensao\//, "extensão do WhatsApp (login, cliente Supabase, dependências)"],
 ];
 
 const arquivos = execSync(`git diff --name-only ${base}...HEAD`, { encoding: "utf8" })

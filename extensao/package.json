@@ -1,0 +1,24 @@
+{
+  "name": "marcon-extensao",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Extensão do Marcon para o WhatsApp Web. Só insere texto na caixa de mensagem; quem envia é o dono.",
+  "scripts": {
+    "build": "node build.mjs --amb staging && node build.mjs --amb producao",
+    "build:staging": "node build.mjs --amb staging",
+    "build:producao": "node build.mjs --amb producao",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test teste/*.test.ts",
+    "simulacao": "node build.mjs --simulacao"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.4",
+    "@types/node": "^22.20.7",
+    "esbuild": "^0.25.0",
+    "typescript": "^5"
+  }
+}
