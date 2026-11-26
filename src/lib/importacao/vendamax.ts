@@ -93,8 +93,8 @@ function lerProdutos(paginas: Pagina[]): Analise {
       else custo = lido;
     }
 
-    // o preço de atacado vem junto do de varejo: "R$ 229,00 Atac: R$ 209,00"
-    const [textoVarejo, textoAtacado] = c[4].split(/Atac:/i);
+    // o preço de atacado vem junto do de varejo: "R$ 229,00 Atac: R$ 209,00". Só o primeiro conta (preço único)
+    const [textoVarejo] = c[4].split(/Atac:/i);
     const varejos = todosOsValores(textoVarejo);
     let precoVarejo = 0;
     if (varejos.length === 0) avisos.push("Não consegui ler o preço de venda. Confira antes de importar.");
@@ -103,7 +103,6 @@ function lerProdutos(paginas: Pagina[]): Analise {
       precoVarejo = arredondar(varejos.reduce((s, v) => s + v, 0) / varejos.length);
       avisos.push("Tem mais de um preço de venda (variações). Usei a média.");
     }
-    const atacados = textoAtacado ? todosOsValores(textoAtacado) : [];
 
     const estoque = c[6].match(/^(\d+)/);
     if (!estoque) avisos.push("Não consegui ler o estoque. Considerei 0.");
@@ -113,7 +112,6 @@ function lerProdutos(paginas: Pagina[]): Analise {
       categoria: c[2] || null,
       custo,
       precoVarejo,
-      precoAtacado: atacados[0] ?? null,
       estoque: estoque ? Number(estoque[1]) : 0,
       avisos,
     });

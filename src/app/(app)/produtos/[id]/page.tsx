@@ -103,9 +103,9 @@ export default async function ProdutoDetalhePage({ params }: PageProps<"/produto
           hint={p.fornecedor_nome ? `Fornecedor: ${p.fornecedor_nome}` : undefined}
         />
         <StatCard
-          label="Preço de venda"
+          label="Preço"
           value={formatBRL(p.preco_varejo)}
-          hint={p.preco_atacado != null ? `Atacado ${formatBRL(p.preco_atacado)}` : margem !== null ? `${margem.toFixed(1)}% de margem` : undefined}
+          hint={margem !== null ? `${margem.toFixed(1)}% de margem` : undefined}
         />
         <StatCard
           label="Em estoque"

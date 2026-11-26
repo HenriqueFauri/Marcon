@@ -232,9 +232,6 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
                   </td>
                   <td className={`${tdClass} text-right tabular-nums text-ink`}>
                     {formatBRL(preco)}
-                    {p.preco_atacado != null && (
-                      <span className="block text-xs text-ink-muted">atac. {formatBRL(p.preco_atacado)}</span>
-                    )}
                   </td>
                   <td
                     className={`${tdClass} hidden text-right tabular-nums sm:table-cell ${margem === null ? "text-ink-faint" : margem < 0 ? "text-danger" : margem < 20 ? "text-warning" : "text-positive"}`}

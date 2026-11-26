@@ -50,7 +50,6 @@ export async function importarProdutos(produtos: ProdutoLido[]): Promise<ActionR
         categoria: texto(p.categoria, 100) || null,
         custo: numero(p.custo),
         preco_varejo: numero(p.precoVarejo),
-        preco_atacado: p.precoAtacado == null ? null : numero(p.precoAtacado),
         estoque: inteiro(p.estoque),
       }))
       .filter((p) => p.nome);

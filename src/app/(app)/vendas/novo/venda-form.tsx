@@ -21,8 +21,7 @@ export interface Vendavel {
   produto_nome: string;
   rotulo: string | null; // nome da variação, ex.: "Azul / M"
   detalhe: string;
-  preco_varejo: number;
-  preco_atacado: number | null;
+  preco_varejo: number; // preço único do produto (sem tabela de atacado desde 26/11/2026)
   custo: number;
   estoque: number;
   foto: string | null; // link assinado da capa do produto
@@ -279,7 +278,6 @@ export function VendaForm({
   // variações, a busca abre filtrada e o seletor já vem aberto pra escolher qual
   const iniciais = produtoInicial ? vendaveis.filter((v) => v.produto_id === produtoInicial) : [];
   const [busca, setBusca] = useState(iniciais.length > 1 ? iniciais[0].produto_nome : "");
-  const [tabela, setTabela] = useState<"varejo" | "atacado">("varejo");
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>(() => {
     if (pedido) {
       const existe = new Set(vendaveis.map((v) => v.chave));
@@ -326,7 +324,6 @@ export function VendaForm({
         JSON.stringify({
           uid,
           carrinho,
-          tabela,
           campos: { clienteId, clienteNome, canalId, canalNome, formaId, formaNome, desconto, outrosGastos, entrada, tipoPagamento, numeroParcelas, data, primeiroVencimento, vencimentoEscolhido },
           em: Date.now(),
         }),
@@ -344,7 +341,6 @@ export function VendaForm({
     let guardado: {
       uid?: string;
       carrinho?: ItemCarrinho[];
-      tabela?: string;
       campos?: Record<string, unknown>;
       em?: number;
     } | null = null;
@@ -358,27 +354,25 @@ export function VendaForm({
     // só na volta do cadastro (produto novo ou cancelou), da mesma conta e em até 10 min; fora disso o guardado é descartado
     const idade = Date.now() - (guardado?.em ?? 0);
     if (!guardado || !(produtoInicial || retorno) || !uid || guardado.uid !== uid || !Array.isArray(guardado.carrinho) || idade > 10 * 60 * 1000) return;
-    const tabelaVolta = guardado.tabela === "atacado" ? "atacado" : "varejo";
     const antigos = guardado.carrinho
       .filter(
         (i) =>
           i && typeof i.chave === "string" && typeof i.preco === "string" && Number.isInteger(i.quantidade) && i.quantidade >= 1 && i.quantidade <= 9999 && vendaveis.some((v) => v.chave === i.chave),
       )
       .map((i) => ({ chave: i.chave, quantidade: i.quantidade, preco: i.preco }));
-    // o item novo (produto recém cadastrado) entra com o preço da tabela da venda, como em trocarTabela
+    // o item novo (produto recém cadastrado) entra com o preço do produto
     const novos = (atual: ItemCarrinho[]) =>
       atual
         .filter((n) => !antigos.some((a) => a.chave === n.chave))
         .map((n) => {
           const v = porChave.get(n.chave);
           if (!v) return n;
-          return { ...n, preco: emTexto(tabelaVolta === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo) };
+          return { ...n, preco: emTexto(v.preco_varejo) };
         });
     const c = guardado.campos ?? {};
     const texto = (k: string) => (typeof c[k] === "string" ? (c[k] as string) : null);
     // lê o armazenamento da aba (sistema externo): só dá para fazer depois da montagem, senão o HTML do servidor diverge
     /* eslint-disable react-hooks/set-state-in-effect */
-    setTabela(tabelaVolta);
     setCarrinho((atual) => [...antigos, ...novos(atual)]);
     setClienteId(texto("clienteId") ?? "");
     setClienteNome(texto("clienteNome") ?? "");
@@ -416,7 +410,6 @@ export function VendaForm({
   }, []);
 
   const porChave = useMemo(() => new Map(vendaveis.map((v) => [v.chave, v])), [vendaveis]);
-  const temAtacado = vendaveis.some((v) => v.preco_atacado != null);
 
   const todosGrupos = useMemo(() => agruparVendaveis(vendaveis), [vendaveis]);
   // a busca filtra produtos: achou "Areia" numa variação, o produto aparece com todas as opções
@@ -448,7 +441,7 @@ export function VendaForm({
   const valorParcela = parcelasValidas > 0 ? restante / parcelasValidas : 0;
 
   function precoPadrao(v: Vendavel) {
-    return tabela === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
+    return v.preco_varejo;
   }
 
   function mudarData(nova: string) {
@@ -471,19 +464,6 @@ export function VendaForm({
   function alterarQuantidade(chave: string, quantidade: number) {
     setCarrinho((prev) =>
       prev.map((i) => (i.chave === chave ? { ...i, quantidade: Math.min(Math.max(Math.trunc(quantidade), 1), 9999) } : i)),
-    );
-  }
-
-  function trocarTabela(nova: "varejo" | "atacado") {
-    setTabela(nova);
-    // reaplica o preço da tabela nos itens que já estão no carrinho
-    setCarrinho((prev) =>
-      prev.map((i) => {
-        const v = porChave.get(i.chave);
-        if (!v) return i;
-        const preco = nova === "atacado" && v.preco_atacado != null ? v.preco_atacado : v.preco_varejo;
-        return { ...i, preco: emTexto(preco) };
-      }),
     );
   }
 
@@ -586,17 +566,6 @@ export function VendaForm({
       <div className="flex flex-col gap-7 lg:col-span-3">
         {/* overflow visível no cartão: com overflow-hidden a busca não gruda no topo */}
         <Grupo titulo="Produtos" className="[&>div]:overflow-visible">
-          {temAtacado && (
-            <Segmentado
-              rotulo="Tabela de preço"
-              valor={tabela}
-              onMudar={trocarTabela}
-              opcoes={[
-                { valor: "varejo", label: "Varejo" },
-                { valor: "atacado", label: "Atacado" },
-              ]}
-            />
-          )}
           {/* a busca gruda no topo enquanto a lista rola com a página (sem rolagem dentro da rolagem) */}
           <div className="sticky top-[env(safe-area-inset-top)] z-10 -my-2 bg-surface py-2">
             <div className="relative">

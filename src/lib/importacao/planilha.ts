@@ -169,6 +169,7 @@ const SINONIMOS = {
   categoria: ["categoria", "grupo", "departamento", "tipo de produto"],
   custo: ["custo", "preco de custo", "preco custo", "valor de custo", "custo unitario", "preco de compra", "valor de compra", "compra", "valor pago"],
   venda: ["preco", "preco de venda", "preco venda", "valor de venda", "preco varejo", "varejo", "valor", "venda", "valor unitario", "preco unitario"],
+  // reconhecida só para a coluna não ser lida como preço ("preco atacado" começa por "preco"); o valor é ignorado
   atacado: ["atacado", "preco atacado", "preco de atacado", "valor atacado"],
   estoque: ["estoque", "quantidade em estoque", "quantidade", "qtd", "qtde", "saldo", "em estoque"],
   data: ["data", "data da venda", "data do lancamento", "dia", "quando", "data de pagamento", "data pagamento"],
@@ -287,7 +288,6 @@ function produtosDe(colunas: Colunas, linhas: Tabela): Analise {
     if (!nome) continue;
     const custo = colunas.custo === undefined ? 0 : (numeroDe(l[colunas.custo]) ?? 0);
     const precoVarejo = colunas.venda === undefined ? 0 : (numeroDe(l[colunas.venda]) ?? 0);
-    const atacado = colunas.atacado === undefined ? null : numeroDe(l[colunas.atacado]);
     const estoque = colunas.estoque === undefined ? 0 : Math.trunc(numeroDe(l[colunas.estoque]) ?? 0);
     const avisos: string[] = [];
     if (custo <= 0) {
@@ -300,7 +300,6 @@ function produtosDe(colunas: Colunas, linhas: Tabela): Analise {
       categoria: colunas.categoria === undefined ? null : textoDe(l[colunas.categoria]) || null,
       custo: Math.max(arredondar(custo), 0),
       precoVarejo: Math.max(arredondar(precoVarejo), 0),
-      precoAtacado: atacado && atacado > 0 ? arredondar(atacado) : null,
       estoque: Math.max(estoque, 0),
       avisos,
     });
