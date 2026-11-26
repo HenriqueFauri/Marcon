@@ -197,7 +197,7 @@ export default async function ProdutosPage({ searchParams }: PageProps<"/produto
             <tr>
               <th className={thClass}>Produto</th>
               <th className={`${thClass} hidden text-right sm:table-cell`}>Custo</th>
-              <th className={`${thClass} text-right`}>Venda</th>
+              <th className={`${thClass} text-right`}>Preço</th>
               <th className={`${thClass} hidden text-right sm:table-cell`}>Margem</th>
               <th className={`${thClass} text-right`}>Estoque</th>
             </tr>
