@@ -32,7 +32,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/exportar/[tipo]
   const tipos: Record<string, Exportacao> = {
     produtos: {
       arquivo: "produtos",
-      colunas: ["Nome", "Categoria", "Marca", "SKU", "Unidade", "Custo", "Preço de venda", "Preço de atacado", "Estoque", "Situação"],
+      colunas: ["Nome", "Categoria", "Marca", "SKU", "Unidade", "Custo", "Preço", "Estoque", "Situação"],
       buscar: (de, ate) => supabase.from("produtos_com_estoque").select("*, categorias(nome)").order("nome").order("id").range(de, ate),
       linha: (p) => [
         TEXTO(p.nome),
@@ -42,7 +42,6 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/exportar/[tipo]
         TEXTO(p.unidade_medida),
         Number(p.custo_min),
         Number(p.preco_varejo),
-        p.preco_atacado == null ? null : Number(p.preco_atacado),
         Number(p.estoque_total),
         TEXTO(p.status),
       ],

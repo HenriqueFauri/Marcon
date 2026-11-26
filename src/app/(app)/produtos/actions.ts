@@ -37,19 +37,18 @@ async function resolverFornecedor(supabase: Supabase, formData: FormData) {
 
 // Lê e valida os campos comuns de cadastro/edição de produto. Vitrine e destaque não entram aqui:
 // são mudados só na Vitrine, então salvar o cadastro não tira o produto da loja.
+// Preço único (decisão de 26/11/2026): preco_atacado fica fora de propósito. Sem a chave, a edição
+// não apaga o valor antigo do banco e o cadastro novo grava nulo.
 function camposProduto(formData: FormData) {
   const nome = texto(formData, "nome");
   const custo = numero(formData, "custo") ?? 0;
   const precoVarejo = numero(formData, "preco_varejo") ?? 0;
-  const precoAtacado = numero(formData, "preco_atacado");
   const alerta = numero(formData, "alerta_estoque_baixo");
   const unidade = texto(formData, "unidade_medida");
 
   if (!nome) return { erro: "O nome do produto é obrigatório." } as const;
   if ([custo, precoVarejo].some((v) => Number.isNaN(v) || v < 0))
-    return { erro: "Confira o custo e o preço de venda." } as const;
-  if (precoAtacado !== null && (Number.isNaN(precoAtacado) || precoAtacado < 0))
-    return { erro: "Confira o preço de atacado." } as const;
+    return { erro: "Confira o custo e o preço." } as const;
   if (alerta !== null && (Number.isNaN(alerta) || alerta < 0 || !Number.isInteger(alerta)))
     return { erro: "O alerta de estoque baixo precisa ser um número inteiro." } as const;
 
@@ -62,7 +61,6 @@ function camposProduto(formData: FormData) {
       codigo_barras: textoOuNull(formData, "codigo_barras")?.replace(/\s+/g, "") || null,
       custo,
       preco_varejo: precoVarejo,
-      preco_atacado: precoAtacado,
       alerta_estoque_baixo: alerta,
       unidade_medida: UNIDADES.includes(unidade) ? unidade : "un",
     },

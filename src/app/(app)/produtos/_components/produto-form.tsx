@@ -464,7 +464,7 @@ export function ProdutoForm({
                 placeholder="0,00"
               />
             </Field>
-            <Field label="Preço de venda (R$) *">
+            <Field label="Preço (R$) *">
               <input
                 name="preco_varejo"
                 inputMode="decimal"
@@ -519,7 +519,7 @@ export function ProdutoForm({
         <span>
           Mais detalhes
           <span className="block text-xs font-normal text-ink-muted">
-            Categoria, marca, código de barras, atacado, fornecedor, alerta e variações
+            Categoria, marca, código de barras, fornecedor, alerta e variações
           </span>
         </span>
         <IconChevronDown width={18} height={18} className={`shrink-0 text-ink-muted transition ${aberto ? "rotate-180" : ""}`} />
@@ -564,18 +564,9 @@ export function ProdutoForm({
           </div>
         </Grupo>
 
-        <Grupo titulo="Atacado, estoque e fornecedor">
+        <Grupo titulo="Estoque e fornecedor">
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Preço de atacado (R$)">
-                <input
-                  name="preco_atacado"
-                  inputMode="decimal"
-                  defaultValue={valorInicial(base?.preco_atacado)}
-                  className={inputClass}
-                  placeholder="Opcional"
-                />
-              </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Avisar quando tiver até" hint="Deixe vazio para não avisar.">
                 <input
                   name="alerta_estoque_baixo"
