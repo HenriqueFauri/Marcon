@@ -15,6 +15,7 @@ import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table
 import { SearchInput } from "@/components/search-input";
 import { bloqueada, contaGerenciavel, diasAtivos, etapaDoFunil, type FunilConta, type ResumoConta } from "./dados";
 import { AcoesRapidas } from "./gerenciar-conta";
+import { ContasParadas, contaParada } from "./contas-paradas";
 
 const vendas = (n: number) => `${n} ${n === 1 ? "venda" : "vendas"}`;
 
@@ -142,7 +143,20 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     vendeu: l.funil?.etapa === 2,
     pagante: l.situacao.tipo === "ativa" || l.situacao.tipo === "atrasada",
   }));
-  const pct = (n: number) => `${base.length ? Math.round((n / base.length) * 100) : 0}%`;
+  const paradas = base
+    .filter((l) => !bloqueada(l.u))
+    .map((l) =>
+      contaParada({
+        id: l.u.id,
+        titulo: l.titulo,
+        situacao: l.rotulo.texto,
+        criadaEm: l.u.created_at,
+        ultimoLogin: l.u.last_sign_in_at,
+        ultimaVenda: l.resumo?.ultima_venda,
+      }),
+    )
+    .filter((c) => c !== null);
+  const pct = (n: number) =>`${base.length ? Math.round((n / base.length) * 100) : 0}%`;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -188,6 +202,9 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       )}
 
       <OrigemDosCadastros contas={contasComOrigem} falhou={!!erroOrigens} semFunil={!!erroFunil} />
+
+      {/* sem os números das contas a última venda some e todo mundo pareceria parado */}
+      {!erroResumo && <ContasParadas contas={paradas} />}
 
       <Segmentos
         rotulo="Filtrar contas"
