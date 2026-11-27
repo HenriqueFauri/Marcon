@@ -126,7 +126,7 @@ export function filtrarRespostas<T extends Pick<RespostaPronta, "titulo" | "text
 
 // Exemplos do estado vazio: o dono cria todos de uma vez e edita como quiser.
 export const EXEMPLOS: { titulo: string; atalho: string; texto: string }[] = [
-  { titulo: "Saudação", atalho: "oi", texto: "Oi! Aqui é da {negocio}, tudo bem?\nComo posso te ajudar?" },
+  { titulo: "Saudação", atalho: "oi", texto: "Oi! Tudo bem?\nAqui é da {negocio}.\nComo posso te ajudar?" },
   {
     titulo: "Retirada",
     atalho: "retirada",

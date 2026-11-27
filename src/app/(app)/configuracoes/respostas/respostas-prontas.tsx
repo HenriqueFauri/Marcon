@@ -157,9 +157,10 @@ function Editor({ resposta, dados }: { resposta: RespostaPronta | null; dados: D
 
   function inserirVariavel(chave: string) {
     const el = caixa.current;
-    const marca = `{${chave}}`;
     const ini = el?.selectionStart ?? texto.length;
     const fim = el?.selectionEnd ?? texto.length;
+    // espaço antes quando a variável cairia colada numa palavra ("Pix.{telefone}")
+    const marca = `${ini > 0 && !/\s/.test(texto[ini - 1]) ? " " : ""}{${chave}}`;
     const novo = (texto.slice(0, ini) + marca + texto.slice(fim)).slice(0, LIMITE_TEXTO);
     setTexto(novo);
     requestAnimationFrame(() => {
@@ -243,7 +244,8 @@ function Editor({ resposta, dados }: { resposta: RespostaPronta | null; dados: D
           rodape={
             semValor.length > 0 ? (
               <>
-                A conta não tem {lista(semValor)}: a linha some do texto. Preencha em{" "}
+                {previa ? "" : "Com os dados de hoje, o texto fica vazio. "}A conta não tem {lista(semValor)}:{" "}
+                {semValor.length === 1 ? "a linha com esse dado some" : "as linhas com esses dados somem"} do texto. Preencha em{" "}
                 <Link href="/configuracoes" className="text-brand-text hover:opacity-80">
                   Configurações
                 </Link>
