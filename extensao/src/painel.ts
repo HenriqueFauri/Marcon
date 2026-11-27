@@ -397,6 +397,9 @@ function iconeLupa() {
 // a sequência aberta continua onde estava quando a lista recarrega (voltar ao painel, Atualizar)
 let tocando: { seqId: string; pos: Posicao } | null = null;
 
+// "Anexar PDF" vira "anexar PDF" (só a primeira letra)
+const minuscula = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+
 function blocoSequencias(aoPerderSessao: (erro: string) => void) {
   const el = h("div", { class: "grupo" });
   let conta: RespostasDaConta | null = null;
@@ -410,7 +413,7 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
     return montarRoteiro(seq, conta.passos ?? [], respostas, conta.arquivos ?? [], (t) => preencherVariaveis(t, dados));
   }
 
-  // faz a ação do clique; devolve true se o texto entrou ou a prévia abriu
+  // faz a ação do clique; devolve true se o texto entrou (ou foi copiado para o dono colar) ou a prévia abriu
   async function fazer(a: Acao, botao: HTMLButtonElement): Promise<boolean> {
     if (a.tipo === "texto") {
       const r = await pedir<string>({ tipo: "inserir", texto: a.texto });
@@ -422,9 +425,10 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
         aoPerderSessao(r.erro);
         return false;
       }
+      // copiou: o dono cola com a própria mão e o painel já aponta para a ação seguinte do passo
       const copiou = await copiar(a.texto);
-      avisar(copiou ? `${r.erro} Já copiei o texto: clique na caixa e cole. Depois, Pular.` : r.erro, true);
-      return false;
+      avisar(copiou ? `${r.erro} Já copiei o texto: clique na caixa e cole.` : r.erro, true);
+      return copiou;
     }
     botao.textContent = "Anexando...";
     const r = await pedir<ResultadoAnexar>({ tipo: "anexarMidia", id: a.midia.id });
@@ -494,7 +498,9 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
         principal.disabled = true;
         const deu = await fazer(acao, principal);
         ocupado = false;
-        if (deu && tocando) mover(depoisDaAcao(r, pos));
+        // a lista pode ter recarregado durante o clique: avança sobre o roteiro de agora
+        const atual = deu && tocando ? roteiroDe(tocando.seqId) : null;
+        if (atual && tocando) mover(depoisDaAcao(atual, tocando.pos));
         else desenhar();
       });
       const pularB = h("button", { class: "btn-pequeno neutro", type: "button" }, "Pular");
@@ -510,7 +516,7 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
           { class: "passo-atual" },
           passo.titulo ? h("span", { class: "nome" }, passo.titulo) : null,
           conteudo,
-          proxima ? h("span", { class: "detalhe" }, `Depois: ${rotuloDaAcao(proxima).toLowerCase()}`) : null,
+          proxima ? h("span", { class: "detalhe" }, `Depois: ${minuscula(rotuloDaAcao(proxima))}`) : null,
         ),
         h("div", { class: "acoes-seq" }, principal),
         h("div", { class: "acoes" }, voltarB, pularB, fechar),
