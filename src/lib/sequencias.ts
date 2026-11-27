@@ -75,8 +75,13 @@ export function textoDoPasso(p: PassoSequencia, respostas: RespostaResumo[]): st
   return p.texto?.trim() ? p.texto : null;
 }
 
-export function passoVazio(p: PassoSequencia, respostas: RespostaResumo[], midias: MidiaResumo[]): boolean {
-  return textoDoPasso(p, respostas) === null && !(p.midia_id && midias.some((m) => m.id === p.midia_id));
+// Vazio: sem texto e sem arquivo. Com `preencher`, texto que some todo com os dados da conta
+// (linha com {pix} e a conta sem Pix) também conta como vazio, igual à extensão.
+export function passoVazio(p: PassoSequencia, respostas: RespostaResumo[], midias: MidiaResumo[], preencher?: (texto: string) => string): boolean {
+  if (p.midia_id && midias.some((m) => m.id === p.midia_id)) return false;
+  const texto = textoDoPasso(p, respostas);
+  if (texto === null) return true;
+  return preencher ? !preencher(texto).trim() : false;
 }
 
 // ---------------------------------------------------------------------------------------------

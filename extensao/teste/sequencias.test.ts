@@ -138,3 +138,11 @@ test("nome e detalhe do passo nas listas do app", () => {
   assert.equal(tituloDoPasso(longo, respostas, midias).length, 60);
   assert.equal(tituloDoPasso(passo("v", 0, { midia_id: "apagado" }), respostas, midias), "Passo vazio");
 });
+
+test("no app, passo cujo texto some com os dados da conta também é vazio", () => {
+  const soPix = passo("x", 0, { resposta_id: "r2" });
+  assert.ok(!passoVazio(soPix, respostas, midias));
+  assert.ok(passoVazio(soPix, respostas, midias, (t) => preencherVariaveis(t, {})));
+  assert.ok(!passoVazio(soPix, respostas, midias, preencher));
+  assert.ok(!passoVazio({ ...soPix, midia_id: "m1" }, respostas, midias, (t) => preencherVariaveis(t, {})));
+});

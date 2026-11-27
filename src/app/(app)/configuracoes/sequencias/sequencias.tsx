@@ -199,7 +199,7 @@ function NovaSequencia() {
 
 // ---------------------------------------------------------------------------------------------
 
-function DetalheSequencia({ sequencia, passos, respostas, midias }: Props & { sequencia: Sequencia }) {
+function DetalheSequencia({ sequencia, passos, respostas, midias, dados }: Props & { sequencia: Sequencia }) {
   const router = useRouter();
   const nome = useAction();
   const ordemAcao = useAction();
@@ -220,7 +220,8 @@ function DetalheSequencia({ sequencia, passos, respostas, midias }: Props & { se
     nome.run(() => salvarSequencia(formData), { onSuccess: () => router.refresh() });
   }
 
-  const vazios = ordem.filter((p) => passoVazio(p, respostas, midias)).length;
+  const preencher = (t: string) => preencherVariaveis(t, dados);
+  const vazios = ordem.filter((p) => passoVazio(p, respostas, midias, preencher)).length;
   const cheio = ordem.length >= LIMITE_PASSOS;
   const aqui = `${BASE}?editar=${sequencia.id}`;
 
@@ -268,12 +269,12 @@ function DetalheSequencia({ sequencia, passos, respostas, midias }: Props & { se
             semPadding
             rodape={
               vazios > 0
-                ? `${vazios === 1 ? "1 passo ficou vazio" : `${vazios} passos ficaram vazios`} porque a resposta ou o arquivo foi apagado. Na extensão, ${vazios === 1 ? "ele é pulado" : "eles são pulados"}.`
+                ? `${vazios === 1 ? "1 passo está vazio" : `${vazios} passos estão vazios`}: a resposta ou o arquivo foi apagado, ou o texto usa um dado que a conta não tem. Na extensão, ${vazios === 1 ? "ele é pulado" : "eles são pulados"}.`
                 : "Passo com texto e arquivo: o primeiro clique insere o texto, o segundo abre a prévia do arquivo."
             }
           >
             {ordem.map((p, i) => {
-              const vazio = passoVazio(p, respostas, midias);
+              const vazio = passoVazio(p, respostas, midias, preencher);
               const detalhe = detalheDoPasso(p, respostas, midias);
               return (
                 <div key={p.id} className="flex items-center gap-1 border-t border-line pr-2 first:border-t-0">
@@ -281,7 +282,7 @@ function DetalheSequencia({ sequencia, passos, respostas, midias }: Props & { se
                     <span className="w-5 shrink-0 text-right text-[15px] tabular-nums text-ink-muted">{i + 1}</span>
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className={`truncate text-[17px] ${vazio ? "text-ink-muted" : "text-ink"}`}>{tituloDoPasso(p, respostas, midias)}</span>
-                      <span className={`truncate text-[13px] ${vazio ? "text-warning" : "text-ink-muted"}`}>{vazio ? "Vazio: escolha outro texto ou arquivo" : detalhe}</span>
+                      <span className={`truncate text-[13px] ${vazio ? "text-warning" : "text-ink-muted"}`}>{vazio ? "Vazio: confira o texto ou o arquivo" : detalhe}</span>
                     </span>
                   </Link>
                   <Setas nome={`passo ${i + 1}`} i={i} total={ordem.length} desligado={ordemAcao.isPending} mover={mover} />
@@ -341,10 +342,12 @@ function EditorPasso({
   const router = useRouter();
   const { isPending, run } = useAction();
   const respostaExiste = !!passo?.resposta_id && respostas.some((r) => r.id === passo.resposta_id);
-  const [fonte, setFonte] = useState<Fonte>(passo ? (respostaExiste ? "resposta" : passo.texto ? "escrever" : "nenhum") : "escrever");
+  const midiaExiste = !!passo?.midia_id && midias.some((m) => m.id === passo.midia_id);
+  // passo que ficou vazio (resposta ou arquivo apagado) abre em Escrever, com aviso
+  const ficouVazio = !!passo && !respostaExiste && !passo.texto && !midiaExiste;
+  const [fonte, setFonte] = useState<Fonte>(passo ? (respostaExiste ? "resposta" : passo.texto || ficouVazio ? "escrever" : "nenhum") : "escrever");
   const [texto, setTexto] = useState(passo?.texto ?? "");
   const [respostaId, setRespostaId] = useState(respostaExiste ? passo!.resposta_id! : (respostas[0]?.id ?? ""));
-  const midiaExiste = !!passo?.midia_id && midias.some((m) => m.id === passo.midia_id);
   const [midiaId, setMidiaId] = useState(midiaExiste ? passo!.midia_id! : "");
   const caixa = useRef<HTMLTextAreaElement>(null);
   const aqui = `${BASE}?editar=${sequencia.id}`;
@@ -379,7 +382,7 @@ function EditorPasso({
 
   const opcoesFonte: { valor: Fonte; label: string }[] = [
     { valor: "escrever", label: "Escrever" },
-    { valor: "resposta", label: "Resposta pronta" },
+    { valor: "resposta", label: "Resposta" },
     { valor: "nenhum", label: "Sem texto" },
   ];
 
@@ -390,7 +393,7 @@ function EditorPasso({
         {passo && <input type="hidden" name="id" value={passo.id} />}
         <input type="hidden" name="sequencia_id" value={sequencia.id} />
 
-        <Grupo titulo="Texto">
+        <Grupo titulo="Texto" rodape={ficouVazio ? "A resposta pronta ou o arquivo deste passo foi apagado. Escolha outro texto ou arquivo." : undefined}>
           <Segmentado name="fonte" valor={fonte} opcoes={opcoesFonte} onMudar={setFonte} rotulo="Texto do passo" />
           {fonte === "escrever" && (
             <>
@@ -478,8 +481,10 @@ function EditorPasso({
                 </Link>
                 .
               </>
-            ) : (
+            ) : previa || midia ? (
               "Assim o passo entra na conversa."
+            ) : (
+              "Escolha um texto ou um arquivo para o passo."
             )
           }
         >
