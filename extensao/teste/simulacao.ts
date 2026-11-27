@@ -82,11 +82,19 @@ async function inserir(variacaoId?: string) {
   return { ...r, texto };
 }
 
+// texto livre (resposta pronta já preenchida), pelo mesmo caminho do script da extensão
+async function inserirLivre(texto: string) {
+  const r = await inserirTexto(texto);
+  log.textContent = r.ok ? `ok (${r.metodo})` : `falha: ${mensagemDeFalha(r.motivo)}`;
+  return { ...r, texto };
+}
+
 document.getElementById("inserir")!.addEventListener("click", () => inserir());
 document.getElementById("inserir-var")!.addEventListener("click", () => inserir("v2"));
 
 (window as unknown as { marcon: unknown }).marcon = {
   inserir,
+  inserirTexto: inserirLivre,
   modo: aplicarModo,
   estado: () => ({ modo, texto: caixa.innerText, envios }),
 };

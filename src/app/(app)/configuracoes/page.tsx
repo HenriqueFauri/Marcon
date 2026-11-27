@@ -10,8 +10,9 @@ import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 import { Grupo, LinhaLink } from "@/components/ajustes";
-import { IconBox, IconWhatsapp } from "@/components/icons";
+import { IconBox, IconMensagem, IconWhatsapp } from "@/components/icons";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
+import { ehAdmin } from "@/lib/admin";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -23,13 +24,18 @@ export default async function ConfiguracoesPage() {
     },
     { data: canais },
     { data: formas },
+    { count: respostas },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
+    supabase.from("respostas_prontas").select("id", { count: "exact", head: true }),
   ]);
 
   const whatsappLiberado = (await acessoDoAssistente(user)).usar;
+  // Respostas prontas só servem com a extensão do WhatsApp Web, que por enquanto é só do dono:
+  // a linha aparece para o admin e para quem já tem respostas. A página abre para qualquer conta.
+  const mostrarRespostas = ehAdmin(user) || (respostas ?? 0) > 0;
   const { data: vinculoWhatsapp } = whatsappLiberado ? await supabase.from("whatsapp_vinculos").select("owner_id").maybeSingle() : { data: null };
 
   const meta = user?.user_metadata ?? {};
@@ -53,6 +59,15 @@ export default async function ConfiguracoesPage() {
             rotulo="Trazer produtos e vendas"
             detalhe="Planilha ou PDF"
           />
+          {mostrarRespostas && (
+            <LinhaLink
+              href="/configuracoes/respostas"
+              icone={<IconMensagem className="h-[17px] w-[17px]" />}
+              tom="bg-tile-warning text-on-tile-warning"
+              rotulo="Respostas prontas"
+              detalhe={respostas ? String(respostas) : "Criar"}
+            />
+          )}
           {whatsappLiberado && (
             <LinhaLink
               href="/configuracoes/whatsapp"

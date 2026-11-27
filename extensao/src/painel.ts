@@ -1,8 +1,10 @@
 // Painel do Marcon (painel lateral do navegador ou embutido no WhatsApp). Tela simples em DOM puro:
 // todo texto vindo do banco entra por textContent, nunca como HTML.
-import { AMBIENTE } from "./config.ts";
+import { AMBIENTE, BASE_LOJA } from "./config.ts";
 import { estoqueTotal, formatarMensagem, formatarPreco, type ProdutoBusca } from "./formatar.ts";
 import { pedir, type Sessao } from "./mensagens.ts";
+import { filtrarRespostas, preencherVariaveis } from "./respostas.ts";
+import type { RespostasDaConta } from "./respostas-db.ts";
 
 const app = document.getElementById("app")!;
 const embutido = new URLSearchParams(location.search).get("modo") === "embutido";
@@ -150,8 +152,15 @@ function rotuloEstoque(qtd: number) {
 }
 
 function acoes(p: ProdutoBusca, variacaoId?: string) {
-  const texto = () => formatarMensagem(p, variacaoId);
   const alvo = variacaoId ? `${p.nome} ${p.variacoes.find((v) => v.id === variacaoId)?.nome ?? ""}`.trim() : p.nome;
+  return inserirCopiar(() => formatarMensagem(p, variacaoId), alvo);
+}
+
+// Inserir (coloca na caixa do WhatsApp, sem enviar) e Copiar (plano B)
+// Texto vazio (resposta em que toda linha usa um dado que a conta não tem): avisa e não insere.
+const SEM_TEXTO = "Falta dado na conta para esta resposta. Preencha em Configurações, no Marcon.";
+
+function inserirCopiar(texto: () => string, alvo: string) {
   return h(
     "div",
     { class: "acoes" },
@@ -163,6 +172,7 @@ function acoes(p: ProdutoBusca, variacaoId?: string) {
         "aria-label": `Inserir ${alvo}`,
         on: {
           click: async () => {
+            if (!texto().trim()) return avisar(SEM_TEXTO, true);
             const r = await pedir<string>({ tipo: "inserir", texto: texto() });
             if (r.ok) avisar(r.dados);
             else {
@@ -181,7 +191,12 @@ function acoes(p: ProdutoBusca, variacaoId?: string) {
         class: "btn-pequeno neutro",
         type: "button",
         "aria-label": `Copiar ${alvo}`,
-        on: { click: async () => avisar((await copiar(texto())) ? "Texto copiado." : "Não deu para copiar.", false) },
+        on: {
+          click: async () => {
+            if (!texto().trim()) return avisar(SEM_TEXTO, true);
+            avisar((await copiar(texto())) ? "Texto copiado." : "Não deu para copiar.", false);
+          },
+        },
       },
       "Copiar",
     ),
@@ -244,13 +259,7 @@ function itemProduto(p: ProdutoBusca) {
   );
 }
 
-function telaPrincipal(sessao: Sessao) {
-  const campo = h("input", {
-    type: "search",
-    placeholder: "Nome, SKU, marca ou código",
-    "aria-label": "Buscar produto",
-    autocomplete: "off",
-  });
+function iconeLupa() {
   const lupa = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   lupa.setAttribute("width", "18");
   lupa.setAttribute("height", "18");
@@ -260,6 +269,124 @@ function telaPrincipal(sessao: Sessao) {
   lupa.setAttribute("stroke-width", "2.2");
   lupa.setAttribute("stroke-linecap", "round");
   lupa.innerHTML = '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>';
+  return lupa;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Respostas prontas (criadas no app, em Configurações). Carrega ao abrir a aba, ao voltar ao painel
+// e no botão Atualizar. O texto já sai com as variáveis preenchidas pelos dados da conta.
+
+function secaoRespostas(aoPerderSessao: (erro: string) => void) {
+  const campo = h("input", {
+    type: "search",
+    placeholder: "Título, texto ou /atalho",
+    "aria-label": "Buscar resposta",
+    autocomplete: "off",
+  });
+  const lista = h("div", { class: "grupo" });
+  let conta: RespostasDaConta | null = null;
+  let carregando = false;
+
+  const atualizar = h(
+    "button",
+    { class: "btn-pequeno neutro", type: "button", on: { click: () => carregar(true) } },
+    "Atualizar",
+  );
+
+  function desenhar() {
+    if (!conta) return;
+    if (conta.respostas.length === 0) {
+      lista.replaceChildren(
+        h(
+          "div",
+          { class: "cartao" },
+          h(
+            "div",
+            { class: "vazio" },
+            h("strong", {}, "Nenhuma resposta pronta"),
+            "Crie no Marcon, em Configurações. Depois clique em Atualizar.",
+            h("div", { style: "padding-top:12px" }, h("a", { class: "btn btn-secundario", href: `${BASE_LOJA}/configuracoes/respostas`, target: "_blank", rel: "noopener" }, "Abrir no Marcon")),
+          ),
+        ),
+      );
+      return;
+    }
+    const achadas = filtrarRespostas(conta.respostas, campo.value);
+    if (achadas.length === 0) {
+      lista.replaceChildren(h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nada encontrado"), "Tente outra palavra ou o atalho.")));
+      return;
+    }
+    const dados = conta.dados;
+    const titulo = achadas.length === 1 ? "1 resposta" : `${achadas.length} respostas`;
+    lista.replaceChildren(
+      h("h2", { class: "grupo-titulo" }, titulo),
+      h(
+        "div",
+        { class: "cartao" },
+        ...achadas.map((r) => {
+          const texto = () => preencherVariaveis(r.texto, dados);
+          return h(
+            "div",
+            { class: "resposta" },
+            h(
+              "div",
+              { class: "info" },
+              h("span", { class: "nome" }, r.titulo, r.atalho ? h("span", { class: "atalho" }, ` /${r.atalho}`) : null),
+              h("span", { class: "previa" }, texto() || "Nada"),
+              inserirCopiar(texto, r.titulo),
+            ),
+          );
+        }),
+      ),
+      h("p", { class: "grupo-rodape" }, "Inserir coloca o texto na conversa aberta. Quem envia é você."),
+    );
+  }
+
+  async function carregar(manual = false) {
+    if (carregando) return;
+    carregando = true;
+    atualizar.disabled = true;
+    atualizar.textContent = "Atualizando...";
+    if (!conta) lista.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
+    const r = await pedir<RespostasDaConta>({ tipo: "respostas" });
+    carregando = false;
+    atualizar.disabled = false;
+    atualizar.textContent = "Atualizar";
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+      if (conta) avisar(r.erro, true);
+      else lista.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+      return;
+    }
+    conta = r.dados;
+    desenhar();
+    if (manual) avisar(conta.respostas.length === 1 ? "1 resposta." : `${conta.respostas.length} respostas.`);
+  }
+
+  campo.addEventListener("input", desenhar);
+  const el = h(
+    "div",
+    { class: "secao" },
+    h("div", { class: "linha-busca" }, h("div", { class: "busca" }, iconeLupa(), campo), atualizar),
+    lista,
+  );
+  return { el, carregar, focar: () => campo.focus(), carregou: () => conta !== null };
+}
+
+// voltar ao painel (ou à aba do WhatsApp, no painel embutido) traz a lista nova do app
+let recarregarRespostas: (() => void) | null = null;
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") recarregarRespostas?.();
+});
+
+function telaPrincipal(sessao: Sessao) {
+  const campo = h("input", {
+    type: "search",
+    placeholder: "Nome, SKU, marca ou código",
+    "aria-label": "Buscar produto",
+    autocomplete: "off",
+  });
+  const lupa = iconeLupa();
 
   const resultados = h("div", { class: "grupo" });
   avisoEl = h("div", { class: "aviso", hidden: "", role: "status", "aria-live": "polite" });
@@ -319,15 +446,42 @@ function telaPrincipal(sessao: Sessao) {
     "Sair",
   );
 
+  const produtos = h("div", { class: "secao" }, h("div", { class: "busca" }, lupa, campo), resultados);
+  const respostas = secaoRespostas((erro) => telaEntrar(erro));
+  respostas.el.hidden = true;
+
+  // controle segmentado: Produtos ou Respostas (a escolha vale enquanto o painel está aberto)
+  const botaoAba = (rotulo: string, aba: "produtos" | "respostas") =>
+    h("button", { type: "button", role: "tab", "aria-selected": "false", on: { click: () => mostrar(aba) } }, rotulo);
+  const abaProdutos = botaoAba("Produtos", "produtos");
+  const abaRespostas = botaoAba("Respostas", "respostas");
+  function mostrar(aba: "produtos" | "respostas") {
+    const emRespostas = aba === "respostas";
+    produtos.hidden = emRespostas;
+    respostas.el.hidden = !emRespostas;
+    abaProdutos.setAttribute("aria-selected", String(!emRespostas));
+    abaRespostas.setAttribute("aria-selected", String(emRespostas));
+    sessionStorage.setItem("marcon_aba", aba);
+    if (emRespostas) {
+      if (!respostas.carregou()) respostas.carregar();
+      respostas.focar();
+    } else campo.focus();
+  }
+
+  recarregarRespostas = () => {
+    if (respostas.carregou() && document.body.contains(respostas.el)) respostas.carregar();
+  };
+
   app.replaceChildren(
     topo(),
-    h("div", { class: "busca" }, lupa, campo),
-    resultados,
+    h("div", { class: "abas", role: "tablist", "aria-label": "O que inserir" }, abaProdutos, abaRespostas),
+    produtos,
+    respostas.el,
     grupo("Conta", h("div", { class: "linha detalhe" }, sessao.email)),
     h("div", {}, sair),
     avisoEl,
   );
-  campo.focus();
+  mostrar(sessionStorage.getItem("marcon_aba") === "respostas" ? "respostas" : "produtos");
 }
 
 // ---------------------------------------------------------------------------------------------

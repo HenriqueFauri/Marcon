@@ -67,6 +67,20 @@ function responder(p: Pedido): unknown {
       const t = p.termo.toLowerCase();
       return { ok: true, dados: produtos.filter((x) => `${x.nome} ${x.marca ?? ""} ${x.sku ?? ""}`.toLowerCase().includes(t)) };
     }
+    case "respostas":
+      return {
+        ok: true,
+        dados: {
+          respostas: [
+            { id: "r1", titulo: "Saudação", atalho: "oi", ordem: 0, texto: "Oi! Aqui é da {negocio}, tudo bem?\nComo posso te ajudar?" },
+            { id: "r2", titulo: "Pix", atalho: "pix", ordem: 1, texto: "Pode pagar no Pix.\nChave: {pix}\nAssim que pagar, me manda o comprovante." },
+            { id: "r3", titulo: "Retirada", atalho: "retirada", ordem: 2, texto: "Dá pra retirar aqui.\nEndereço: {endereco}\nMe avisa o horário." },
+            { id: "r4", titulo: "Ainda disponível", atalho: "disponivel", ordem: 3, texto: "Tá disponível, sim!\nVeja mais coisas na loja: {vitrine}" },
+          ],
+          // sem endereço de propósito: a linha some
+          dados: { negocio: "Loja de Teste", pix: "pix@lojadeteste.com", endereco: null, telefone: null, vitrine: "https://marcon-staging.vercel.app/loja/loja-de-teste" },
+        },
+      };
     case "inserir":
       ultimo.texto = p.texto;
       return p.texto.includes("Garrafa")

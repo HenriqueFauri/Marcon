@@ -109,6 +109,21 @@ body {
 .variacao .info { gap: 0; }
 .variacao .nome { font-size: 14px; }
 
+/* Abas (controle segmentado que divide a largura) */
+.abas { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border-radius: 10px; background: var(--fill); }
+.abas button { border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; font-weight: 500; padding: 7px 8px; cursor: pointer; }
+.abas button[aria-selected="true"] { background: var(--surface); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+.secao { display: flex; flex-direction: column; gap: 28px; }
+.secao[hidden] { display: none; }
+.linha-busca { display: flex; align-items: center; gap: 8px; }
+.linha-busca .busca { flex: 1; min-width: 0; }
+
+/* Resposta pronta */
+.resposta { display: flex; padding: 12px 16px; }
+.atalho { color: var(--ink-muted); font-weight: 400; font-size: 13px; }
+.previa { font-size: 13px; color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+a.btn { text-decoration: none; box-sizing: border-box; }
+
 /* Aviso */
 .aviso { position: sticky; bottom: 12px; margin-top: auto; padding: 12px 16px; border-radius: 16px; font-size: 14px; background: var(--ink); color: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2); }
 .aviso.erro { background: var(--danger-tint); color: var(--danger); }

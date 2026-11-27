@@ -4,6 +4,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AMBIENTE, BASE_LOJA, SUPABASE_ANON, SUPABASE_URL } from "./config.ts";
 import { buscarProdutos, esquecerVitrine } from "./busca.ts";
+import { carregarRespostas, esquecerLinkDaVitrine } from "./respostas-db.ts";
 import type { Pedido, PedidoAba, Resposta, Sessao } from "./mensagens.ts";
 import { mensagemDeFalha, type ResultadoInsercao } from "./inserir.ts";
 
@@ -62,6 +63,7 @@ function traduzirErro(msg: string | undefined): string {
 
 async function entrar(email: string, senha: string): Promise<Resposta<Sessao>> {
   esquecerVitrine();
+  esquecerLinkDaVitrine();
   const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
   if (error) return { ok: false, erro: traduzirErro(error.message) };
   const s = await sessaoAtual();
@@ -74,6 +76,7 @@ async function trocarCodigo(code: string): Promise<Resposta<Sessao>> {
   await chrome.storage.local.remove(CHAVE_FLUXO);
   if (!marca || Date.now() - marca > 10 * 60 * 1000) return { ok: false, erro: "Login expirou. Tente de novo." };
   esquecerVitrine();
+  esquecerLinkDaVitrine();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) return { ok: false, erro: traduzirErro(error.message) };
   const s = await sessaoAtual();
@@ -169,9 +172,12 @@ async function atender(p: Pedido, remetente: chrome.runtime.MessageSender): Prom
       // scope local: sai só da extensão, sem derrubar o login do site no computador e no celular.
       await supabase.auth.signOut({ scope: "local" });
       esquecerVitrine();
+      esquecerLinkDaVitrine();
       return { ok: true, dados: null };
     case "buscar":
       return buscarProdutos(supabase, String(p.termo ?? ""), BASE_LOJA);
+    case "respostas":
+      return carregarRespostas(supabase, BASE_LOJA);
     case "inserir":
       return inserir(String(p.texto ?? "").slice(0, 4000), remetente);
     case "fecharPainel":

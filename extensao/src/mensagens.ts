@@ -8,6 +8,7 @@ export type Pedido =
   | { tipo: "trocarCodigo"; code: string }
   | { tipo: "sair" }
   | { tipo: "buscar"; termo: string }
+  | { tipo: "respostas" }
   | { tipo: "inserir"; texto: string }
   | { tipo: "fecharPainel" };
 
