@@ -340,6 +340,7 @@ begin
     declare
       md_a uuid;
       rp_a2 uuid;
+      rp_b2 uuid;
       p_a text := a::text || '/' || gen_random_uuid()::text || '.m4a';
       t text;
     begin
@@ -410,6 +411,15 @@ begin
       execute 'reset role';
       select titulo into t from midias where id = md_a;
       if t = 'Áudio A' then oks := oks + 1; else falhas := array_append(falhas, 'mídia de A mudou depois de B'); end if;
+      -- A tenta passar a própria mídia para B ligando à resposta de B (posse conferida contra o dono novo)
+      insert into respostas_prontas (owner_id, titulo, texto) values (b, 'Resposta B', 'x') returning id into rp_b2;
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      begin
+        update midias set owner_id = b, resposta_id = rp_b2 where id = md_a;
+        falhas := array_append(falhas, 'A trocou o dono da mídia e ligou à resposta de B');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
 
       execute 'set local role anon';
       begin

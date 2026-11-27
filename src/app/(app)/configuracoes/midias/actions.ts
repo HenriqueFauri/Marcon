@@ -43,7 +43,7 @@ export async function registrarMidia(dados: { path: string; titulo: string; dura
     const ext = extensaoDoCaminho(path);
     const formato = FORMATOS[ext];
     const titulo = String(dados.titulo ?? "").replace(/\s+/g, " ").trim().slice(0, LIMITE_TITULO_MIDIA) || "Arquivo";
-    const duracaoBruta = Number(dados.duracao);
+    const duracaoBruta = dados.duracao == null ? NaN : Number(dados.duracao); // sem duração lida: null, não 0
     const duracao =
       formato.tipo === "audio" && Number.isFinite(duracaoBruta) && duracaoBruta >= 0 ? Math.min(900, Math.round(duracaoBruta)) : null;
 

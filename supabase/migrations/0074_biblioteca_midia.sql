@@ -137,7 +137,11 @@ begin
     end if;
     new.created_at := now();
   else
-    new.owner_id := old.owner_id;
+    -- trocar o dono é recusado (não trocado em silêncio): o gatilho de posse, que roda antes deste,
+    -- conferiu a resposta ligada contra o dono novo
+    if new.owner_id is distinct from old.owner_id then
+      raise exception 'Não dá para mudar o dono do arquivo.';
+    end if;
     new.tipo := old.tipo;
     new.path := old.path;
     new.mime := old.mime;
