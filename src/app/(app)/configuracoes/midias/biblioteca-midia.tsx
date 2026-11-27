@@ -204,14 +204,14 @@ function Lista({ midias, visiveis = midias, miniaturas = {}, usados, respostas, 
         <PageHeader title="Biblioteca de mídia" back={VOLTAR} />
         <EmptyState
           title="Nenhum arquivo ainda"
-          description="Suba fotos, catálogos em PDF e áudios. Na extensão do WhatsApp Web, Anexar abre a prévia do WhatsApp com o arquivo. Quem envia é você."
+          description="Suba fotos, catálogos em PDF e áudios. Na extensão do WhatsApp Web, foto e PDF abrem a prévia do WhatsApp e o áudio vai como mensagem de voz depois de você confirmar a conversa."
           action={botao("Adicionar arquivo")}
         />
       </div>
     );
   }
 
-  const rodape = `${formatarTamanho(usados)} de ${formatarTamanho(LIMITE_CONTA)} usados · até ${formatarTamanho(10 * 1024 * 1024)} por arquivo. Na extensão do WhatsApp Web, Anexar abre a prévia do WhatsApp com o arquivo. Quem envia é você.`;
+  const rodape = `${formatarTamanho(usados)} de ${formatarTamanho(LIMITE_CONTA)} usados · até ${formatarTamanho(10 * 1024 * 1024)} por arquivo. Na extensão do WhatsApp Web, foto e PDF abrem a prévia do WhatsApp e o áudio vai como mensagem de voz depois de você confirmar a conversa.`;
   const titulo = visiveis.length === 1 ? "1 arquivo" : `${visiveis.length} arquivos`;
 
   return (

@@ -1,17 +1,20 @@
-// Coloca um arquivo (foto, PDF ou áudio) na prévia de anexo do próprio WhatsApp Web. Nunca envia:
+// Coloca um arquivo (foto ou PDF) na prévia de anexo do próprio WhatsApp Web. Nunca envia:
 // não aperta Enter, não clica em botão nenhum. Quem confere e envia, na prévia, é o dono.
 //
-// Como (pico técnico de 27/11/2026, ver extensao/README.md):
-// 1) evento de colar na caixa de mensagem com o arquivo (como Ctrl+V de um print);
-// 2) se a prévia não abriu, arrastar e soltar o arquivo na conversa (como arrastar da pasta).
-// "Abriu" = a caixa de mensagem ficou coberta (a prévia do WhatsApp cobre a conversa) ou sumiu.
-// Só olha a caixa de mensagem e o que está por cima dela; nunca lê as conversas.
+// Como (pico técnico de 27/11/2026 e teste do dono, ver extensao/README.md): UMA tentativa por clique.
+// Foto: evento de colar na caixa de mensagem (como Ctrl+V de um print). PDF: soltar o arquivo na
+// conversa (como arrastar da pasta). Nunca o outro caminho depois: o aviso de recusa do WhatsApp
+// pode chegar atrasado, e a segunda tentativa mostraria o aviso de novo ou poria o arquivo duas vezes.
+// "Abriu" = apareceu uma caixa de texto nova à vista fora da lista de conversas (a legenda da prévia).
+// Caixa de mensagem coberta SEM legenda nova = o WhatsApp mostrou um aviso por cima (ex.: "arquivo
+// não é compatível"): é recusa, e o arquivo não é tentado de novo pelo outro caminho.
+// Só olha caixas de texto e o que está por cima da caixa de mensagem; nunca lê as conversas.
 import { acharCaixa } from "./inserir.ts";
 import { deBase64, type ArquivoAnexo } from "./base64.ts";
 
 export type ResultadoAnexo =
   | { ok: true; metodo: "colar" | "arrastar" }
-  | { ok: false; motivo: "sem-conversa" | "layout" | "nao-abriu" };
+  | { ok: false; motivo: "sem-conversa" | "layout" | "nao-abriu" | "recusado" };
 
 const ID_PAINEL = "marcon-painel-embutido";
 
@@ -40,15 +43,33 @@ export function caixaCoberta(caixa: HTMLElement, doc: Document = document): bool
   return !(el === caixa || caixa.contains(el) || el.contains(caixa));
 }
 
-async function abriu(doc: Document, caixaAntes: HTMLElement, ms: number): Promise<boolean> {
-  // espera em passos curtos: a prévia aparece um pouco depois do evento
+// caixas de texto à vista fora da lista de conversas e do painel do Marcon
+function caixasDeTexto(doc: Document): Set<Element> {
+  const lista = doc.querySelectorAll('[contenteditable="true"], textarea');
+  return new Set([...lista].filter((el) => !el.closest("#side") && !el.closest(`#${ID_PAINEL}`) && el.getClientRects().length > 0));
+}
+
+type Efeito = "abriu" | "recusado" | "nada";
+
+// Espera em passos curtos o que o WhatsApp fez com o arquivo
+async function efeito(doc: Document, caixa: HTMLElement, antes: Set<Element>, avisosAntes: number, ms: number): Promise<Efeito> {
   const fim = Date.now() + ms;
+  let recusa = false;
   while (Date.now() < fim) {
     await esperar(100);
-    const atual = acharCaixa(doc);
-    if (!atual || atual !== caixaAntes || caixaCoberta(caixaAntes, doc)) return true;
+    for (const el of caixasDeTexto(doc)) if (!antes.has(el) && el !== caixa) return "abriu";
+    // aviso novo (diálogo ou alerta) ou algo por cima da caixa sem legenda: recusa, por enquanto
+    recusa = avisosNaTela(doc) > avisosAntes || caixaCoberta(caixa, doc);
   }
-  return false;
+  return recusa ? "recusado" : "nada";
+}
+
+// quantos diálogos e alertas estão à vista (o aviso "não é compatível" do WhatsApp é um deles).
+// Conta só; não lê o texto.
+function avisosNaTela(doc: Document): number {
+  return [...doc.querySelectorAll('[role="dialog"], [role="alert"], [role="alertdialog"]')].filter(
+    (el) => !el.closest(`#${ID_PAINEL}`) && el.getClientRects().length > 0,
+  ).length;
 }
 
 function colar(caixa: HTMLElement, arquivo: File) {
@@ -86,24 +107,21 @@ export async function anexarArquivo(arquivo: File, doc: Document = document): Pr
   // caixa já coberta (outra prévia aberta, menu na frente): não dá para saber se abriu, não tenta
   if (caixaCoberta(caixa, doc)) return { ok: false, motivo: "nao-abriu" };
 
+  const antes = caixasDeTexto(doc);
+  const avisosAntes = avisosNaTela(doc);
+  const metodo = arquivo.type.startsWith("image/") ? "colar" : "arrastar";
   try {
-    colar(caixa, arquivo);
-  } catch {
-    // navegador sem DataTransfer construível: segue para arrastar
-  }
-  // espera folgada: arrastar com a prévia já a caminho poria o arquivo duas vezes nela
-  if (await abriu(doc, caixa, 2000)) return { ok: true, metodo: "colar" };
-
-  try {
-    await arrastar(doc, arquivo);
+    if (metodo === "colar") colar(caixa, arquivo);
+    else await arrastar(doc, arquivo);
   } catch {
     return { ok: false, motivo: "nao-abriu" };
   }
-  if (await abriu(doc, caixa, 2000)) return { ok: true, metodo: "arrastar" };
-  return { ok: false, motivo: "nao-abriu" };
+  const r = await efeito(doc, caixa, antes, avisosAntes, 4000);
+  if (r === "abriu") return { ok: true, metodo };
+  return { ok: false, motivo: r === "recusado" ? "recusado" : "nao-abriu" };
 }
 
-export function mensagemDeFalhaAnexo(motivo: "sem-conversa" | "layout" | "nao-abriu" | "sem-aba"): string {
+export function mensagemDeFalhaAnexo(motivo: "sem-conversa" | "layout" | "nao-abriu" | "recusado" | "sem-aba"): string {
   switch (motivo) {
     case "sem-conversa":
       return "Abra uma conversa no WhatsApp e tente de novo.";
@@ -111,7 +129,9 @@ export function mensagemDeFalhaAnexo(motivo: "sem-conversa" | "layout" | "nao-ab
       return "Abra o WhatsApp Web nesta janela e tente de novo.";
     case "layout":
       return "Não achei a conversa. O WhatsApp pode ter mudado. Use Baixar e arraste o arquivo para a conversa.";
+    case "recusado":
+      return "O WhatsApp recusou esse arquivo. Feche o aviso na conversa. Se quiser, use Baixar e anexe pelo clipe do WhatsApp.";
     case "nao-abriu":
-      return "A prévia do WhatsApp não abriu. Feche o que estiver aberto na conversa ou use Baixar e arraste o arquivo.";
+      return "A prévia do WhatsApp não abriu. Feche o que estiver aberto na conversa ou use Baixar e anexe pelo clipe do WhatsApp.";
   }
 }

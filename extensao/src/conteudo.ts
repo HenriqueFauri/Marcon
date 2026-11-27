@@ -1,10 +1,13 @@
-// Roda dentro do web.whatsapp.com. Só faz três coisas, sempre a pedido da própria extensão:
+// Roda dentro do web.whatsapp.com. Só faz isto, sempre a pedido da própria extensão:
 // 1) coloca o texto pronto na caixa de mensagem (sem enviar);
-// 2) coloca um arquivo (foto, PDF, áudio) na prévia de anexo do WhatsApp (sem enviar);
-// 3) no navegador sem painel lateral, mostra ou esconde o painel embutido.
-// Não lê conversas, não observa a página, não fala com servidor nenhum.
+// 2) coloca uma foto ou PDF na prévia de anexo do WhatsApp (sem enviar);
+// 3) diz o nome da conversa aberta e, depois do clique do dono em "Enviar áudio de voz" confirmado
+//    para essa conversa, manda UM áudio de voz por pagina.ts (mundo da página, WA-JS);
+// 4) no navegador sem painel lateral, mostra ou esconde o painel embutido.
+// Não lê mensagens, não observa a página, não fala com servidor nenhum.
 import { inserirTexto } from "./inserir.ts";
 import { anexarArquivo, montarArquivo } from "./anexar.ts";
+import { falarComPagina } from "./voz.ts";
 import type { PedidoAba } from "./mensagens.ts";
 
 const ID_PAINEL = "marcon-painel-embutido";
@@ -51,6 +54,15 @@ chrome.runtime.onMessage.addListener((pedido: PedidoAba, remetente, responder) =
       .then(() => anexarArquivo(montarArquivo(pedido.arquivo)))
       .then(responder)
       .catch(() => responder({ ok: false, motivo: "nao-abriu" }));
+    return true;
+  }
+  if (pedido.tipo === "conversa") {
+    falarComPagina("conversa").then(responder);
+    return true;
+  }
+  if (pedido.tipo === "enviarVoz") {
+    // o envio espera a confirmação do servidor do WhatsApp: prazo maior
+    falarComPagina("enviarVoz", { conversa: pedido.conversa, base64: pedido.base64 }, 60000).then(responder);
     return true;
   }
   if (pedido.tipo === "alternarPainel") {

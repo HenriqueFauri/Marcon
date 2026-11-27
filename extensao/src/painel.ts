@@ -23,8 +23,10 @@ import {
   type VendaRapida,
 } from "./venda.ts";
 import { deBase64, paraBase64, type ArquivoAnexo } from "./base64.ts";
-import { ROTULO_TIPO, detalheDaMidia, filtrarMidias, formatarDuracao, LIMITE_GRAVACAO_SEG, formatoDeGravacao, nomeParaEnvio } from "./midias.ts";
+import { ROTULO_TIPO, detalheDaMidia, filtrarMidias, formatarDuracao, LIMITE_GRAVACAO_SEG, formatoDeGravacao } from "./midias.ts";
 import type { FotoProduto, MidiaPainel } from "./midias-db.ts";
+import type { ProdutoComFoto } from "./busca.ts";
+import { codificaOpus, paraOggOpus } from "./ogg-opus.ts";
 import {
   INICIO,
   acaoAtual,
@@ -133,6 +135,105 @@ async function anexarComBotao(p: Pedido, botao: HTMLButtonElement, aoPerderSessa
   if (r.dados.anexou) return avisar(r.dados.mensagem);
   const arquivo = r.dados.arquivo;
   avisar(r.dados.mensagem, true, arquivo ? { rotulo: "Baixar", fazer: () => baixarArquivo(arquivo) } : undefined);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Áudio de voz: converte para OGG/Opus aqui, pergunta qual conversa está aberta no WhatsApp, mostra o
+// nome para o dono confirmar e só então manda UM áudio de voz nela. Sem prévia: o clique em Enviar
+// da confirmação é o envio. Um por vez (os botões ficam travados até voltar).
+
+let vozOcupada = false;
+
+// Confirmação por cima do painel com o nome da conversa. true só no clique em Enviar.
+function confirmarEnvio(nome: string, titulo: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const fundo = h("div", { class: "confirmar-fundo" });
+    const enviar = h("button", { class: "btn btn-principal", type: "button" }, "Enviar");
+    const cancelar = h("button", { class: "btn btn-secundario", type: "button" }, "Cancelar");
+    const fechar = (ok: boolean) => {
+      fundo.remove();
+      document.removeEventListener("keydown", tecla);
+      resolve(ok);
+    };
+    const tecla = (e: KeyboardEvent) => e.key === "Escape" && fechar(false);
+    enviar.addEventListener("click", () => fechar(true));
+    cancelar.addEventListener("click", () => fechar(false));
+    fundo.append(
+      h(
+        "div",
+        { class: "confirmar", role: "dialog", "aria-modal": "true", "aria-label": "Confirmar envio do áudio de voz" },
+        h("strong", {}, "Enviar áudio de voz?"),
+        h("span", { class: "detalhe" }, titulo),
+        h("span", { class: "confirmar-para" }, "Para: ", h("b", {}, nome)),
+        h("span", { class: "detalhe" }, "Vai direto para a conversa, como mensagem de voz."),
+        enviar,
+        cancelar,
+      ),
+    );
+    document.body.append(fundo);
+    document.addEventListener("keydown", tecla);
+    cancelar.focus();
+  });
+}
+
+async function enviarAudioDeVoz(
+  titulo: string,
+  obterBytes: () => Promise<ArrayBuffer | string>,
+  botao: HTMLButtonElement,
+  aoPerderSessao?: (erro: string) => void,
+): Promise<boolean> {
+  if (vozOcupada) return false;
+  if (!codificaOpus()) {
+    avisar("Este navegador não converte áudio para mensagem de voz. Use o Brave ou o Chrome atualizado.", true);
+    return false;
+  }
+  vozOcupada = true;
+  const rotulo = botao.textContent;
+  botao.disabled = true;
+  const voltar = () => {
+    vozOcupada = false;
+    botao.disabled = false;
+    botao.textContent = rotulo;
+  };
+  try {
+    botao.textContent = "Preparando...";
+    const bytes = await obterBytes();
+    if (typeof bytes === "string") {
+      if (bytes.includes("sessão") && aoPerderSessao) aoPerderSessao(bytes);
+      else avisar(bytes, true);
+      return false;
+    }
+    let ogg: Uint8Array;
+    try {
+      ogg = (await paraOggOpus(bytes)).ogg;
+    } catch {
+      avisar("Não deu para converter esse áudio para mensagem de voz.", true);
+      return false;
+    }
+    const c = await pedir<{ id: string; nome: string }>({ tipo: "conversaAberta" });
+    if (!c.ok) {
+      avisar(c.erro, true);
+      return false;
+    }
+    botao.textContent = "Confirme...";
+    if (!(await confirmarEnvio(c.dados.nome, titulo))) return false;
+    botao.textContent = "Enviando...";
+    const r = await pedir<string>({ tipo: "enviarVoz", conversa: c.dados.id, base64: paraBase64(ogg) });
+    if (!r.ok) {
+      avisar(r.erro, true);
+      return false;
+    }
+    avisar(`Áudio de voz enviado para ${c.dados.nome}.`);
+    return true;
+  } finally {
+    voltar();
+  }
+}
+
+// bytes de um áudio da biblioteca (ou a mensagem de erro)
+async function bytesDaMidia(id: string): Promise<ArrayBuffer | string> {
+  const r = await pedir<ArquivoAnexo>({ tipo: "arquivoMidia", id });
+  return r.ok ? deBase64(r.dados.base64).buffer : r.erro;
 }
 
 async function copiar(texto: string): Promise<boolean> {
@@ -280,7 +381,7 @@ function inserirCopiar(texto: () => string, alvo: string) {
 // Foto do produto direto do estoque: Anexar foto manda a capa; Fotos abre as outras para escolher.
 let perderSessao: (erro: string) => void = () => {};
 
-function fotosDoItem(p: ProdutoBusca) {
+function fotosDoItem(p: Pick<ProdutoBusca, "id" | "nome" | "capaPath" | "totalFotos">) {
   if (!p.capaPath) return null;
   const total = p.totalFotos ?? 1;
   const grade = h("div", { class: "fotos", hidden: "" });
@@ -430,6 +531,8 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
       avisar(copiou ? `${r.erro} Já copiei o texto: clique na caixa e cole.` : r.erro, true);
       return copiou;
     }
+    // áudio: mensagem de voz direto na conversa, depois da confirmação com o nome dela
+    if (a.midia.tipo === "audio") return enviarAudioDeVoz(a.midia.titulo, () => bytesDaMidia(a.midia.id), botao, aoPerderSessao);
     botao.textContent = "Anexando...";
     const r = await pedir<ResultadoAnexar>({ tipo: "anexarMidia", id: a.midia.id });
     if (!r.ok) {
@@ -631,8 +734,12 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
               ...(conta?.midias ?? [])
                 .filter((m) => m.resposta_id === r.id)
                 .map((m) => {
-                  const b = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Anexar ${m.titulo}` }, "Anexar");
-                  b.addEventListener("click", () => anexarComBotao({ tipo: "anexarMidia", id: m.id }, b, aoPerderSessao));
+                  const voz = m.tipo === "audio";
+                  const rotulo = voz ? "Enviar áudio de voz" : "Anexar";
+                  const b = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `${rotulo} ${m.titulo}` }, rotulo);
+                  b.addEventListener("click", () =>
+                    voz ? enviarAudioDeVoz(m.titulo, () => bytesDaMidia(m.id), b, aoPerderSessao) : anexarComBotao({ tipo: "anexarMidia", id: m.id }, b, aoPerderSessao),
+                  );
                   return h("div", { class: "anexo-ligado" }, h("span", { class: "detalhe" }, `${ROTULO_TIPO[m.tipo]}: ${m.titulo}`), b);
                 }),
             ),
@@ -1093,8 +1200,8 @@ function miniaturaMidia(m: MidiaPainel) {
   return h("div", { class: `capa vazia tipo-${m.tipo}`, "aria-hidden": "true" }, m.tipo === "documento" ? "PDF" : m.tipo === "audio" ? "Áudio" : "Foto");
 }
 
-// Gravar áudio com o microfone. Entra no WhatsApp como arquivo de áudio (com play), não como
-// mensagem de voz, e só quando o dono clica em Anexar e depois envia na prévia.
+// Gravar áudio com o microfone. Vai como mensagem de voz para a conversa aberta, só no clique do dono
+// em "Enviar áudio de voz" e depois de ele confirmar o nome da conversa.
 function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) {
   const corpo = h("div", { class: "gravador" });
   let gravacao: { blob: Blob; ext: string; duracao: number; url: string } | null = null;
@@ -1106,7 +1213,7 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
     const botao = h("button", { class: "btn-pequeno destaque", type: "button" }, "Gravar áudio");
     botao.addEventListener("click", comecar);
     corpo.replaceChildren(
-      h("div", { class: "info" }, h("span", { class: "nome" }, "Áudio na hora"), h("span", { class: "detalhe" }, `Até ${formatarDuracao(LIMITE_GRAVACAO_SEG)}. Chega como arquivo de áudio, não como mensagem de voz.`)),
+      h("div", { class: "info" }, h("span", { class: "nome" }, "Áudio na hora"), h("span", { class: "detalhe" }, `Até ${formatarDuracao(LIMITE_GRAVACAO_SEG)}. Vai como mensagem de voz para a conversa aberta.`)),
       botao,
     );
   }
@@ -1186,13 +1293,11 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
       "aria-label": "Nome do áudio",
       value: `Áudio ${agora.toLocaleDateString("pt-BR")} ${agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
     });
-    const anexar = h("button", { class: "btn-pequeno destaque", type: "button" }, "Anexar");
+    const enviar = h("button", { class: "btn-pequeno destaque", type: "button" }, "Enviar áudio de voz");
     const salvar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Salvar na biblioteca");
     const descartar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Descartar");
     const base64 = async () => paraBase64(await g.blob.arrayBuffer());
-    anexar.addEventListener("click", async () =>
-      anexarComBotao({ tipo: "anexarArquivo", arquivo: { base64: await base64(), mime: g.blob.type, nome: nomeParaEnvio(titulo.value || "Áudio", g.ext) } }, anexar, aoPerderSessao),
-    );
+    enviar.addEventListener("click", () => enviarAudioDeVoz(titulo.value || "Áudio gravado", () => g.blob.arrayBuffer(), enviar, aoPerderSessao));
     salvar.addEventListener("click", async () => {
       salvar.disabled = true;
       salvar.textContent = "Salvando...";
@@ -1212,7 +1317,7 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
       h("div", { class: "info" }, h("span", { class: "nome" }, "Áudio gravado"), h("span", { class: "detalhe" }, formatarDuracao(g.duracao))),
       h("audio", { controls: "", src: g.url, preload: "metadata" }),
       titulo,
-      h("div", { class: "acoes" }, anexar, salvar, descartar),
+      h("div", { class: "acoes" }, enviar, salvar, descartar),
     );
   }
 
@@ -1221,7 +1326,7 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
 }
 
 function secaoMidia(aoPerderSessao: (erro: string) => void) {
-  const campo = h("input", { type: "search", placeholder: "Nome, foto, PDF ou áudio", "aria-label": "Buscar mídia", autocomplete: "off" });
+  const campo = h("input", { type: "search", placeholder: "Produto ou arquivo", "aria-label": "Buscar produto ou arquivo", autocomplete: "off" });
   const lista = h("div", { class: "grupo" });
   let midias: MidiaPainel[] | null = null;
   let carregando = false;
@@ -1254,48 +1359,85 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
     });
   }
 
-  function desenhar() {
-    if (!midias) return;
-    if (midias.length === 0) {
-      lista.replaceChildren(
-        h(
-          "div",
-          { class: "cartao" },
-          h(
-            "div",
-            { class: "vazio" },
-            h("strong", {}, "Nenhuma mídia"),
-            "Suba fotos, PDFs e áudios no Marcon, em Configurações. Depois clique em Atualizar.",
-            h("div", { style: "padding-top:12px" }, h("a", { class: "btn btn-secundario", href: `${BASE_LOJA}/configuracoes/midias`, target: "_blank", rel: "noopener" }, "Abrir no Marcon")),
-          ),
-        ),
+  // Fotos do estoque: produtos com foto (os primeiros em ordem de nome, ou os da busca)
+  const listaProdutos = h("div", { class: "grupo" });
+  let produtos: ProdutoComFoto[] | null = null;
+  let ultimaBusca = 0;
+  let timer: number | undefined;
+
+  async function carregarProdutos() {
+    const n = ++ultimaBusca;
+    const r = await pedir<ProdutoComFoto[]>({ tipo: "produtosComFoto", termo: campo.value.trim() });
+    if (n !== ultimaBusca) return; // chegou resposta de uma busca antiga
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+      listaProdutos.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+      return;
+    }
+    produtos = r.dados;
+    desenharProdutos();
+  }
+
+  function desenharProdutos() {
+    if (!produtos) return;
+    const buscando = campo.value.trim().length >= 2;
+    if (produtos.length === 0) {
+      listaProdutos.replaceChildren(
+        h("h2", { class: "grupo-titulo" }, "Fotos do estoque"),
+        h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, buscando ? "Nenhum produto com foto" : "Nenhum produto com foto ainda"), buscando ? "Tente outra palavra." : "Ponha fotos nos produtos, no Marcon.")),
       );
       return;
     }
+    listaProdutos.replaceChildren(
+      h("h2", { class: "grupo-titulo" }, "Fotos do estoque"),
+      h(
+        "div",
+        { class: "cartao" },
+        ...produtos.map((p) =>
+          h(
+            "div",
+            { class: "produto" },
+            p.capa ? h("img", { class: "capa", src: p.capa, alt: "", loading: "lazy" }) : h("div", { class: "capa vazia", "aria-hidden": "true" }, (p.nome.trim()[0] ?? "?").toUpperCase()),
+            h("div", { class: "info" }, h("span", { class: "nome" }, p.nome), fotosDoItem(p)),
+          ),
+        ),
+      ),
+      h("p", { class: "grupo-rodape" }, buscando ? "Anexar abre a prévia do WhatsApp com a foto. Quem envia é você." : "Os 30 primeiros com foto. Busque pelo nome para achar outro."),
+    );
+  }
+
+  function desenhar() {
+    if (!midias) return;
+    // biblioteca da conta: só aparece quando tem arquivo
+    if (midias.length === 0) return lista.replaceChildren();
     const achadas = filtrarMidias(midias, campo.value);
     if (achadas.length === 0) {
-      lista.replaceChildren(h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nada encontrado"), "Tente outra palavra.")));
+      lista.replaceChildren(h("h2", { class: "grupo-titulo" }, "Biblioteca"), h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nada na biblioteca"), "Tente outra palavra.")));
       return;
     }
     lista.replaceChildren(
-      h("h2", { class: "grupo-titulo" }, achadas.length === 1 ? "1 arquivo" : `${achadas.length} arquivos`),
+      h("h2", { class: "grupo-titulo" }, achadas.length === 1 ? "Biblioteca · 1 arquivo" : `Biblioteca · ${achadas.length} arquivos`),
       h(
         "div",
         { class: "cartao" },
         ...achadas.map((m) => {
-          const anexar = h("button", { class: "btn-pequeno destaque", type: "button", "aria-label": `Anexar ${m.titulo}` }, "Anexar");
-          anexar.addEventListener("click", () => anexarComBotao({ tipo: "anexarMidia", id: m.id }, anexar, aoPerderSessao));
-          const ouvirBotao = m.tipo === "audio" ? h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Ouvir ${m.titulo}` }, "Ouvir") : null;
+          const voz = m.tipo === "audio";
+          const rotulo = voz ? "Enviar áudio de voz" : "Anexar";
+          const acao = h("button", { class: "btn-pequeno destaque", type: "button", "aria-label": `${rotulo} ${m.titulo}` }, rotulo);
+          acao.addEventListener("click", () =>
+            voz ? enviarAudioDeVoz(m.titulo, () => bytesDaMidia(m.id), acao, aoPerderSessao) : anexarComBotao({ tipo: "anexarMidia", id: m.id }, acao, aoPerderSessao),
+          );
+          const ouvirBotao = voz ? h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Ouvir ${m.titulo}` }, "Ouvir") : null;
           ouvirBotao?.addEventListener("click", () => ouvir(m, ouvirBotao));
           return h(
             "div",
             { class: "produto" },
             miniaturaMidia(m),
-            h("div", { class: "info" }, h("span", { class: "nome" }, m.titulo), h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, anexar, ouvirBotao)),
+            h("div", { class: "info" }, h("span", { class: "nome" }, m.titulo), h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, acao, ouvirBotao)),
           );
         }),
       ),
-      h("p", { class: "grupo-rodape" }, "Anexar abre a prévia do WhatsApp com o arquivo. Quem envia é você."),
+      h("p", { class: "grupo-rodape" }, "Anexar abre a prévia do WhatsApp; o áudio vai como mensagem de voz depois de você confirmar a conversa."),
     );
   }
 
@@ -1304,8 +1446,8 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
     carregando = true;
     atualizar.disabled = true;
     atualizar.textContent = "Atualizando...";
-    if (!midias) lista.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
-    const r = await pedir<MidiaPainel[]>({ tipo: "midias" });
+    if (!produtos) listaProdutos.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
+    const [r] = await Promise.all([pedir<MidiaPainel[]>({ tipo: "midias" }), carregarProdutos()]);
     carregando = false;
     atualizar.disabled = false;
     atualizar.textContent = "Atualizar";
@@ -1317,18 +1459,39 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
     }
     midias = r.dados;
     desenhar();
-    if (manual) avisar(midias.length === 1 ? "1 arquivo." : `${midias.length} arquivos.`);
+    if (manual) avisar("Lista atualizada.");
   }
 
-  campo.addEventListener("input", desenhar);
+  campo.addEventListener("input", () => {
+    desenhar();
+    clearTimeout(timer);
+    timer = window.setTimeout(carregarProdutos, 250);
+  });
   const el = h(
     "div",
     { class: "secao" },
     h("div", { class: "linha-busca" }, h("div", { class: "busca" }, iconeLupa(), campo), atualizar),
     grupo("Gravar", grav.el),
+    listaProdutos,
     lista,
   );
   return { el, carregar, focar: () => campo.focus(), carregou: () => midias !== null, parar: () => { grav.cancelar(); tocando?.audio.pause(); } };
+}
+
+// Conta no rodapé, como no site: bolinha com a inicial; o clique abre o e-mail e o Sair.
+function contaNoRodape(email: string, sair: HTMLButtonElement) {
+  const menu = h("div", { class: "conta-menu", id: "conta-menu", hidden: "", role: "group", "aria-label": "Sua conta" }, h("span", { class: "detalhe conta-email" }, email), sair);
+  const botao = h(
+    "button",
+    { class: "conta-avatar", type: "button", "aria-label": `Conta: ${email}`, "aria-expanded": "false", "aria-controls": "conta-menu", title: email },
+    (email.trim()[0] ?? "M").toUpperCase(),
+  );
+  botao.addEventListener("click", () => {
+    const abrir = menu.hidden;
+    menu.hidden = !abrir;
+    botao.setAttribute("aria-expanded", String(abrir));
+  });
+  return h("footer", { class: "rodape-conta" }, menu, botao);
 }
 
 // voltar ao painel (ou à aba do WhatsApp, no painel embutido) traz a lista nova do app
@@ -1393,7 +1556,7 @@ function telaPrincipal(sessao: Sessao) {
   const sair = h(
     "button",
     {
-      class: "texto-perigo",
+      class: "texto-perigo sair",
       type: "button",
       on: {
         click: async () => {
@@ -1460,8 +1623,7 @@ function telaPrincipal(sessao: Sessao) {
     respostas.el,
     midia.el,
     vender.el,
-    grupo("Conta", h("div", { class: "linha detalhe" }, sessao.email)),
-    h("div", {}, sair),
+    contaNoRodape(sessao.email, sair),
     avisoEl,
   );
   const salva = sessionStorage.getItem("marcon_aba");

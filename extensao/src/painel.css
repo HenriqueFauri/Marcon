@@ -201,3 +201,20 @@ a.btn { text-decoration: none; box-sizing: border-box; }
 .feita strong { font-size: 17px; color: var(--positive); }
 .texto-marca { border: 0; background: transparent; color: var(--brand-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; padding: 8px 16px; }
 .grupo > .btn + .btn, .grupo > a.btn { margin-top: 4px; }
+
+/* Conta no rodapé (como a bolinha da conta no site) */
+.rodape-conta { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 4px; }
+.conta-avatar { width: 44px; height: 44px; border: 0; border-radius: 999px; background: var(--fill); color: var(--ink-muted); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.conta-avatar:hover, .conta-avatar[aria-expanded="true"] { background: var(--fill-strong); color: var(--ink); }
+.conta-avatar:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.conta-menu { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; background: var(--surface); border-radius: 16px; padding: 12px 4px 4px; min-width: 220px; max-width: 100%; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); }
+.conta-menu[hidden] { display: none; }
+.conta-email { padding: 0 12px; }
+.conta-menu .sair { padding: 8px 12px; }
+
+/* Confirmação do áudio de voz */
+.confirmar-fundo { position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, 0.35); display: flex; align-items: flex-end; justify-content: center; padding: 12px; }
+.confirmar { width: 100%; max-width: 420px; background: var(--surface); border-radius: 22px; padding: 18px 16px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }
+.confirmar strong { font-size: 17px; }
+.confirmar-para { font-size: 15px; overflow-wrap: anywhere; }
+.confirmar .btn { margin-top: 4px; }

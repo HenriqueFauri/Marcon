@@ -132,3 +132,32 @@ export async function buscarProdutos(db: SupabaseClient, bruto: string, baseLoja
   });
   return { ok: true, dados };
 }
+
+// Aba Mídia: produtos com foto no estoque, para anexar a foto direto dali. Sem termo, os primeiros 30
+// com foto em ordem de nome; com termo, a mesma busca da aba Produtos, só os que têm foto.
+export type ProdutoComFoto = Pick<ProdutoBusca, "id" | "nome" | "capa" | "capaPath" | "totalFotos">;
+
+export async function produtosComFoto(db: SupabaseClient, bruto: string, baseLoja: string): Promise<Resposta<ProdutoComFoto[]>> {
+  const resumo = (p: ProdutoComFoto): ProdutoComFoto => ({ id: p.id, nome: p.nome, capa: p.capa, capaPath: p.capaPath, totalFotos: p.totalFotos });
+  if (termoSeguro(bruto).length >= 2) {
+    const r = await buscarProdutos(db, bruto, baseLoja);
+    return r.ok ? { ok: true, dados: r.dados.filter((p) => p.capaPath).map(resumo) } : r;
+  }
+  const { data: sessao } = await db.auth.getSession();
+  if (!sessao.session) return { ok: false, erro: "Sua sessão acabou. Entre de novo." };
+  const { data: comFoto, error } = await db.from("produto_capas").select("produto_id").limit(1000);
+  if (error) return { ok: false, erro: "Não deu para carregar os produtos. Tente de novo." };
+  const ids = [...new Set((comFoto ?? []).map((c) => c.produto_id as string))];
+  if (ids.length === 0) return { ok: true, dados: [] };
+  const { data, error: erroProdutos } = await db.from("produtos").select("id, nome").eq("status", "ativo").in("id", ids.slice(0, 300)).order("nome").limit(30);
+  if (erroProdutos) return { ok: false, erro: "Não deu para carregar os produtos. Tente de novo." };
+  const linhas = (data ?? []) as { id: string; nome: string }[];
+  const fotos = await capas(db, linhas.map((l) => l.id));
+  return {
+    ok: true,
+    dados: linhas.flatMap((l) => {
+      const f = fotos.get(l.id);
+      return f ? [{ id: l.id, nome: l.nome, capa: f.url, capaPath: f.path, totalFotos: f.total }] : [];
+    }),
+  };
+}
