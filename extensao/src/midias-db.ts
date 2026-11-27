@@ -170,3 +170,19 @@ export async function salvarGravacao(db: SupabaseClient, g: NovaGravacao): Promi
 export function extensaoConfere(m: Pick<Midia, "path" | "mime">): boolean {
   return FORMATOS[extensaoDoCaminho(m.path)]?.mime === m.mime;
 }
+
+// Renomear um arquivo da biblioteca (o nome também é o nome do arquivo que chega na conversa)
+export async function renomearMidia(db: SupabaseClient, id: string, bruto: string): Promise<Resposta<{ id: string; titulo: string }>> {
+  if (!(await logado(db))) return { ok: false, erro: SEM_SESSAO };
+  const titulo = bruto.replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!titulo) return { ok: false, erro: "Dê um nome para o arquivo." };
+  const { data: atual } = await db.from("midias").select("path").eq("id", id).maybeSingle();
+  if (!atual) return { ok: false, erro: "Arquivo não encontrado. Atualize a lista." };
+  const { data, error } = await db
+    .from("midias")
+    .update({ titulo, nome_arquivo: nomeParaEnvio(titulo, extensaoDoCaminho(atual.path as string)) })
+    .eq("id", id)
+    .select("id, titulo");
+  if (error || !data || data.length === 0) return { ok: false, erro: "Não deu para renomear. Tente de novo." };
+  return { ok: true, dados: data[0] as { id: string; titulo: string } };
+}

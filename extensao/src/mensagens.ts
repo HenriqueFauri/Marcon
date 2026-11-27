@@ -28,7 +28,11 @@ export type Pedido =
   | { tipo: "conversaAberta" }
   | { tipo: "enviarVoz"; conversa: string; base64: string }
   // aba Mídia: produtos com foto (lista inicial ou busca)
-  | { tipo: "produtosComFoto"; termo: string };
+  | { tipo: "produtosComFoto"; termo: string }
+  // topo e rodapé (como a barra lateral do app), lista de produtos ao abrir e renomear áudio
+  | { tipo: "conta" }
+  | { tipo: "listarProdutos"; pagina: number }
+  | { tipo: "renomearMidia"; id: string; titulo: string };
 
 export type Resposta<T = unknown> = { ok: true; dados: T } | { ok: false; erro: string };
 

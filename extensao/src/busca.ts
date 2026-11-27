@@ -97,6 +97,11 @@ export async function buscarProdutos(db: SupabaseClient, bruto: string, baseLoja
     linhas.push(...((data ?? []) as unknown as LinhaProduto[]));
   }
 
+  return { ok: true, dados: await montar(db, linhas, baseLoja) };
+}
+
+// Linhas do banco viram o que o painel mostra: capa assinada, variações, link da vitrine quando vale
+async function montar(db: SupabaseClient, linhas: LinhaProduto[], baseLoja: string): Promise<ProdutoBusca[]> {
   const ids = linhas.map((l) => l.id);
   const [fotos, vitrine] = await Promise.all([capas(db, ids), produtosComLink(db)]);
 
@@ -130,7 +135,21 @@ export async function buscarProdutos(db: SupabaseClient, bruto: string, baseLoja
       link: vitrine.slug && vitrine.ids.has(l.id) ? linkDoProduto(baseLoja, vitrine.slug, l.id) : null,
     };
   });
-  return { ok: true, dados };
+  return dados;
+}
+
+// Aba Produtos com a busca vazia: os produtos ativos da conta em ordem de nome, 30 por página
+export const POR_PAGINA = 30;
+export async function listarProdutos(db: SupabaseClient, pagina: number, baseLoja: string): Promise<Resposta<{ produtos: ProdutoBusca[]; temMais: boolean }>> {
+  const { data: sessao } = await db.auth.getSession();
+  if (!sessao.session) return { ok: false, erro: "Sua sessão acabou. Entre de novo." };
+  const de = Math.max(0, Math.floor(pagina)) * POR_PAGINA;
+  // um a mais que a página, para saber se tem a próxima
+  const { data, error } = await db.from("produtos").select(CAMPOS).eq("status", "ativo").order("nome").order("id").range(de, de + POR_PAGINA);
+  if (error) return { ok: false, erro: "Não deu para carregar os produtos. Tente de novo." };
+  const linhas = (data ?? []) as unknown as LinhaProduto[];
+  const temMais = linhas.length > POR_PAGINA;
+  return { ok: true, dados: { produtos: await montar(db, linhas.slice(0, POR_PAGINA), baseLoja), temMais } };
 }
 
 // Aba Mídia: produtos com foto no estoque, para anexar a foto direto dali. Sem termo, os primeiros 30

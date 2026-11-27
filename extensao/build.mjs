@@ -36,12 +36,20 @@ if (args.includes("--simulacao")) {
   cpSync(join(aqui, "teste", "simulacao.html"), join(saida, "index.html"));
   cpSync(join(aqui, "src", "painel.css"), join(saida, "painel.css"));
   cpSync(join(aqui, "icones"), join(saida, "icones"), { recursive: true });
+  copiarFontes(saida);
   writeFileSync(
     join(saida, "painel.html"),
     readFileSync(join(aqui, "src", "painel.html"), "utf8").replace('<script src="painel.js">', '<script src="chrome-falso.js"></script>\n    <script src="painel.js">'),
   );
   console.log(`Simulação pronta em ${saida}`);
   process.exit(0);
+}
+
+// Fonte do app (Geist, licença OFL): a mesma que o Next entrega ao site, copiada do pacote next da raiz
+function copiarFontes(destino) {
+  const origem = join(aqui, "..", "node_modules", "next", "dist", "esm", "next-devtools", "server", "font");
+  mkdirSync(join(destino, "fontes"), { recursive: true });
+  for (const f of ["geist-latin.woff2", "geist-latin-ext.woff2"]) cpSync(join(origem, f), join(destino, "fontes", f));
 }
 
 const AMBIENTES = {
@@ -125,6 +133,7 @@ await build({
 });
 for (const f of ["painel.html", "painel.css", "retorno.html", "microfone.html"]) cpSync(join(aqui, "src", f), join(saida, f));
 cpSync(join(aqui, "icones"), join(saida, "icones"), { recursive: true });
+copiarFontes(saida);
 // WA-JS (Apache 2.0): funções internas do WhatsApp Web, usadas só para o áudio de voz (pagina.ts)
 const waJs = join(aqui, "node_modules", "@wppconnect", "wa-js");
 cpSync(join(waJs, "dist", "wppconnect-wa.js"), join(saida, "wa.js"));

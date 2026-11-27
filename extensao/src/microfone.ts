@@ -1,6 +1,12 @@
 // Página para liberar o microfone da extensão. O painel lateral do navegador não mostra o pedido de
 // permissão; numa aba normal ele aparece. Depois de liberado aqui, o painel grava. Não grava nada.
 const app = document.getElementById("app")!;
+// mesmo tema escolhido no painel (Claro por padrão, como no app)
+try {
+  if (localStorage.getItem("marcon-tema") === "dark") document.documentElement.setAttribute("data-theme", "dark");
+} catch {
+  // sem armazenamento: fica no claro
+}
 
 function mostrar(titulo: string, texto: string, erro = false) {
   const cartao = document.createElement("div");

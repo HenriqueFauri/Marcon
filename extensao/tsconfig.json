@@ -9,7 +9,8 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
-    "types": ["chrome", "node"]
+    "types": ["chrome", "node"],
+    "paths": { "@/*": ["../src/*"] }
   },
   "include": ["src/**/*.ts", "teste/**/*.ts"]
 }
