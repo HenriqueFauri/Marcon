@@ -6,7 +6,8 @@ import { useEffect } from "react";
 // Este componente rola de novo quando a página de verdade chega.
 export function RolarParaAncora() {
   useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1));
+    // sem decodeURIComponent: um % mal formado no link derrubaria a tela, e os ids são ASCII
+    const id = window.location.hash.slice(1);
     if (id) document.getElementById(id)?.scrollIntoView();
   }, []);
   return null;
