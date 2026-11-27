@@ -5,6 +5,23 @@ import { estoqueTotal, formatarMensagem, formatarPreco, type ProdutoBusca } from
 import { pedir, type Sessao } from "./mensagens.ts";
 import { filtrarRespostas, preencherVariaveis } from "./respostas.ts";
 import type { RespostasDaConta } from "./respostas-db.ts";
+import {
+  assinaturaDaVenda,
+  canalPadrao,
+  filtrarClientes,
+  lerPreco,
+  MAX_QUANTIDADE,
+  semAcento,
+  soDigitos,
+  totalDaVenda,
+  type ClienteBusca,
+  type DadosDaVenda,
+  type ItemVendaRapida,
+  type Opcao,
+  type RespostaVenda,
+  type VendaFeita,
+  type VendaRapida,
+} from "./venda.ts";
 
 const app = document.getElementById("app")!;
 const embutido = new URLSearchParams(location.search).get("modo") === "embutido";
@@ -373,6 +390,415 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
   return { el, carregar, focar: () => campo.focus(), carregou: () => conta !== null };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Vender: venda rápida à vista (produto, quantidade, preço, pagamento, canal, cliente opcional).
+// Cada tentativa leva uma chave (uuid). Repetir a mesma venda (rede caiu, clique de novo) manda a
+// mesma chave e o banco devolve a venda que já entrou em vez de criar outra. Mudou qualquer coisa
+// na venda: chave nova. Prazo, parcelas, desconto e encomenda ficam no app.
+
+interface ItemCarrinho {
+  chave: string; // produto ou produto:variação
+  produtoId: string;
+  variacaoId: string | null;
+  nome: string;
+  estoque: number;
+  quantidade: number;
+  preco: string; // como está no campo ("49,90")
+}
+
+// A venda em andamento é da conta que a montou. Se a sessão cai e a mesma conta volta, tudo fica
+// (carrinho, cliente e chave: tentar de novo não duplica). Outra conta ou Sair limpa tudo.
+const carrinho: ItemCarrinho[] = [];
+let tentativa: { chave: string; assinatura: string } | null = null;
+let clienteDaVenda: { escolhido: ClienteBusca | null; texto: string } = { escolhido: null, texto: "" };
+let contaDaVenda: string | null = null;
+
+function limparVenda() {
+  carrinho.length = 0;
+  tentativa = null;
+  clienteDaVenda = { escolhido: null, texto: "" };
+}
+
+function vendaDaConta(email: string) {
+  if (contaDaVenda !== email) limparVenda();
+  contaDaVenda = email;
+}
+
+function precoNoCampo(valor: number) {
+  return (Math.round(valor * 100) / 100).toFixed(2).replace(".", ",");
+}
+
+function secaoVender(aoPerderSessao: (erro: string) => void) {
+  const el = h("div", { class: "secao" });
+  let dados: DadosDaVenda | null = null;
+  let carregando: Promise<void> | null = null;
+  let enviando = false;
+
+  // busca de produto (a mesma da aba Produtos)
+  const campoBusca = h("input", { type: "search", placeholder: "Adicionar produto", "aria-label": "Buscar produto para vender", autocomplete: "off" });
+  const achados = h("div", { class: "grupo" });
+  const itensEl = h("section", { class: "grupo" });
+  const forma = h("select", { class: "seletor", "aria-label": "Forma de pagamento" });
+  const canal = h("select", { class: "seletor", "aria-label": "Canal" });
+  const campoCliente = h("input", { class: "campo", type: "text", placeholder: "Nome ou telefone", "aria-label": "Cliente", autocomplete: "off", maxlength: "120" });
+  const sugestoes = h("div", {});
+  const clienteRodape = h("p", { class: "grupo-rodape" }, "Opcional. Sem cadastro, o nome vai só nesta venda.");
+  const totalEl = h("span", { class: "total" }, formatarPreco(0));
+  const resumoEl = h("span", { class: "detalhe" }, "Nenhum item");
+  const erroEl = h("p", { class: "erro-campo", role: "alert" });
+  const confirmar = h("button", { class: "btn btn-principal", type: "button" }, "Confirmar venda");
+
+  // ---- busca
+  let ultimo = 0;
+  let timer: number | undefined;
+  async function buscar() {
+    const termo = campoBusca.value.trim();
+    const n = ++ultimo;
+    if (termo.length < 2) return achados.replaceChildren();
+    const r = await pedir<ProdutoBusca[]>({ tipo: "buscar", termo });
+    if (n !== ultimo) return;
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+      return achados.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+    }
+    if (r.dados.length === 0) {
+      return achados.replaceChildren(h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nada encontrado"), "Tente outra palavra, o SKU ou o código de barras.")));
+    }
+    const linhas: Node[] = [];
+    for (const p of r.dados) {
+      if (p.variacoes.length === 0) linhas.push(linhaAchado(p.nome, p.preco, p.estoque, () => adicionar(p)));
+      else for (const v of p.variacoes) linhas.push(linhaAchado(`${p.nome} (${v.nome})`, v.preco, v.estoque, () => adicionar(p, v.id)));
+    }
+    achados.replaceChildren(h("div", { class: "cartao" }, ...linhas));
+  }
+  campoBusca.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(buscar, 250);
+  });
+  campoBusca.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      clearTimeout(timer);
+      buscar();
+    }
+  });
+
+  function linhaAchado(nome: string, preco: number, estoque: number, acao: () => void) {
+    return h(
+      "div",
+      { class: "linha-item" },
+      h("div", { class: "info" }, h("span", { class: "nome" }, nome), h("span", { class: "detalhe" }, `${formatarPreco(preco)} · `, rotuloEstoque(estoque))),
+      h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Adicionar ${nome}`, on: { click: acao } }, "Adicionar"),
+    );
+  }
+
+  function adicionar(p: ProdutoBusca, variacaoId?: string) {
+    const v = variacaoId ? p.variacoes.find((x) => x.id === variacaoId) : undefined;
+    const chave = v ? `${p.id}:${v.id}` : p.id;
+    const existente = carrinho.find((i) => i.chave === chave);
+    if (existente) existente.quantidade += 1;
+    else
+      carrinho.push({
+        chave,
+        produtoId: p.id,
+        variacaoId: v?.id ?? null,
+        nome: v ? `${p.nome} (${v.nome})` : p.nome,
+        estoque: v ? v.estoque : p.estoque,
+        quantidade: 1,
+        preco: precoNoCampo(v ? v.preco : p.preco),
+      });
+    campoBusca.value = "";
+    achados.replaceChildren();
+    desenharItens();
+    avisar("Item adicionado.");
+  }
+
+  // ---- itens
+  function desenharItens() {
+    if (carrinho.length === 0) {
+      itensEl.replaceChildren(
+        h("h2", { class: "grupo-titulo" }, "Itens"),
+        h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nenhum item"), "Busque o produto acima e toque em Adicionar.")),
+      );
+    } else {
+      itensEl.replaceChildren(
+        h("h2", { class: "grupo-titulo" }, carrinho.length === 1 ? "1 item" : `${carrinho.length} itens`),
+        h("div", { class: "cartao" }, ...carrinho.map(linhaCarrinho)),
+      );
+    }
+    atualizarResumo();
+  }
+
+  function linhaCarrinho(item: ItemCarrinho) {
+    const qtd = h("input", { class: "qtd", type: "number", min: "1", step: "1", inputmode: "numeric", "aria-label": `Quantidade de ${item.nome}` });
+    qtd.value = String(item.quantidade);
+    const preco = h("input", { class: "preco-campo", type: "text", inputmode: "decimal", "aria-label": `Preço de ${item.nome}` });
+    preco.value = item.preco;
+    const aviso = h("span", { class: "detalhe" });
+    const subtotal = h("span", { class: "subtotal" });
+
+    function refletir() {
+      const p = lerPreco(item.preco);
+      subtotal.textContent = Number.isFinite(p) ? formatarPreco(totalDaVenda([{ quantidade: item.quantidade, preco_unitario: p }])) : "";
+      preco.toggleAttribute("aria-invalid", !Number.isFinite(p));
+      if (item.quantidade > item.estoque) {
+        aviso.replaceChildren(h("span", { class: "estado-aviso" }, item.estoque <= 0 ? "Zerado" : `Só ${item.estoque} em estoque`));
+      } else aviso.replaceChildren(rotuloEstoque(item.estoque));
+      atualizarResumo();
+    }
+    const mudarQtd = (n: number) => {
+      item.quantidade = Math.max(1, Math.min(MAX_QUANTIDADE, Math.trunc(n) || 1));
+      qtd.value = String(item.quantidade);
+      refletir();
+    };
+    qtd.addEventListener("change", () => mudarQtd(Number(qtd.value)));
+    preco.addEventListener("input", () => {
+      item.preco = preco.value;
+      refletir();
+    });
+    preco.addEventListener("blur", () => {
+      const p = lerPreco(item.preco);
+      if (Number.isFinite(p)) preco.value = item.preco = precoNoCampo(p);
+    });
+    refletir();
+
+    return h(
+      "div",
+      { class: "item-venda" },
+      h("div", { class: "info" }, h("span", { class: "nome" }, item.nome), aviso),
+      h(
+        "div",
+        { class: "controles" },
+        h(
+          "div",
+          { class: "passo" },
+          h("button", { type: "button", "aria-label": `Diminuir ${item.nome}`, on: { click: () => mudarQtd(item.quantidade - 1) } }, "−"),
+          qtd,
+          h("button", { type: "button", "aria-label": `Aumentar ${item.nome}`, on: { click: () => mudarQtd(item.quantidade + 1) } }, "+"),
+        ),
+        h("label", { class: "preco-rotulo" }, "R$", preco),
+        subtotal,
+      ),
+      h(
+        "button",
+        {
+          class: "texto-perigo pequeno",
+          type: "button",
+          "aria-label": `Tirar ${item.nome}`,
+          on: {
+            click: () => {
+              carrinho.splice(carrinho.indexOf(item), 1);
+              desenharItens();
+            },
+          },
+        },
+        "Tirar",
+      ),
+    );
+  }
+
+  // ---- cliente (opcional): cadastrado pelo nome ou telefone, ou só o nome livre
+  campoCliente.value = clienteDaVenda.texto;
+  campoCliente.addEventListener("input", () => {
+    clienteDaVenda.escolhido = null;
+    clienteDaVenda.texto = campoCliente.value;
+    desenharSugestoes();
+  });
+  function desenharSugestoes() {
+    const termo = campoCliente.value;
+    if (clienteDaVenda.escolhido) {
+      sugestoes.replaceChildren();
+      clienteRodape.textContent = clienteDaVenda.escolhido.telefone ? `Cliente cadastrado · ${clienteDaVenda.escolhido.telefone}` : "Cliente cadastrado";
+      return;
+    }
+    const lista = dados ? filtrarClientes(dados.clientes, termo, 5) : [];
+    sugestoes.replaceChildren(
+      ...lista.map((c) =>
+        h(
+          "button",
+          {
+            class: "sugestao",
+            type: "button",
+            on: {
+              click: () => {
+                clienteDaVenda.escolhido = c;
+                campoCliente.value = clienteDaVenda.texto = c.nome;
+                desenharSugestoes();
+              },
+            },
+          },
+          h("span", { class: "nome" }, c.nome),
+          c.telefone ? h("span", { class: "detalhe" }, c.telefone) : null,
+        ),
+      ),
+    );
+    const soNumero = soDigitos(termo).length > 0 && !/\p{L}/u.test(termo);
+    clienteRodape.textContent = !termo.trim()
+      ? "Opcional. Sem cadastro, o nome vai só nesta venda."
+      : soNumero && lista.length === 0
+        ? "Nenhum cliente com esse telefone. Digite o nome para vender avulsa."
+        : lista.length > 0
+          ? "Toque no cliente ou siga com o nome digitado (avulsa)."
+          : "Sem cadastro: o nome vai só nesta venda.";
+  }
+
+  function montarVenda(): Omit<VendaRapida, "chave"> | string {
+    if (carrinho.length === 0) return "Adicione pelo menos um produto.";
+    const itens: ItemVendaRapida[] = [];
+    for (const i of carrinho) {
+      const p = lerPreco(i.preco);
+      if (!Number.isFinite(p)) return `Confira o preço de ${i.nome}.`;
+      itens.push({ produto_id: i.produtoId, variacao_id: i.variacaoId, quantidade: i.quantidade, preco_unitario: p });
+    }
+    const falta = carrinho.find((i) => i.quantidade > i.estoque);
+    if (falta) {
+      return falta.estoque <= 0
+        ? `${falta.nome} está zerado. Tire o item ou venda como encomenda pelo app.`
+        : `Só ${falta.estoque} de ${falta.nome} em estoque. Ajuste a quantidade ou venda como encomenda pelo app.`;
+    }
+    const nomeLivre = campoCliente.value.replace(/\s+/g, " ").trim();
+    return {
+      itens,
+      formaPagamentoId: forma.value || null,
+      canalId: canal.value || null,
+      clienteId: clienteDaVenda.escolhido?.id ?? null,
+      clienteNome: clienteDaVenda.escolhido ? clienteDaVenda.escolhido.nome : /\p{L}/u.test(nomeLivre) ? nomeLivre : null,
+    };
+  }
+
+  function atualizarResumo() {
+    const itens = carrinho.map((i) => ({ quantidade: i.quantidade, preco_unitario: lerPreco(i.preco) }));
+    const validos = itens.every((i) => Number.isFinite(i.preco_unitario));
+    const total = validos ? totalDaVenda(itens) : 0;
+    const unidades = carrinho.reduce((s, i) => s + i.quantidade, 0);
+    totalEl.textContent = validos ? formatarPreco(total) : "Confira os preços";
+    resumoEl.textContent = carrinho.length === 0 ? "Nenhum item" : `${unidades === 1 ? "1 unidade" : `${unidades} unidades`} · À vista`;
+    if (!enviando) {
+      confirmar.disabled = carrinho.length === 0 || !validos;
+      confirmar.textContent = carrinho.length && validos ? `Confirmar venda · ${formatarPreco(total)}` : "Confirmar venda";
+    }
+    erroEl.textContent = "";
+  }
+
+  confirmar.addEventListener("click", async () => {
+    if (enviando) return;
+    const venda = montarVenda();
+    if (typeof venda === "string") {
+      erroEl.textContent = venda;
+      return;
+    }
+    const assinatura = assinaturaDaVenda(venda);
+    if (!tentativa || tentativa.assinatura !== assinatura) tentativa = { chave: crypto.randomUUID(), assinatura };
+    enviando = true;
+    confirmar.disabled = true;
+    confirmar.textContent = "Registrando...";
+    erroEl.textContent = "";
+    const r = (await pedir<VendaFeita>({ tipo: "vender", venda: { ...venda, chave: tentativa.chave } })) as RespostaVenda;
+    enviando = false;
+    if (r.ok) {
+      limparVenda();
+      campoCliente.value = "";
+      telaFeita(r.dados);
+      return;
+    }
+    if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+    atualizarResumo();
+    erroEl.textContent = r.erro; // com "incerto", a chave fica: tentar de novo não duplica
+  });
+
+  // ---- depois da venda
+  function telaFeita(v: VendaFeita) {
+    const recibo = `${BASE_LOJA}/r/${v.reciboToken}`;
+    el.replaceChildren(
+      grupo(
+        null,
+        h(
+          "div",
+          { class: "feita" },
+          h("strong", {}, v.criada ? "Venda registrada" : "Venda já registrada"),
+          h("span", { class: "total" }, formatarPreco(v.total)),
+          v.criada ? h("span", { class: "detalhe" }, "Estoque e caixa atualizados.") : h("span", { class: "detalhe" }, "Ela já tinha entrado. Nada foi duplicado."),
+        ),
+      ),
+      h(
+        "div",
+        { class: "grupo" },
+        h(
+          "button",
+          {
+            class: "btn btn-principal",
+            type: "button",
+            on: {
+              click: async () => {
+                const texto = `Recibo da sua compra: ${recibo}`;
+                const r = await pedir<string>({ tipo: "inserir", texto });
+                if (r.ok) avisar(r.dados);
+                else {
+                  const copiou = await copiar(texto);
+                  avisar(copiou ? `${r.erro} Já copiei o link: clique na caixa e cole.` : r.erro, true);
+                }
+              },
+            },
+          },
+          "Inserir link do recibo",
+        ),
+        h("a", { class: "btn btn-secundario", href: `${BASE_LOJA}/vendas/${encodeURIComponent(v.vendaId)}`, target: "_blank", rel: "noopener" }, "Abrir no Marcon"),
+        h("p", { class: "grupo-rodape" }, "Inserir coloca o link na conversa aberta. Quem envia é você."),
+      ),
+      h("div", {}, h("button", { class: "texto-marca", type: "button", on: { click: () => montar() } }, "Nova venda")),
+    );
+  }
+
+  // ---- montagem
+  function opcoes(sel: HTMLSelectElement, lista: Opcao[], vazio: string, escolhido: string | null) {
+    sel.replaceChildren(h("option", { value: "" }, vazio), ...lista.map((o) => h("option", { value: o.id }, o.nome)));
+    sel.value = escolhido && lista.some((o) => o.id === escolhido) ? escolhido : "";
+  }
+
+  async function carregar() {
+    const r = await pedir<DadosDaVenda>({ tipo: "dadosVenda" });
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+      avisar(r.erro, true);
+      return;
+    }
+    const formaAntes = forma.value || null;
+    const canalAntes = canal.value || null;
+    const primeira = dados === null;
+    dados = r.dados;
+    const pix = dados.formas.find((f) => semAcento(f.nome).trim() === "pix");
+    opcoes(forma, dados.formas, "Não informar", primeira ? (pix?.id ?? null) : formaAntes);
+    opcoes(canal, dados.canais, "Não informar", primeira ? (canalPadrao(dados.canais)?.id ?? null) : canalAntes);
+    desenharSugestoes();
+  }
+
+  function linhaSeletor(rotulo: string, sel: HTMLSelectElement) {
+    return h("label", { class: "linha-seletor" }, h("span", {}, rotulo), sel);
+  }
+
+  function montar() {
+    erroEl.textContent = "";
+    el.replaceChildren(
+      h("div", { class: "busca" }, iconeLupa(), campoBusca),
+      achados,
+      itensEl,
+      grupo("Pagamento", h("div", {}, linhaSeletor("Forma", forma), linhaSeletor("Canal", canal)), "À vista. Prazo, parcelas e desconto, só no app."),
+      h("section", { class: "grupo" }, h("h2", { class: "grupo-titulo" }, "Cliente"), h("div", { class: "cartao" }, campoCliente, sugestoes), clienteRodape),
+      h("div", { class: "grupo" }, h("div", { class: "resumo" }, h("span", { class: "detalhe" }, "Total"), totalEl, resumoEl), confirmar, erroEl),
+    );
+    desenharItens();
+    carregando = carregar().finally(() => (carregando = null));
+  }
+
+  return {
+    el,
+    abrir: () => {
+      if (!el.firstChild) montar();
+      else if (!carregando && !enviando && el.contains(campoBusca)) carregando = carregar().finally(() => (carregando = null));
+      if (el.contains(campoBusca)) campoBusca.focus();
+    },
+  };
+}
+
 // voltar ao painel (ou à aba do WhatsApp, no painel embutido) traz a lista nova do app
 let recarregarRespostas: (() => void) | null = null;
 document.addEventListener("visibilitychange", () => {
@@ -380,6 +806,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function telaPrincipal(sessao: Sessao) {
+  vendaDaConta(sessao.email);
   const campo = h("input", {
     type: "search",
     placeholder: "Nome, SKU, marca ou código",
@@ -439,6 +866,8 @@ function telaPrincipal(sessao: Sessao) {
       on: {
         click: async () => {
           await pedir({ tipo: "sair" });
+          limparVenda();
+          contaDaVenda = null;
           telaEntrar();
         },
       },
@@ -449,23 +878,29 @@ function telaPrincipal(sessao: Sessao) {
   const produtos = h("div", { class: "secao" }, h("div", { class: "busca" }, lupa, campo), resultados);
   const respostas = secaoRespostas((erro) => telaEntrar(erro));
   respostas.el.hidden = true;
+  const vender = secaoVender((erro) => telaEntrar(erro));
+  vender.el.hidden = true;
 
-  // controle segmentado: Produtos ou Respostas (a escolha vale enquanto o painel está aberto)
-  const botaoAba = (rotulo: string, aba: "produtos" | "respostas") =>
+  // controle segmentado: Produtos, Respostas ou Vender (a escolha vale enquanto o painel está aberto)
+  type Aba = "produtos" | "respostas" | "vender";
+  const botaoAba = (rotulo: string, aba: Aba) =>
     h("button", { type: "button", role: "tab", "aria-selected": "false", on: { click: () => mostrar(aba) } }, rotulo);
   const abaProdutos = botaoAba("Produtos", "produtos");
   const abaRespostas = botaoAba("Respostas", "respostas");
-  function mostrar(aba: "produtos" | "respostas") {
-    const emRespostas = aba === "respostas";
-    produtos.hidden = emRespostas;
-    respostas.el.hidden = !emRespostas;
-    abaProdutos.setAttribute("aria-selected", String(!emRespostas));
-    abaRespostas.setAttribute("aria-selected", String(emRespostas));
+  const abaVender = botaoAba("Vender", "vender");
+  function mostrar(aba: Aba) {
+    produtos.hidden = aba !== "produtos";
+    respostas.el.hidden = aba !== "respostas";
+    vender.el.hidden = aba !== "vender";
+    abaProdutos.setAttribute("aria-selected", String(aba === "produtos"));
+    abaRespostas.setAttribute("aria-selected", String(aba === "respostas"));
+    abaVender.setAttribute("aria-selected", String(aba === "vender"));
     sessionStorage.setItem("marcon_aba", aba);
-    if (emRespostas) {
+    if (aba === "respostas") {
       if (!respostas.carregou()) respostas.carregar();
       respostas.focar();
-    } else campo.focus();
+    } else if (aba === "vender") vender.abrir();
+    else campo.focus();
   }
 
   recarregarRespostas = () => {
@@ -474,14 +909,16 @@ function telaPrincipal(sessao: Sessao) {
 
   app.replaceChildren(
     topo(),
-    h("div", { class: "abas", role: "tablist", "aria-label": "O que inserir" }, abaProdutos, abaRespostas),
+    h("div", { class: "abas", role: "tablist", "aria-label": "O que fazer" }, abaProdutos, abaRespostas, abaVender),
     produtos,
     respostas.el,
+    vender.el,
     grupo("Conta", h("div", { class: "linha detalhe" }, sessao.email)),
     h("div", {}, sair),
     avisoEl,
   );
-  mostrar(sessionStorage.getItem("marcon_aba") === "respostas" ? "respostas" : "produtos");
+  const salva = sessionStorage.getItem("marcon_aba");
+  mostrar(salva === "respostas" || salva === "vender" ? salva : "produtos");
 }
 
 // ---------------------------------------------------------------------------------------------

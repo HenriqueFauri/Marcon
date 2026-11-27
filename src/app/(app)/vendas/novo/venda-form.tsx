@@ -273,6 +273,7 @@ export function VendaForm({
 }) {
   const router = useRouter();
   const { isPending, run } = useAction();
+  const [tentativa, setTentativa] = useState<{ chave: string; assinatura: string } | null>(null);
 
   // vindo de "Vender este produto": com uma opção só, já entra no carrinho; com
   // variações, a busca abre filtrada e o seletor já vem aberto pra escolher qual
@@ -502,15 +503,25 @@ export function VendaForm({
   }
 
   function registrar() {
+    const itens = linhas.map((l) => ({
+      produto_id: l.produto.produto_id,
+      variacao_id: l.produto.variacao_id,
+      quantidade: l.item.quantidade,
+      preco_unitario: Math.round(paraNumero(l.item.preco) * 100) / 100,
+    }));
+    // a mesma venda tentada de novo (rede caiu, clique duplo) leva a mesma chave e não duplica;
+    // mudou qualquer coisa na tela, chave nova
+    const assinatura = JSON.stringify([
+      itens, clienteId, clienteNome, canalId, formaId, tipoPagamento, parcelasValidas, primeiroVencimento,
+      valorDesconto, valorEntrada, valorOutros, data, pedido?.id ?? null, alemDoEstoque.length > 0,
+    ]);
+    const atual = tentativa?.assinatura === assinatura ? tentativa : { chave: crypto.randomUUID(), assinatura };
+    if (atual !== tentativa) setTentativa(atual);
+    const chave = atual.chave;
     run(
       () =>
         registrarVenda({
-          itens: linhas.map((l) => ({
-            produto_id: l.produto.produto_id,
-            variacao_id: l.produto.variacao_id,
-            quantidade: l.item.quantidade,
-            preco_unitario: Math.round(paraNumero(l.item.preco) * 100) / 100,
-          })),
+          itens,
           clienteId: clienteId || null,
           clienteNome: clienteNome || null,
           canalId: canalId || null,
@@ -526,6 +537,7 @@ export function VendaForm({
           data,
           pedidoId: pedido?.id ?? null,
           encomenda: alemDoEstoque.length > 0,
+          chave,
         }).then((r) => {
           if (r.ok && r.id) router.push(`/vendas/${r.id}`);
           return r;
