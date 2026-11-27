@@ -13,6 +13,7 @@ import { Grupo, LinhaLink } from "@/components/ajustes";
 import { IconBox, IconMensagem, IconWhatsapp } from "@/components/icons";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { ehAdmin } from "@/lib/admin";
+import { RolarParaAncora } from "@/components/rolar-para-ancora";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -49,6 +50,7 @@ export default async function ConfiguracoesPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Configurações" />
+      <RolarParaAncora />
 
       <div className="flex flex-col gap-7">
         <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez.">
@@ -83,17 +85,20 @@ export default async function ConfiguracoesPage() {
           <PerfilForm nome={nome} email={user?.email ?? ""} />
         </Grupo>
 
-        <Grupo titulo="Empresa" rodape="O nome aparece no menu. O resto é opcional e vai no recibo; o PIX vai junto na cobrança pelo WhatsApp.">
-          <EmpresaForm
-            nomeNegocio={nomeNegocio}
-            telefone={(meta.empresa_telefone as string | undefined) ?? ""}
-            email={(meta.empresa_email as string | undefined) ?? ""}
-            endereco={(meta.empresa_endereco as string | undefined) ?? ""}
-            documento={(meta.empresa_documento as string | undefined) ?? ""}
-            pix={(meta.empresa_pix as string | undefined) ?? ""}
-            logoUrl={logoSignedUrl?.signedUrl ?? null}
-          />
-        </Grupo>
+        {/* âncoras dos passos da Vitrine (logo e formas de pagamento); scroll-mt deixa o título fora do cabeçalho fixo */}
+        <div id="empresa" className="scroll-mt-24">
+          <Grupo titulo="Empresa" rodape="O nome aparece no menu. O resto é opcional e vai no recibo; o PIX vai junto na cobrança pelo WhatsApp.">
+            <EmpresaForm
+              nomeNegocio={nomeNegocio}
+              telefone={(meta.empresa_telefone as string | undefined) ?? ""}
+              email={(meta.empresa_email as string | undefined) ?? ""}
+              endereco={(meta.empresa_endereco as string | undefined) ?? ""}
+              documento={(meta.empresa_documento as string | undefined) ?? ""}
+              pix={(meta.empresa_pix as string | undefined) ?? ""}
+              logoUrl={logoSignedUrl?.signedUrl ?? null}
+            />
+          </Grupo>
+        </div>
 
         <ListaSimples
           titulo="Canais de venda"
@@ -105,14 +110,16 @@ export default async function ConfiguracoesPage() {
           onExcluir={excluirCanal}
         />
 
-        <ListaSimples
-          titulo="Formas de pagamento"
-          itens={(formas ?? []) as FormaPagamento[]}
-          placeholder="Ex: PIX, Dinheiro, Cartão..."
-          sugestoes={["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito"]}
-          onCriar={criarFormaPagamento}
-          onExcluir={excluirFormaPagamento}
-        />
+        <div id="formas-de-pagamento" className="scroll-mt-24">
+          <ListaSimples
+            titulo="Formas de pagamento"
+            itens={(formas ?? []) as FormaPagamento[]}
+            placeholder="Ex: PIX, Dinheiro, Cartão..."
+            sugestoes={["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito"]}
+            onCriar={criarFormaPagamento}
+            onExcluir={excluirFormaPagamento}
+          />
+        </div>
 
         <NotificacoesConfig />
 
