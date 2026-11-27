@@ -91,9 +91,12 @@ No teste do dono, o M4A colado e solto foi recusado pelo WhatsApp ("não é comp
 
 **Riscos que o dono precisa saber:**
 
-- **Usa funções internas do WhatsApp Web** pela biblioteca WA-JS (`@wppconnect/wa-js`, Apache 2.0, a mesma base de várias extensões do mercado). Quando o WhatsApp atualiza, isso pode parar até a WA-JS ser atualizada e um build novo da extensão sair. Sintoma: "O WhatsApp ainda está carregando" ou "não aceitou o envio" sempre. Texto, foto e PDF continuam funcionando (não dependem da WA-JS).
-- **Termos do WhatsApp:** mexer nas funções internas do WhatsApp Web não é permitido pelos termos dele. Uso pessoal, um clique por mensagem, tem risco baixo, mas não zero, de o WhatsApp restringir a conta.
-- A WA-JS fica carregada na aba do WhatsApp como `window.WPP`: outra extensão instalada no mesmo navegador também conseguiria usá-la. Instale só extensões de confiança.
+- **Usa funções internas do WhatsApp Web** pela biblioteca WA-JS (`@wppconnect/wa-js`, Apache 2.0, a mesma base de várias extensões do mercado). Quando o WhatsApp atualiza, isso pode parar até a WA-JS ser atualizada e um build novo da extensão sair. Sintoma: "O WhatsApp ainda está carregando" ou "não aceitou o envio" sempre.
+- **A WA-JS carrega em toda abertura do WhatsApp Web**, para todo mundo que tem a extensão, mesmo quem nunca manda áudio, e se pendura em funções internas da página (inclusive a que trata mensagem recebida). Se uma atualização do WhatsApp quebrar a WA-JS, o próprio WhatsApp Web pode falhar, não só o áudio. Remédio imediato: desligar a extensão em `brave://extensions` e recarregar a aba. Alternativa a decidir: deixar o áudio de voz desligado por padrão e ligar só para quem ativar (pede a permissão `scripting`).
+- **Termos do WhatsApp:** mexer nas funções internas do WhatsApp Web não é permitido pelos termos dele. O risco vem de carregar a WA-JS, não só de enviar. Uso pessoal, um clique por mensagem, tem risco baixo, mas não zero, de o WhatsApp restringir a conta.
+- **A ponte não sabe quem a chama.** A WA-JS fica na aba como `window.WPP` e a ponte (`pagina.ts`) atende qualquer script da página. Outra extensão instalada no mesmo navegador conseguiria mandar mensagens por elas sem o clique do dono. Instale só extensões de confiança.
+- Enviar o áudio marca a conversa como lida (padrão da WA-JS), como acontece quando o dono responde pelo próprio WhatsApp.
+- Se a caixa de mensagem tem texto ainda não enviado, a confirmação avisa: a voz sai na hora e chegaria antes do texto.
 - Telemetria da WA-JS desligada (`src/config-wa.ts`: sem Google Analytics, sem os servidores de prévia de link de terceiros).
 - O painel lê **só o nome da conversa aberta**, para a confirmação. Nenhuma mensagem é lida.
 

@@ -217,4 +217,6 @@ a.btn { text-decoration: none; box-sizing: border-box; }
 .confirmar { width: 100%; max-width: 420px; background: var(--surface); border-radius: 22px; padding: 18px 16px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }
 .confirmar strong { font-size: 17px; }
 .confirmar-para { font-size: 15px; overflow-wrap: anywhere; }
+.confirmar-aviso { font-size: 13px; color: var(--warning); background: var(--warning-tint); border-radius: 12px; padding: 8px 10px; }
 .confirmar .btn { margin-top: 4px; }
+.botao-para { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }

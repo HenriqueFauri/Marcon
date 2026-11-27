@@ -59,7 +59,7 @@ async function efeito(doc: Document, caixa: HTMLElement, antes: Set<Element>, av
     await esperar(100);
     for (const el of caixasDeTexto(doc)) if (!antes.has(el) && el !== caixa) return "abriu";
     // aviso novo (diálogo ou alerta) ou algo por cima da caixa sem legenda: recusa, por enquanto
-    recusa = avisosNaTela(doc) > avisosAntes || caixaCoberta(caixa, doc);
+    recusa ||= avisosNaTela(doc) > avisosAntes || caixaCoberta(caixa, doc);
   }
   return recusa ? "recusado" : "nada";
 }

@@ -145,10 +145,11 @@ async function anexarComBotao(p: Pedido, botao: HTMLButtonElement, aoPerderSessa
 let vozOcupada = false;
 
 // Confirmação por cima do painel com o nome da conversa. true só no clique em Enviar.
-function confirmarEnvio(nome: string, titulo: string): Promise<boolean> {
+function confirmarEnvio(nome: string, titulo: string, rascunho: boolean): Promise<boolean> {
   return new Promise((resolve) => {
     const fundo = h("div", { class: "confirmar-fundo" });
-    const enviar = h("button", { class: "btn btn-principal", type: "button" }, "Enviar");
+    // o nome da conversa aberta fica no próprio botão: o clique manda para quem está escrito nele
+    const enviar = h("button", { class: "btn btn-principal botao-para", type: "button" }, `Enviar para ${nome.length > 40 ? `${nome.slice(0, 39)}…` : nome}`);
     const cancelar = h("button", { class: "btn btn-secundario", type: "button" }, "Cancelar");
     const fechar = (ok: boolean) => {
       fundo.remove();
@@ -166,6 +167,7 @@ function confirmarEnvio(nome: string, titulo: string): Promise<boolean> {
         h("span", { class: "detalhe" }, titulo),
         h("span", { class: "confirmar-para" }, "Para: ", h("b", {}, nome)),
         h("span", { class: "detalhe" }, "Vai direto para a conversa, como mensagem de voz."),
+        rascunho ? h("span", { class: "confirmar-aviso" }, "Tem texto na caixa de mensagem que ainda não saiu. Se enviar agora, o áudio chega antes dele.") : null,
         enviar,
         cancelar,
       ),
@@ -182,7 +184,10 @@ async function enviarAudioDeVoz(
   botao: HTMLButtonElement,
   aoPerderSessao?: (erro: string) => void,
 ): Promise<boolean> {
-  if (vozOcupada) return false;
+  if (vozOcupada) {
+    avisar("Termine o áudio anterior primeiro.", true);
+    return false;
+  }
   if (!codificaOpus()) {
     avisar("Este navegador não converte áudio para mensagem de voz. Use o Brave ou o Chrome atualizado.", true);
     return false;
@@ -206,17 +211,17 @@ async function enviarAudioDeVoz(
     let ogg: Uint8Array;
     try {
       ogg = (await paraOggOpus(bytes)).ogg;
-    } catch {
-      avisar("Não deu para converter esse áudio para mensagem de voz.", true);
+    } catch (e) {
+      avisar((e as Error)?.message === "longo" ? "Áudio longo demais para mensagem de voz (até 15 minutos)." : "Não deu para converter esse áudio para mensagem de voz.", true);
       return false;
     }
-    const c = await pedir<{ id: string; nome: string }>({ tipo: "conversaAberta" });
+    const c = await pedir<{ id: string; nome: string; rascunho?: boolean }>({ tipo: "conversaAberta" });
     if (!c.ok) {
       avisar(c.erro, true);
       return false;
     }
     botao.textContent = "Confirme...";
-    if (!(await confirmarEnvio(c.dados.nome, titulo))) return false;
+    if (!(await confirmarEnvio(c.dados.nome, titulo, c.dados.rascunho === true))) return false;
     botao.textContent = "Enviando...";
     const r = await pedir<string>({ tipo: "enviarVoz", conversa: c.dados.id, base64: paraBase64(ogg) });
     if (!r.ok) {
@@ -1402,7 +1407,7 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
           ),
         ),
       ),
-      h("p", { class: "grupo-rodape" }, buscando ? "Anexar abre a prévia do WhatsApp com a foto. Quem envia é você." : "Os 30 primeiros com foto. Busque pelo nome para achar outro."),
+      h("p", { class: "grupo-rodape" }, buscando ? "Anexar abre a prévia do WhatsApp com a foto. Quem envia é você." : "Alguns produtos com foto. Busque pelo nome para achar outro."),
     );
   }
 

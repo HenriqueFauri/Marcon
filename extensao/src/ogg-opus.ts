@@ -4,6 +4,7 @@
 
 export const TAXA = 48000;
 export const PRE_SKIP = 312; // atraso padrão do codificador Opus a 48 kHz
+export const MAX_SEGUNDOS = 15 * 60; // mais que isso não vira mensagem de voz (memória do painel)
 
 // CRC do Ogg: polinômio 0x04c11db7, sem reflexão, começa em 0
 const TABELA = (() => {
@@ -123,6 +124,7 @@ export function codificaOpus(): boolean {
 async function paraMono48k(bytes: ArrayBuffer): Promise<Float32Array> {
   const ctx = new OfflineAudioContext(1, 1, TAXA);
   const original = await ctx.decodeAudioData(bytes.slice(0));
+  if (original.duration > MAX_SEGUNDOS) throw new Error("longo");
   const tamanho = Math.max(1, Math.ceil(original.duration * TAXA));
   const mix = new OfflineAudioContext(1, tamanho, TAXA);
   const fonte = mix.createBufferSource();

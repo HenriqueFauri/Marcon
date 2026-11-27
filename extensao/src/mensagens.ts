@@ -51,6 +51,7 @@ export type PedidoAba =
   | { tipo: "inserir"; texto: string }
   | { tipo: "anexar"; arquivo: ArquivoAnexo }
   | { tipo: "conversa" }
+  | { tipo: "caixaTemTexto" }
   | { tipo: "enviarVoz"; conversa: string; base64: string }
   | { tipo: "alternarPainel" };
 

@@ -164,14 +164,15 @@ async function anexar(arquivo: Resposta<ArquivoAnexo>, remetente: chrome.runtime
 
 // Áudio de voz: primeiro o nome da conversa aberta (o painel pede confirmação com ele), depois UM
 // envio, só se a conversa ainda é a confirmada. Quem manda é o clique do dono no painel.
-async function conversaAberta(remetente: chrome.runtime.MessageSender): Promise<Resposta<Conversa>> {
+async function conversaAberta(remetente: chrome.runtime.MessageSender): Promise<Resposta<Conversa & { rascunho: boolean }>> {
   const aba = await abaDoWhatsApp(remetente);
   if (!aba) return { ok: false, erro: mensagemDeFalhaVoz("sem-aba") };
   try {
     const r = (await chrome.tabs.sendMessage(aba, { tipo: "conversa" } satisfies PedidoAba, { frameId: 0 })) as RespostaPagina;
     if (!r?.ok) return { ok: false, erro: mensagemDeFalhaVoz(r?.motivo ?? "sem-resposta") };
     if (!r.conversa) return { ok: false, erro: mensagemDeFalhaVoz("sem-conversa") };
-    return { ok: true, dados: r.conversa };
+    const caixa = (await chrome.tabs.sendMessage(aba, { tipo: "caixaTemTexto" } satisfies PedidoAba, { frameId: 0 }).catch(() => null)) as { temTexto?: boolean } | null;
+    return { ok: true, dados: { ...r.conversa, rascunho: caixa?.temTexto === true } };
   } catch {
     return { ok: false, erro: "Recarregue a aba do WhatsApp (F5) e tente de novo." };
   }

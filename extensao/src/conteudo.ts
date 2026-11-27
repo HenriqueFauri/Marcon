@@ -5,7 +5,7 @@
 //    para essa conversa, manda UM áudio de voz por pagina.ts (mundo da página, WA-JS);
 // 4) no navegador sem painel lateral, mostra ou esconde o painel embutido.
 // Não lê mensagens, não observa a página, não fala com servidor nenhum.
-import { inserirTexto } from "./inserir.ts";
+import { acharCaixa, inserirTexto } from "./inserir.ts";
 import { anexarArquivo, montarArquivo } from "./anexar.ts";
 import { falarComPagina } from "./voz.ts";
 import type { PedidoAba } from "./mensagens.ts";
@@ -59,6 +59,11 @@ chrome.runtime.onMessage.addListener((pedido: PedidoAba, remetente, responder) =
   if (pedido.tipo === "conversa") {
     falarComPagina("conversa").then(responder);
     return true;
+  }
+  if (pedido.tipo === "caixaTemTexto") {
+    // só sim ou não: a mensagem de voz chegaria antes de um texto que ainda está na caixa
+    responder({ ok: true, temTexto: (acharCaixa()?.textContent ?? "").trim().length > 0 });
+    return false;
   }
   if (pedido.tipo === "enviarVoz") {
     // o envio espera a confirmação do servidor do WhatsApp: prazo maior

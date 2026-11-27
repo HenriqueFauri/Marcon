@@ -149,7 +149,7 @@ export async function produtosComFoto(db: SupabaseClient, bruto: string, baseLoj
   if (error) return { ok: false, erro: "Não deu para carregar os produtos. Tente de novo." };
   const ids = [...new Set((comFoto ?? []).map((c) => c.produto_id as string))];
   if (ids.length === 0) return { ok: true, dados: [] };
-  const { data, error: erroProdutos } = await db.from("produtos").select("id, nome").eq("status", "ativo").in("id", ids.slice(0, 300)).order("nome").limit(30);
+  const { data, error: erroProdutos } = await db.from("produtos").select("id, nome").eq("status", "ativo").in("id", ids.slice(0, 150)).order("nome").limit(30);
   if (erroProdutos) return { ok: false, erro: "Não deu para carregar os produtos. Tente de novo." };
   const linhas = (data ?? []) as { id: string; nome: string }[];
   const fotos = await capas(db, linhas.map((l) => l.id));

@@ -135,7 +135,7 @@ const manifesto = {
   manifest_version: 3,
   name: cfg.nome,
   version,
-  description: "Busca produtos do Marcon e coloca texto, fotos, PDFs e áudios na conversa do WhatsApp Web. Quem envia é você.",
+  description: "Busca produtos do Marcon e coloca texto, fotos e PDFs na conversa do WhatsApp Web para você enviar; o áudio de voz sai depois de você confirmar.",
   key, // ID fixo: o mesmo em todo computador, para a URL de retorno do login não mudar
   icons: icones,
   action: { default_title: cfg.nome, default_icon: icones },
