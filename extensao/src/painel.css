@@ -124,6 +124,18 @@ body {
 .previa { font-size: 13px; color: var(--ink-muted); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 a.btn { text-decoration: none; box-sizing: border-box; }
 
+/* Sequências (no topo da aba Respostas) */
+.grupo[hidden] { display: none; }
+.linha-seq { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+.cartao.tocador > * + * { border-top: 0; }
+.linha-seq .btn-pequeno:disabled { opacity: 0.5; cursor: default; }
+.tocador { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; }
+.tocador .vazio { padding: 8px 0 0; }
+.passo-atual { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.acoes-seq .btn { width: 100%; }
+.tocador .acoes { margin-top: 0; }
+.tocador .btn-pequeno:disabled { opacity: 0.45; cursor: default; }
+
 /* Fotos do produto e mídia */
 .bloco-fotos { display: flex; flex-direction: column; gap: 8px; }
 .bloco-fotos .acoes { margin-top: 6px; }

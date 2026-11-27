@@ -10,7 +10,7 @@ import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 import { Grupo, LinhaLink } from "@/components/ajustes";
-import { IconBox, IconFoto, IconMensagem, IconWhatsapp } from "@/components/icons";
+import { IconBox, IconFoto, IconList, IconMensagem, IconWhatsapp } from "@/components/icons";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { ehAdmin } from "@/lib/admin";
 import { RolarParaAncora } from "@/components/rolar-para-ancora";
@@ -27,12 +27,14 @@ export default async function ConfiguracoesPage() {
     { data: formas },
     { count: respostas },
     { count: midias },
+    { count: sequencias },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
     supabase.from("respostas_prontas").select("id", { count: "exact", head: true }),
     supabase.from("midias").select("id", { count: "exact", head: true }),
+    supabase.from("sequencias").select("id", { count: "exact", head: true }),
   ]);
 
   const whatsappLiberado = (await acessoDoAssistente(user)).usar;
@@ -41,6 +43,8 @@ export default async function ConfiguracoesPage() {
   const mostrarRespostas = ehAdmin(user) || (respostas ?? 0) > 0;
   // biblioteca de mídia (fotos, PDFs e áudios da extensão): mesma regra
   const mostrarMidias = ehAdmin(user) || (midias ?? 0) > 0;
+  // sequências (passos enviados por clique na extensão): mesma regra
+  const mostrarSequencias = ehAdmin(user) || (sequencias ?? 0) > 0;
   const { data: vinculoWhatsapp } = whatsappLiberado ? await supabase.from("whatsapp_vinculos").select("owner_id").maybeSingle() : { data: null };
 
   const meta = user?.user_metadata ?? {};
@@ -81,6 +85,15 @@ export default async function ConfiguracoesPage() {
               tom="bg-tile-danger text-on-tile-danger"
               rotulo="Biblioteca de mídia"
               detalhe={midias ? String(midias) : "Adicionar"}
+            />
+          )}
+          {mostrarSequencias && (
+            <LinhaLink
+              href="/configuracoes/sequencias"
+              icone={<IconList className="h-[17px] w-[17px]" />}
+              tom="bg-brand text-on-brand"
+              rotulo="Sequências"
+              detalhe={sequencias ? String(sequencias) : "Criar"}
             />
           )}
           {whatsappLiberado && (

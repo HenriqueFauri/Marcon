@@ -25,6 +25,20 @@ import {
 import { deBase64, paraBase64, type ArquivoAnexo } from "./base64.ts";
 import { ROTULO_TIPO, detalheDaMidia, filtrarMidias, formatarDuracao, LIMITE_GRAVACAO_SEG, formatoDeGravacao, nomeParaEnvio } from "./midias.ts";
 import type { FotoProduto, MidiaPainel } from "./midias-db.ts";
+import {
+  INICIO,
+  acaoAtual,
+  depoisDaAcao,
+  montarRoteiro,
+  pular,
+  rotuloDaAcao,
+  rotuloProgresso,
+  terminou,
+  voltar,
+  type Acao,
+  type Posicao,
+  type Roteiro,
+} from "./sequencias.ts";
 
 const app = document.getElementById("app")!;
 const embutido = new URLSearchParams(location.search).get("modo") === "embutido";
@@ -376,6 +390,171 @@ function iconeLupa() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Sequências (parte 4), no topo da aba Respostas. O dono escolhe uma e avança passo a passo: cada
+// clique faz UMA ação (põe o texto na caixa ou abre a prévia do anexo) e só depois que ela deu
+// certo o painel aponta para a próxima. Nada de timer, nada anda sozinho, nada é enviado.
+
+// a sequência aberta continua onde estava quando a lista recarrega (voltar ao painel, Atualizar)
+let tocando: { seqId: string; pos: Posicao } | null = null;
+
+function blocoSequencias(aoPerderSessao: (erro: string) => void) {
+  const el = h("div", { class: "grupo" });
+  let conta: RespostasDaConta | null = null;
+  let ocupado = false;
+
+  function roteiroDe(seqId: string): Roteiro | null {
+    const seq = conta?.sequencias?.find((s) => s.id === seqId);
+    if (!seq || !conta) return null;
+    const dados = conta.dados;
+    const respostas = conta.respostas.map((r) => ({ id: r.id, titulo: r.titulo, texto: r.texto }));
+    return montarRoteiro(seq, conta.passos ?? [], respostas, conta.arquivos ?? [], (t) => preencherVariaveis(t, dados));
+  }
+
+  // faz a ação do clique; devolve true se o texto entrou ou a prévia abriu
+  async function fazer(a: Acao, botao: HTMLButtonElement): Promise<boolean> {
+    if (a.tipo === "texto") {
+      const r = await pedir<string>({ tipo: "inserir", texto: a.texto });
+      if (r.ok) {
+        avisar(r.dados);
+        return true;
+      }
+      if (r.erro.includes("sessão")) {
+        aoPerderSessao(r.erro);
+        return false;
+      }
+      const copiou = await copiar(a.texto);
+      avisar(copiou ? `${r.erro} Já copiei o texto: clique na caixa e cole. Depois, Pular.` : r.erro, true);
+      return false;
+    }
+    botao.textContent = "Anexando...";
+    const r = await pedir<ResultadoAnexar>({ tipo: "anexarMidia", id: a.midia.id });
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) aoPerderSessao(r.erro);
+      else avisar(r.erro, true);
+      return false;
+    }
+    if (r.dados.anexou) {
+      avisar(r.dados.mensagem);
+      return true;
+    }
+    const arquivo = r.dados.arquivo;
+    avisar(r.dados.mensagem, true, arquivo ? { rotulo: "Baixar", fazer: () => baixarArquivo(arquivo) } : undefined);
+    return false;
+  }
+
+  function lista() {
+    const seqs = conta?.sequencias ?? [];
+    if (seqs.length === 0) return el.replaceChildren();
+    const linhas = seqs.map((s) => {
+      const r = roteiroDe(s.id);
+      const n = r?.passos.length ?? 0;
+      const comecar = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Começar ${s.titulo}` }, "Começar");
+      if (n === 0) comecar.disabled = true;
+      comecar.addEventListener("click", () => {
+        tocando = { seqId: s.id, pos: INICIO };
+        desenhar();
+      });
+      return h(
+        "div",
+        { class: "linha-seq" },
+        h("div", { class: "info" }, h("span", { class: "nome" }, s.titulo), h("span", { class: "detalhe" }, n === 0 ? "Sem passos" : n === 1 ? "1 passo" : `${n} passos`)),
+        comecar,
+      );
+    });
+    el.replaceChildren(
+      h("h2", { class: "grupo-titulo" }, seqs.length === 1 ? "1 sequência" : `${seqs.length} sequências`),
+      h("div", { class: "cartao" }, ...linhas),
+    );
+  }
+
+  function tocador(r: Roteiro, pos: Posicao) {
+    const fim = terminou(r, pos);
+    const acao = acaoAtual(r, pos);
+    const passo = r.passos[pos.passo];
+    const fechar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Fechar");
+    fechar.addEventListener("click", () => {
+      tocando = null;
+      desenhar();
+    });
+    const voltarB = h("button", { class: "btn-pequeno neutro", type: "button" }, "Voltar");
+    voltarB.addEventListener("click", () => mover(voltar(r, pos)));
+    if (pos.passo === 0 && pos.acao === 0) voltarB.disabled = true;
+
+    let corpo: Node[];
+    if (fim || !acao || !passo) {
+      const recomecar = h("button", { class: "btn btn-principal", type: "button" }, "Recomeçar");
+      recomecar.addEventListener("click", () => mover(INICIO));
+      corpo = [h("div", { class: "vazio" }, h("strong", {}, "Fim da sequência"), "Tudo já foi para a caixa ou para a prévia."), h("div", { class: "acoes-seq" }, recomecar), h("div", { class: "acoes" }, voltarB, fechar)];
+    } else {
+      const principal = h("button", { class: "btn btn-principal", type: "button" }, rotuloDaAcao(acao));
+      principal.addEventListener("click", async () => {
+        // um clique, uma ação: botão travado até a ação voltar (clique duplo não insere duas vezes)
+        if (ocupado || !tocando) return;
+        ocupado = true;
+        principal.disabled = true;
+        const deu = await fazer(acao, principal);
+        ocupado = false;
+        if (deu && tocando) mover(depoisDaAcao(r, pos));
+        else desenhar();
+      });
+      const pularB = h("button", { class: "btn-pequeno neutro", type: "button" }, "Pular");
+      pularB.addEventListener("click", () => mover(pular(r, pos)));
+      const proxima = passo.acoes[pos.acao + 1];
+      const conteudo = acao.tipo === "texto" ? h("span", { class: "previa" }, acao.texto) : h("span", { class: "detalhe" }, `${ROTULO_TIPO[acao.midia.tipo]}: ${acao.midia.titulo}`);
+      corpo = [
+        h(
+          "div",
+          { class: "passo-atual" },
+          h("span", { class: "nome" }, passo.titulo),
+          conteudo,
+          proxima ? h("span", { class: "detalhe" }, `Depois: ${rotuloDaAcao(proxima).toLowerCase()}`) : null,
+        ),
+        h("div", { class: "acoes-seq" }, principal),
+        h("div", { class: "acoes" }, voltarB, pularB, fechar),
+      ];
+    }
+    const rodape = r.pulados > 0
+      ? `${r.pulados === 1 ? "1 passo vazio ficou de fora" : `${r.pulados} passos vazios ficaram de fora`}. Cada clique põe um passo na conversa. Quem envia é você.`
+      : "Cada clique põe um passo na conversa. Quem envia é você.";
+    el.replaceChildren(
+      h("h2", { class: "grupo-titulo" }, `${r.titulo} · ${rotuloProgresso(r, pos)}`),
+      h("div", { class: "cartao tocador", role: "group", "aria-label": `Sequência ${r.titulo}` }, ...corpo),
+      h("p", { class: "grupo-rodape" }, rodape),
+    );
+  }
+
+  function mover(pos: Posicao) {
+    if (!tocando) return;
+    tocando = { ...tocando, pos };
+    desenhar();
+  }
+
+  function desenhar() {
+    if (ocupado) return;
+    if (tocando) {
+      const r = roteiroDe(tocando.seqId);
+      // a sequência foi apagada no app, ou ficou sem passos: volta à lista
+      if (!r || r.passos.length === 0) tocando = null;
+      else {
+        const pos = tocando.pos.passo > r.passos.length ? { passo: r.passos.length, acao: 0 } : tocando.pos;
+        const acoes = r.passos[pos.passo]?.acoes.length ?? 0;
+        tocando.pos = pos.acao >= acoes && pos.passo < r.passos.length ? { passo: pos.passo, acao: 0 } : pos;
+        return tocador(r, tocando.pos);
+      }
+    }
+    lista();
+  }
+
+  return {
+    el,
+    atualizar(c: RespostasDaConta) {
+      conta = c;
+      desenhar();
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Respostas prontas (criadas no app, em Configurações). Carrega ao abrir a aba, ao voltar ao painel
 // e no botão Atualizar. O texto já sai com as variáveis preenchidas pelos dados da conta.
 
@@ -387,6 +566,7 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
     autocomplete: "off",
   });
   const lista = h("div", { class: "grupo" });
+  const sequencias = blocoSequencias(aoPerderSessao);
   let conta: RespostasDaConta | null = null;
   let carregando = false;
 
@@ -398,6 +578,8 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
 
   function desenhar() {
     if (!conta) return;
+    // buscando, só as respostas; sem busca, as sequências ficam em cima
+    sequencias.el.hidden = campo.value.trim() !== "";
     if (conta.respostas.length === 0) {
       lista.replaceChildren(
         h(
@@ -469,6 +651,7 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
       return;
     }
     conta = r.dados;
+    sequencias.atualizar(conta);
     desenhar();
     if (manual) avisar(conta.respostas.length === 1 ? "1 resposta." : `${conta.respostas.length} respostas.`);
   }
@@ -478,6 +661,7 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
     "div",
     { class: "secao" },
     h("div", { class: "linha-busca" }, h("div", { class: "busca" }, iconeLupa(), campo), atualizar),
+    sequencias.el,
     lista,
   );
   return { el, carregar, focar: () => campo.focus(), carregou: () => conta !== null };
