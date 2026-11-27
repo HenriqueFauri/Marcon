@@ -130,7 +130,7 @@ export const ROTULO_TIPO: Record<TipoMidia, string> = { imagem: "Foto", document
 // Linha de detalhe da lista ("PDF · 1,2 MB", "Áudio · 0:32 · gravado")
 export function detalheDaMidia(m: Pick<Midia, "tipo" | "tamanho" | "duracao" | "origem">): string {
   const partes: string[] = [ROTULO_TIPO[m.tipo]];
-  if (m.tipo === "audio" && m.duracao != null) partes.push(formatarDuracao(m.duracao));
+  if (m.tipo === "audio" && m.duracao) partes.push(formatarDuracao(m.duracao));
   partes.push(formatarTamanho(m.tamanho));
   if (m.origem === "gravacao") partes.push("gravado");
   return partes.join(" · ");
@@ -153,7 +153,7 @@ export function filtrarMidias<T extends Pick<Midia, "titulo" | "nome_arquivo" | 
 // Confere um arquivo escolhido antes de enviar. Devolve a extensão canônica ou a mensagem de erro.
 export function conferirArquivo(nome: string, mime: string, tamanho: number): { ok: true; ext: string } | { ok: false; erro: string } {
   const ext = formatoDoArquivo(nome, mime);
-  if (!ext) return { ok: false, erro: "Esse tipo de arquivo não vai. Use foto (JPG, PNG, WebP), PDF ou áudio (M4A, MP3, OGG, AAC, AMR)." };
+  if (!ext) return { ok: false, erro: "Esse tipo de arquivo não vai. Use foto (JPG, PNG, WebP), PDF ou áudio (M4A, MP3, OGG, OPUS, AAC, AMR)." };
   if (tamanho <= 0) return { ok: false, erro: "O arquivo está vazio." };
   if (tamanho > LIMITE_ARQUIVO) return { ok: false, erro: `O arquivo passa de ${formatarTamanho(LIMITE_ARQUIVO)}. Use um menor.` };
   return { ok: true, ext };

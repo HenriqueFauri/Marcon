@@ -204,7 +204,7 @@ function Lista({ midias, visiveis = midias, miniaturas = {}, usados, respostas, 
         <PageHeader title="Biblioteca de mídia" back={VOLTAR} />
         <EmptyState
           title="Nenhum arquivo ainda"
-          description="Suba fotos, catálogos em PDF e áudios. Na extensão do WhatsApp Web, Anexar coloca o arquivo na conversa e você envia."
+          description="Suba fotos, catálogos em PDF e áudios. Na extensão do WhatsApp Web, Anexar abre a prévia do WhatsApp com o arquivo. Quem envia é você."
           action={botao("Adicionar arquivo")}
         />
       </div>
@@ -288,7 +288,7 @@ function Editor({ midia, url, respostas }: { midia: Midia; url: string | null; r
           )}
         </Grupo>
 
-        <Grupo titulo="Arquivo" rodape="O nome também é o nome do arquivo na conversa (o PDF chega com ele).">
+        <Grupo titulo="Arquivo" rodape={midia.tipo === "documento" ? "O PDF chega na conversa com este nome." : "Só pra você achar o arquivo aqui e na extensão."}>
           <Field label="Nome">
             <input
               name="titulo"
