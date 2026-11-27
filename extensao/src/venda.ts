@@ -64,7 +64,7 @@ export async function enviarVenda(db: SupabaseClient, base: string, venda: Venda
       signal: AbortSignal.timeout(25_000),
     });
   } catch {
-    return { ok: false, incerto: true, erro: "Sem resposta do Marcon. Tente de novo: se a venda já entrou, ela não duplica." };
+    return { ok: false, incerto: true, erro: "Sem resposta do Marcon. Tente de novo daqui: se a venda já entrou, ela não duplica. Se fechar o painel, confira em Vendas antes." };
   }
 
   let corpo: { ok?: boolean; erro?: string; vendaId?: string; reciboToken?: string; criada?: boolean; total?: number } | null = null;
@@ -79,7 +79,7 @@ export async function enviarVenda(db: SupabaseClient, base: string, venda: Venda
   }
   // 5xx sem resposta clara: pode ter entrado ou não
   if (r.status >= 500 || !corpo) {
-    return { ok: false, incerto: true, erro: "O Marcon não confirmou a venda. Tente de novo: se ela já entrou, não duplica." };
+    return { ok: false, incerto: true, erro: "O Marcon não confirmou a venda. Tente de novo daqui: se ela já entrou, não duplica. Se fechar o painel, confira em Vendas antes." };
   }
   return { ok: false, erro: corpo.erro || "Não deu para registrar a venda. Tente de novo." };
 }
