@@ -406,8 +406,23 @@ interface ItemCarrinho {
   preco: string; // como está no campo ("49,90")
 }
 
+// A venda em andamento é da conta que a montou. Se a sessão cai e a mesma conta volta, tudo fica
+// (carrinho, cliente e chave: tentar de novo não duplica). Outra conta ou Sair limpa tudo.
 const carrinho: ItemCarrinho[] = [];
 let tentativa: { chave: string; assinatura: string } | null = null;
+let clienteDaVenda: { escolhido: ClienteBusca | null; texto: string } = { escolhido: null, texto: "" };
+let contaDaVenda: string | null = null;
+
+function limparVenda() {
+  carrinho.length = 0;
+  tentativa = null;
+  clienteDaVenda = { escolhido: null, texto: "" };
+}
+
+function vendaDaConta(email: string) {
+  if (contaDaVenda !== email) limparVenda();
+  contaDaVenda = email;
+}
 
 function precoNoCampo(valor: number) {
   return (Math.round(valor * 100) / 100).toFixed(2).replace(".", ",");
@@ -428,7 +443,6 @@ function secaoVender(aoPerderSessao: (erro: string) => void) {
   const campoCliente = h("input", { class: "campo", type: "text", placeholder: "Nome ou telefone", "aria-label": "Cliente", autocomplete: "off", maxlength: "120" });
   const sugestoes = h("div", {});
   const clienteRodape = h("p", { class: "grupo-rodape" }, "Opcional. Sem cadastro, o nome vai só nesta venda.");
-  let clienteEscolhido: ClienteBusca | null = null;
   const totalEl = h("span", { class: "total" }, formatarPreco(0));
   const resumoEl = h("span", { class: "detalhe" }, "Nenhum item");
   const erroEl = h("p", { class: "erro-campo", role: "alert" });
@@ -583,15 +597,17 @@ function secaoVender(aoPerderSessao: (erro: string) => void) {
   }
 
   // ---- cliente (opcional): cadastrado pelo nome ou telefone, ou só o nome livre
+  campoCliente.value = clienteDaVenda.texto;
   campoCliente.addEventListener("input", () => {
-    clienteEscolhido = null;
+    clienteDaVenda.escolhido = null;
+    clienteDaVenda.texto = campoCliente.value;
     desenharSugestoes();
   });
   function desenharSugestoes() {
     const termo = campoCliente.value;
-    if (clienteEscolhido) {
+    if (clienteDaVenda.escolhido) {
       sugestoes.replaceChildren();
-      clienteRodape.textContent = clienteEscolhido.telefone ? `Cliente cadastrado · ${clienteEscolhido.telefone}` : "Cliente cadastrado";
+      clienteRodape.textContent = clienteDaVenda.escolhido.telefone ? `Cliente cadastrado · ${clienteDaVenda.escolhido.telefone}` : "Cliente cadastrado";
       return;
     }
     const lista = dados ? filtrarClientes(dados.clientes, termo, 5) : [];
@@ -604,8 +620,8 @@ function secaoVender(aoPerderSessao: (erro: string) => void) {
             type: "button",
             on: {
               click: () => {
-                clienteEscolhido = c;
-                campoCliente.value = c.nome;
+                clienteDaVenda.escolhido = c;
+                campoCliente.value = clienteDaVenda.texto = c.nome;
                 desenharSugestoes();
               },
             },
@@ -644,8 +660,8 @@ function secaoVender(aoPerderSessao: (erro: string) => void) {
       itens,
       formaPagamentoId: forma.value || null,
       canalId: canal.value || null,
-      clienteId: clienteEscolhido?.id ?? null,
-      clienteNome: clienteEscolhido ? clienteEscolhido.nome : /\p{L}/u.test(nomeLivre) ? nomeLivre : null,
+      clienteId: clienteDaVenda.escolhido?.id ?? null,
+      clienteNome: clienteDaVenda.escolhido ? clienteDaVenda.escolhido.nome : /\p{L}/u.test(nomeLivre) ? nomeLivre : null,
     };
   }
 
@@ -679,9 +695,7 @@ function secaoVender(aoPerderSessao: (erro: string) => void) {
     const r = (await pedir<VendaFeita>({ tipo: "vender", venda: { ...venda, chave: tentativa.chave } })) as RespostaVenda;
     enviando = false;
     if (r.ok) {
-      carrinho.length = 0;
-      tentativa = null;
-      clienteEscolhido = null;
+      limparVenda();
       campoCliente.value = "";
       telaFeita(r.dados);
       return;
@@ -792,6 +806,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function telaPrincipal(sessao: Sessao) {
+  vendaDaConta(sessao.email);
   const campo = h("input", {
     type: "search",
     placeholder: "Nome, SKU, marca ou código",
@@ -851,8 +866,8 @@ function telaPrincipal(sessao: Sessao) {
       on: {
         click: async () => {
           await pedir({ tipo: "sair" });
-          carrinho.length = 0;
-          tentativa = null;
+          limparVenda();
+          contaDaVenda = null;
           telaEntrar();
         },
       },

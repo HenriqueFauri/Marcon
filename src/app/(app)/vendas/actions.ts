@@ -130,7 +130,8 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
         ...(entrada > 0 ? { p_entrada: entrada } : {}),
       });
       if (r.error && /Could not find the function/i.test(r.error.message)) {
-        // banco ainda sem a migration 0075: segue como antes
+        // banco ainda sem a migration 0075: segue como antes (sem a proteção, por isso o aviso no log)
+        console.warn("[vendas] registrar_venda_unica indisponível, venda sem chave");
         const v = await semChave();
         if (v.error) return falha(v.error);
         vendaId = String(v.data);
@@ -146,12 +147,8 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
       if (v.error) return falha(v.error);
       vendaId = String(v.data);
     }
-    if (!criada) {
-      revalidarVendas();
-      return { ok: true, message: "Essa venda já estava registrada.", id: vendaId };
-    }
-
-    // pedido da vitrine que virou esta venda: sai dos novos e guarda o vínculo
+    // pedido da vitrine que virou esta venda: sai dos novos e guarda o vínculo. Também na repetição
+    // (a primeira tentativa pode ter caído antes daqui); o filtro por "novo" não liga duas vezes.
     if (input.pedidoId) {
       await supabase
         .from("vitrine_pedidos")
@@ -159,6 +156,11 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
         .eq("id", input.pedidoId)
         .eq("status", "novo");
       revalidatePath("/vitrine", "layout");
+    }
+
+    if (!criada) {
+      revalidarVendas();
+      return { ok: true, message: "Essa venda já estava registrada.", id: vendaId };
     }
 
     const total = subtotal - desconto;
