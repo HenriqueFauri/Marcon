@@ -51,7 +51,8 @@ export default async function VitrineVisaoGeralPage() {
       .from("produtos")
       .select("id, nome, tem_variacoes, estoque_atual, destaque")
       .eq("status", "ativo")
-      .eq("na_vitrine", true),
+      .eq("na_vitrine", true)
+      .order("nome"),
     supabase.from("formas_pagamento").select("id", { count: "exact", head: true }),
     supabase.from("vitrine_metricas").select("visitas, pedidos").gte("dia", desde),
     supabase.from("vitrine_metricas_produto").select("produto_id, aberturas").gte("dia", desde),

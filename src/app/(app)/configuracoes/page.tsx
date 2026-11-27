@@ -13,6 +13,7 @@ import { Grupo, LinhaLink } from "@/components/ajustes";
 import { IconBox, IconMensagem, IconWhatsapp } from "@/components/icons";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
 import { ehAdmin } from "@/lib/admin";
+import { RolarParaAncora } from "@/components/rolar-para-ancora";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -49,6 +50,7 @@ export default async function ConfiguracoesPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Configurações" />
+      <RolarParaAncora />
 
       <div className="flex flex-col gap-7">
         <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez.">
@@ -84,7 +86,7 @@ export default async function ConfiguracoesPage() {
         </Grupo>
 
         {/* âncoras dos passos da Vitrine (logo e formas de pagamento); scroll-mt deixa o título fora do cabeçalho fixo */}
-        <div id="empresa" className="scroll-mt-20">
+        <div id="empresa" className="scroll-mt-24">
           <Grupo titulo="Empresa" rodape="O nome aparece no menu. O resto é opcional e vai no recibo; o PIX vai junto na cobrança pelo WhatsApp.">
             <EmpresaForm
               nomeNegocio={nomeNegocio}
@@ -108,7 +110,7 @@ export default async function ConfiguracoesPage() {
           onExcluir={excluirCanal}
         />
 
-        <div id="formas-de-pagamento" className="scroll-mt-20">
+        <div id="formas-de-pagamento" className="scroll-mt-24">
           <ListaSimples
             titulo="Formas de pagamento"
             itens={(formas ?? []) as FormaPagamento[]}
