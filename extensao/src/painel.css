@@ -133,6 +133,7 @@ a.btn { text-decoration: none; box-sizing: border-box; }
 .tocador .vazio { padding: 8px 0 0; }
 .passo-atual { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .acoes-seq .btn { width: 100%; }
+.texto-passo { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; }
 .tocador .acoes { margin-top: 0; }
 .tocador .btn-pequeno:disabled { opacity: 0.45; cursor: default; }
 

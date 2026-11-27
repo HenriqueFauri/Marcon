@@ -86,7 +86,8 @@ export type Acao = { tipo: "texto"; texto: string } | { tipo: "midia"; midia: Mi
 
 export interface PassoRoteiro {
   id: string;
-  titulo: string;
+  // nome da resposta pronta, quando o passo usa uma (texto escrito e arquivo já aparecem no painel)
+  titulo: string | null;
   acoes: Acao[];
 }
 
@@ -117,7 +118,10 @@ export function montarRoteiro(
     const midia = p.midia_id ? midias.find((m) => m.id === p.midia_id) : undefined;
     if (midia) acoes.push({ tipo: "midia", midia });
     if (acoes.length === 0) pulados++;
-    else lista.push({ id: p.id, titulo: tituloDoPasso(p, respostas, midias), acoes });
+    else {
+      const resposta = p.resposta_id ? respostas.find((r) => r.id === p.resposta_id) : undefined;
+      lista.push({ id: p.id, titulo: resposta?.titulo ?? null, acoes });
+    }
   }
   return { titulo: seq.titulo, passos: lista, pulados };
 }

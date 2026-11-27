@@ -500,12 +500,15 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
       const pularB = h("button", { class: "btn-pequeno neutro", type: "button" }, "Pular");
       pularB.addEventListener("click", () => mover(pular(r, pos)));
       const proxima = passo.acoes[pos.acao + 1];
-      const conteudo = acao.tipo === "texto" ? h("span", { class: "previa" }, acao.texto) : h("span", { class: "detalhe" }, `${ROTULO_TIPO[acao.midia.tipo]}: ${acao.midia.titulo}`);
+      const conteudo =
+        acao.tipo === "texto"
+          ? h("span", { class: "texto-passo" }, acao.texto)
+          : h("span", { class: "nome" }, `${ROTULO_TIPO[acao.midia.tipo]}: ${acao.midia.titulo}`);
       corpo = [
         h(
           "div",
           { class: "passo-atual" },
-          h("span", { class: "nome" }, passo.titulo),
+          passo.titulo ? h("span", { class: "nome" }, passo.titulo) : null,
           conteudo,
           proxima ? h("span", { class: "detalhe" }, `Depois: ${rotuloDaAcao(proxima).toLowerCase()}`) : null,
         ),

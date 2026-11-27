@@ -78,7 +78,9 @@ function novaVenda(chave: string, itens: { quantidade: number; preco_unitario: n
   vendas.set(chave, nova);
   return nova;
 }
-const ultimo: { texto?: string; anexo?: string } = {};
+// cada pedido de inserir ou anexar que o painel faz (a simulação confere: um por clique)
+const acoes: string[] = [];
+const ultimo: { texto?: string; anexo?: string; acoes: string[] } = { acoes };
 function responder(p: Pedido): unknown {
   switch (p.tipo) {
     case "sessao":
@@ -109,6 +111,19 @@ function responder(p: Pedido): unknown {
           // sem endereço de propósito: a linha some
           dados: { negocio: "Loja de Teste", pix: "pix@lojadeteste.com", endereco: null, telefone: null, vitrine: "https://marcon-staging.vercel.app/loja/loja-de-teste" },
           midias: [{ id: "m3", tipo: "imagem", titulo: "Tabela de medidas", resposta_id: "r2" }],
+          // parte 4: "Primeiro contato" tem um passo de texto com arquivo e um passo vazio (arquivo apagado)
+          sequencias: [
+            { id: "s1", titulo: "Primeiro contato", ordem: 0 },
+            { id: "s2", titulo: "Fechar venda", ordem: 1 },
+          ],
+          passos: [
+            { id: "q1", sequencia_id: "s1", ordem: 0, texto: "Oi! Aqui é da {negocio}. Vou te mandar o catálogo.", resposta_id: null, midia_id: null },
+            { id: "q2", sequencia_id: "s1", ordem: 1, texto: null, resposta_id: null, midia_id: "m3" },
+            { id: "q3", sequencia_id: "s1", ordem: 2, texto: "Esse áudio explica a garantia:", resposta_id: null, midia_id: "m2" },
+            { id: "q4", sequencia_id: "s1", ordem: 3, texto: null, resposta_id: null, midia_id: "apagado" },
+            { id: "q5", sequencia_id: "s1", ordem: 4, texto: null, resposta_id: "r2", midia_id: null },
+          ],
+          arquivos: midiasFalsas.map((m) => ({ id: m.id, tipo: m.tipo, titulo: m.titulo })),
         },
       };
     case "dadosVenda":
@@ -146,6 +161,7 @@ function responder(p: Pedido): unknown {
       return { ok: true, dados: midiasFalsas };
     case "anexarMidia":
       ultimo.anexo = p.id;
+      acoes.push(`anexar:${p.id}`);
       // o PDF finge que a prévia não abriu, para conferir o botão Baixar
       return p.id === "m1"
         ? { ok: true, dados: { anexou: false, mensagem: "A prévia do WhatsApp não abriu. Feche o que estiver aberto na conversa ou use Baixar e arraste o arquivo.", arquivo: { base64: "JVBERi0=", mime: "application/pdf", nome: "Catálogo de Natal.pdf" } } }
@@ -160,6 +176,7 @@ function responder(p: Pedido): unknown {
       return { ok: true, dados: midiasFalsas[0] };
     case "inserir":
       ultimo.texto = p.texto;
+      acoes.push(`inserir:${p.texto.slice(0, 30)}`);
       return p.texto.includes("Garrafa")
         ? { ok: false, erro: "Abra uma conversa no WhatsApp e tente de novo." }
         : { ok: true, dados: "Texto na caixa. Revise e envie." };
