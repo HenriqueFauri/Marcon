@@ -49,6 +49,16 @@ const produtos: ProdutoBusca[] = [
 ];
 
 let logado = false;
+// vendas falsas por chave: repetir a chave devolve a mesma venda (como a registrar_venda_unica)
+const vendas = new Map<string, { vendaId: string; reciboToken: string; total: number }>();
+let falharRede = true; // a primeira venda com cliente "Rede" entra, mas a resposta "se perde"
+(globalThis as unknown as { marconVendas: unknown }).marconVendas = vendas;
+function novaVenda(chave: string, itens: { quantidade: number; preco_unitario: number }[]) {
+  const total = Math.round(itens.reduce((s, i) => s + i.quantidade * i.preco_unitario * 100, 0)) / 100;
+  const nova = { vendaId: `venda-${vendas.size + 1}`, reciboToken: `tok-${vendas.size + 1}`, total };
+  vendas.set(chave, nova);
+  return nova;
+}
 const ultimo: { texto?: string } = {};
 function responder(p: Pedido): unknown {
   switch (p.tipo) {
@@ -81,6 +91,32 @@ function responder(p: Pedido): unknown {
           dados: { negocio: "Loja de Teste", pix: "pix@lojadeteste.com", endereco: null, telefone: null, vitrine: "https://marcon-staging.vercel.app/loja/loja-de-teste" },
         },
       };
+    case "dadosVenda":
+      return {
+        ok: true,
+        dados: {
+          formas: [{ id: "f1", nome: "Dinheiro" }, { id: "f2", nome: "Pix" }, { id: "f3", nome: "Cartão" }],
+          canais: [{ id: "c1", nome: "Instagram" }, { id: "c2", nome: "WhatsApp" }],
+          clientes: [
+            { id: "k1", nome: "João da Silva", telefone: "(11) 98765-4321" },
+            { id: "k2", nome: "Maria Souza", telefone: null },
+          ],
+        },
+      };
+    case "vender": {
+      const v = p.venda;
+      const ja = vendas.get(v.chave);
+      if (ja) return { ok: true, dados: { ...ja, criada: false } };
+      if (v.clienteNome === "Limite") {
+        return { ok: false, erro: "Você chegou ao limite de 30 vendas por mês do plano grátis. Assine o plano Marcon para vender sem limite." };
+      }
+      const nova = novaVenda(v.chave, v.itens);
+      if (v.clienteNome === "Rede" && falharRede) {
+        falharRede = false;
+        return { ok: false, incerto: true, erro: "Sem resposta do Marcon. Tente de novo: se a venda já entrou, ela não duplica." };
+      }
+      return { ok: true, dados: { ...nova, criada: true } };
+    }
     case "inserir":
       ultimo.texto = p.texto;
       return p.texto.includes("Garrafa")

@@ -333,6 +333,88 @@ begin
     pulados := array_append(pulados, '0073 (respostas prontas)');
   end if;
 
+  -- 0075: venda sem duplicar (registrar_venda_unica): chave por conta, sem afrouxar posse nem limite
+  if to_regprocedure('registrar_venda_unica(uuid,uuid,text,jsonb,numeric,venda_tipo_pagamento,text,text,integer,date,date,uuid,uuid,numeric,boolean,numeric)') is not null then
+    declare
+      prod_b uuid;
+      ch uuid := gen_random_uuid();
+      r jsonb;
+      r2 jsonb;
+      venda_b uuid;
+      est integer;
+      i integer;
+    begin
+      -- produto de B com estoque, criado pelo dono do banco (sem o limite de produtos atrapalhar)
+      alter table produtos disable trigger produtos_limites_do_plano;
+      insert into produtos (owner_id, nome, preco_varejo, custo, estoque_atual) values (b, 'TESTE 0075', 10, 4, 5)
+        returning id into prod_b;
+      alter table produtos enable trigger produtos_limites_do_plano;
+
+      execute 'set local role anon';
+      begin
+        perform registrar_venda_unica(ch, null, null, jsonb_build_array(jsonb_build_object('produto_id', prod_b, 'quantidade', 1, 'preco_unitario', 10)), 0, 'a_vista', null, null);
+        falhas := array_append(falhas, 'anon chamou registrar_venda_unica');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
+
+      perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      r := registrar_venda_unica(ch, null, 'TESTE', jsonb_build_array(jsonb_build_object('produto_id', prod_b, 'quantidade', 2, 'preco_unitario', 10)), 0, 'a_vista', null, null);
+      venda_b := (r->>'venda_id')::uuid;
+      if (r->>'criada')::boolean then oks := oks + 1; else falhas := array_append(falhas, '0075: primeira chamada não criou a venda'); end if;
+      r2 := registrar_venda_unica(ch, null, 'TESTE', jsonb_build_array(jsonb_build_object('produto_id', prod_b, 'quantidade', 2, 'preco_unitario', 10)), 0, 'a_vista', null, null);
+      if (r2->>'venda_id')::uuid = venda_b and not (r2->>'criada')::boolean then oks := oks + 1; else falhas := array_append(falhas, '0075: repetir a chave criou outra venda'); end if;
+      select count(*) into n from vendas where chave_idempotencia = ch;
+      if n = 1 then oks := oks + 1; else falhas := array_append(falhas, '0075: venda duplicada pela chave'); end if;
+      select estoque_atual into est from produtos where id = prod_b;
+      if est = 3 then oks := oks + 1; else falhas := array_append(falhas, ('0075: estoque baixou errado, ficou ' || est)); end if;
+      select count(*) into n from lancamentos_caixa where venda_id = venda_b;
+      if n = 1 then oks := oks + 1; else falhas := array_append(falhas, '0075: caixa duplicado ou ausente'); end if;
+      begin
+        perform registrar_venda_unica(gen_random_uuid(), null, null, jsonb_build_array(jsonb_build_object('produto_id', prod_a, 'quantidade', 1, 'preco_unitario', 1)), 0, 'a_vista', null, null, p_encomenda => true);
+        falhas := array_append(falhas, '0075: B vendeu produto de A');
+      exception when others then
+        if sqlerrm like '%produto não encontrado%' then oks := oks + 1; else falhas := array_append(falhas, ('0075: produto de A recusado pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      begin
+        perform registrar_venda_unica(null, null, null, jsonb_build_array(jsonb_build_object('produto_id', prod_b, 'quantidade', 1, 'preco_unitario', 1)), 0, 'a_vista', null, null);
+        falhas := array_append(falhas, '0075: venda sem chave aceita');
+      exception when others then oks := oks + 1; end;
+
+      -- A com a mesma chave: cria a venda dela e nunca recebe a de B
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      r := registrar_venda_unica(ch, null, 'TESTE', jsonb_build_array(jsonb_build_object('produto_id', prod_a, 'quantidade', 1, 'preco_unitario', 1)), 0, 'a_vista', null, null, p_encomenda => true);
+      if (r->>'criada')::boolean and (r->>'venda_id')::uuid <> venda_b then oks := oks + 1; else falhas := array_append(falhas, '0075: A recebeu a venda de B pela chave'); end if;
+      update vendas set chave_idempotencia = gen_random_uuid() where id = venda_b;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, '0075: A mexeu na chave da venda de B'); end if;
+      execute 'reset role';
+
+      -- plano grátis no limite: chave nova é recusada pelo gatilho; repetir a chave já usada só devolve a venda
+      update auth.users set created_at = now() - interval '60 days' where id = b;
+      delete from assinaturas where owner_id = b;
+      alter table vendas disable trigger vendas_limites_do_plano;
+      for i in 1..25 loop
+        insert into vendas (owner_id, valor_total, cliente_nome) values (b, 0, 'TESTE limite');
+      end loop;
+      alter table vendas enable trigger vendas_limites_do_plano;
+      perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      begin
+        perform registrar_venda_unica(gen_random_uuid(), null, null, jsonb_build_array(jsonb_build_object('produto_id', prod_b, 'quantidade', 1, 'preco_unitario', 1)), 0, 'a_vista', null, null);
+        falhas := array_append(falhas, '0075: passou do limite do plano grátis');
+      exception when others then
+        if sqlerrm like '%limite de%vendas%' then oks := oks + 1; else falhas := array_append(falhas, ('0075: limite recusado pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      r2 := registrar_venda_unica(ch, null, 'TESTE', jsonb_build_array(jsonb_build_object('produto_id', prod_b, 'quantidade', 2, 'preco_unitario', 10)), 0, 'a_vista', null, null);
+      if (r2->>'venda_id')::uuid = venda_b then oks := oks + 1; else falhas := array_append(falhas, '0075: repetir a chave no limite não devolveu a venda'); end if;
+      execute 'reset role';
+    end;
+  else
+    pulados := array_append(pulados, '0075 (venda sem duplicar)');
+  end if;
+
   if cardinality(falhas) = 0 then
     raise exception 'SEGURANCA OK: % testes passaram. Pulados: %. (resultado, tudo desfeito)', oks, pulados;
   else
