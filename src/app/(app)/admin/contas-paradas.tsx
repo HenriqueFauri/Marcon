@@ -4,6 +4,7 @@ import { SetaLink, linkPendente } from "@/components/seta-link";
 import { dataISONoFuso, formatDataCurta, hojeISO } from "@/lib/format";
 
 export const DIAS_PARADA = 7;
+const LIMITE = 10;
 
 export interface ContaParada {
   id: string;
@@ -40,20 +41,35 @@ export function contaParada(o: {
 }
 
 // contas sem acesso nem venda há 7 dias ou mais, para chamar de volta (plano de marketing, H3)
-export function ContasParadas({ contas }: { contas: ContaParada[] }) {
+export function ContasParadas({ contas, todas }: { contas: ContaParada[]; todas: boolean }) {
   if (contas.length === 0) return null;
   // quem parou há menos tempo primeiro: é quem tem mais chance de voltar
   const ordenadas = [...contas].sort((a, b) => a.dias - b.dias);
+  // a lista não pode empurrar a tabela de contas para longe: mostra as primeiras e abre o resto sob pedido
+  const visiveis = todas ? ordenadas : ordenadas.slice(0, LIMITE);
+  const sobra = ordenadas.length - visiveis.length;
 
   return (
     <Grupo
       titulo={`Paradas há ${DIAS_PARADA} dias ou mais · ${contas.length}`}
-      rodape="Sem acesso e sem venda no período. A conta admin e as bloqueadas ficam de fora."
+      rodape={
+        <>
+          Sem login novo e sem venda no período. A conta admin e as bloqueadas ficam de fora.
+          {sobra > 0 && (
+            <>
+              {" "}
+              <Link href="/admin?paradas=todas" className="text-brand-text">
+                Ver todas
+              </Link>
+            </>
+          )}
+        </>
+      }
       semPadding
       className="mb-7"
     >
       <ul className="divide-y divide-line">
-        {ordenadas.map((c) => (
+        {visiveis.map((c) => (
           <li key={c.id}>
             <Link
               href={`/admin/contas/${c.id}`}

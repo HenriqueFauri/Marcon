@@ -156,7 +156,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       }),
     )
     .filter((c) => c !== null);
-  const pct = (n: number) =>`${base.length ? Math.round((n / base.length) * 100) : 0}%`;
+  const pct = (n: number) => `${base.length ? Math.round((n / base.length) * 100) : 0}%`;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -204,7 +204,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       <OrigemDosCadastros contas={contasComOrigem} falhou={!!erroOrigens} semFunil={!!erroFunil} />
 
       {/* sem os números das contas a última venda some e todo mundo pareceria parado */}
-      {!erroResumo && <ContasParadas contas={paradas} />}
+      {!erroResumo && <ContasParadas contas={paradas} todas={sp.paradas === "todas"} />}
 
       <Segmentos
         rotulo="Filtrar contas"
