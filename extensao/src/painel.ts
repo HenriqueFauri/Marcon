@@ -103,9 +103,9 @@ function topo(conta?: { nomeNegocio: string; nome: string }) {
   return h(
     "header",
     { class: "topo" },
-    h("div", { class: "marca-inicial", "aria-hidden": "true" }, negocio.trim().charAt(0).toUpperCase() || "M"),
+    h("div", { class: "marca-inicial", "aria-hidden": "true" }, negocio.trim().charAt(0).toUpperCase() || (conta ? "G" : "M")),
     h("div", { class: "marca-textos" }, h("p", { class: "marca-negocio" }, negocio), conta?.nome ? h("p", { class: "marca-dono" }, conta.nome) : null),
-    AMBIENTE === "staging" ? h("span", { class: "selo", title: "Build de teste, ligado ao Staging" }, "Staging") : null,
+    AMBIENTE === "staging" ? h("span", { class: "selo", title: "Versão de teste, ligada ao Staging" }, "Staging") : null,
     embutido ? h("button", { class: "fechar", type: "button", "aria-label": "Fechar painel", on: { click: () => pedir({ tipo: "fecharPainel" }) } }, icone("fechar")) : null,
   );
 }
@@ -663,7 +663,7 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
           { class: "passo-atual" },
           passo.titulo ? h("span", { class: "nome" }, passo.titulo) : null,
           conteudo,
-          proxima ? h("span", { class: "detalhe" }, `Depois: ${minuscula(rotuloDaAcao(proxima))}${proxima.tipo === "texto" ? "" : `: ${proxima.midia.titulo}`}`) : null,
+          proxima ? h("span", { class: "detalhe" }, `Depois: ${minuscula(rotuloDaAcao(proxima))}${proxima.tipo === "texto" ? "" : ` (${proxima.midia.titulo})`}`) : null,
         ),
         h("div", { class: "acoes-seq" }, principal),
         h("div", { class: "acoes" }, voltarB, pularB, fechar),
@@ -1591,6 +1591,15 @@ function telaPrincipal(sessao: Sessao) {
     if (n !== ultimo) return;
     if (!r.ok) {
       if (r.erro.includes("sessão")) return telaEntrar(r.erro);
+      // erro no Mostrar mais: a lista que já está na tela fica, e o botão volta
+      if (pagina > 0) {
+        const mais = [...resultados.querySelectorAll("button")].find((b) => b.textContent === "Carregando...");
+        if (mais) {
+          mais.disabled = false;
+          mais.textContent = "Mostrar mais";
+        }
+        return avisar(r.erro, true);
+      }
       resultados.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
       return;
     }
@@ -1743,7 +1752,8 @@ function telaPrincipal(sessao: Sessao) {
 
   // nome do negócio, do dono e o plano chegam depois; o painel já está usável
   pedir<DadosConta>({ tipo: "conta" }).then((r) => {
-    if (!r.ok || !document.body.contains(cabecalho)) return;
+    if (!document.body.contains(cabecalho)) return;
+    if (!r.ok) return rodape.mostrarPlano(null);
     cabecalho.replaceWith(topo(r.dados));
     rodape.mostrarPlano(r.dados.plano);
   });

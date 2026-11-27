@@ -45,11 +45,17 @@ if (args.includes("--simulacao")) {
   process.exit(0);
 }
 
-// Fonte do app (Geist, licença OFL): a mesma que o Next entrega ao site, copiada do pacote next da raiz
+// Fonte do app (Geist, licença OFL), do pacote oficial "geist" (dependência desta pasta), com a licença junto
 function copiarFontes(destino) {
-  const origem = join(aqui, "..", "node_modules", "next", "dist", "esm", "next-devtools", "server", "font");
+  const pacote = join(aqui, "node_modules", "geist");
+  const fonte = join(pacote, "dist", "fonts", "geist-sans", "Geist-Variable.woff2");
+  if (!existsSync(fonte)) {
+    console.error("Falta a fonte Geist. Rode npm install na pasta extensao.");
+    process.exit(1);
+  }
   mkdirSync(join(destino, "fontes"), { recursive: true });
-  for (const f of ["geist-latin.woff2", "geist-latin-ext.woff2"]) cpSync(join(origem, f), join(destino, "fontes", f));
+  cpSync(fonte, join(destino, "fontes", "Geist-Variable.woff2"));
+  cpSync(join(pacote, "LICENSE.txt"), join(destino, "fontes", "Geist-OFL.txt"));
 }
 
 const AMBIENTES = {

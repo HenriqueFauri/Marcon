@@ -9,6 +9,7 @@ import {
   FORMATOS,
   LIMITE_ARQUIVO,
   LIMITE_GRAVACAO_SEG,
+  LIMITE_TITULO_MIDIA,
   caminhoDaMidia,
   extensaoDoCaminho,
   nomeParaEnvio,
@@ -174,7 +175,7 @@ export function extensaoConfere(m: Pick<Midia, "path" | "mime">): boolean {
 // Renomear um arquivo da biblioteca (o nome também é o nome do arquivo que chega na conversa)
 export async function renomearMidia(db: SupabaseClient, id: string, bruto: string): Promise<Resposta<{ id: string; titulo: string }>> {
   if (!(await logado(db))) return { ok: false, erro: SEM_SESSAO };
-  const titulo = bruto.replace(/\s+/g, " ").trim().slice(0, 80);
+  const titulo = bruto.replace(/\s+/g, " ").trim().slice(0, LIMITE_TITULO_MIDIA);
   if (!titulo) return { ok: false, erro: "Dê um nome para o arquivo." };
   const { data: atual } = await db.from("midias").select("path").eq("id", id).maybeSingle();
   if (!atual) return { ok: false, erro: "Arquivo não encontrado. Atualize a lista." };

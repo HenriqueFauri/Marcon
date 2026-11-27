@@ -21,11 +21,12 @@ export async function dadosDaConta(db: SupabaseClient): Promise<Resposta<DadosCo
   ]);
   const user = u.user ?? sessao.session.user;
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const texto = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  const texto = (v: unknown) => (typeof v === "string" ? v : undefined);
   return {
     ok: true,
     dados: {
       email: user.email ?? "",
+      // mesmas regras de src/app/(app)/layout.tsx: || no negócio, ?? no nome do dono
       nomeNegocio: texto(meta.nome_negocio) || "Meu negócio",
       nome: texto(meta.nome) ?? texto(meta.full_name) ?? texto(meta.name) ?? user.email ?? "",
       // sem conseguir ler a assinatura agora: sem selo, em vez de um selo errado
