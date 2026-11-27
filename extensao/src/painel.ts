@@ -157,6 +157,9 @@ function acoes(p: ProdutoBusca, variacaoId?: string) {
 }
 
 // Inserir (coloca na caixa do WhatsApp, sem enviar) e Copiar (plano B)
+// Texto vazio (resposta em que toda linha usa um dado que a conta não tem): avisa e não insere.
+const SEM_TEXTO = "Falta dado na conta para esta resposta. Preencha em Configurações, no Marcon.";
+
 function inserirCopiar(texto: () => string, alvo: string) {
   return h(
     "div",
@@ -169,6 +172,7 @@ function inserirCopiar(texto: () => string, alvo: string) {
         "aria-label": `Inserir ${alvo}`,
         on: {
           click: async () => {
+            if (!texto().trim()) return avisar(SEM_TEXTO, true);
             const r = await pedir<string>({ tipo: "inserir", texto: texto() });
             if (r.ok) avisar(r.dados);
             else {
@@ -187,7 +191,12 @@ function inserirCopiar(texto: () => string, alvo: string) {
         class: "btn-pequeno neutro",
         type: "button",
         "aria-label": `Copiar ${alvo}`,
-        on: { click: async () => avisar((await copiar(texto())) ? "Texto copiado." : "Não deu para copiar.", false) },
+        on: {
+          click: async () => {
+            if (!texto().trim()) return avisar(SEM_TEXTO, true);
+            avisar((await copiar(texto())) ? "Texto copiado." : "Não deu para copiar.", false);
+          },
+        },
       },
       "Copiar",
     ),

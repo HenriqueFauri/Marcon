@@ -12,6 +12,7 @@ import { EmpresaForm } from "./empresa-form";
 import { Grupo, LinhaLink } from "@/components/ajustes";
 import { IconBox, IconMensagem, IconWhatsapp } from "@/components/icons";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
+import { ehAdmin } from "@/lib/admin";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -32,6 +33,9 @@ export default async function ConfiguracoesPage() {
   ]);
 
   const whatsappLiberado = (await acessoDoAssistente(user)).usar;
+  // Respostas prontas só servem com a extensão do WhatsApp Web, que por enquanto é só do dono:
+  // a linha aparece para o admin e para quem já tem respostas. A página abre para qualquer conta.
+  const mostrarRespostas = ehAdmin(user) || (respostas ?? 0) > 0;
   const { data: vinculoWhatsapp } = whatsappLiberado ? await supabase.from("whatsapp_vinculos").select("owner_id").maybeSingle() : { data: null };
 
   const meta = user?.user_metadata ?? {};
@@ -47,7 +51,7 @@ export default async function ConfiguracoesPage() {
       <PageHeader title="Configurações" />
 
       <div className="flex flex-col gap-7">
-        <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez. Respostas prontas vão pra conversa pela extensão do WhatsApp Web.">
+        <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez.">
           <LinhaLink
             href="/importar"
             icone={<IconBox className="h-[17px] w-[17px]" />}
@@ -55,13 +59,15 @@ export default async function ConfiguracoesPage() {
             rotulo="Trazer produtos e vendas"
             detalhe="Planilha ou PDF"
           />
-          <LinhaLink
-            href="/configuracoes/respostas"
-            icone={<IconMensagem className="h-[17px] w-[17px]" />}
-            tom="bg-tile-warning text-on-tile-warning"
-            rotulo="Respostas prontas"
-            detalhe={respostas ? String(respostas) : "Criar"}
-          />
+          {mostrarRespostas && (
+            <LinhaLink
+              href="/configuracoes/respostas"
+              icone={<IconMensagem className="h-[17px] w-[17px]" />}
+              tom="bg-tile-warning text-on-tile-warning"
+              rotulo="Respostas prontas"
+              detalhe={respostas ? String(respostas) : "Criar"}
+            />
+          )}
           {whatsappLiberado && (
             <LinhaLink
               href="/configuracoes/whatsapp"

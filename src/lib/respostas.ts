@@ -140,7 +140,8 @@ export const EXEMPLOS: { titulo: string; atalho: string; texto: string }[] = [
   {
     titulo: "Formas de pagamento",
     atalho: "pagamento",
-    texto: "Aceitamos Pix, dinheiro e cartão. Qual fica melhor pra você?",
+    // sem formas cadastradas fica genérico; exemplosDaConta troca pelas formas da conta
+    texto: "Me fala como prefere pagar que eu te passo os detalhes.",
   },
   {
     titulo: "Pix",
@@ -158,3 +159,13 @@ export const EXEMPLOS: { titulo: string; atalho: string; texto: string }[] = [
     texto: "Muito obrigado pela compra! Qualquer coisa, é só chamar aqui.\n{negocio}",
   },
 ];
+
+// Exemplos com as formas de pagamento que a conta cadastrou (Configurações), para o texto pronto
+// não prometer cartão a quem não aceita.
+export function exemplosDaConta(formas: string[]): typeof EXEMPLOS {
+  const nomes = [...new Set(formas.map((f) => f.trim()).filter(Boolean))].slice(0, 12);
+  if (nomes.length === 0) return EXEMPLOS;
+  const lista = nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
+  const texto = `Aceitamos ${lista}. Qual fica melhor pra você?`.slice(0, LIMITE_TEXTO);
+  return EXEMPLOS.map((e) => (e.atalho === "pagamento" ? { ...e, texto } : e));
+}

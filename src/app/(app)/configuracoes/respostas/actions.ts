@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, texto, type ActionResult } from "@/lib/action";
-import { EXEMPLOS, LIMITE_ATALHO, LIMITE_RESPOSTAS, LIMITE_TEXTO, LIMITE_TITULO, normalizarAtalho } from "@/lib/respostas";
+import { LIMITE_ATALHO, LIMITE_RESPOSTAS, LIMITE_TEXTO, LIMITE_TITULO, exemplosDaConta, normalizarAtalho } from "@/lib/respostas";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -113,9 +113,11 @@ export async function criarExemplos(): Promise<ActionResult> {
     const { count, error: erroContagem } = await supabase.from("respostas_prontas").select("id", { count: "exact", head: true });
     if (erroContagem) return falha(erroContagem);
     if ((count ?? 0) > 0) return ok();
+    const { data: formas } = await supabase.from("formas_pagamento").select("nome").order("nome");
+    const exemplos = exemplosDaConta((formas ?? []).map((f) => String(f.nome ?? "")));
     const { error } = await supabase
       .from("respostas_prontas")
-      .insert(EXEMPLOS.map((e, i) => ({ ...e, owner_id: user.id, ordem: i })));
+      .insert(exemplos.map((e, i) => ({ ...e, owner_id: user.id, ordem: i })));
     if (error) return erroDoBanco(error);
     atualizar();
     return ok("Exemplos criados. Edite do seu jeito.");

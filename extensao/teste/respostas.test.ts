@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   EXEMPLOS,
+  exemplosDaConta,
   chaveDaVariavel,
   filtrarRespostas,
   normalizarAtalho,
@@ -84,4 +85,13 @@ test("exemplos dentro dos limites do banco e sem travessão nem fiado", () => {
     assert.doesNotMatch(e.texto + e.titulo, /\u2014|\u2013| - |fiado/i);
   }
   assert.equal(new Set(EXEMPLOS.map((e) => e.atalho)).size, EXEMPLOS.length);
+});
+
+test("exemplo de pagamento usa as formas da conta", () => {
+  const pag = (l: typeof EXEMPLOS) => l.find((e) => e.atalho === "pagamento")!.texto;
+  assert.equal(pag(exemplosDaConta([])), "Me fala como prefere pagar que eu te passo os detalhes.");
+  assert.equal(pag(exemplosDaConta(["PIX"])), "Aceitamos PIX. Qual fica melhor pra você?");
+  assert.equal(pag(exemplosDaConta(["Dinheiro", "PIX", " ", "PIX"])), "Aceitamos Dinheiro e PIX. Qual fica melhor pra você?");
+  assert.equal(exemplosDaConta(["PIX"]).length, 7);
+  assert.doesNotMatch(pag(exemplosDaConta(["PIX"])), /cart/i);
 });

@@ -10,13 +10,28 @@ export interface RespostasDaConta {
   dados: DadosDaConta;
 }
 
-// link da loja só quando ela está no ar para o cliente (a vitrine_publica devolve a loja)
+// Link da loja só quando ela está no ar para o cliente: ativa e plano pago ou teste (a mesma regra
+// da vitrine_publica), conferido pelo uso_do_plano, que é leve. Guardado por 2 minutos, porque o
+// painel recarrega a lista toda vez que volta a ficar visível. Erro não é guardado.
+let cacheLink: { ate: number; link: string | null } | null = null;
+export function esquecerLinkDaVitrine() {
+  cacheLink = null;
+}
+
 async function linkDaVitrine(db: SupabaseClient, baseLoja: string): Promise<string | null> {
-  const { data: vt, error } = await db.from("vitrines").select("slug, ativa").maybeSingle();
-  if (error || !vt?.ativa || !vt.slug) return null;
-  const { data, error: erroLoja } = await db.rpc("vitrine_publica", { p_slug: vt.slug });
-  if (erroLoja || !data) return null;
-  return `${baseLoja.replace(/\/+$/, "")}/loja/${encodeURIComponent(vt.slug as string)}`;
+  if (cacheLink && cacheLink.ate > Date.now()) return cacheLink.link;
+  const [{ data: vt, error }, { data: uso, error: erroUso }] = await Promise.all([
+    db.from("vitrines").select("slug, ativa").maybeSingle(),
+    db.rpc("uso_do_plano"),
+  ]);
+  if (error || erroUso) return null;
+  const plano = (uso as { plano?: string } | null)?.plano;
+  const link =
+    vt?.ativa && vt.slug && (plano === "pago" || plano === "teste")
+      ? `${baseLoja.replace(/\/+$/, "")}/loja/${encodeURIComponent(vt.slug as string)}`
+      : null;
+  cacheLink = { ate: Date.now() + 2 * 60 * 1000, link };
+  return link;
 }
 
 export async function carregarRespostas(db: SupabaseClient, baseLoja: string): Promise<Resposta<RespostasDaConta>> {
