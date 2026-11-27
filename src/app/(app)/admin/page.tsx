@@ -16,6 +16,7 @@ import { SearchInput } from "@/components/search-input";
 import { bloqueada, contaGerenciavel, diasAtivos, etapaDoFunil, type FunilConta, type ResumoConta } from "./dados";
 import { AcoesRapidas } from "./gerenciar-conta";
 import { ContasParadas, contaParada } from "./contas-paradas";
+import { RolarParaAncora } from "@/components/rolar-para-ancora";
 
 const vendas = (n: number) => `${n} ${n === 1 ? "venda" : "vendas"}`;
 
@@ -156,10 +157,21 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       }),
     )
     .filter((c) => c !== null);
+  // abrir ou fechar a lista inteira mantém a busca e o filtro da tabela
+  const todasParadas = sp.paradas === "todas";
+  const hrefParadas = (() => {
+    const p = new URLSearchParams();
+    if (grupo !== "todas") p.set("situacao", grupo);
+    if (busca) p.set("q", busca);
+    if (!todasParadas) p.set("paradas", "todas");
+    const qs = p.toString();
+    return qs ? `/admin?${qs}` : "/admin";
+  })();
   const pct = (n: number) => `${base.length ? Math.round((n / base.length) * 100) : 0}%`;
 
   return (
     <div className="mx-auto max-w-6xl">
+      <RolarParaAncora />
       <PageHeader
         title="Administração"
         action={
@@ -204,7 +216,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       <OrigemDosCadastros contas={contasComOrigem} falhou={!!erroOrigens} semFunil={!!erroFunil} />
 
       {/* sem os números das contas a última venda some e todo mundo pareceria parado */}
-      {!erroResumo && <ContasParadas contas={paradas} todas={sp.paradas === "todas"} />}
+      {!erroResumo && <ContasParadas contas={paradas} todas={todasParadas} hrefAlternar={hrefParadas} />}
 
       <Segmentos
         rotulo="Filtrar contas"

@@ -41,7 +41,8 @@ export function contaParada(o: {
 }
 
 // contas sem acesso nem venda há 7 dias ou mais, para chamar de volta (plano de marketing, H3)
-export function ContasParadas({ contas, todas }: { contas: ContaParada[]; todas: boolean }) {
+// hrefAlternar: a URL atual (busca e filtro mantidos) com a lista inteira ligada ou desligada; a page monta
+export function ContasParadas({ contas, todas, hrefAlternar }: { contas: ContaParada[]; todas: boolean; hrefAlternar: string }) {
   if (contas.length === 0) return null;
   // quem parou há menos tempo primeiro: é quem tem mais chance de voltar
   const ordenadas = [...contas].sort((a, b) => a.dias - b.dias);
@@ -50,23 +51,24 @@ export function ContasParadas({ contas, todas }: { contas: ContaParada[]; todas:
   const sobra = ordenadas.length - visiveis.length;
 
   return (
+    // #paradas: o link de abrir e fechar volta para cá (RolarParaAncora na page, por causa do loading.tsx)
+    <div id="paradas" className="mb-7 scroll-mt-4">
     <Grupo
       titulo={`Paradas há ${DIAS_PARADA} dias ou mais · ${contas.length}`}
       rodape={
         <>
           Sem login novo e sem venda no período. A conta admin e as bloqueadas ficam de fora.
-          {sobra > 0 && (
+          {(sobra > 0 || (todas && ordenadas.length > LIMITE)) && (
             <>
               {" "}
-              <Link href="/admin?paradas=todas" className="text-brand-text">
-                Ver todas
+              <Link href={`${hrefAlternar}#paradas`} className="text-brand-text">
+                {todas ? "Mostrar menos" : "Ver todas"}
               </Link>
             </>
           )}
         </>
       }
       semPadding
-      className="mb-7"
     >
       <ul className="divide-y divide-line">
         {visiveis.map((c) => (
@@ -95,5 +97,6 @@ export function ContasParadas({ contas, todas }: { contas: ContaParada[]; todas:
         ))}
       </ul>
     </Grupo>
+    </div>
   );
 }
