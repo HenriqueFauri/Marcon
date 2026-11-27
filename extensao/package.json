@@ -1,6 +1,6 @@
 {
   "name": "marcon-extensao",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "Extensão do Marcon para o WhatsApp Web. Põe texto e anexos na conversa para o dono enviar; o áudio de voz sai depois de ele confirmar a conversa.",
@@ -20,6 +20,7 @@
     "@types/chrome": "^0.1.4",
     "@types/node": "^22.20.7",
     "esbuild": "^0.25.0",
+    "geist": "^1.9.2",
     "typescript": "^5"
   }
 }

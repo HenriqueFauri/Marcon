@@ -68,6 +68,8 @@ const midiasFalsas: MidiaPainel[] = [
 ];
 
 let logado = false;
+let semProdutos = false;
+(globalThis as unknown as { marconSemProdutos: unknown }).marconSemProdutos = (v: boolean) => (semProdutos = v);
 // áudio de voz falso: a conversa aberta e o que foi "enviado"
 let conversaFalsa: { id: string; nome: string } | null = { id: "5511999990000@c.us", nome: "Cliente Teste" };
 const vozes: { conversa: string; bytes: number }[] = [];
@@ -202,6 +204,20 @@ function responder(p: Pedido): unknown {
     case "enviarVoz":
       vozes.push({ conversa: p.conversa, bytes: p.base64.length });
       return { ok: true, dados: "Áudio de voz enviado." };
+    case "conta":
+      return { ok: true, dados: { email: "teste@usemarcon.com", nomeNegocio: "Marcon Utilidades", nome: "Henrique Alves", plano: { texto: "Teste: 12 dias", tom: "info" } } };
+    case "listarProdutos": {
+      // 35 produtos falsos: a primeira página traz 30 e o Mostrar mais traz o resto
+      const todos = [...produtos, ...Array.from({ length: 32 }, (_, i) => ({ ...produtos[2], id: "x" + i, nome: "Produto " + String(i + 1).padStart(2, "0"), capa: null, capaPath: null, totalFotos: 0 }))];
+      const de = p.pagina * 30;
+      return { ok: true, dados: { produtos: semProdutos ? [] : todos.slice(de, de + 30), temMais: !semProdutos && todos.length > de + 30 } };
+    }
+    case "renomearMidia": {
+      const m = midiasFalsas.find((x) => x.id === p.id);
+      if (!m) return { ok: false, erro: "Arquivo não encontrado. Atualize a lista." };
+      m.titulo = p.titulo.trim();
+      return { ok: true, dados: { id: m.id, titulo: m.titulo } };
+    }
     case "produtosComFoto": {
       const t = p.termo.toLowerCase();
       const com = produtos.filter((x) => x.capaPath && (t.length < 2 || x.nome.toLowerCase().includes(t)));

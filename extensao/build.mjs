@@ -36,12 +36,26 @@ if (args.includes("--simulacao")) {
   cpSync(join(aqui, "teste", "simulacao.html"), join(saida, "index.html"));
   cpSync(join(aqui, "src", "painel.css"), join(saida, "painel.css"));
   cpSync(join(aqui, "icones"), join(saida, "icones"), { recursive: true });
+  copiarFontes(saida);
   writeFileSync(
     join(saida, "painel.html"),
     readFileSync(join(aqui, "src", "painel.html"), "utf8").replace('<script src="painel.js">', '<script src="chrome-falso.js"></script>\n    <script src="painel.js">'),
   );
   console.log(`Simulação pronta em ${saida}`);
   process.exit(0);
+}
+
+// Fonte do app (Geist, licença OFL), do pacote oficial "geist" (dependência desta pasta), com a licença junto
+function copiarFontes(destino) {
+  const pacote = join(aqui, "node_modules", "geist");
+  const fonte = join(pacote, "dist", "fonts", "geist-sans", "Geist-Variable.woff2");
+  if (!existsSync(fonte)) {
+    console.error("Falta a fonte Geist. Rode npm install na pasta extensao.");
+    process.exit(1);
+  }
+  mkdirSync(join(destino, "fontes"), { recursive: true });
+  cpSync(fonte, join(destino, "fontes", "Geist-Variable.woff2"));
+  cpSync(join(pacote, "LICENSE.txt"), join(destino, "fontes", "Geist-OFL.txt"));
 }
 
 const AMBIENTES = {
@@ -125,6 +139,7 @@ await build({
 });
 for (const f of ["painel.html", "painel.css", "retorno.html", "microfone.html"]) cpSync(join(aqui, "src", f), join(saida, f));
 cpSync(join(aqui, "icones"), join(saida, "icones"), { recursive: true });
+copiarFontes(saida);
 // WA-JS (Apache 2.0): funções internas do WhatsApp Web, usadas só para o áudio de voz (pagina.ts)
 const waJs = join(aqui, "node_modules", "@wppconnect", "wa-js");
 cpSync(join(waJs, "dist", "wppconnect-wa.js"), join(saida, "wa.js"));

@@ -4,13 +4,14 @@
 // prévia de anexo. Nada aqui lê conversa nem manda conversa a servidor.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AMBIENTE, BASE_LOJA, SUPABASE_ANON, SUPABASE_URL } from "./config.ts";
-import { buscarProdutos, esquecerVitrine, produtosComFoto } from "./busca.ts";
+import { buscarProdutos, esquecerVitrine, listarProdutos, produtosComFoto } from "./busca.ts";
+import { dadosDaConta } from "./conta-db.ts";
 import { carregarRespostas, esquecerLinkDaVitrine } from "./respostas-db.ts";
 import { carregarDadosDaVenda, enviarVenda, validarVendaRapida } from "./venda.ts";
 import type { Pedido, PedidoAba, Resposta, ResultadoAnexar, Sessao } from "./mensagens.ts";
 import { mensagemDeFalha, type ResultadoInsercao } from "./inserir.ts";
 import { mensagemDeFalhaAnexo, type ResultadoAnexo } from "./anexar.ts";
-import { arquivoDaFoto, arquivoDaMidia, fotosDoProduto, listarMidias, salvarGravacao, urlDaMidia } from "./midias-db.ts";
+import { arquivoDaFoto, arquivoDaMidia, fotosDoProduto, listarMidias, renomearMidia, salvarGravacao, urlDaMidia } from "./midias-db.ts";
 import { mensagemDeFalhaVoz, type Conversa, type RespostaPagina } from "./voz.ts";
 import type { ArquivoAnexo } from "./base64.ts";
 
@@ -257,6 +258,12 @@ async function atender(p: Pedido, remetente: chrome.runtime.MessageSender): Prom
       return conversaAberta(remetente);
     case "enviarVoz":
       return enviarVoz(String(p.conversa ?? ""), String(p.base64 ?? ""), remetente);
+    case "conta":
+      return dadosDaConta(supabase);
+    case "listarProdutos":
+      return listarProdutos(supabase, Number(p.pagina) || 0, BASE_LOJA);
+    case "renomearMidia":
+      return renomearMidia(supabase, String(p.id ?? ""), String(p.titulo ?? ""));
     case "produtosComFoto":
       return produtosComFoto(supabase, String(p.termo ?? ""), BASE_LOJA);
     case "salvarGravacao":

@@ -26,6 +26,8 @@ import { deBase64, paraBase64, type ArquivoAnexo } from "./base64.ts";
 import { ROTULO_TIPO, detalheDaMidia, filtrarMidias, formatarDuracao, LIMITE_GRAVACAO_SEG, formatoDeGravacao } from "./midias.ts";
 import type { FotoProduto, MidiaPainel } from "./midias-db.ts";
 import type { ProdutoComFoto } from "./busca.ts";
+import type { DadosConta } from "./conta-db.ts";
+import { icone } from "./icones.ts";
 import { codificaOpus, paraOggOpus } from "./ogg-opus.ts";
 import {
   INICIO,
@@ -72,17 +74,63 @@ function grupo(titulo: string | null, conteudo: Node, rodape?: string) {
   );
 }
 
-function topo() {
+// Tema como no app: Claro por padrão, Escuro só com a escolha do dono (guardada neste navegador)
+const CHAVE_TEMA = "marcon-tema";
+function temaAtual(): "light" | "dark" {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+function aplicarTema(tema: "light" | "dark", guardar = true) {
+  if (tema === "dark") document.documentElement.setAttribute("data-theme", "dark");
+  else document.documentElement.removeAttribute("data-theme");
+  if (guardar) {
+    try {
+      localStorage.setItem(CHAVE_TEMA, tema);
+    } catch {
+      // sem armazenamento: vale só enquanto o painel está aberto
+    }
+  }
+}
+try {
+  aplicarTema(localStorage.getItem(CHAVE_TEMA) === "dark" ? "dark" : "light", false);
+} catch {
+  aplicarTema("light", false);
+}
+
+// Topo como o da barra lateral do app: quadrado com a inicial do negócio, nome do negócio e, embaixo,
+// o nome do dono. Antes de entrar (ou enquanto carrega), a marca do Marcon.
+function topo(conta?: { nomeNegocio: string; nome: string }) {
+  const negocio = conta?.nomeNegocio ?? "Marcon";
   return h(
     "header",
     { class: "topo" },
-    h("img", { src: "icones/icone-48.png", alt: "" }),
-    h("h1", {}, "Marcon"),
-    AMBIENTE === "staging" ? h("span", { class: "selo" }, "Staging") : null,
-    embutido
-      ? h("button", { class: "fechar", type: "button", "aria-label": "Fechar painel", on: { click: () => pedir({ tipo: "fecharPainel" }) } }, "×")
-      : null,
+    h("div", { class: "marca-inicial", "aria-hidden": "true" }, negocio.trim().charAt(0).toUpperCase() || (conta ? "G" : "M")),
+    h("div", { class: "marca-textos" }, h("p", { class: "marca-negocio" }, negocio), conta?.nome ? h("p", { class: "marca-dono" }, conta.nome) : null),
+    AMBIENTE === "staging" ? h("span", { class: "selo", title: "Versão de teste, ligada ao Staging" }, "Staging") : null,
+    embutido ? h("button", { class: "fechar", type: "button", "aria-label": "Fechar painel", on: { click: () => pedir({ tipo: "fecharPainel" }) } }, icone("fechar")) : null,
   );
+}
+
+// Rodapé como o pé da barra lateral do app: Seu plano (abre a assinatura no Marcon), Claro e Escuro, Sair
+function rodapeDaConta(email: string, sair: HTMLButtonElement) {
+  const selo = h("span", { class: "selo-plano" }, "...");
+  const plano = h("a", { class: "plano", href: `${BASE_LOJA}/assinatura`, target: "_blank", rel: "noopener" }, h("span", {}, "Seu plano"), selo);
+  const botaoTema = (valor: "light" | "dark", rotulo: string) => {
+    const b = h("button", { type: "button", "aria-pressed": String(temaAtual() === valor) }, icone(valor === "light" ? "sol" : "lua", 14), rotulo);
+    b.addEventListener("click", () => {
+      aplicarTema(valor);
+      for (const x of tema.querySelectorAll("button")) x.setAttribute("aria-pressed", String(x === b));
+    });
+    return b;
+  };
+  const tema = h("div", { class: "tema", role: "group", "aria-label": "Tema" }, botaoTema("light", "Claro"), botaoTema("dark", "Escuro"));
+  return {
+    el: h("footer", { class: "rodape-conta" }, plano, tema, h("div", {}, sair, h("p", { class: "conta-email" }, email))),
+    mostrarPlano(p: DadosConta["plano"]) {
+      if (!p) return plano.remove();
+      selo.textContent = p.texto;
+      selo.className = `selo-plano tom-${p.tom}`;
+    },
+  };
 }
 
 // Aviso que some sozinho (barra escura no pé do painel).
@@ -483,16 +531,7 @@ function itemProduto(p: ProdutoBusca) {
 }
 
 function iconeLupa() {
-  const lupa = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  lupa.setAttribute("width", "18");
-  lupa.setAttribute("height", "18");
-  lupa.setAttribute("viewBox", "0 0 24 24");
-  lupa.setAttribute("fill", "none");
-  lupa.setAttribute("stroke", "currentColor");
-  lupa.setAttribute("stroke-width", "2.2");
-  lupa.setAttribute("stroke-linecap", "round");
-  lupa.innerHTML = '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>';
-  return lupa;
+  return icone("busca");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -624,7 +663,7 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
           { class: "passo-atual" },
           passo.titulo ? h("span", { class: "nome" }, passo.titulo) : null,
           conteudo,
-          proxima ? h("span", { class: "detalhe" }, `Depois: ${minuscula(rotuloDaAcao(proxima))}`) : null,
+          proxima ? h("span", { class: "detalhe" }, `Depois: ${minuscula(rotuloDaAcao(proxima))}${proxima.tipo === "texto" ? "" : ` (${proxima.midia.titulo})`}`) : null,
         ),
         h("div", { class: "acoes-seq" }, principal),
         h("div", { class: "acoes" }, voltarB, pularB, fechar),
@@ -1295,7 +1334,8 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
       class: "campo-pequeno",
       type: "text",
       maxlength: "80",
-      "aria-label": "Nome do áudio",
+      id: "nome-gravacao",
+      placeholder: "Ex.: Como funciona a entrega",
       value: `Áudio ${agora.toLocaleDateString("pt-BR")} ${agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
     });
     const enviar = h("button", { class: "btn-pequeno destaque", type: "button" }, "Enviar áudio de voz");
@@ -1304,6 +1344,11 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
     const base64 = async () => paraBase64(await g.blob.arrayBuffer());
     enviar.addEventListener("click", () => enviarAudioDeVoz(titulo.value || "Áudio gravado", () => g.blob.arrayBuffer(), enviar, aoPerderSessao));
     salvar.addEventListener("click", async () => {
+      // o nome é o que o dono vai procurar depois na lista: sem nome, não salva
+      if (!titulo.value.trim()) {
+        titulo.focus();
+        return avisar("Dê um nome ao áudio para achar depois.", true);
+      }
       salvar.disabled = true;
       salvar.textContent = "Salvando...";
       const r = await pedir({ tipo: "salvarGravacao", base64: await base64(), ext: g.ext, titulo: titulo.value, duracao: g.duracao });
@@ -1321,6 +1366,7 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
     corpo.replaceChildren(
       h("div", { class: "info" }, h("span", { class: "nome" }, "Áudio gravado"), h("span", { class: "detalhe" }, formatarDuracao(g.duracao))),
       h("audio", { controls: "", src: g.url, preload: "metadata" }),
+      h("label", { class: "rotulo-campo", for: "nome-gravacao" }, "Nome do áudio"),
       titulo,
       h("div", { class: "acoes" }, enviar, salvar, descartar),
     );
@@ -1411,6 +1457,39 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
     );
   }
 
+  // Renomear na própria linha: campo com o nome, Salvar e Cancelar. O nome novo vale no app também.
+  function editarNome(m: MidiaPainel, info: HTMLElement) {
+    const campoNome = h("input", { class: "campo-pequeno", type: "text", maxlength: "80", value: m.titulo, "aria-label": "Novo nome" });
+    const salvarNome = h("button", { class: "btn-pequeno destaque", type: "button" }, "Salvar");
+    const cancelar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Cancelar");
+    const gravar = async () => {
+      const novo = campoNome.value.trim();
+      if (!novo) return avisar("Dê um nome ao arquivo.", true);
+      if (novo === m.titulo) return desenhar();
+      salvarNome.disabled = true;
+      salvarNome.textContent = "Salvando...";
+      const r = await pedir<{ id: string; titulo: string }>({ tipo: "renomearMidia", id: m.id, titulo: novo });
+      if (!r.ok) {
+        salvarNome.disabled = false;
+        salvarNome.textContent = "Salvar";
+        if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+        return avisar(r.erro, true);
+      }
+      m.titulo = r.dados.titulo;
+      avisar("Nome salvo.");
+      desenhar();
+    };
+    salvarNome.addEventListener("click", gravar);
+    cancelar.addEventListener("click", () => desenhar());
+    campoNome.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") gravar();
+      if (e.key === "Escape") desenhar();
+    });
+    info.replaceChildren(campoNome, h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, salvarNome, cancelar));
+    campoNome.focus();
+    campoNome.select();
+  }
+
   function desenhar() {
     if (!midias) return;
     // biblioteca da conta: só aparece quando tem arquivo
@@ -1434,12 +1513,10 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
           );
           const ouvirBotao = voz ? h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Ouvir ${m.titulo}` }, "Ouvir") : null;
           ouvirBotao?.addEventListener("click", () => ouvir(m, ouvirBotao));
-          return h(
-            "div",
-            { class: "produto" },
-            miniaturaMidia(m),
-            h("div", { class: "info" }, h("span", { class: "nome" }, m.titulo), h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, acao, ouvirBotao)),
-          );
+          const renomear = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Renomear ${m.titulo}` }, icone("lapis", 14), "Renomear");
+          const info = h("div", { class: "info" }, h("span", { class: "nome" }, m.titulo), h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, acao, ouvirBotao, renomear));
+          renomear.addEventListener("click", () => editarNome(m, info));
+          return h("div", { class: "produto" }, miniaturaMidia(m), info);
         }),
       ),
       h("p", { class: "grupo-rodape" }, "Anexar abre a prévia do WhatsApp; o áudio vai como mensagem de voz depois de você confirmar a conversa."),
@@ -1483,22 +1560,6 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
   return { el, carregar, focar: () => campo.focus(), carregou: () => midias !== null, parar: () => { grav.cancelar(); tocando?.audio.pause(); } };
 }
 
-// Conta no rodapé, como no site: bolinha com a inicial; o clique abre o e-mail e o Sair.
-function contaNoRodape(email: string, sair: HTMLButtonElement) {
-  const menu = h("div", { class: "conta-menu", id: "conta-menu", hidden: "", role: "group", "aria-label": "Sua conta" }, h("span", { class: "detalhe conta-email" }, email), sair);
-  const botao = h(
-    "button",
-    { class: "conta-avatar", type: "button", "aria-label": `Conta: ${email}`, "aria-expanded": "false", "aria-controls": "conta-menu", title: email },
-    (email.trim()[0] ?? "M").toUpperCase(),
-  );
-  botao.addEventListener("click", () => {
-    const abrir = menu.hidden;
-    menu.hidden = !abrir;
-    botao.setAttribute("aria-expanded", String(abrir));
-  });
-  return h("footer", { class: "rodape-conta" }, menu, botao);
-}
-
 // voltar ao painel (ou à aba do WhatsApp, no painel embutido) traz a lista nova do app
 let recarregarRespostas: (() => void) | null = null;
 document.addEventListener("visibilitychange", () => {
@@ -1520,13 +1581,63 @@ function telaPrincipal(sessao: Sessao) {
 
   let ultimo = 0;
   let timer: number | undefined;
+  const RODAPE_PRODUTOS = "Inserir coloca o texto na conversa aberta; Anexar abre a prévia com a foto. Quem envia é você.";
+
+  // Busca vazia: os produtos da conta em ordem de nome, 30 por vez, com Mostrar mais
+  let lista: ProdutoBusca[] = [];
+  async function listar(pagina: number, n = ++ultimo) {
+    if (pagina === 0 && lista.length === 0) resultados.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
+    const r = await pedir<{ produtos: ProdutoBusca[]; temMais: boolean }>({ tipo: "listarProdutos", pagina });
+    if (n !== ultimo) return;
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) return telaEntrar(r.erro);
+      // erro no Mostrar mais: a lista que já está na tela fica, e o botão volta
+      if (pagina > 0) {
+        const mais = [...resultados.querySelectorAll("button")].find((b) => b.textContent === "Carregando...");
+        if (mais) {
+          mais.disabled = false;
+          mais.textContent = "Mostrar mais";
+        }
+        return avisar(r.erro, true);
+      }
+      resultados.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+      return;
+    }
+    lista = pagina === 0 ? r.dados.produtos : [...lista, ...r.dados.produtos];
+    if (lista.length === 0) {
+      resultados.replaceChildren(
+        h(
+          "div",
+          { class: "cartao" },
+          h(
+            "div",
+            { class: "vazio" },
+            h("strong", {}, "Nenhum produto ainda"),
+            "Cadastre no Marcon e eles aparecem aqui.",
+            h("div", { style: "padding-top:12px" }, h("a", { class: "btn btn-secundario", href: `${BASE_LOJA}/produtos/novo`, target: "_blank", rel: "noopener" }, "Cadastrar produto")),
+          ),
+        ),
+      );
+      return;
+    }
+    const mais = r.dados.temMais ? h("button", { class: "btn btn-secundario", type: "button" }, "Mostrar mais") : null;
+    mais?.addEventListener("click", () => {
+      mais.disabled = true;
+      mais.textContent = "Carregando...";
+      listar(pagina + 1);
+    });
+    resultados.replaceChildren(
+      h("h2", { class: "grupo-titulo" }, lista.length === 1 ? "1 produto" : r.dados.temMais ? `Primeiros ${lista.length} produtos` : `${lista.length} produtos`),
+      h("div", { class: "cartao" }, ...lista.map(itemProduto)),
+      ...(mais ? [mais] : []),
+      h("p", { class: "grupo-rodape" }, RODAPE_PRODUTOS),
+    );
+  }
+
   async function buscar() {
     const termo = campo.value.trim();
     const n = ++ultimo;
-    if (termo.length < 2) {
-      resultados.replaceChildren();
-      return;
-    }
+    if (termo.length < 2) return listar(0, n);
     const r = await pedir<ProdutoBusca[]>({ tipo: "buscar", termo });
     if (n !== ultimo) return; // chegou resposta de uma busca antiga
     if (!r.ok) {
@@ -1544,7 +1655,7 @@ function telaPrincipal(sessao: Sessao) {
     resultados.replaceChildren(
       h("h2", { class: "grupo-titulo" }, titulo),
       h("div", { class: "cartao" }, ...r.dados.map(itemProduto)),
-      h("p", { class: "grupo-rodape" }, "Inserir coloca o texto na conversa aberta; Anexar abre a prévia com a foto. Quem envia é você."),
+      h("p", { class: "grupo-rodape" }, RODAPE_PRODUTOS),
     );
   }
   campo.addEventListener("input", () => {
@@ -1561,10 +1672,11 @@ function telaPrincipal(sessao: Sessao) {
   const sair = h(
     "button",
     {
-      class: "texto-perigo sair",
+      class: "sair",
       type: "button",
       on: {
         click: async () => {
+          sair.disabled = true;
           midia.parar();
           await pedir({ tipo: "sair" });
           limparVenda();
@@ -1573,6 +1685,7 @@ function telaPrincipal(sessao: Sessao) {
         },
       },
     },
+    icone("sair"),
     "Sair",
   );
 
@@ -1621,18 +1734,29 @@ function telaPrincipal(sessao: Sessao) {
     if (midia.carregou() && document.body.contains(midia.el)) midia.carregar();
   };
 
+  const cabecalho = topo();
+  const rodape = rodapeDaConta(sessao.email, sair);
   app.replaceChildren(
-    topo(),
+    cabecalho,
     h("div", { class: "abas", role: "tablist", "aria-label": "O que fazer" }, abas.produtos, abas.respostas, abas.midia, abas.vender),
     produtos,
     respostas.el,
     midia.el,
     vender.el,
-    contaNoRodape(sessao.email, sair),
+    rodape.el,
     avisoEl,
   );
   const salva = sessionStorage.getItem("marcon_aba");
   mostrar(salva === "respostas" || salva === "midia" || salva === "vender" ? salva : "produtos");
+  buscar(); // busca vazia: já abre com a lista de produtos
+
+  // nome do negócio, do dono e o plano chegam depois; o painel já está usável
+  pedir<DadosConta>({ tipo: "conta" }).then((r) => {
+    if (!document.body.contains(cabecalho)) return;
+    if (!r.ok) return rodape.mostrarPlano(null);
+    cabecalho.replaceWith(topo(r.dados));
+    rodape.mostrarPlano(r.dados.plano);
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
