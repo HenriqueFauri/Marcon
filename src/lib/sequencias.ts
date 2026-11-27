@@ -180,5 +180,7 @@ export function rotuloProgresso(r: Roteiro, pos: Posicao): string {
 
 // Rótulo do botão principal: diz o que o clique faz
 export function rotuloDaAcao(a: Acao): string {
-  return a.tipo === "texto" ? "Inserir texto" : `Anexar ${ROTULO_MIDIA[a.midia.tipo]}`;
+  // áudio vai como mensagem de voz, direto na conversa aberta, depois de confirmar o nome dela
+  if (a.tipo === "texto") return "Inserir texto";
+  return a.midia.tipo === "audio" ? "Enviar áudio de voz" : `Anexar ${ROTULO_MIDIA[a.midia.tipo]}`;
 }

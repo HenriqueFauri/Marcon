@@ -8,7 +8,7 @@ No topo da aba **Respostas** ficam as **sequências** (app, Configurações, Seq
 
 Na aba **Vender** o dono registra uma venda rápida à vista sem sair da conversa: produtos (com variação), quantidade, preço editável, forma de pagamento e canal da conta (WhatsApp já escolhido, se existir), cliente opcional. Depois, abre a venda no app ou insere o link do recibo na caixa (sem enviar). Prazo, parcelas, desconto e encomenda ficam no app.
 
-Na aba **Mídia** ficam as fotos, PDFs e áudios da biblioteca da conta (app, Configurações, Biblioteca de mídia), com busca e **Anexar**, e o gravador de áudio. Na aba **Produtos**, **Anexar foto** manda a capa do produto e **Fotos** abre as outras para escolher. **Anexar só abre a prévia de anexo do próprio WhatsApp**, com o arquivo; quem confere e envia, na prévia, é o dono.
+Na aba **Mídia** ficam o gravador de áudio, as **fotos do estoque** (produtos com foto, com busca) e, quando a conta tem arquivo, a biblioteca (app, Configurações, Biblioteca de mídia). Na aba **Produtos**, **Anexar foto** manda a capa do produto e **Fotos** abre as outras para escolher. **Foto e PDF: Anexar só abre a prévia de anexo do próprio WhatsApp**; quem confere e envia, na prévia, é o dono. **Áudio: Enviar áudio de voz** manda uma mensagem de voz (a bolinha com onda) direto na conversa aberta, depois de o dono confirmar o nome dela (ver "Áudio de voz" abaixo).
 
 Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`. Partes 1 (produtos), 2 (respostas prontas), 3 (fotos, arquivos e áudios), 4 (sequências) e 5 (venda rápida) de 5.
 
@@ -24,11 +24,12 @@ Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`.
 | Venda rápida | `src/venda.ts`, `../src/lib/venda-rapida.ts`, rota `../src/app/api/extensao/venda/route.ts` | Formas, canais e clientes da conta (RLS do dono). A venda vai à rota do Marcon com o token do dono (Bearer, conferido no Supabase Auth; CORS só para o ID da extensão), que chama `registrar_venda_unica` (migration 0075) e manda o aviso no celular só quando a venda é nova. Cada tentativa leva uma chave (uuid): repetir a mesma venda (rede caiu, clique de novo) devolve a mesma venda, sem duplicar; mudou qualquer coisa, chave nova. Data no fuso do Brasil, calculada no servidor |
 | Painel | `src/painel.ts`, `painel.css` | Tela do dono no padrão de `docs/DESIGN.md`. No painel lateral do navegador ou, sem ele, embutido na aba do WhatsApp |
 | Na aba do WhatsApp | `src/conteudo.ts`, `src/inserir.ts` | Coloca o texto na caixa (evento de colar, depois `execCommand insertText`), confere que entrou, avisa claro se o WhatsApp mudou |
-| Mídia | `src/midias-db.ts`, `src/anexar.ts`, `src/base64.ts` | Lista da biblioteca (`midias`, migration 0074) e fotos do produto (`produto_fotos`) com URL assinada; baixa só o arquivo que o dono pediu e manda à aba, que abre a prévia de anexo (colar o arquivo e, se não abrir, soltar na conversa). Regras de tipo, tamanho e nome em `../src/lib/midias.ts`, o mesmo arquivo do app |
+| Mídia | `src/midias-db.ts`, `src/anexar.ts`, `src/base64.ts` | Lista da biblioteca (`midias`, migration 0074) e fotos do produto (`produto_fotos`) com URL assinada; baixa só o arquivo que o dono pediu e manda à aba, que abre a prévia de anexo numa tentativa só (foto: colar; PDF: soltar na conversa). Só diz "na prévia" quando a legenda da prévia apareceu; aviso do WhatsApp por cima é recusa. Regras de tipo, tamanho e nome em `../src/lib/midias.ts`, o mesmo arquivo do app |
 | Gravador | `src/painel.ts`, `src/microfone.ts` | MediaRecorder em M4A (AAC), até 2 minutos. `microfone.html` abre numa aba para liberar o microfone quando o painel lateral não mostra o pedido |
+| Áudio de voz | `src/ogg-opus.ts`, `src/voz.ts`, `src/pagina.ts`, `src/config-wa.ts`, WA-JS (`wa.js`) | O painel converte o áudio (gravado ou da biblioteca) para OGG/Opus mono 48 kHz (WebCodecs + páginas Ogg). A aba pergunta à página o nome da conversa aberta, o painel pede confirmação e só então a página manda UMA mensagem de voz pela WA-JS, se a conversa ainda é a mesma |
 | Volta do Google pela aba | `src/retorno.ts` | Plano B do login com Google quando o navegador não tem `chrome.identity.launchWebAuthFlow` |
 
-Permissões (mínimas): `storage`, `sidePanel`, `identity` e acesso só a `https://web.whatsapp.com/*`. Nada de chave de serviço: o banco aplica a mesma RLS do site.
+Permissões (mínimas): `storage`, `sidePanel`, `identity` e acesso só a `https://web.whatsapp.com/*`. Nada de chave de serviço: o banco aplica a mesma RLS do site. A conta (e-mail e Sair) fica na bolinha com a inicial, no rodapé do painel, como no site.
 
 ID fixo da extensão: `paecegdlhpfepcjinghnhgghpkidpfna` (campo `key` do manifest, gerado de `chave.json`, que só tem a chave pública).
 
@@ -80,15 +81,36 @@ A simulação (`teste/simulacao.html`) tem uma caixa parecida com a do WhatsApp 
 
 A mesma página simula a prévia de anexo do WhatsApp (por cima da conversa, com Enviar que só o clique envia) em três modos: abre ao colar, só ao soltar, não abre. `window.marcon.anexar(nome, mime, tamanho)` passa pelo mesmo `anexarArquivo` da extensão; `estado()` traz `naPrevia` e `enviosDeArquivo` (sempre 0).
 
+## Áudio de voz (27/11/2026, pedido do dono depois do teste no WhatsApp real)
+
+No teste do dono, o M4A colado e solto foi recusado pelo WhatsApp ("não é compatível"), nos dois caminhos. Áudio agora vai como **mensagem de voz** (PTT), não como arquivo:
+
+1. O painel converte o áudio para OGG/Opus (`src/ogg-opus.ts`: `AudioEncoder` do navegador e páginas Ogg montadas à mão, testadas em `teste/ogg-opus.test.ts` e decodificadas de volta no navegador na simulação).
+2. Pergunta à aba qual conversa está aberta e mostra **"Enviar áudio de voz? Para: <nome>"**. Cancelar não manda nada.
+3. Só no clique em **Enviar** da confirmação, a página manda UMA mensagem de voz por `WPP.chat.sendFileMessage(..., { type: "audio", isPtt: true, delay: 0 })` (WA-JS), e só se a conversa aberta ainda for a confirmada. Sem fila, sem atraso, sem "gravando..." simulado, sem envio em massa; um segundo clique enquanto o primeiro vai é recusado.
+
+**Riscos que o dono precisa saber:**
+
+- **Usa funções internas do WhatsApp Web** pela biblioteca WA-JS (`@wppconnect/wa-js`, Apache 2.0, a mesma base de várias extensões do mercado). Quando o WhatsApp atualiza, isso pode parar até a WA-JS ser atualizada e um build novo da extensão sair. Sintoma: "O WhatsApp ainda está carregando" ou "não aceitou o envio" sempre.
+- **A WA-JS carrega em toda abertura do WhatsApp Web**, para todo mundo que tem a extensão, mesmo quem nunca manda áudio, e se pendura em funções internas da página (inclusive a que trata mensagem recebida). Se uma atualização do WhatsApp quebrar a WA-JS, o próprio WhatsApp Web pode falhar, não só o áudio. Remédio imediato: desligar a extensão em `brave://extensions` e recarregar a aba. Alternativa a decidir: deixar o áudio de voz desligado por padrão e ligar só para quem ativar (pede a permissão `scripting`).
+- **Termos do WhatsApp:** mexer nas funções internas do WhatsApp Web não é permitido pelos termos dele. O risco vem de carregar a WA-JS, não só de enviar. Uso pessoal, um clique por mensagem, tem risco baixo, mas não zero, de o WhatsApp restringir a conta.
+- **A ponte não sabe quem a chama.** A WA-JS fica na aba como `window.WPP` e a ponte (`pagina.ts`) atende qualquer script da página. Outra extensão instalada no mesmo navegador conseguiria mandar mensagens por elas sem o clique do dono. Instale só extensões de confiança.
+- Enviar o áudio marca a conversa como lida (padrão da WA-JS), como acontece quando o dono responde pelo próprio WhatsApp.
+- Se a caixa de mensagem tem texto ainda não enviado, a confirmação avisa: a voz sai na hora e chegaria antes do texto.
+- Telemetria da WA-JS desligada (`src/config-wa.ts`: sem Google Analytics, sem os servidores de prévia de link de terceiros).
+- O painel lê **só o nome da conversa aberta**, para a confirmação. Nenhuma mensagem é lida.
+
 ## Mídia: o que o pico técnico mostrou (27/11/2026)
 
 Como pôr um arquivo na conversa sem enviar: o WhatsApp Web abre a **prévia de anexo** quando recebe um arquivo colado (Ctrl+V de um print) ou solto na conversa. A extensão faz o mesmo com evento sintético: `ClipboardEvent("paste")` com um `DataTransfer` que leva o `File`, na caixa de mensagem; se em 2 s a caixa não ficou coberta pela prévia, `dragenter`, `dragover` e `drop` no meio da conversa. Nunca aperta Enter nem clica em Enviar.
 
 Conferido na simulação (Chromium 156): o evento chega à página com o arquivo (nome, tipo e tamanho certos; `isTrusted` falso), a prévia abre nos dois caminhos, o arquivo entra uma vez só, prévia já aberta não recebe outro, e envios = 0. O MediaRecorder grava `audio/mp4` (AAC), não grava OGG; WebM fica de fora porque o WhatsApp manda como documento.
 
+Atualização depois do teste do dono: anexar agora é **uma tentativa por clique** (foto colando, PDF soltando) e só conta como "na prévia" quando a legenda da prévia aparece; o áudio saiu desse caminho (vai como mensagem de voz, acima).
+
 **Só o dono confirma no WhatsApp de verdade** (sem conta de teste do WhatsApp aqui):
 
 1. Se o WhatsApp aceita o colar sintético (`isTrusted` falso) ou só o soltar. Se nenhum abrir a prévia, o painel avisa e oferece **Baixar** para arrastar à mão.
 2. Se a prévia aberta cobre a caixa de mensagem (é o sinal de "abriu"). Se não cobrir, a extensão tenta soltar também e o arquivo pode aparecer duas vezes na prévia: tire um antes de enviar.
-3. Como o áudio chega: **arquivo de áudio com play, não mensagem de voz** (é o esperado e o aceito; nada de disfarçar áudio pronto como gravado na hora). Conferir que o M4A gravado no painel toca no celular do cliente.
+3. Áudio: conferir que chega como mensagem de voz (bolinha com onda), que toca no celular e que a confirmação mostra o nome certo da conversa.
 4. Se o painel embutido (navegador sem painel lateral) consegue usar o microfone dentro do WhatsApp; se não, use **Liberar microfone** ou grave no celular e suba no app.

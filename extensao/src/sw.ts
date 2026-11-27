@@ -4,14 +4,14 @@
 // prévia de anexo. Nada aqui lê conversa nem manda conversa a servidor.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AMBIENTE, BASE_LOJA, SUPABASE_ANON, SUPABASE_URL } from "./config.ts";
-import { buscarProdutos, esquecerVitrine } from "./busca.ts";
+import { buscarProdutos, esquecerVitrine, produtosComFoto } from "./busca.ts";
 import { carregarRespostas, esquecerLinkDaVitrine } from "./respostas-db.ts";
 import { carregarDadosDaVenda, enviarVenda, validarVendaRapida } from "./venda.ts";
 import type { Pedido, PedidoAba, Resposta, ResultadoAnexar, Sessao } from "./mensagens.ts";
 import { mensagemDeFalha, type ResultadoInsercao } from "./inserir.ts";
 import { mensagemDeFalhaAnexo, type ResultadoAnexo } from "./anexar.ts";
 import { arquivoDaFoto, arquivoDaMidia, fotosDoProduto, listarMidias, salvarGravacao, urlDaMidia } from "./midias-db.ts";
-import { FORMATOS, LIMITE_ARQUIVO } from "./midias.ts";
+import { mensagemDeFalhaVoz, type Conversa, type RespostaPagina } from "./voz.ts";
 import type { ArquivoAnexo } from "./base64.ts";
 
 const armazenamento = {
@@ -162,14 +162,34 @@ async function anexar(arquivo: Resposta<ArquivoAnexo>, remetente: chrome.runtime
   }
 }
 
-// gravação do painel: confere o que chegou antes de passar adiante
-function arquivoDaGravacao(a: ArquivoAnexo | undefined): Resposta<ArquivoAnexo> {
-  const ext = String(a?.nome ?? "").split(".").pop() ?? "";
-  const formato = FORMATOS[ext];
-  if (!a || typeof a.base64 !== "string" || !formato || formato.tipo !== "audio" || a.base64.length > (LIMITE_ARQUIVO * 4) / 3 + 8) {
-    return { ok: false, erro: "Gravação inválida. Grave de novo." };
+// Áudio de voz: primeiro o nome da conversa aberta (o painel pede confirmação com ele), depois UM
+// envio, só se a conversa ainda é a confirmada. Quem manda é o clique do dono no painel.
+async function conversaAberta(remetente: chrome.runtime.MessageSender): Promise<Resposta<Conversa & { rascunho: boolean }>> {
+  const aba = await abaDoWhatsApp(remetente);
+  if (!aba) return { ok: false, erro: mensagemDeFalhaVoz("sem-aba") };
+  try {
+    const r = (await chrome.tabs.sendMessage(aba, { tipo: "conversa" } satisfies PedidoAba, { frameId: 0 })) as RespostaPagina;
+    if (!r?.ok) return { ok: false, erro: mensagemDeFalhaVoz(r?.motivo ?? "sem-resposta") };
+    if (!r.conversa) return { ok: false, erro: mensagemDeFalhaVoz("sem-conversa") };
+    const caixa = (await chrome.tabs.sendMessage(aba, { tipo: "caixaTemTexto" } satisfies PedidoAba, { frameId: 0 }).catch(() => null)) as { temTexto?: boolean } | null;
+    return { ok: true, dados: { ...r.conversa, rascunho: caixa?.temTexto === true } };
+  } catch {
+    return { ok: false, erro: "Recarregue a aba do WhatsApp (F5) e tente de novo." };
   }
-  return { ok: true, dados: { base64: a.base64, mime: formato.mime, nome: String(a.nome).slice(0, 120) } };
+}
+
+const LIMITE_VOZ_BASE64 = 8 * 1024 * 1024;
+async function enviarVoz(conversa: string, base64: string, remetente: chrome.runtime.MessageSender): Promise<Resposta<string>> {
+  if (!conversa || !base64 || base64.length > LIMITE_VOZ_BASE64) return { ok: false, erro: mensagemDeFalhaVoz("audio-invalido") };
+  const aba = await abaDoWhatsApp(remetente);
+  if (!aba) return { ok: false, erro: mensagemDeFalhaVoz("sem-aba") };
+  try {
+    const r = (await chrome.tabs.sendMessage(aba, { tipo: "enviarVoz", conversa, base64 } satisfies PedidoAba, { frameId: 0 })) as RespostaPagina;
+    if (!r?.ok) return { ok: false, erro: mensagemDeFalhaVoz(r?.motivo ?? "sem-resposta") };
+    return { ok: true, dados: "Áudio de voz enviado." };
+  } catch {
+    return { ok: false, erro: mensagemDeFalhaVoz("sem-resposta") };
+  }
 }
 
 async function inserir(texto: string, remetente: chrome.runtime.MessageSender): Promise<Resposta<string>> {
@@ -231,8 +251,14 @@ async function atender(p: Pedido, remetente: chrome.runtime.MessageSender): Prom
       return anexar(await arquivoDaMidia(supabase, String(p.id ?? "")), remetente);
     case "urlMidia":
       return urlDaMidia(supabase, String(p.id ?? ""));
-    case "anexarArquivo":
-      return anexar(arquivoDaGravacao(p.arquivo), remetente);
+    case "arquivoMidia":
+      return arquivoDaMidia(supabase, String(p.id ?? ""));
+    case "conversaAberta":
+      return conversaAberta(remetente);
+    case "enviarVoz":
+      return enviarVoz(String(p.conversa ?? ""), String(p.base64 ?? ""), remetente);
+    case "produtosComFoto":
+      return produtosComFoto(supabase, String(p.termo ?? ""), BASE_LOJA);
     case "salvarGravacao":
       return salvarGravacao(supabase, {
         base64: String(p.base64 ?? ""),

@@ -21,9 +21,14 @@ export type Pedido =
   | { tipo: "midias" }
   | { tipo: "anexarMidia"; id: string }
   | { tipo: "urlMidia"; id: string }
-  | { tipo: "anexarArquivo"; arquivo: ArquivoAnexo }
   | { tipo: "salvarGravacao"; base64: string; ext: string; titulo: string; duracao: number }
-  | { tipo: "abrirMicrofone" };
+  | { tipo: "abrirMicrofone" }
+  // áudio de voz: o painel converte para OGG/Opus e manda depois de confirmar a conversa aberta
+  | { tipo: "arquivoMidia"; id: string }
+  | { tipo: "conversaAberta" }
+  | { tipo: "enviarVoz"; conversa: string; base64: string }
+  // aba Mídia: produtos com foto (lista inicial ou busca)
+  | { tipo: "produtosComFoto"; termo: string };
 
 export type Resposta<T = unknown> = { ok: true; dados: T } | { ok: false; erro: string };
 
@@ -42,7 +47,13 @@ export interface ResultadoAnexar {
 }
 
 // Pedidos do service worker ao script da aba do WhatsApp.
-export type PedidoAba = { tipo: "inserir"; texto: string } | { tipo: "anexar"; arquivo: ArquivoAnexo } | { tipo: "alternarPainel" };
+export type PedidoAba =
+  | { tipo: "inserir"; texto: string }
+  | { tipo: "anexar"; arquivo: ArquivoAnexo }
+  | { tipo: "conversa" }
+  | { tipo: "caixaTemTexto" }
+  | { tipo: "enviarVoz"; conversa: string; base64: string }
+  | { tipo: "alternarPainel" };
 
 export function pedir<T>(p: Pedido): Promise<Resposta<T>> {
   return new Promise((resolve) => {

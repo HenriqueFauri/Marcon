@@ -270,7 +270,7 @@ function DetalheSequencia({ sequencia, passos, respostas, midias, dados }: Props
             rodape={
               vazios > 0
                 ? `${vazios === 1 ? "1 passo está vazio" : `${vazios} passos estão vazios`}: a resposta ou o arquivo foi apagado, ou o texto usa um dado que a conta não tem. Na extensão, ${vazios === 1 ? "ele é pulado" : "eles são pulados"}.`
-                : "Passo com texto e arquivo: o primeiro clique insere o texto, o segundo abre a prévia do arquivo."
+                : "Passo com texto e arquivo: o primeiro clique insere o texto, o segundo abre a prévia do arquivo (o áudio vai como mensagem de voz, depois de confirmar a conversa)."
             }
           >
             {ordem.map((p, i) => {
@@ -454,7 +454,7 @@ function EditorPasso({
                 </Link>
               </>
             ) : fonte !== "nenhum" && midia ? (
-              "Na extensão, o texto entra primeiro. O clique seguinte abre a prévia do arquivo."
+              "Na extensão, o texto entra primeiro. O clique seguinte abre a prévia do arquivo; o áudio vai como mensagem de voz, depois de confirmar a conversa."
             ) : undefined
           }
         >

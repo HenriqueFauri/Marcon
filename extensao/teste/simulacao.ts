@@ -5,6 +5,9 @@ import { formatarMensagem, type ProdutoBusca } from "../src/formatar.ts";
 import { inserirTexto, mensagemDeFalha } from "../src/inserir.ts";
 import { anexarArquivo, mensagemDeFalhaAnexo, montarArquivo } from "../src/anexar.ts";
 import { paraBase64 } from "../src/base64.ts";
+import { falarComPagina } from "../src/voz.ts";
+import { paraOggOpus } from "../src/ogg-opus.ts";
+import "../src/pagina.ts";
 
 const caixa = document.getElementById("caixa") as HTMLDivElement;
 const main = document.getElementById("main") as HTMLDivElement;
@@ -97,16 +100,24 @@ document.getElementById("inserir-var")!.addEventListener("click", () => inserir(
 // ---------------------------------------------------------------------------------------------
 // Prévia de anexo falsa (parte 3). Como no WhatsApp: colar ou soltar um arquivo na conversa abre
 // uma prévia por cima, com legenda e botão Enviar. Só o clique no Enviar da prévia envia.
-// Modos: "colar" (abre ao colar e ao soltar), "arrastar" (só ao soltar), "nenhum" (ignora arquivo).
+// Modos: "colar" (abre ao colar e ao soltar), "arrastar" (só ao soltar), "nenhum" (ignora arquivo),
+// "recusa" (mostra por cima o aviso "não é compatível", sem prévia, como o WhatsApp fez com o M4A).
 let modoAnexo = "colar";
 const previa = document.getElementById("previa") as HTMLDivElement;
 const previaNome = document.getElementById("previa-nome") as HTMLSpanElement;
 let naPrevia: { nome: string; tipo: string; tamanho: number }[] = [];
 let enviosDeArquivo = 0;
 
+const recusa = document.getElementById("recusa") as HTMLDivElement;
+let avisosDeRecusa = 0;
 function abrirPrevia(arquivos: FileList | undefined | null) {
   const lista = [...(arquivos ?? [])];
   if (lista.length === 0) return false;
+  if (modoAnexo === "recusa") {
+    avisosDeRecusa++;
+    recusa.hidden = false;
+    return true;
+  }
   naPrevia = [...naPrevia, ...lista.map((f) => ({ nome: f.name, tipo: f.type, tamanho: f.size }))];
   previaNome.textContent = naPrevia.map((a) => `${a.nome} (${a.tipo}, ${a.tamanho} bytes)`).join(" + ");
   previa.hidden = false;
@@ -115,7 +126,7 @@ function abrirPrevia(arquivos: FileList | undefined | null) {
 caixa.addEventListener(
   "paste",
   (e) => {
-    if (modoAnexo === "colar" && e.clipboardData?.files.length) {
+    if ((modoAnexo === "colar" || modoAnexo === "recusa") && e.clipboardData?.files.length) {
       e.stopImmediatePropagation();
       e.preventDefault();
       setTimeout(() => abrirPrevia(e.clipboardData?.files), 120);
@@ -137,7 +148,9 @@ document.getElementById("previa-enviar")!.addEventListener("click", () => {
 document.getElementById("previa-fechar")!.addEventListener("click", () => {
   naPrevia = [];
   previa.hidden = true;
+  recusa.hidden = true;
 });
+document.getElementById("recusa-ok")!.addEventListener("click", () => (recusa.hidden = true));
 document.querySelectorAll<HTMLInputElement>('input[name="anexo"]').forEach((r) =>
   r.addEventListener("change", () => r.checked && (modoAnexo = r.value)),
 );
@@ -150,6 +163,62 @@ async function anexar(nome = "catalogo.pdf", mime = "application/pdf", tamanho =
 }
 document.getElementById("anexar")!.addEventListener("click", () => anexar());
 
+// ---------------------------------------------------------------------------------------------
+// Áudio de voz: WPP falso no lugar da WA-JS e a mesma ponte (pagina.ts) da extensão. Conta os envios.
+let conversaAtiva: { id: { _serialized: string }; formattedTitle: string } | undefined = { id: { _serialized: "5511999990000@c.us" }, formattedTitle: "Cliente Teste" };
+const vozesEnviadas: { para: string; bytes: number; opcoes: Record<string, unknown> }[] = [];
+(window as unknown as { WPP: unknown }).WPP = {
+  isReady: true,
+  chat: {
+    getActiveChat: () => conversaAtiva,
+    sendFileMessage: async (id: { _serialized: string }, conteudo: string, opcoes: Record<string, unknown>) => {
+      await new Promise((r) => setTimeout(r, 200));
+      vozesEnviadas.push({ para: id._serialized, bytes: atob(conteudo.split(",")[1]).length, opcoes });
+      return { id: "msg" };
+    },
+  },
+};
+
+// o mesmo caminho do clique: pergunta a conversa e manda (a confirmação é do painel)
+async function voz(base64 = paraBase64(new Uint8Array(500).fill(1)), trocarAntes?: string) {
+  const c = await falarComPagina("conversa");
+  if (!c.ok || !c.conversa) return { etapa: "conversa", ...c };
+  if (trocarAntes !== undefined) (window as unknown as { marcon: { conversaFalsa(n: string): void } }).marcon.conversaFalsa(trocarAntes);
+  const r = await falarComPagina("enviarVoz", { conversa: c.conversa.id, base64 }, 5000);
+  return { etapa: "envio", conversa: c.conversa, ...r };
+}
+
+// WAV de teste (tom de 440 Hz) para conferir a conversão para OGG/Opus no navegador
+function wav(segundos: number, taxa = 44100): ArrayBuffer {
+  const n = Math.round(segundos * taxa);
+  const b = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(b);
+  const txt = (o: number, t: string) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  txt(0, "RIFF");
+  v.setUint32(4, 36 + n * 2, true);
+  txt(8, "WAVE");
+  txt(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, taxa, true);
+  v.setUint32(28, taxa * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  txt(36, "data");
+  v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin((2 * Math.PI * 440 * i) / taxa) * 12000), true);
+  return b;
+}
+
+async function testeOpus(segundos = 4) {
+  const { ogg, segundos: duracao } = await paraOggOpus(wav(segundos));
+  const ctx = new OfflineAudioContext(1, 1, 48000);
+  const volta = await ctx.decodeAudioData(ogg.slice().buffer);
+  const cabecalho = String.fromCharCode(...ogg.subarray(0, 4)) + "|" + String.fromCharCode(...ogg.subarray(28, 36));
+  return { bytes: ogg.length, duracao, decodificado: volta.duration, canais: volta.numberOfChannels, taxa: volta.sampleRate, cabecalho };
+}
+
 (window as unknown as { marcon: unknown }).marcon = {
   inserir,
   inserirTexto: inserirLivre,
@@ -157,5 +226,8 @@ document.getElementById("anexar")!.addEventListener("click", () => anexar());
   modo: aplicarModo,
   modoAnexo: (m: string) => (modoAnexo = m),
   fecharPrevia: () => document.getElementById("previa-fechar")!.click(),
-  estado: () => ({ modo, modoAnexo, texto: caixa.innerText, envios, enviosDeArquivo, previaAberta: !previa.hidden, naPrevia }),
+  voz,
+  conversaFalsa: (nome: string | null) => (conversaAtiva = nome ? { id: { _serialized: nome.length + "@c.us" }, formattedTitle: nome } : undefined),
+  testeOpus,
+  estado: () => ({ modo, modoAnexo, texto: caixa.innerText, envios, enviosDeArquivo, avisosDeRecusa, previaAberta: !previa.hidden, naPrevia, vozesEnviadas }),
 };

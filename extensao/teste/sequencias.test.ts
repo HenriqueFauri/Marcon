@@ -73,7 +73,7 @@ test("cada clique faz uma ação e só então aponta para a próxima", () => {
     "Passo 1 de 4: Inserir texto",
     "Passo 2 de 4: Anexar foto",
     "Passo 3 de 4: Inserir texto",
-    "Passo 3 de 4: Anexar áudio",
+    "Passo 3 de 4: Enviar áudio de voz",
     "Passo 4 de 4: Inserir texto",
   ]);
   assert.equal(acaoAtual(roteiro, pos), null);

@@ -112,6 +112,8 @@ await build({
     conteudo: join(aqui, "src", "conteudo.ts"),
     retorno: join(aqui, "src", "retorno.ts"),
     microfone: join(aqui, "src", "microfone.ts"),
+    pagina: join(aqui, "src", "pagina.ts"),
+    "config-wa": join(aqui, "src", "config-wa.ts"),
   },
   bundle: true,
   format: "iife",
@@ -123,13 +125,17 @@ await build({
 });
 for (const f of ["painel.html", "painel.css", "retorno.html", "microfone.html"]) cpSync(join(aqui, "src", f), join(saida, f));
 cpSync(join(aqui, "icones"), join(saida, "icones"), { recursive: true });
+// WA-JS (Apache 2.0): funções internas do WhatsApp Web, usadas só para o áudio de voz (pagina.ts)
+const waJs = join(aqui, "node_modules", "@wppconnect", "wa-js");
+cpSync(join(waJs, "dist", "wppconnect-wa.js"), join(saida, "wa.js"));
+cpSync(join(waJs, "LICENSE"), join(saida, "wa-js-LICENSE.txt"));
 
 const icones = { 16: "icones/icone-16.png", 32: "icones/icone-32.png", 48: "icones/icone-48.png", 128: "icones/icone-128.png" };
 const manifesto = {
   manifest_version: 3,
   name: cfg.nome,
   version,
-  description: "Busca produtos do Marcon e coloca texto, fotos, PDFs e áudios na conversa do WhatsApp Web. Quem envia é você.",
+  description: "Busca produtos do Marcon e coloca texto, fotos e PDFs na conversa do WhatsApp Web para você enviar; o áudio de voz sai depois de você confirmar.",
   key, // ID fixo: o mesmo em todo computador, para a URL de retorno do login não mudar
   icons: icones,
   action: { default_title: cfg.nome, default_icon: icones },
@@ -139,7 +145,11 @@ const manifesto = {
   permissions: ["storage", "sidePanel", "identity"],
   // Só o WhatsApp Web: achar a aba para entregar o texto. Nenhum outro site.
   host_permissions: ["https://web.whatsapp.com/*"],
-  content_scripts: [{ matches: ["https://web.whatsapp.com/*"], js: ["conteudo.js"], run_at: "document_idle" }],
+  content_scripts: [
+    { matches: ["https://web.whatsapp.com/*"], js: ["conteudo.js"], run_at: "document_idle" },
+    // mundo da página: config da WA-JS (sem telemetria), a WA-JS e a ponte do áudio de voz
+    { matches: ["https://web.whatsapp.com/*"], js: ["config-wa.js", "wa.js", "pagina.js"], run_at: "document_start", world: "MAIN" },
+  ],
   web_accessible_resources: [
     // painel embutido, só para o navegador sem painel lateral
     // (só a página: o que ela carrega vem da própria extensão e não precisa ficar exposto)
