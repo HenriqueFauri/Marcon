@@ -6,7 +6,9 @@ Na aba **Respostas** ficam as respostas prontas que o dono cria no app (Configur
 
 Na aba **Vender** o dono registra uma venda rápida à vista sem sair da conversa: produtos (com variação), quantidade, preço editável, forma de pagamento e canal da conta (WhatsApp já escolhido, se existir), cliente opcional. Depois, abre a venda no app ou insere o link do recibo na caixa (sem enviar). Prazo, parcelas, desconto e encomenda ficam no app.
 
-Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`. Partes 1 (produtos), 2 (respostas prontas) e 5 (venda rápida) de 5.
+Na aba **Mídia** ficam as fotos, PDFs e áudios da biblioteca da conta (app, Configurações, Biblioteca de mídia), com busca e **Anexar**, e o gravador de áudio. Na aba **Produtos**, **Anexar foto** manda a capa do produto e **Fotos** abre as outras para escolher. **Anexar só abre a prévia de anexo do próprio WhatsApp**, com o arquivo; quem confere e envia, na prévia, é o dono.
+
+Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`. Partes 1 (produtos), 2 (respostas prontas), 3 (fotos, arquivos e áudios) e 5 (venda rápida) de 5.
 
 ## Como funciona
 
@@ -19,6 +21,8 @@ Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`.
 | Venda rápida | `src/venda.ts`, `../src/lib/venda-rapida.ts`, rota `../src/app/api/extensao/venda/route.ts` | Formas, canais e clientes da conta (RLS do dono). A venda vai à rota do Marcon com o token do dono (Bearer, conferido no Supabase Auth; CORS só para o ID da extensão), que chama `registrar_venda_unica` (migration 0075) e manda o aviso no celular só quando a venda é nova. Cada tentativa leva uma chave (uuid): repetir a mesma venda (rede caiu, clique de novo) devolve a mesma venda, sem duplicar; mudou qualquer coisa, chave nova. Data no fuso do Brasil, calculada no servidor |
 | Painel | `src/painel.ts`, `painel.css` | Tela do dono no padrão de `docs/DESIGN.md`. No painel lateral do navegador ou, sem ele, embutido na aba do WhatsApp |
 | Na aba do WhatsApp | `src/conteudo.ts`, `src/inserir.ts` | Coloca o texto na caixa (evento de colar, depois `execCommand insertText`), confere que entrou, avisa claro se o WhatsApp mudou |
+| Mídia | `src/midias-db.ts`, `src/anexar.ts`, `src/base64.ts` | Lista da biblioteca (`midias`, migration 0074) e fotos do produto (`produto_fotos`) com URL assinada; baixa só o arquivo que o dono pediu e manda à aba, que abre a prévia de anexo (colar o arquivo e, se não abrir, soltar na conversa). Regras de tipo, tamanho e nome em `../src/lib/midias.ts`, o mesmo arquivo do app |
+| Gravador | `src/painel.ts`, `src/microfone.ts` | MediaRecorder em M4A (AAC), até 2 minutos. `microfone.html` abre numa aba para liberar o microfone quando o painel lateral não mostra o pedido |
 | Volta do Google pela aba | `src/retorno.ts` | Plano B do login com Google quando o navegador não tem `chrome.identity.launchWebAuthFlow` |
 
 Permissões (mínimas): `storage`, `sidePanel`, `identity` e acesso só a `https://web.whatsapp.com/*`. Nada de chave de serviço: o banco aplica a mesma RLS do site.
@@ -59,12 +63,28 @@ Precisa de duas Redirect URLs no Supabase, Staging primeiro e produção depois.
 ## Testes
 
 ```bash
-npm test                                            # formatador e variáveis das respostas (unitário)
+npm test                                            # formatador, variáveis das respostas e regras de mídia (unitário)
 npm run typecheck
 node teste/busca-staging.ts ../.env.staging         # login, renovação, busca e sair no Staging, conta de teste
 node teste/respostas-staging.ts ../.env.staging     # cria, carrega, preenche, reordena e apaga uma resposta no Staging
 node teste/venda-staging.ts ../.env.staging <conta-b.json> [--rota]   # venda sem duplicar, estoque, caixa, conta B, sem login; --rota testa a rota no ar
+node teste/midias-staging.ts ../.env.staging        # mídia pela API: conta A sobe e baixa, conta B (criada e apagada aqui) e anon não leem nada de A
 node teste/servir.mjs                               # simulação em http://127.0.0.1:4317 (caixa e prévia do painel)
 ```
 
 A simulação (`teste/simulacao.html`) tem uma caixa parecida com a do WhatsApp com quatro modos (editor que trata o colar, caixa simples, sem conversa aberta e layout mudado) e expõe `window.marcon.inserir()`, `window.marcon.inserirTexto(texto)` e `window.marcon.estado()` (inclui quantos envios aconteceram, que tem de ser sempre 0). `painel.html` na mesma porta é a prévia do painel com respostas falsas.
+
+A mesma página simula a prévia de anexo do WhatsApp (por cima da conversa, com Enviar que só o clique envia) em três modos: abre ao colar, só ao soltar, não abre. `window.marcon.anexar(nome, mime, tamanho)` passa pelo mesmo `anexarArquivo` da extensão; `estado()` traz `naPrevia` e `enviosDeArquivo` (sempre 0).
+
+## Mídia: o que o pico técnico mostrou (27/11/2026)
+
+Como pôr um arquivo na conversa sem enviar: o WhatsApp Web abre a **prévia de anexo** quando recebe um arquivo colado (Ctrl+V de um print) ou solto na conversa. A extensão faz o mesmo com evento sintético: `ClipboardEvent("paste")` com um `DataTransfer` que leva o `File`, na caixa de mensagem; se em 2 s a caixa não ficou coberta pela prévia, `dragenter`, `dragover` e `drop` no meio da conversa. Nunca aperta Enter nem clica em Enviar.
+
+Conferido na simulação (Chromium 156): o evento chega à página com o arquivo (nome, tipo e tamanho certos; `isTrusted` falso), a prévia abre nos dois caminhos, o arquivo entra uma vez só, prévia já aberta não recebe outro, e envios = 0. O MediaRecorder grava `audio/mp4` (AAC), não grava OGG; WebM fica de fora porque o WhatsApp manda como documento.
+
+**Só o dono confirma no WhatsApp de verdade** (sem conta de teste do WhatsApp aqui):
+
+1. Se o WhatsApp aceita o colar sintético (`isTrusted` falso) ou só o soltar. Se nenhum abrir a prévia, o painel avisa e oferece **Baixar** para arrastar à mão.
+2. Se a prévia aberta cobre a caixa de mensagem (é o sinal de "abriu"). Se não cobrir, a extensão tenta soltar também e o arquivo pode aparecer duas vezes na prévia: tire um antes de enviar.
+3. Como o áudio chega: **arquivo de áudio com play, não mensagem de voz** (é o esperado e o aceito; nada de disfarçar áudio pronto como gravado na hora). Conferir que o M4A gravado no painel toca no celular do cliente.
+4. Se o painel embutido (navegador sem painel lateral) consegue usar o microfone dentro do WhatsApp; se não, use **Liberar microfone** ou grave no celular e suba no app.

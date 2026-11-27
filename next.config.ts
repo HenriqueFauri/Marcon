@@ -16,6 +16,8 @@ const csp = [
   // fotos e logos vêm de links assinados do Supabase Storage
   "img-src 'self' data: blob: https://*.supabase.co https://www.google-analytics.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
   "font-src 'self' data:",
+  // áudios da biblioteca de mídia (link assinado) e o arquivo escolhido, para ler a duração
+  "media-src 'self' blob: https://*.supabase.co",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://*.clarity.ms https://c.bing.com",
   // o Clarity pode criar um worker a partir de um blob
   "worker-src 'self' blob:",

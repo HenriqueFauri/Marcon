@@ -14,6 +14,9 @@
       .msg { background: #d9fdd3; padding: 8px; border-radius: 8px; margin: 4px 0; white-space: pre-wrap; }
       button { font: inherit; }
       #log { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+      /* a prévia cobre a conversa inteira, como a do WhatsApp */
+      #previa { position: fixed; left: 244px; right: 0; top: 56px; bottom: 0; background: #fff; padding: 24px; display: flex; flex-direction: column; gap: 12px; z-index: 5; }
+      #previa[hidden] { display: none; }
     </style>
   </head>
   <body>
@@ -23,6 +26,10 @@
       <label><input type="radio" name="modo" value="simples" /> Caixa simples</label>
       <label><input type="radio" name="modo" value="sem-conversa" /> Sem conversa aberta</label>
       <label><input type="radio" name="modo" value="layout" /> Layout mudou</label>
+      <span>Anexo:</span>
+      <label><input type="radio" name="anexo" value="colar" checked /> Abre ao colar</label>
+      <label><input type="radio" name="anexo" value="arrastar" /> Só ao soltar</label>
+      <label><input type="radio" name="anexo" value="nenhum" /> Não abre</label>
     </header>
     <div id="side">
       <div contenteditable="true" role="textbox" data-tab="3" aria-label="Pesquisar">busca de conversas</div>
@@ -37,7 +44,15 @@
       <p>
         <button id="inserir" type="button">Inserir texto de exemplo</button>
         <button id="inserir-var" type="button">Inserir variação</button>
+        <button id="anexar" type="button">Anexar PDF de exemplo</button>
       </p>
+      <div id="previa" hidden>
+        <strong>Prévia de anexo</strong>
+        <span id="previa-nome"></span>
+        <div contenteditable="true" aria-label="Legenda">legenda</div>
+        <button id="previa-enviar" type="button">Enviar</button>
+        <button id="previa-fechar" type="button">Fechar</button>
+      </div>
       <div id="enviadas"></div>
       <div id="log"></div>
     </div>

@@ -50,17 +50,23 @@ async function produtosComLink(db: SupabaseClient): Promise<{ slug: string | nul
   return { ...cacheVitrine, conferida: true };
 }
 
-async function capas(db: SupabaseClient, ids: string[]): Promise<Map<string, string>> {
-  const capas = new Map<string, string>();
+interface Capa {
+  url: string;
+  path: string;
+  total: number;
+}
+
+async function capas(db: SupabaseClient, ids: string[]): Promise<Map<string, Capa>> {
+  const capas = new Map<string, Capa>();
   if (ids.length === 0) return capas;
-  const { data } = await db.from("produto_capas").select("produto_id, path").in("produto_id", ids);
+  const { data } = await db.from("produto_capas").select("produto_id, path, total_fotos").in("produto_id", ids);
   const caminhos = [...new Set((data ?? []).map((c) => c.path as string))];
   if (caminhos.length === 0) return capas;
   const { data: assinadas } = await db.storage.from("produto-fotos").createSignedUrls(caminhos, 3600);
   const porCaminho = new Map((assinadas ?? []).map((a) => [a.path, a.signedUrl]));
   for (const c of data ?? []) {
     const url = porCaminho.get(c.path as string);
-    if (url) capas.set(c.produto_id as string, url);
+    if (url) capas.set(c.produto_id as string, { url, path: c.path as string, total: Number(c.total_fotos) || 1 });
   }
   return capas;
 }
@@ -117,7 +123,9 @@ export async function buscarProdutos(db: SupabaseClient, bruto: string, baseLoja
       estoque: l.estoque_atual,
       naVitrine: l.na_vitrine,
       vitrineConferida: vitrine.conferida,
-      capa: fotos.get(l.id) ?? null,
+      capa: fotos.get(l.id)?.url ?? null,
+      capaPath: fotos.get(l.id)?.path ?? null,
+      totalFotos: fotos.get(l.id)?.total ?? 0,
       variacoes,
       link: vitrine.slug && vitrine.ids.has(l.id) ? linkDoProduto(baseLoja, vitrine.slug, l.id) : null,
     };

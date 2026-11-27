@@ -1,8 +1,10 @@
-// Roda dentro do web.whatsapp.com. Só faz duas coisas, sempre a pedido da própria extensão:
+// Roda dentro do web.whatsapp.com. Só faz três coisas, sempre a pedido da própria extensão:
 // 1) coloca o texto pronto na caixa de mensagem (sem enviar);
-// 2) no navegador sem painel lateral, mostra ou esconde o painel embutido.
+// 2) coloca um arquivo (foto, PDF, áudio) na prévia de anexo do WhatsApp (sem enviar);
+// 3) no navegador sem painel lateral, mostra ou esconde o painel embutido.
 // Não lê conversas, não observa a página, não fala com servidor nenhum.
 import { inserirTexto } from "./inserir.ts";
+import { anexarArquivo, montarArquivo } from "./anexar.ts";
 import type { PedidoAba } from "./mensagens.ts";
 
 const ID_PAINEL = "marcon-painel-embutido";
@@ -28,7 +30,8 @@ function alternarPainel() {
   ].join(";");
   const quadro = document.createElement("iframe");
   quadro.src = chrome.runtime.getURL("painel.html?modo=embutido");
-  quadro.allow = "clipboard-write";
+  // microfone: gravar áudio no painel embutido (o WhatsApp pode não repassar; aí o painel avisa)
+  quadro.allow = "clipboard-write; microphone";
   quadro.title = "Marcon";
   quadro.style.cssText = "border:0;width:100%;height:100%;display:block";
   caixa.appendChild(quadro);
@@ -41,6 +44,13 @@ chrome.runtime.onMessage.addListener((pedido: PedidoAba, remetente, responder) =
     inserirTexto(String(pedido.texto ?? ""))
       .then(responder)
       .catch(() => responder({ ok: false, motivo: "nao-entrou" }));
+    return true;
+  }
+  if (pedido.tipo === "anexar") {
+    Promise.resolve()
+      .then(() => anexarArquivo(montarArquivo(pedido.arquivo)))
+      .then(responder)
+      .catch(() => responder({ ok: false, motivo: "nao-abriu" }));
     return true;
   }
   if (pedido.tipo === "alternarPainel") {

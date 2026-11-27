@@ -333,6 +333,147 @@ begin
     pulados := array_append(pulados, '0073 (respostas prontas)');
   end if;
 
+  -- 0074: biblioteca de mídia. A registra só arquivo que está no Storage (tamanho e tipo vêm de lá);
+  -- B não lê, não altera, não apaga, não liga à resposta de A nem grava na pasta de A; anon nada;
+  -- limites de 50 MB e 200 arquivos por conta travados na tabela e na política de envio.
+  if to_regclass('public.midias') is not null then
+    declare
+      md_a uuid;
+      rp_a2 uuid;
+      p_a text := a::text || '/' || gen_random_uuid()::text || '.m4a';
+      t text;
+    begin
+      -- o arquivo "no Storage" (linha de storage.objects, desfeita no fim como todo o resto)
+      insert into storage.objects (bucket_id, name, owner, metadata)
+        values ('midias', p_a, a, jsonb_build_object('size', 12345, 'mimetype', 'audio/mp4'));
+
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      insert into midias (tipo, titulo, nome_arquivo, path, mime, tamanho, origem)
+        values ('audio', 'Áudio A', 'Áudio A.m4a', p_a, 'audio/mp4', 1, 'arquivo') returning id into md_a;
+      select tamanho::text into t from midias where id = md_a;
+      if t = '12345' then oks := oks + 1; else falhas := array_append(falhas, 'tamanho da mídia não veio do Storage'); end if;
+      update midias set tamanho = 1, path = a::text || '/outro.m4a', mime = 'audio/ogg' where id = md_a;
+      select tamanho::text || path || mime into t from midias where id = md_a;
+      if t = '12345' || p_a || 'audio/mp4' then oks := oks + 1; else falhas := array_append(falhas, 'dono mudou tamanho, caminho ou tipo da mídia'); end if;
+      begin
+        insert into midias (tipo, titulo, nome_arquivo, path, mime, tamanho)
+          values ('audio', 'Fantasma', 'f.m4a', a::text || '/' || gen_random_uuid()::text || '.m4a', 'audio/mp4', 10);
+        falhas := array_append(falhas, 'mídia registrada sem arquivo no Storage');
+      exception when others then
+        if sqlerrm like '%não encontrado%' then oks := oks + 1; else falhas := array_append(falhas, ('mídia sem arquivo recusada pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      insert into respostas_prontas (titulo, texto) values ('Resposta A', 'x') returning id into rp_a2;
+      update midias set resposta_id = rp_a2 where id = md_a;
+      oks := oks + 1;
+
+      perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      select count(*) into n from midias where id = md_a;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'B leu mídia de A'); end if;
+      select count(*) into n from storage.objects where bucket_id = 'midias' and name = p_a;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'B viu o arquivo de A no Storage'); end if;
+      update midias set titulo = 'INVADIDO' where id = md_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'B alterou mídia de A'); end if;
+      delete from midias where id = md_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'B apagou mídia de A'); end if;
+      begin
+        insert into storage.objects (bucket_id, name, owner, metadata)
+          values ('midias', a::text || '/' || gen_random_uuid()::text || '.m4a', b, '{"size": 10}'::jsonb);
+        falhas := array_append(falhas, 'B gravou arquivo na pasta de A');
+      exception when others then oks := oks + 1; end;
+      begin
+        insert into midias (owner_id, tipo, titulo, nome_arquivo, path, mime, tamanho)
+          values (a, 'audio', 'INJETADA', 'x.m4a', p_a, 'audio/mp4', 1);
+        falhas := array_append(falhas, 'B registrou mídia em nome de A');
+      exception when others then oks := oks + 1; end;
+      begin
+        insert into midias (tipo, titulo, nome_arquivo, path, mime, tamanho)
+          values ('audio', 'Roubada', 'x.m4a', p_a, 'audio/mp4', 1);
+        falhas := array_append(falhas, 'B registrou o arquivo de A como seu');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
+      -- B com um arquivo próprio tenta ligar à resposta de A
+      insert into storage.objects (bucket_id, name, owner, metadata)
+        values ('midias', b::text || '/' || gen_random_uuid()::text || '.pdf', b, jsonb_build_object('size', 10, 'mimetype', 'application/pdf'))
+        returning name into t;
+      execute 'set local role authenticated';
+      begin
+        insert into midias (tipo, titulo, nome_arquivo, path, mime, tamanho, resposta_id)
+          values ('documento', 'B', 'b.pdf', t, 'application/pdf', 1, rp_a2);
+        falhas := array_append(falhas, 'B ligou mídia à resposta pronta de A');
+      exception when others then
+        if sqlerrm like '%relacionado%' then oks := oks + 1; else falhas := array_append(falhas, ('ligação à resposta de A recusada pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      execute 'reset role';
+      select titulo into t from midias where id = md_a;
+      if t = 'Áudio A' then oks := oks + 1; else falhas := array_append(falhas, 'mídia de A mudou depois de B'); end if;
+
+      execute 'set local role anon';
+      begin
+        perform 1 from midias;
+        falhas := array_append(falhas, 'anon leu midias');
+      exception when insufficient_privilege then oks := oks + 1; end;
+      select count(*) into n from storage.objects where bucket_id = 'midias';
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, 'anon viu arquivos do bucket midias'); end if;
+      begin
+        insert into storage.objects (bucket_id, name, metadata) values ('midias', a::text || '/anon.m4a', '{"size": 1}'::jsonb);
+        falhas := array_append(falhas, 'anon gravou no bucket midias');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
+
+      -- tipo declarado diferente do arquivo no Storage: o banco usa o do Storage e recusa
+      insert into storage.objects (bucket_id, name, owner, metadata)
+        values ('midias', a::text || '/' || gen_random_uuid()::text || '.jpg', a, jsonb_build_object('size', 10, 'mimetype', 'audio/mp4'))
+        returning name into t;
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      begin
+        insert into midias (tipo, titulo, nome_arquivo, path, mime, tamanho) values ('imagem', 'Errada', 'x.jpg', t, 'image/jpeg', 1);
+        falhas := array_append(falhas, 'mídia com tipo trocado aceita');
+      exception when check_violation then oks := oks + 1; end;
+      execute 'reset role';
+
+      -- limites da conta: 50 MB (tabela e envio) e 200 arquivos (envio). A já tem 12345 + 10 bytes.
+      insert into storage.objects (bucket_id, name, owner, metadata)
+        values ('midias', a::text || '/' || gen_random_uuid()::text || '.pdf', a, jsonb_build_object('size', 52428800 - 12345 + 1, 'mimetype', 'application/pdf'))
+        returning name into t;
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      begin
+        insert into storage.objects (bucket_id, name, owner, metadata)
+          values ('midias', a::text || '/' || gen_random_uuid()::text || '.m4a', a, '{"size": 10}'::jsonb);
+        falhas := array_append(falhas, 'envio aceito com a conta em 50 MB');
+      exception when others then oks := oks + 1; end;
+      begin
+        insert into midias (tipo, titulo, nome_arquivo, path, mime, tamanho) values ('documento', 'Grande', 'g.pdf', t, 'application/pdf', 1);
+        falhas := array_append(falhas, 'biblioteca passou de 50 MB');
+      exception when others then
+        if sqlerrm like '%50 MB%' then oks := oks + 1; else falhas := array_append(falhas, ('50 MB recusado pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      execute 'reset role';
+      update storage.objects set metadata = '{"size": 1}'::jsonb where bucket_id = 'midias' and name = t;
+      insert into storage.objects (bucket_id, name, owner, metadata)
+        select 'midias', a::text || '/' || gen_random_uuid()::text || '.m4a', a, '{"size": 1}'::jsonb from generate_series(1, 200);
+      execute 'set local role authenticated';
+      begin
+        insert into storage.objects (bucket_id, name, owner, metadata)
+          values ('midias', a::text || '/' || gen_random_uuid()::text || '.m4a', a, '{"size": 1}'::jsonb);
+        falhas := array_append(falhas, 'envio aceito com 200 arquivos na conta');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
+
+      -- bucket privado, com limite por arquivo e tipos fechados
+      select (not public and file_size_limit = 10485760 and not ('text/html' = any (allowed_mime_types)))::text into t
+        from storage.buckets where id = 'midias';
+      if t = 'true' then oks := oks + 1; else falhas := array_append(falhas, 'bucket midias público, sem limite ou aceitando qualquer tipo'); end if;
+    end;
+  else
+    pulados := array_append(pulados, '0074 (biblioteca de mídia)');
+  end if;
+
   -- 0075: venda sem duplicar (registrar_venda_unica): chave por conta, sem afrouxar posse nem limite
   if to_regprocedure('registrar_venda_unica(uuid,uuid,text,jsonb,numeric,venda_tipo_pagamento,text,text,integer,date,date,uuid,uuid,numeric,boolean,numeric)') is not null then
     declare

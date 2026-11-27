@@ -22,6 +22,9 @@ export interface ProdutoBusca {
   // false quando não deu para conferir a vitrine agora (rede ou banco): sem link, sem afirmar nada
   vitrineConferida?: boolean;
   capa: string | null;
+  // caminho da capa no bucket produto-fotos (para anexar a foto) e quantas fotos o produto tem
+  capaPath?: string | null;
+  totalFotos?: number;
   variacoes: VariacaoBusca[];
   // link do produto na vitrine, só quando vale (vitrine ativa, plano pago ou teste, produto na vitrine)
   link: string | null;
