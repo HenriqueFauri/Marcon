@@ -566,6 +566,165 @@ begin
     pulados := array_append(pulados, '0075 (venda sem duplicar)');
   end if;
 
+  -- 0076: sequências. B não lê, não altera, não apaga nem reordena as de A; não põe passo na sequência
+  -- de A nem aponta para resposta ou arquivo de A; anon nada; 50 sequências e 20 passos travados.
+  if to_regclass('public.sequencia_passos') is not null then
+    declare
+      sq_a uuid;
+      ps_a uuid;
+      ps_a2 uuid;
+      rp_a3 uuid;
+      rp_a4 uuid;
+      sq_b uuid;
+      t text;
+    begin
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      insert into sequencias (titulo, ordem) values ('TESTE 0076', 3) returning id into sq_a;
+      insert into respostas_prontas (titulo, texto) values ('Resposta 0076', 'Oi {negocio}') returning id into rp_a3;
+      insert into respostas_prontas (titulo, texto) values ('Outra 0076', 'x') returning id into rp_a4;
+      insert into sequencia_passos (sequencia_id, ordem, texto) values (sq_a, 0, 'Boas-vindas') returning id into ps_a;
+      insert into sequencia_passos (sequencia_id, ordem, resposta_id) values (sq_a, 1, rp_a3) returning id into ps_a2;
+      select count(*) into n from sequencia_passos where sequencia_id = sq_a;
+      if n = 2 then oks := oks + 1; else falhas := array_append(falhas, '0076: A não criou os passos dela'); end if;
+      begin
+        insert into sequencia_passos (sequencia_id) values (sq_a);
+        falhas := array_append(falhas, '0076: passo vazio aceito');
+      exception when others then
+        if sqlerrm like '%precisa de um texto%' then oks := oks + 1; else falhas := array_append(falhas, ('0076: passo vazio recusado pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      begin
+        insert into sequencia_passos (sequencia_id, texto, resposta_id) values (sq_a, 'x', rp_a3);
+        falhas := array_append(falhas, '0076: passo com texto e resposta aceito');
+      exception when check_violation then oks := oks + 1; end;
+      begin
+        insert into sequencia_passos (sequencia_id, texto) values (sq_a, repeat('x', 2001));
+        falhas := array_append(falhas, '0076: texto acima de 2000 caracteres aceito');
+      exception when check_violation then oks := oks + 1; end;
+      -- limite de 20 passos por sequência
+      insert into sequencia_passos (sequencia_id, ordem, texto) select sq_a, g, 'p' from generate_series(2, 19) g;
+      begin
+        insert into sequencia_passos (sequencia_id, texto) values (sq_a, 'vigésimo primeiro');
+        falhas := array_append(falhas, '0076: passou de 20 passos');
+      exception when others then
+        if sqlerrm like '%20 passos%' then oks := oks + 1; else falhas := array_append(falhas, ('0076: limite de passos recusado pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      delete from sequencia_passos where sequencia_id = sq_a and texto = 'p';
+      -- apagar a resposta deixa o passo vazio, sem apagar o passo nem travar a exclusão
+      delete from respostas_prontas where id = rp_a3;
+      select count(*) into n from sequencia_passos where id = ps_a2 and resposta_id is null;
+      if n = 1 then oks := oks + 1; else falhas := array_append(falhas, '0076: apagar a resposta apagou ou travou o passo'); end if;
+      execute 'reset role';
+
+      -- B
+      perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      select count(*) into n from sequencias where id = sq_a;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, '0076: B leu sequência de A'); end if;
+      select count(*) into n from sequencia_passos where sequencia_id = sq_a;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, '0076: B leu passos de A'); end if;
+      update sequencias set titulo = 'INVADIDO' where id = sq_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, '0076: B alterou sequência de A'); end if;
+      update sequencia_passos set texto = 'INVADIDO' where id = ps_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, '0076: B alterou passo de A'); end if;
+      delete from sequencia_passos where id = ps_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, '0076: B apagou passo de A'); end if;
+      delete from sequencias where id = sq_a;
+      get diagnostics n = row_count;
+      if n = 0 then oks := oks + 1; else falhas := array_append(falhas, '0076: B apagou sequência de A'); end if;
+      perform reordenar_sequencias(array[sq_a]);
+      perform reordenar_passos_sequencia(sq_a, array[ps_a2, ps_a]);
+      begin
+        insert into sequencia_passos (owner_id, sequencia_id, texto) values (b, sq_a, 'INJETADO');
+        falhas := array_append(falhas, '0076: B pôs passo na sequência de A');
+      exception when others then
+        if sqlerrm like '%relacionado%' then oks := oks + 1; else falhas := array_append(falhas, ('0076: passo na sequência de A recusado pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      begin
+        insert into sequencias (owner_id, titulo) values (a, 'INJETADA');
+        falhas := array_append(falhas, '0076: B criou sequência em nome de A');
+      exception when others then oks := oks + 1; end;
+      insert into sequencias (titulo) values ('Sequência B') returning id into sq_b;
+      begin
+        insert into sequencia_passos (sequencia_id, resposta_id) values (sq_b, rp_a4);
+        falhas := array_append(falhas, '0076: B apontou para resposta de A');
+      exception when others then
+        if sqlerrm like '%relacionado%' then oks := oks + 1; else falhas := array_append(falhas, ('0076: resposta de A recusada pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      execute 'reset role';
+      -- arquivo de A (visto pelo dono do banco, não por B)
+      select id::text into t from midias where owner_id = a limit 1;
+      if t is not null then
+        execute 'set local role authenticated';
+        begin
+          insert into sequencia_passos (sequencia_id, midia_id) values (sq_b, t::uuid);
+          falhas := array_append(falhas, '0076: B apontou para arquivo de A');
+        exception when others then
+          if sqlerrm like '%relacionado%' then oks := oks + 1; else falhas := array_append(falhas, ('0076: arquivo de A recusado pelo motivo errado: ' || sqlerrm)); end if;
+        end;
+        execute 'reset role';
+      end if;
+      execute 'set local role authenticated';
+      -- B não move o passo dele para a sequência de A
+      insert into sequencia_passos (sequencia_id, texto) values (sq_b, 'meu') returning id::text into t;
+      begin
+        update sequencia_passos set sequencia_id = sq_a where id = t::uuid;
+        falhas := array_append(falhas, '0076: B moveu passo para a sequência de A');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
+
+      select titulo into t from sequencias where id = sq_a;
+      if t = 'TESTE 0076' then oks := oks + 1; else falhas := array_append(falhas, '0076: sequência de A mudou depois de B'); end if;
+      select (select ordem from sequencia_passos where id = ps_a)::text || ',' || (select ordem from sequencia_passos where id = ps_a2)::text into t;
+      if t = '0,1' then oks := oks + 1; else falhas := array_append(falhas, ('0076: B reordenou passos de A: ' || coalesce(t, 'nada'))); end if;
+      select ordem::text into t from sequencias where id = sq_a;
+      if t = '3' then oks := oks + 1; else falhas := array_append(falhas, '0076: B reordenou sequência de A'); end if;
+      select count(*) into n from sequencia_passos where sequencia_id = sq_a;
+      if n = 2 then oks := oks + 1; else falhas := array_append(falhas, '0076: passos de A mudaram depois de B'); end if;
+
+      -- anon
+      execute 'set local role anon';
+      begin
+        perform 1 from sequencias;
+        falhas := array_append(falhas, '0076: anon leu sequencias');
+      exception when insufficient_privilege then oks := oks + 1; end;
+      begin
+        perform 1 from sequencia_passos;
+        falhas := array_append(falhas, '0076: anon leu sequencia_passos');
+      exception when insufficient_privilege then oks := oks + 1; end;
+      begin
+        insert into sequencias (owner_id, titulo) values (a, 'ANON');
+        falhas := array_append(falhas, '0076: anon gravou sequencias');
+      exception when others then oks := oks + 1; end;
+      begin
+        perform reordenar_passos_sequencia(sq_a, array[ps_a]);
+        falhas := array_append(falhas, '0076: anon chamou reordenar_passos_sequencia');
+      exception when others then oks := oks + 1; end;
+      execute 'reset role';
+
+      -- A reordena e o limite de 50 sequências
+      perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+      execute 'set local role authenticated';
+      perform reordenar_passos_sequencia(sq_a, array[ps_a2, ps_a]);
+      select ordem::text into t from sequencia_passos where id = ps_a;
+      if t = '1' then oks := oks + 1; else falhas := array_append(falhas, '0076: A não reordenou os passos dela'); end if;
+      select count(*) into n from sequencias where owner_id = a;
+      insert into sequencias (titulo) select 'S' || g from generate_series(n + 1, 50) g;
+      begin
+        insert into sequencias (titulo) values ('Quinquagésima primeira');
+        falhas := array_append(falhas, '0076: passou de 50 sequências');
+      exception when others then
+        if sqlerrm like '%50 sequências%' then oks := oks + 1; else falhas := array_append(falhas, ('0076: limite de sequências recusado pelo motivo errado: ' || sqlerrm)); end if;
+      end;
+      execute 'reset role';
+    end;
+  else
+    pulados := array_append(pulados, '0076 (sequências)');
+  end if;
+
   if cardinality(falhas) = 0 then
     raise exception 'SEGURANCA OK: % testes passaram. Pulados: %. (resultado, tudo desfeito)', oks, pulados;
   else
