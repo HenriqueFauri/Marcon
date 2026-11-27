@@ -4,11 +4,13 @@ Painel ao lado do WhatsApp Web que busca os produtos do Marcon e coloca na caixa
 
 Na aba **Respostas** ficam as respostas prontas que o dono cria no app (Configurações, Respostas prontas), com as variáveis já preenchidas.
 
+No topo da aba **Respostas** ficam as **sequências** (app, Configurações, Sequências): passos em ordem, cada um com texto (escrito ou de uma resposta pronta) e/ou um arquivo da biblioteca. **Começar** abre a sequência e mostra "Passo 2 de 4". Cada clique no botão grande faz uma coisa só (Inserir texto ou Anexar foto, PDF ou áudio) e só depois que ela deu certo aponta para a próxima; passo com texto e arquivo leva dois cliques. **Voltar** e **Pular** mudam o passo sem fazer nada. Sem timer: parado, nada anda. Passo que ficou vazio (resposta ou arquivo apagado) sai do roteiro e o rodapé avisa.
+
 Na aba **Vender** o dono registra uma venda rápida à vista sem sair da conversa: produtos (com variação), quantidade, preço editável, forma de pagamento e canal da conta (WhatsApp já escolhido, se existir), cliente opcional. Depois, abre a venda no app ou insere o link do recibo na caixa (sem enviar). Prazo, parcelas, desconto e encomenda ficam no app.
 
 Na aba **Mídia** ficam as fotos, PDFs e áudios da biblioteca da conta (app, Configurações, Biblioteca de mídia), com busca e **Anexar**, e o gravador de áudio. Na aba **Produtos**, **Anexar foto** manda a capa do produto e **Fotos** abre as outras para escolher. **Anexar só abre a prévia de anexo do próprio WhatsApp**, com o arquivo; quem confere e envia, na prévia, é o dono.
 
-Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`. Partes 1 (produtos), 2 (respostas prontas), 3 (fotos, arquivos e áudios) e 5 (venda rápida) de 5.
+Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`. Partes 1 (produtos), 2 (respostas prontas), 3 (fotos, arquivos e áudios), 4 (sequências) e 5 (venda rápida) de 5.
 
 ## Como funciona
 
@@ -18,6 +20,7 @@ Decisão e regras de negócio: vault, `negocios/usemarcon/extensao-whatsapp.md`.
 | Busca | `src/busca.ts` | `produtos` com `ilike` em nome, marca, SKU e código de barras (cada palavra), SKU de variação, capa assinada (`produto_capas`), link só para o que `vitrine_publica` devolve |
 | Texto | `src/formatar.ts` | Monta a mensagem. Preço único (`preco_varejo` ou preço da variação). Nunca a quantidade |
 | Respostas prontas | `src/respostas-db.ts`, `src/respostas.ts` | Lista da conta (`respostas_prontas`, migration 0073, RLS do dono) e dados que preenchem as variáveis: nome do negócio, Pix, endereço e telefone (metadados da conta, lidos com `getUser`) e link da loja só quando `vitrine_publica` devolve a loja. As regras das variáveis, da busca e do atalho vivem em `../src/lib/respostas.ts`, o mesmo arquivo do app |
+| Sequências | `src/respostas-db.ts`, `src/painel.ts` (`blocoSequencias`), `../src/lib/sequencias.ts` | `sequencias` e `sequencia_passos` (migration 0076, RLS do dono) chegam junto com as respostas. O roteiro (ordem, variáveis preenchidas, passo vazio fora) e o avanço (uma ação por clique, voltar, pular) vivem no arquivo do app, testados em `teste/sequencias.test.ts` |
 | Venda rápida | `src/venda.ts`, `../src/lib/venda-rapida.ts`, rota `../src/app/api/extensao/venda/route.ts` | Formas, canais e clientes da conta (RLS do dono). A venda vai à rota do Marcon com o token do dono (Bearer, conferido no Supabase Auth; CORS só para o ID da extensão), que chama `registrar_venda_unica` (migration 0075) e manda o aviso no celular só quando a venda é nova. Cada tentativa leva uma chave (uuid): repetir a mesma venda (rede caiu, clique de novo) devolve a mesma venda, sem duplicar; mudou qualquer coisa, chave nova. Data no fuso do Brasil, calculada no servidor |
 | Painel | `src/painel.ts`, `painel.css` | Tela do dono no padrão de `docs/DESIGN.md`. No painel lateral do navegador ou, sem ele, embutido na aba do WhatsApp |
 | Na aba do WhatsApp | `src/conteudo.ts`, `src/inserir.ts` | Coloca o texto na caixa (evento de colar, depois `execCommand insertText`), confere que entrou, avisa claro se o WhatsApp mudou |
@@ -68,11 +71,12 @@ npm run typecheck
 node teste/busca-staging.ts ../.env.staging         # login, renovação, busca e sair no Staging, conta de teste
 node teste/respostas-staging.ts ../.env.staging     # cria, carrega, preenche, reordena e apaga uma resposta no Staging
 node teste/venda-staging.ts ../.env.staging <conta-b.json> [--rota]   # venda sem duplicar, estoque, caixa, conta B, sem login; --rota testa a rota no ar
+node teste/sequencias-staging.ts ../.env.staging    # sequências pela API: A cria e percorre, conta B (criada e apagada aqui) e anon não leem nem mexem, limite de 20 passos
 node teste/midias-staging.ts ../.env.staging        # mídia pela API: conta A sobe e baixa, conta B (criada e apagada aqui) e anon não leem nada de A
 node teste/servir.mjs                               # simulação em http://127.0.0.1:4317 (caixa e prévia do painel)
 ```
 
-A simulação (`teste/simulacao.html`) tem uma caixa parecida com a do WhatsApp com quatro modos (editor que trata o colar, caixa simples, sem conversa aberta e layout mudado) e expõe `window.marcon.inserir()`, `window.marcon.inserirTexto(texto)` e `window.marcon.estado()` (inclui quantos envios aconteceram, que tem de ser sempre 0). `painel.html` na mesma porta é a prévia do painel com respostas falsas.
+A simulação (`teste/simulacao.html`) tem uma caixa parecida com a do WhatsApp com quatro modos (editor que trata o colar, caixa simples, sem conversa aberta e layout mudado) e expõe `window.marcon.inserir()`, `window.marcon.inserirTexto(texto)` e `window.marcon.estado()` (inclui quantos envios aconteceram, que tem de ser sempre 0). `painel.html` na mesma porta é a prévia do painel com respostas e sequências falsas; `window.marconUltimo.acoes` lista cada inserir e anexar que o painel pediu (um por clique).
 
 A mesma página simula a prévia de anexo do WhatsApp (por cima da conversa, com Enviar que só o clique envia) em três modos: abre ao colar, só ao soltar, não abre. `window.marcon.anexar(nome, mime, tamanho)` passa pelo mesmo `anexarArquivo` da extensão; `estado()` traz `naPrevia` e `enviosDeArquivo` (sempre 0).
 
