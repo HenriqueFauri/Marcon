@@ -1,13 +1,18 @@
 // Service worker da extensão. Guarda a sessão própria (chrome.storage.local), fala com o Supabase
 // usando só a chave anon e o login do dono (as regras de RLS do banco valem igual ao site) e repassa
-// o texto pronto para a aba do WhatsApp. Nada aqui lê conversa nem manda conversa a servidor.
+// o texto pronto ou o arquivo escolhido (foto, PDF, áudio) para a aba do WhatsApp, que só abre a
+// prévia de anexo. Nada aqui lê conversa nem manda conversa a servidor.
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AMBIENTE, BASE_LOJA, SUPABASE_ANON, SUPABASE_URL } from "./config.ts";
 import { buscarProdutos, esquecerVitrine } from "./busca.ts";
 import { carregarRespostas, esquecerLinkDaVitrine } from "./respostas-db.ts";
 import { carregarDadosDaVenda, enviarVenda, validarVendaRapida } from "./venda.ts";
-import type { Pedido, PedidoAba, Resposta, Sessao } from "./mensagens.ts";
+import type { Pedido, PedidoAba, Resposta, ResultadoAnexar, Sessao } from "./mensagens.ts";
 import { mensagemDeFalha, type ResultadoInsercao } from "./inserir.ts";
+import { mensagemDeFalhaAnexo, type ResultadoAnexo } from "./anexar.ts";
+import { arquivoDaFoto, arquivoDaMidia, fotosDoProduto, listarMidias, salvarGravacao, urlDaMidia } from "./midias-db.ts";
+import { FORMATOS, LIMITE_ARQUIVO } from "./midias.ts";
+import type { ArquivoAnexo } from "./base64.ts";
 
 const armazenamento = {
   getItem: async (k: string) => ((await chrome.storage.local.get(k))[k] as string | undefined) ?? null,
@@ -140,6 +145,33 @@ async function abaDoWhatsApp(remetente: chrome.runtime.MessageSender): Promise<n
   return qualquer[0]?.id ?? null;
 }
 
+// Arquivo na prévia de anexo do WhatsApp. Quem envia é o dono, na própria prévia.
+async function anexar(arquivo: Resposta<ArquivoAnexo>, remetente: chrome.runtime.MessageSender): Promise<Resposta<ResultadoAnexar>> {
+  if (!arquivo.ok) return arquivo;
+  const aba = await abaDoWhatsApp(remetente);
+  if (!aba) return { ok: true, dados: { anexou: false, mensagem: mensagemDeFalhaAnexo("sem-aba"), arquivo: arquivo.dados } };
+  try {
+    const r = (await chrome.tabs.sendMessage(aba, { tipo: "anexar", arquivo: arquivo.dados } satisfies PedidoAba, { frameId: 0 })) as ResultadoAnexo;
+    if (r?.ok) {
+      await chrome.tabs.update(aba, { active: true });
+      return { ok: true, dados: { anexou: true, mensagem: "Arquivo na prévia do WhatsApp. Confira e envie." } };
+    }
+    return { ok: true, dados: { anexou: false, mensagem: mensagemDeFalhaAnexo(r?.motivo ?? "nao-abriu"), arquivo: arquivo.dados } };
+  } catch {
+    return { ok: true, dados: { anexou: false, mensagem: "Recarregue a aba do WhatsApp (F5) e tente de novo.", arquivo: arquivo.dados } };
+  }
+}
+
+// gravação do painel: confere o que chegou antes de passar adiante
+function arquivoDaGravacao(a: ArquivoAnexo | undefined): Resposta<ArquivoAnexo> {
+  const ext = String(a?.nome ?? "").split(".").pop() ?? "";
+  const formato = FORMATOS[ext];
+  if (!a || typeof a.base64 !== "string" || !formato || formato.tipo !== "audio" || a.base64.length > (LIMITE_ARQUIVO * 4) / 3 + 8) {
+    return { ok: false, erro: "Gravação inválida. Grave de novo." };
+  }
+  return { ok: true, dados: { base64: a.base64, mime: formato.mime, nome: String(a.nome).slice(0, 120) } };
+}
+
 async function inserir(texto: string, remetente: chrome.runtime.MessageSender): Promise<Resposta<string>> {
   const aba = await abaDoWhatsApp(remetente);
   if (!aba) return { ok: false, erro: mensagemDeFalha("sem-aba") };
@@ -189,6 +221,28 @@ async function atender(p: Pedido, remetente: chrome.runtime.MessageSender): Prom
     }
     case "inserir":
       return inserir(String(p.texto ?? "").slice(0, 4000), remetente);
+    case "fotosProduto":
+      return fotosDoProduto(supabase, String(p.produtoId ?? ""));
+    case "anexarFoto":
+      return anexar(await arquivoDaFoto(supabase, String(p.path ?? ""), String(p.nome ?? "foto")), remetente);
+    case "midias":
+      return listarMidias(supabase);
+    case "anexarMidia":
+      return anexar(await arquivoDaMidia(supabase, String(p.id ?? "")), remetente);
+    case "urlMidia":
+      return urlDaMidia(supabase, String(p.id ?? ""));
+    case "anexarArquivo":
+      return anexar(arquivoDaGravacao(p.arquivo), remetente);
+    case "salvarGravacao":
+      return salvarGravacao(supabase, {
+        base64: String(p.base64 ?? ""),
+        ext: String(p.ext ?? ""),
+        titulo: String(p.titulo ?? ""),
+        duracao: Number(p.duracao) || 0,
+      });
+    case "abrirMicrofone":
+      await chrome.tabs.create({ url: chrome.runtime.getURL("microfone.html") });
+      return { ok: true, dados: null };
     case "fecharPainel":
       if (remetente.tab?.id) chrome.tabs.sendMessage(remetente.tab.id, { tipo: "alternarPainel" } satisfies PedidoAba, { frameId: 0 }).catch(() => {});
       return { ok: true, dados: null };

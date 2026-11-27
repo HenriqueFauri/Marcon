@@ -3,6 +3,8 @@
 // window.marcon expõe inserir() e estado() para o agente de teste.
 import { formatarMensagem, type ProdutoBusca } from "../src/formatar.ts";
 import { inserirTexto, mensagemDeFalha } from "../src/inserir.ts";
+import { anexarArquivo, mensagemDeFalhaAnexo, montarArquivo } from "../src/anexar.ts";
+import { paraBase64 } from "../src/base64.ts";
 
 const caixa = document.getElementById("caixa") as HTMLDivElement;
 const main = document.getElementById("main") as HTMLDivElement;
@@ -92,9 +94,68 @@ async function inserirLivre(texto: string) {
 document.getElementById("inserir")!.addEventListener("click", () => inserir());
 document.getElementById("inserir-var")!.addEventListener("click", () => inserir("v2"));
 
+// ---------------------------------------------------------------------------------------------
+// Prévia de anexo falsa (parte 3). Como no WhatsApp: colar ou soltar um arquivo na conversa abre
+// uma prévia por cima, com legenda e botão Enviar. Só o clique no Enviar da prévia envia.
+// Modos: "colar" (abre ao colar e ao soltar), "arrastar" (só ao soltar), "nenhum" (ignora arquivo).
+let modoAnexo = "colar";
+const previa = document.getElementById("previa") as HTMLDivElement;
+const previaNome = document.getElementById("previa-nome") as HTMLSpanElement;
+let naPrevia: { nome: string; tipo: string; tamanho: number }[] = [];
+let enviosDeArquivo = 0;
+
+function abrirPrevia(arquivos: FileList | undefined | null) {
+  const lista = [...(arquivos ?? [])];
+  if (lista.length === 0) return false;
+  naPrevia = [...naPrevia, ...lista.map((f) => ({ nome: f.name, tipo: f.type, tamanho: f.size }))];
+  previaNome.textContent = naPrevia.map((a) => `${a.nome} (${a.tipo}, ${a.tamanho} bytes)`).join(" + ");
+  previa.hidden = false;
+  return true;
+}
+caixa.addEventListener(
+  "paste",
+  (e) => {
+    if (modoAnexo === "colar" && e.clipboardData?.files.length) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      setTimeout(() => abrirPrevia(e.clipboardData?.files), 120);
+    }
+  },
+  { capture: true },
+);
+main.addEventListener("dragover", (e) => modoAnexo !== "nenhum" && e.preventDefault());
+main.addEventListener("drop", (e) => {
+  if (modoAnexo === "nenhum") return;
+  e.preventDefault();
+  abrirPrevia(e.dataTransfer?.files);
+});
+document.getElementById("previa-enviar")!.addEventListener("click", () => {
+  enviosDeArquivo += naPrevia.length;
+  naPrevia = [];
+  previa.hidden = true;
+});
+document.getElementById("previa-fechar")!.addEventListener("click", () => {
+  naPrevia = [];
+  previa.hidden = true;
+});
+document.querySelectorAll<HTMLInputElement>('input[name="anexo"]').forEach((r) =>
+  r.addEventListener("change", () => r.checked && (modoAnexo = r.value)),
+);
+
+async function anexar(nome = "catalogo.pdf", mime = "application/pdf", tamanho = 2048) {
+  const arquivo = montarArquivo({ base64: paraBase64(new Uint8Array(tamanho).fill(65)), mime, nome });
+  const r = await anexarArquivo(arquivo);
+  log.textContent = r.ok ? `anexo ok (${r.metodo})` : `anexo falhou: ${mensagemDeFalhaAnexo(r.motivo)}`;
+  return r;
+}
+document.getElementById("anexar")!.addEventListener("click", () => anexar());
+
 (window as unknown as { marcon: unknown }).marcon = {
   inserir,
   inserirTexto: inserirLivre,
+  anexar,
   modo: aplicarModo,
-  estado: () => ({ modo, texto: caixa.innerText, envios }),
+  modoAnexo: (m: string) => (modoAnexo = m),
+  fecharPrevia: () => document.getElementById("previa-fechar")!.click(),
+  estado: () => ({ modo, modoAnexo, texto: caixa.innerText, envios, enviosDeArquivo, previaAberta: !previa.hidden, naPrevia }),
 };

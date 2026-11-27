@@ -1,6 +1,6 @@
 {
   "name": "marcon-extensao",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Extensão do Marcon para o WhatsApp Web. Só insere texto na caixa de mensagem; quem envia é o dono.",

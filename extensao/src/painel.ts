@@ -2,7 +2,7 @@
 // todo texto vindo do banco entra por textContent, nunca como HTML.
 import { AMBIENTE, BASE_LOJA } from "./config.ts";
 import { estoqueTotal, formatarMensagem, formatarPreco, type ProdutoBusca } from "./formatar.ts";
-import { pedir, type Sessao } from "./mensagens.ts";
+import { pedir, type Pedido, type ResultadoAnexar, type Sessao } from "./mensagens.ts";
 import { filtrarRespostas, preencherVariaveis } from "./respostas.ts";
 import type { RespostasDaConta } from "./respostas-db.ts";
 import {
@@ -22,6 +22,9 @@ import {
   type VendaFeita,
   type VendaRapida,
 } from "./venda.ts";
+import { deBase64, paraBase64, type ArquivoAnexo } from "./base64.ts";
+import { ROTULO_TIPO, detalheDaMidia, filtrarMidias, formatarDuracao, LIMITE_GRAVACAO_SEG, formatoDeGravacao, nomeParaEnvio } from "./midias.ts";
+import type { FotoProduto, MidiaPainel } from "./midias-db.ts";
 
 const app = document.getElementById("app")!;
 const embutido = new URLSearchParams(location.search).get("modo") === "embutido";
@@ -69,13 +72,53 @@ function topo() {
 // Aviso que some sozinho (barra escura no pé do painel).
 let avisoEl: HTMLDivElement | null = null;
 let avisoTimer: number | undefined;
-function avisar(texto: string, erro = false) {
+function avisar(texto: string, erro = false, acao?: { rotulo: string; fazer: () => void }) {
   if (!avisoEl) return;
-  avisoEl.textContent = texto;
+  avisoEl.replaceChildren(h("span", {}, texto));
+  if (acao) {
+    const botao = h("button", { class: "btn-pequeno neutro aviso-acao", type: "button" }, acao.rotulo);
+    botao.addEventListener("click", () => {
+      acao.fazer();
+      if (avisoEl) avisoEl.hidden = true;
+    });
+    avisoEl.append(botao);
+  }
   avisoEl.className = erro ? "aviso erro" : "aviso";
   avisoEl.hidden = false;
   clearTimeout(avisoTimer);
-  avisoTimer = window.setTimeout(() => avisoEl && (avisoEl.hidden = true), erro ? 6000 : 3000);
+  avisoTimer = window.setTimeout(() => avisoEl && (avisoEl.hidden = true), acao ? 12000 : erro ? 6000 : 3000);
+}
+
+// Plano B do Anexar: salva o arquivo no computador para o dono arrastar para a conversa
+function baixarArquivo(a: ArquivoAnexo) {
+  const url = URL.createObjectURL(new Blob([deBase64(a.base64)], { type: a.mime }));
+  const link = h("a", { href: url, download: a.nome });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// Anexar: o arquivo vai para a prévia de anexo do WhatsApp. Quem envia é o dono, na prévia.
+async function anexarComBotao(p: Pedido, botao: HTMLButtonElement, aoPerderSessao?: (erro: string) => void) {
+  if (botao.disabled) return;
+  // botão de texto mostra "Anexando..."; miniatura de foto só escurece (classe ocupado)
+  const antes = [...botao.childNodes];
+  const deTexto = botao.children.length === 0;
+  botao.disabled = true;
+  if (deTexto) botao.textContent = "Anexando...";
+  else botao.classList.add("ocupado");
+  const r = await pedir<ResultadoAnexar>(p);
+  botao.disabled = false;
+  botao.classList.remove("ocupado");
+  if (deTexto) botao.replaceChildren(...antes);
+  if (!r.ok) {
+    if (r.erro.includes("sessão") && aoPerderSessao) return aoPerderSessao(r.erro);
+    return avisar(r.erro, true);
+  }
+  if (r.dados.anexou) return avisar(r.dados.mensagem);
+  const arquivo = r.dados.arquivo;
+  avisar(r.dados.mensagem, true, arquivo ? { rotulo: "Baixar", fazer: () => baixarArquivo(arquivo) } : undefined);
 }
 
 async function copiar(texto: string): Promise<boolean> {
@@ -220,6 +263,48 @@ function inserirCopiar(texto: () => string, alvo: string) {
   );
 }
 
+// Foto do produto direto do estoque: Anexar foto manda a capa; Fotos abre as outras para escolher.
+let perderSessao: (erro: string) => void = () => {};
+
+function fotosDoItem(p: ProdutoBusca) {
+  if (!p.capaPath) return null;
+  const total = p.totalFotos ?? 1;
+  const grade = h("div", { class: "fotos", hidden: "" });
+  let carregou = false;
+
+  const anexarCapa = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Anexar foto de ${p.nome}` }, "Anexar foto");
+  anexarCapa.addEventListener("click", () => anexarComBotao({ tipo: "anexarFoto", path: p.capaPath!, nome: p.nome }, anexarCapa, perderSessao));
+
+  const escolher =
+    total > 1
+      ? h("button", { class: "btn-pequeno neutro", type: "button", "aria-expanded": "false", "aria-label": `Escolher entre ${total} fotos de ${p.nome}` }, `Fotos (${total})`)
+      : null;
+  escolher?.addEventListener("click", async () => {
+    const abrir = grade.hidden;
+    grade.hidden = !abrir;
+    escolher.setAttribute("aria-expanded", String(abrir));
+    if (!abrir || carregou) return;
+    grade.replaceChildren(h("p", { class: "detalhe" }, "Carregando..."));
+    const r = await pedir<FotoProduto[]>({ tipo: "fotosProduto", produtoId: p.id });
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) return perderSessao(r.erro);
+      grade.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+      return;
+    }
+    carregou = true;
+    grade.replaceChildren(
+      ...r.dados.map((f, i) => {
+        const rotulo = `Anexar foto ${i + 1} de ${p.nome}${f.variacao ? `, ${f.variacao}` : ""}`;
+        const b = h("button", { class: "foto", type: "button", "aria-label": rotulo, title: f.variacao ?? `Foto ${i + 1}` }, h("img", { src: f.url, alt: "", loading: "lazy" }));
+        b.addEventListener("click", () => anexarComBotao({ tipo: "anexarFoto", path: f.path, nome: p.nome }, b, perderSessao));
+        return b;
+      }),
+    );
+  });
+
+  return h("div", { class: "bloco-fotos" }, h("div", { class: "acoes" }, anexarCapa, escolher), grade);
+}
+
 function itemProduto(p: ProdutoBusca) {
   const total = estoqueTotal(p);
   const marcaSku = [p.marca, p.sku].filter(Boolean).join(" · ");
@@ -271,6 +356,7 @@ function itemProduto(p: ProdutoBusca) {
       h("span", { class: "preco" }, preco),
       h("span", { class: "detalhe" }, rotuloEstoque(total), ` · ${vitrine}`),
       acoes(p),
+      fotosDoItem(p),
       variacoes,
     ),
   );
@@ -351,6 +437,13 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
               h("span", { class: "nome" }, r.titulo, r.atalho ? h("span", { class: "atalho" }, ` /${r.atalho}`) : null),
               h("span", { class: "previa" }, texto() || "Nada"),
               inserirCopiar(texto, r.titulo),
+              ...(conta?.midias ?? [])
+                .filter((m) => m.resposta_id === r.id)
+                .map((m) => {
+                  const b = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Anexar ${m.titulo}` }, "Anexar");
+                  b.addEventListener("click", () => anexarComBotao({ tipo: "anexarMidia", id: m.id }, b, aoPerderSessao));
+                  return h("div", { class: "anexo-ligado" }, h("span", { class: "detalhe" }, `${ROTULO_TIPO[m.tipo]}: ${m.titulo}`), b);
+                }),
             ),
           );
         }),
@@ -799,6 +892,252 @@ function secaoVender(aoPerderSessao: (erro: string) => void) {
   };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Mídia: biblioteca da conta (criada no app, em Configurações) e áudio gravado aqui no painel.
+
+function miniaturaMidia(m: MidiaPainel) {
+  if (m.miniatura) return h("img", { class: "capa", src: m.miniatura, alt: "", loading: "lazy" });
+  return h("div", { class: `capa vazia tipo-${m.tipo}`, "aria-hidden": "true" }, m.tipo === "documento" ? "PDF" : m.tipo === "audio" ? "Áudio" : "Foto");
+}
+
+// Gravar áudio com o microfone. Entra no WhatsApp como arquivo de áudio (com play), não como
+// mensagem de voz, e só quando o dono clica em Anexar e depois envia na prévia.
+function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) {
+  const corpo = h("div", { class: "gravador" });
+  let gravacao: { blob: Blob; ext: string; duracao: number; url: string } | null = null;
+  let parar: (() => void) | null = null;
+
+  function inicio() {
+    gravacao && URL.revokeObjectURL(gravacao.url);
+    gravacao = null;
+    const botao = h("button", { class: "btn-pequeno destaque", type: "button" }, "Gravar áudio");
+    botao.addEventListener("click", comecar);
+    corpo.replaceChildren(
+      h("div", { class: "info" }, h("span", { class: "nome" }, "Áudio na hora"), h("span", { class: "detalhe" }, `Até ${formatarDuracao(LIMITE_GRAVACAO_SEG)}. Chega como arquivo de áudio, não como mensagem de voz.`)),
+      botao,
+    );
+  }
+
+  function semMicrofone(texto: string) {
+    const liberar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Liberar microfone");
+    liberar.addEventListener("click", () => pedir({ tipo: "abrirMicrofone" }));
+    const voltar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Voltar");
+    voltar.addEventListener("click", inicio);
+    corpo.replaceChildren(h("div", { class: "info" }, h("span", { class: "nome" }, "Sem microfone"), h("span", { class: "detalhe" }, texto)), h("div", { class: "acoes" }, liberar, voltar));
+  }
+
+  async function comecar() {
+    const formato = typeof MediaRecorder === "undefined" ? null : formatoDeGravacao((t) => MediaRecorder.isTypeSupported(t));
+    if (!formato) {
+      return avisar("Este navegador não grava num formato que o WhatsApp aceita. Grave no celular e suba no Marcon.", true);
+    }
+    let fluxo: MediaStream;
+    try {
+      fluxo = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      const nome = (e as DOMException)?.name;
+      if (nome === "NotFoundError") return semMicrofone("Nenhum microfone encontrado neste computador.");
+      return semMicrofone("O navegador não deixou usar o microfone aqui. Clique em Liberar microfone, permita na aba que abrir e volte.");
+    }
+    const pedacos: Blob[] = [];
+    const rec = new MediaRecorder(fluxo, { mimeType: formato.mime, audioBitsPerSecond: 64000 });
+    const ini = Date.now();
+    let cancelado = false;
+    rec.ondataavailable = (ev) => ev.data.size > 0 && pedacos.push(ev.data);
+    rec.onstop = () => {
+      clearInterval(relogio);
+      fluxo.getTracks().forEach((t) => t.stop());
+      parar = null;
+      if (cancelado) return inicio();
+      const blob = new Blob(pedacos, { type: formato.mime.split(";")[0] });
+      if (blob.size === 0) {
+        avisar("A gravação ficou vazia. Tente de novo.", true);
+        return inicio();
+      }
+      gravacao = { blob, ext: formato.ext, duracao: Math.min(LIMITE_GRAVACAO_SEG, (Date.now() - ini) / 1000), url: URL.createObjectURL(blob) };
+      pronto();
+    };
+    rec.start(1000);
+
+    const tempo = h("span", { class: "detalhe", role: "timer" }, `0:00 de ${formatarDuracao(LIMITE_GRAVACAO_SEG)}`);
+    const relogio = window.setInterval(() => {
+      const seg = (Date.now() - ini) / 1000;
+      tempo.textContent = `${formatarDuracao(seg)} de ${formatarDuracao(LIMITE_GRAVACAO_SEG)}`;
+      if (seg >= LIMITE_GRAVACAO_SEG && rec.state === "recording") rec.stop();
+    }, 250);
+    const pararBotao = h("button", { class: "btn-pequeno destaque", type: "button" }, "Parar");
+    pararBotao.addEventListener("click", () => rec.state === "recording" && rec.stop());
+    const cancelar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Cancelar");
+    cancelar.addEventListener("click", () => {
+      cancelado = true;
+      if (rec.state === "recording") rec.stop();
+    });
+    parar = () => {
+      cancelado = true;
+      if (rec.state === "recording") rec.stop();
+    };
+    corpo.replaceChildren(
+      h("div", { class: "info" }, h("span", { class: "nome" }, h("span", { class: "ponto-gravando", "aria-hidden": "true" }), "Gravando no painel"), tempo),
+      h("div", { class: "acoes" }, pararBotao, cancelar),
+    );
+  }
+
+  function pronto() {
+    if (!gravacao) return inicio();
+    const g = gravacao;
+    const agora = new Date();
+    const titulo = h("input", {
+      class: "campo-pequeno",
+      type: "text",
+      maxlength: "80",
+      "aria-label": "Nome do áudio",
+      value: `Áudio ${agora.toLocaleDateString("pt-BR")} ${agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+    });
+    const anexar = h("button", { class: "btn-pequeno destaque", type: "button" }, "Anexar");
+    const salvar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Salvar na biblioteca");
+    const descartar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Descartar");
+    const base64 = async () => paraBase64(await g.blob.arrayBuffer());
+    anexar.addEventListener("click", async () =>
+      anexarComBotao({ tipo: "anexarArquivo", arquivo: { base64: await base64(), mime: g.blob.type, nome: nomeParaEnvio(titulo.value || "Áudio", g.ext) } }, anexar, aoPerderSessao),
+    );
+    salvar.addEventListener("click", async () => {
+      salvar.disabled = true;
+      salvar.textContent = "Salvando...";
+      const r = await pedir({ tipo: "salvarGravacao", base64: await base64(), ext: g.ext, titulo: titulo.value, duracao: g.duracao });
+      salvar.disabled = false;
+      salvar.textContent = "Salvar na biblioteca";
+      if (!r.ok) {
+        if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+        return avisar(r.erro, true);
+      }
+      avisar("Áudio salvo na biblioteca.");
+      inicio();
+      aoSalvar();
+    });
+    descartar.addEventListener("click", inicio);
+    corpo.replaceChildren(
+      h("div", { class: "info" }, h("span", { class: "nome" }, "Áudio gravado"), h("span", { class: "detalhe" }, formatarDuracao(g.duracao))),
+      h("audio", { controls: "", src: g.url, preload: "metadata" }),
+      titulo,
+      h("div", { class: "acoes" }, anexar, salvar, descartar),
+    );
+  }
+
+  inicio();
+  return { el: corpo, cancelar: () => parar?.() };
+}
+
+function secaoMidia(aoPerderSessao: (erro: string) => void) {
+  const campo = h("input", { type: "search", placeholder: "Nome, foto, PDF ou áudio", "aria-label": "Buscar mídia", autocomplete: "off" });
+  const lista = h("div", { class: "grupo" });
+  let midias: MidiaPainel[] | null = null;
+  let carregando = false;
+  let tocando: { id: string; audio: HTMLAudioElement; botao: HTMLButtonElement } | null = null;
+
+  const atualizar = h("button", { class: "btn-pequeno neutro", type: "button", on: { click: () => carregar(true) } }, "Atualizar");
+  const grav = gravador(() => carregar(), aoPerderSessao);
+
+  async function ouvir(m: MidiaPainel, botao: HTMLButtonElement) {
+    if (tocando) {
+      tocando.audio.pause();
+      tocando.botao.textContent = "Ouvir";
+      const mesmo = tocando.id === m.id;
+      tocando = null;
+      if (mesmo) return;
+    }
+    const r = await pedir<string>({ tipo: "urlMidia", id: m.id });
+    if (!r.ok) return avisar(r.erro, true);
+    const audio = new Audio(r.dados);
+    tocando = { id: m.id, audio, botao };
+    botao.textContent = "Parar";
+    audio.addEventListener("ended", () => {
+      botao.textContent = "Ouvir";
+      tocando = null;
+    });
+    audio.play().catch(() => {
+      botao.textContent = "Ouvir";
+      tocando = null;
+      avisar("Não deu para tocar o áudio aqui.", true);
+    });
+  }
+
+  function desenhar() {
+    if (!midias) return;
+    if (midias.length === 0) {
+      lista.replaceChildren(
+        h(
+          "div",
+          { class: "cartao" },
+          h(
+            "div",
+            { class: "vazio" },
+            h("strong", {}, "Nenhuma mídia"),
+            "Suba fotos, PDFs e áudios no Marcon, em Configurações. Depois clique em Atualizar.",
+            h("div", { style: "padding-top:12px" }, h("a", { class: "btn btn-secundario", href: `${BASE_LOJA}/configuracoes/midias`, target: "_blank", rel: "noopener" }, "Abrir no Marcon")),
+          ),
+        ),
+      );
+      return;
+    }
+    const achadas = filtrarMidias(midias, campo.value);
+    if (achadas.length === 0) {
+      lista.replaceChildren(h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nada encontrado"), "Tente outra palavra.")));
+      return;
+    }
+    lista.replaceChildren(
+      h("h2", { class: "grupo-titulo" }, achadas.length === 1 ? "1 arquivo" : `${achadas.length} arquivos`),
+      h(
+        "div",
+        { class: "cartao" },
+        ...achadas.map((m) => {
+          const anexar = h("button", { class: "btn-pequeno destaque", type: "button", "aria-label": `Anexar ${m.titulo}` }, "Anexar");
+          anexar.addEventListener("click", () => anexarComBotao({ tipo: "anexarMidia", id: m.id }, anexar, aoPerderSessao));
+          const ouvirBotao = m.tipo === "audio" ? h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Ouvir ${m.titulo}` }, "Ouvir") : null;
+          ouvirBotao?.addEventListener("click", () => ouvir(m, ouvirBotao));
+          return h(
+            "div",
+            { class: "produto" },
+            miniaturaMidia(m),
+            h("div", { class: "info" }, h("span", { class: "nome" }, m.titulo), h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, anexar, ouvirBotao)),
+          );
+        }),
+      ),
+      h("p", { class: "grupo-rodape" }, "Anexar abre a prévia do WhatsApp com o arquivo. Quem envia é você."),
+    );
+  }
+
+  async function carregar(manual = false) {
+    if (carregando) return;
+    carregando = true;
+    atualizar.disabled = true;
+    atualizar.textContent = "Atualizando...";
+    if (!midias) lista.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
+    const r = await pedir<MidiaPainel[]>({ tipo: "midias" });
+    carregando = false;
+    atualizar.disabled = false;
+    atualizar.textContent = "Atualizar";
+    if (!r.ok) {
+      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+      if (midias) avisar(r.erro, true);
+      else lista.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+      return;
+    }
+    midias = r.dados;
+    desenhar();
+    if (manual) avisar(midias.length === 1 ? "1 arquivo." : `${midias.length} arquivos.`);
+  }
+
+  campo.addEventListener("input", desenhar);
+  const el = h(
+    "div",
+    { class: "secao" },
+    h("div", { class: "linha-busca" }, h("div", { class: "busca" }, iconeLupa(), campo), atualizar),
+    grupo("Gravar", grav.el),
+    lista,
+  );
+  return { el, carregar, focar: () => campo.focus(), carregou: () => midias !== null, parar: () => { grav.cancelar(); tocando?.audio.pause(); } };
+}
+
 // voltar ao painel (ou à aba do WhatsApp, no painel embutido) traz a lista nova do app
 let recarregarRespostas: (() => void) | null = null;
 document.addEventListener("visibilitychange", () => {
@@ -844,7 +1183,7 @@ function telaPrincipal(sessao: Sessao) {
     resultados.replaceChildren(
       h("h2", { class: "grupo-titulo" }, titulo),
       h("div", { class: "cartao" }, ...r.dados.map(itemProduto)),
-      h("p", { class: "grupo-rodape" }, "Inserir coloca o texto na conversa aberta. Quem envia é você."),
+      h("p", { class: "grupo-rodape" }, "Inserir coloca o texto na conversa aberta; Anexar abre a prévia com a foto. Quem envia é você."),
     );
   }
   campo.addEventListener("input", () => {
@@ -865,6 +1204,7 @@ function telaPrincipal(sessao: Sessao) {
       type: "button",
       on: {
         click: async () => {
+          midia.parar();
           await pedir({ tipo: "sair" });
           limparVenda();
           contaDaVenda = null;
@@ -876,49 +1216,63 @@ function telaPrincipal(sessao: Sessao) {
   );
 
   const produtos = h("div", { class: "secao" }, h("div", { class: "busca" }, lupa, campo), resultados);
-  const respostas = secaoRespostas((erro) => telaEntrar(erro));
+  const sairDaSessao = (erro: string) => {
+    midia.parar();
+    telaEntrar(erro);
+  };
+  perderSessao = sairDaSessao;
+  const respostas = secaoRespostas(sairDaSessao);
   respostas.el.hidden = true;
-  const vender = secaoVender((erro) => telaEntrar(erro));
+  const midia = secaoMidia(sairDaSessao);
+  midia.el.hidden = true;
+  const vender = secaoVender(sairDaSessao);
   vender.el.hidden = true;
 
-  // controle segmentado: Produtos, Respostas ou Vender (a escolha vale enquanto o painel está aberto)
-  type Aba = "produtos" | "respostas" | "vender";
+  // controle segmentado: Produtos, Respostas, Mídia ou Vender (a escolha vale enquanto o painel está aberto)
+  type Aba = "produtos" | "respostas" | "midia" | "vender";
   const botaoAba = (rotulo: string, aba: Aba) =>
     h("button", { type: "button", role: "tab", "aria-selected": "false", on: { click: () => mostrar(aba) } }, rotulo);
-  const abaProdutos = botaoAba("Produtos", "produtos");
-  const abaRespostas = botaoAba("Respostas", "respostas");
-  const abaVender = botaoAba("Vender", "vender");
+  const abas: Record<Aba, HTMLButtonElement> = {
+    produtos: botaoAba("Produtos", "produtos"),
+    respostas: botaoAba("Respostas", "respostas"),
+    midia: botaoAba("Mídia", "midia"),
+    vender: botaoAba("Vender", "vender"),
+  };
   function mostrar(aba: Aba) {
     produtos.hidden = aba !== "produtos";
     respostas.el.hidden = aba !== "respostas";
+    midia.el.hidden = aba !== "midia";
     vender.el.hidden = aba !== "vender";
-    abaProdutos.setAttribute("aria-selected", String(aba === "produtos"));
-    abaRespostas.setAttribute("aria-selected", String(aba === "respostas"));
-    abaVender.setAttribute("aria-selected", String(aba === "vender"));
+    for (const [nome, botao] of Object.entries(abas)) botao.setAttribute("aria-selected", String(nome === aba));
     sessionStorage.setItem("marcon_aba", aba);
     if (aba === "respostas") {
       if (!respostas.carregou()) respostas.carregar();
       respostas.focar();
+    } else if (aba === "midia") {
+      if (!midia.carregou()) midia.carregar();
+      midia.focar();
     } else if (aba === "vender") vender.abrir();
     else campo.focus();
   }
 
   recarregarRespostas = () => {
     if (respostas.carregou() && document.body.contains(respostas.el)) respostas.carregar();
+    if (midia.carregou() && document.body.contains(midia.el)) midia.carregar();
   };
 
   app.replaceChildren(
     topo(),
-    h("div", { class: "abas", role: "tablist", "aria-label": "O que fazer" }, abaProdutos, abaRespostas, abaVender),
+    h("div", { class: "abas", role: "tablist", "aria-label": "O que fazer" }, abas.produtos, abas.respostas, abas.midia, abas.vender),
     produtos,
     respostas.el,
+    midia.el,
     vender.el,
     grupo("Conta", h("div", { class: "linha detalhe" }, sessao.email)),
     h("div", {}, sair),
     avisoEl,
   );
   const salva = sessionStorage.getItem("marcon_aba");
-  mostrar(salva === "respostas" || salva === "vender" ? salva : "produtos");
+  mostrar(salva === "respostas" || salva === "midia" || salva === "vender" ? salva : "produtos");
 }
 
 // ---------------------------------------------------------------------------------------------

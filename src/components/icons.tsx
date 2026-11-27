@@ -138,6 +138,14 @@ export const IconLogout = (p: P) => (
     <path d="M10 8l-4 4 4 4M6 12h10" />
   </Icon>
 );
+// foto (quadro com montanha): biblioteca de mídia
+export const IconFoto = (p: P) => (
+  <Icon {...p}>
+    <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="m20.5 16-4.5-4.5L6 19" />
+  </Icon>
+);
 // balão de conversa com linhas: respostas prontas
 export const IconMensagem = (p: P) => (
   <Icon {...p}>

@@ -2,6 +2,7 @@
 // para conferir o visual e o fluxo da tela sem instalar nada. Nunca entra no build da extensão.
 import type { ProdutoBusca } from "../src/formatar.ts";
 import type { Pedido } from "../src/mensagens.ts";
+import type { MidiaPainel } from "../src/midias-db.ts";
 
 const produtos: ProdutoBusca[] = [
   {
@@ -48,6 +49,24 @@ const produtos: ProdutoBusca[] = [
   },
 ];
 
+// miniatura falsa (quadrado colorido), sem rede
+function quadrado(cor: string, letra: string) {
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="${cor}"/><text x="40" y="50" font-size="28" text-anchor="middle" fill="#fff">${letra}</text></svg>`)}`;
+}
+produtos[0].capa = quadrado("#d45f30", "1");
+produtos[0].capaPath = "dono/foto1.jpg";
+produtos[0].totalFotos = 3;
+produtos[1].capa = quadrado("#636366", "R");
+produtos[1].capaPath = "dono/relogio.jpg";
+produtos[1].totalFotos = 1;
+
+const base = { path: "dono/x", mime: "application/pdf", resposta_id: null, origem: "arquivo" as const, duracao: null, miniatura: null };
+const midiasFalsas: MidiaPainel[] = [
+  { ...base, id: "m1", tipo: "documento", titulo: "Catálogo de Natal", nome_arquivo: "Catálogo de Natal.pdf", tamanho: 2_300_000 },
+  { ...base, id: "m2", tipo: "audio", titulo: "Como funciona a garantia", nome_arquivo: "Como funciona a garantia.m4a", mime: "audio/mp4", tamanho: 310_000, duracao: 42 },
+  { ...base, id: "m3", tipo: "imagem", titulo: "Tabela de medidas", nome_arquivo: "Tabela de medidas.jpg", mime: "image/jpeg", tamanho: 180_000, miniatura: quadrado("#1f7a4d", "T"), resposta_id: "r2" },
+];
+
 let logado = false;
 // vendas falsas por chave: repetir a chave devolve a mesma venda (como a registrar_venda_unica)
 const vendas = new Map<string, { vendaId: string; reciboToken: string; total: number }>();
@@ -59,7 +78,7 @@ function novaVenda(chave: string, itens: { quantidade: number; preco_unitario: n
   vendas.set(chave, nova);
   return nova;
 }
-const ultimo: { texto?: string } = {};
+const ultimo: { texto?: string; anexo?: string } = {};
 function responder(p: Pedido): unknown {
   switch (p.tipo) {
     case "sessao":
@@ -89,6 +108,7 @@ function responder(p: Pedido): unknown {
           ],
           // sem endereço de propósito: a linha some
           dados: { negocio: "Loja de Teste", pix: "pix@lojadeteste.com", endereco: null, telefone: null, vitrine: "https://marcon-staging.vercel.app/loja/loja-de-teste" },
+          midias: [{ id: "m3", tipo: "imagem", titulo: "Tabela de medidas", resposta_id: "r2" }],
         },
       };
     case "dadosVenda":
@@ -117,6 +137,27 @@ function responder(p: Pedido): unknown {
       }
       return { ok: true, dados: { ...nova, criada: true } };
     }
+    case "fotosProduto":
+      return { ok: true, dados: [1, 2, 3].map((i) => ({ path: `dono/foto${i}.jpg`, url: quadrado(["#d45f30", "#1f7a4d", "#8a5a10"][i - 1], `${i}`), variacao: i === 3 ? "Preto" : null })) };
+    case "anexarFoto":
+      ultimo.anexo = p.path;
+      return { ok: true, dados: { anexou: true, mensagem: "Arquivo na prévia do WhatsApp. Confira e envie." } };
+    case "midias":
+      return { ok: true, dados: midiasFalsas };
+    case "anexarMidia":
+      ultimo.anexo = p.id;
+      // o PDF finge que a prévia não abriu, para conferir o botão Baixar
+      return p.id === "m1"
+        ? { ok: true, dados: { anexou: false, mensagem: "A prévia do WhatsApp não abriu. Feche o que estiver aberto na conversa ou use Baixar e arraste o arquivo.", arquivo: { base64: "JVBERi0=", mime: "application/pdf", nome: "Catálogo de Natal.pdf" } } }
+        : { ok: true, dados: { anexou: true, mensagem: "Arquivo na prévia do WhatsApp. Confira e envie." } };
+    case "anexarArquivo":
+      ultimo.anexo = p.arquivo.nome;
+      return { ok: true, dados: { anexou: true, mensagem: "Arquivo na prévia do WhatsApp. Confira e envie." } };
+    case "urlMidia":
+      return { ok: false, erro: "Não deu para abrir o áudio." };
+    case "salvarGravacao":
+      midiasFalsas.unshift({ ...midiasFalsas[1], id: `g${Date.now()}`, titulo: p.titulo, origem: "gravacao", duracao: Math.round(p.duracao) });
+      return { ok: true, dados: midiasFalsas[0] };
     case "inserir":
       ultimo.texto = p.texto;
       return p.texto.includes("Garrafa")

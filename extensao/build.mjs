@@ -111,6 +111,7 @@ await build({
     painel: join(aqui, "src", "painel.ts"),
     conteudo: join(aqui, "src", "conteudo.ts"),
     retorno: join(aqui, "src", "retorno.ts"),
+    microfone: join(aqui, "src", "microfone.ts"),
   },
   bundle: true,
   format: "iife",
@@ -120,7 +121,7 @@ await build({
   outdir: saida,
   define,
 });
-for (const f of ["painel.html", "painel.css", "retorno.html"]) cpSync(join(aqui, "src", f), join(saida, f));
+for (const f of ["painel.html", "painel.css", "retorno.html", "microfone.html"]) cpSync(join(aqui, "src", f), join(saida, f));
 cpSync(join(aqui, "icones"), join(saida, "icones"), { recursive: true });
 
 const icones = { 16: "icones/icone-16.png", 32: "icones/icone-32.png", 48: "icones/icone-48.png", 128: "icones/icone-128.png" };
@@ -128,7 +129,7 @@ const manifesto = {
   manifest_version: 3,
   name: cfg.nome,
   version,
-  description: "Busca produtos do Marcon e coloca o texto pronto na conversa do WhatsApp Web. Quem envia é você.",
+  description: "Busca produtos do Marcon e coloca texto, fotos, PDFs e áudios na conversa do WhatsApp Web. Quem envia é você.",
   key, // ID fixo: o mesmo em todo computador, para a URL de retorno do login não mudar
   icons: icones,
   action: { default_title: cfg.nome, default_icon: icones },
