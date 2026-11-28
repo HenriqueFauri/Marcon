@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { avisarVenda } from "@/lib/push/eventos";
 import { falha, ok, type ActionResult } from "@/lib/action";
 import { formatBRL, hojeISO } from "@/lib/format";
+import { ehUuid } from "@/lib/venda-rapida";
 
 export interface NovaVendaInput {
   itens: { produto_id: string; variacao_id: string | null; quantidade: number; preco_unitario: number }[];
@@ -24,6 +25,7 @@ export interface NovaVendaInput {
   data: string | null;
   pedidoId?: string | null; // pedido da vitrine que virou esta venda
   encomenda?: boolean; // a pessoa confirmou vender além do estoque: o estoque fica negativo
+  chave?: string | null; // uuid por tentativa (migration 0075): repetir a mesma chave devolve a mesma venda
 }
 
 const DATA_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -111,13 +113,42 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
       // encomenda (migration 0065): só vai quando é true, então a venda normal não depende da migration
       ...(input.encomenda === true ? { p_encomenda: true } : {}),
     };
-    const { data: vendaId, error } =
+    const tipo = aPrazo ? "a_prazo" : "a_vista";
+    const semChave = () =>
       entrada > 0
-        ? await supabase.rpc("registrar_venda_com_entrada", { ...comum, p_entrada: entrada })
-        : await supabase.rpc("registrar_venda", { ...comum, p_tipo_pagamento: aPrazo ? "a_prazo" : "a_vista" });
-    if (error) return falha(error);
+        ? supabase.rpc("registrar_venda_com_entrada", { ...comum, p_entrada: entrada })
+        : supabase.rpc("registrar_venda", { ...comum, p_tipo_pagamento: tipo });
 
-    // pedido da vitrine que virou esta venda: sai dos novos e guarda o vínculo
+    // com chave, o banco não duplica a venda se a mesma tentativa chegar de novo (rede, clique duplo)
+    let vendaId: string | null = null;
+    let criada = true;
+    if (ehUuid(input.chave)) {
+      const r = await supabase.rpc("registrar_venda_unica", {
+        ...comum,
+        p_chave: input.chave,
+        p_tipo_pagamento: tipo,
+        ...(entrada > 0 ? { p_entrada: entrada } : {}),
+      });
+      if (r.error && /Could not find the function/i.test(r.error.message)) {
+        // banco ainda sem a migration 0075: segue como antes (sem a proteção, por isso o aviso no log)
+        console.warn("[vendas] registrar_venda_unica indisponível, venda sem chave");
+        const v = await semChave();
+        if (v.error) return falha(v.error);
+        vendaId = String(v.data);
+      } else if (r.error) {
+        return falha(r.error);
+      } else {
+        const res = r.data as { venda_id: string; criada: boolean };
+        vendaId = res.venda_id;
+        criada = res.criada;
+      }
+    } else {
+      const v = await semChave();
+      if (v.error) return falha(v.error);
+      vendaId = String(v.data);
+    }
+    // pedido da vitrine que virou esta venda: sai dos novos e guarda o vínculo. Também na repetição
+    // (a primeira tentativa pode ter caído antes daqui); o filtro por "novo" não liga duas vezes.
     if (input.pedidoId) {
       await supabase
         .from("vitrine_pedidos")
@@ -125,6 +156,11 @@ export async function registrarVenda(input: NovaVendaInput): Promise<ActionResul
         .eq("id", input.pedidoId)
         .eq("status", "novo");
       revalidatePath("/vitrine", "layout");
+    }
+
+    if (!criada) {
+      revalidarVendas();
+      return { ok: true, message: "Essa venda já estava registrada.", id: vendaId };
     }
 
     const total = subtotal - desconto;

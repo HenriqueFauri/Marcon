@@ -10,8 +10,10 @@ import { lerPreferencias } from "@/lib/notificacoes";
 import { PerfilForm } from "./perfil-form";
 import { EmpresaForm } from "./empresa-form";
 import { Grupo, LinhaLink } from "@/components/ajustes";
-import { IconBox, IconWhatsapp } from "@/components/icons";
+import { IconBox, IconFoto, IconList, IconMensagem, IconWhatsapp } from "@/components/icons";
 import { acessoDoAssistente } from "@/lib/whatsapp/acesso";
+import { ehAdmin } from "@/lib/admin";
+import { RolarParaAncora } from "@/components/rolar-para-ancora";
 
 export const metadata: Metadata = { title: "Configurações" };
 
@@ -23,13 +25,26 @@ export default async function ConfiguracoesPage() {
     },
     { data: canais },
     { data: formas },
+    { count: respostas },
+    { count: midias },
+    { count: sequencias },
   ] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("canais_venda").select("*").order("nome"),
     supabase.from("formas_pagamento").select("*").order("nome"),
+    supabase.from("respostas_prontas").select("id", { count: "exact", head: true }),
+    supabase.from("midias").select("id", { count: "exact", head: true }),
+    supabase.from("sequencias").select("id", { count: "exact", head: true }),
   ]);
 
   const whatsappLiberado = (await acessoDoAssistente(user)).usar;
+  // Respostas prontas só servem com a extensão do WhatsApp Web, que por enquanto é só do dono:
+  // a linha aparece para o admin e para quem já tem respostas. A página abre para qualquer conta.
+  const mostrarRespostas = ehAdmin(user) || (respostas ?? 0) > 0;
+  // biblioteca de mídia (fotos, PDFs e áudios da extensão): mesma regra
+  const mostrarMidias = ehAdmin(user) || (midias ?? 0) > 0;
+  // sequências (passos enviados por clique na extensão): mesma regra
+  const mostrarSequencias = ehAdmin(user) || (sequencias ?? 0) > 0;
   const { data: vinculoWhatsapp } = whatsappLiberado ? await supabase.from("whatsapp_vinculos").select("owner_id").maybeSingle() : { data: null };
 
   const meta = user?.user_metadata ?? {};
@@ -43,6 +58,7 @@ export default async function ConfiguracoesPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader title="Configurações" />
+      <RolarParaAncora />
 
       <div className="flex flex-col gap-7">
         <Grupo semPadding rodape="Produtos, vendas e caixa de outro sistema, tudo de uma vez.">
@@ -53,6 +69,33 @@ export default async function ConfiguracoesPage() {
             rotulo="Trazer produtos e vendas"
             detalhe="Planilha ou PDF"
           />
+          {mostrarRespostas && (
+            <LinhaLink
+              href="/configuracoes/respostas"
+              icone={<IconMensagem className="h-[17px] w-[17px]" />}
+              tom="bg-tile-warning text-on-tile-warning"
+              rotulo="Respostas prontas"
+              detalhe={respostas ? String(respostas) : "Criar"}
+            />
+          )}
+          {mostrarMidias && (
+            <LinhaLink
+              href="/configuracoes/midias"
+              icone={<IconFoto className="h-[17px] w-[17px]" />}
+              tom="bg-tile-danger text-on-tile-danger"
+              rotulo="Biblioteca de mídia"
+              detalhe={midias ? String(midias) : "Adicionar"}
+            />
+          )}
+          {mostrarSequencias && (
+            <LinhaLink
+              href="/configuracoes/sequencias"
+              icone={<IconList className="h-[17px] w-[17px]" />}
+              tom="bg-brand text-on-brand"
+              rotulo="Sequências"
+              detalhe={sequencias ? String(sequencias) : "Criar"}
+            />
+          )}
           {whatsappLiberado && (
             <LinhaLink
               href="/configuracoes/whatsapp"
@@ -68,17 +111,20 @@ export default async function ConfiguracoesPage() {
           <PerfilForm nome={nome} email={user?.email ?? ""} />
         </Grupo>
 
-        <Grupo titulo="Empresa" rodape="O nome aparece no menu. O resto é opcional e vai no recibo; o PIX vai junto na cobrança pelo WhatsApp.">
-          <EmpresaForm
-            nomeNegocio={nomeNegocio}
-            telefone={(meta.empresa_telefone as string | undefined) ?? ""}
-            email={(meta.empresa_email as string | undefined) ?? ""}
-            endereco={(meta.empresa_endereco as string | undefined) ?? ""}
-            documento={(meta.empresa_documento as string | undefined) ?? ""}
-            pix={(meta.empresa_pix as string | undefined) ?? ""}
-            logoUrl={logoSignedUrl?.signedUrl ?? null}
-          />
-        </Grupo>
+        {/* âncoras dos passos da Vitrine (logo e formas de pagamento); scroll-mt deixa o título fora do cabeçalho fixo */}
+        <div id="empresa" className="scroll-mt-24">
+          <Grupo titulo="Empresa" rodape="O nome aparece no menu. O resto é opcional e vai no recibo; o PIX vai junto na cobrança pelo WhatsApp.">
+            <EmpresaForm
+              nomeNegocio={nomeNegocio}
+              telefone={(meta.empresa_telefone as string | undefined) ?? ""}
+              email={(meta.empresa_email as string | undefined) ?? ""}
+              endereco={(meta.empresa_endereco as string | undefined) ?? ""}
+              documento={(meta.empresa_documento as string | undefined) ?? ""}
+              pix={(meta.empresa_pix as string | undefined) ?? ""}
+              logoUrl={logoSignedUrl?.signedUrl ?? null}
+            />
+          </Grupo>
+        </div>
 
         <ListaSimples
           titulo="Canais de venda"
@@ -90,14 +136,16 @@ export default async function ConfiguracoesPage() {
           onExcluir={excluirCanal}
         />
 
-        <ListaSimples
-          titulo="Formas de pagamento"
-          itens={(formas ?? []) as FormaPagamento[]}
-          placeholder="Ex: PIX, Dinheiro, Cartão..."
-          sugestoes={["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito"]}
-          onCriar={criarFormaPagamento}
-          onExcluir={excluirFormaPagamento}
-        />
+        <div id="formas-de-pagamento" className="scroll-mt-24">
+          <ListaSimples
+            titulo="Formas de pagamento"
+            itens={(formas ?? []) as FormaPagamento[]}
+            placeholder="Ex: PIX, Dinheiro, Cartão..."
+            sugestoes={["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito"]}
+            onCriar={criarFormaPagamento}
+            onExcluir={excluirFormaPagamento}
+          />
+        </div>
 
         <NotificacoesConfig />
 

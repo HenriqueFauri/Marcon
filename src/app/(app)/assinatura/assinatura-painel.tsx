@@ -12,6 +12,7 @@ import { formatBRL, formatData } from "@/lib/format";
 import { ANUAL_POR_MES, CICLOS, DIAS_DE_TESTE, MESES_GRATIS_ANUAL, PLANO_GRATIS, PLANOS, type Ciclo } from "@/lib/planos";
 import type { Situacao } from "@/lib/assinatura";
 import type { Uso } from "@/lib/uso";
+import { PerguntaDoCancelamento } from "./motivo-cancelamento";
 import { assinarPlano, cancelarPlano, regularizarPagamento, type ResultadoAssinar } from "./actions";
 
 const PLANO = PLANOS.marcon;
@@ -145,6 +146,7 @@ export function AssinaturaPainel({
   // o pagamento abre em outra aba; aqui esperamos o webhook confirmar
   const [esperandoPagamento, setEsperandoPagamento] = useState(false);
   const avisou = useRef(false);
+  const [perguntarMotivo, setPerguntarMotivo] = useState(false);
 
   const { tipo } = situacao;
   const ativa = tipo === "ativa";
@@ -184,6 +186,8 @@ export function AssinaturaPainel({
         return;
       }
       avisou.current = false;
+      // assinou de novo: a pergunta do cancelamento perde o sentido
+      setPerguntarMotivo(false);
       setEsperandoPagamento(true);
       // a página de pagamento é do Asaas: o cartão nunca passa pelo Marcon
       if (janela) janela.location.href = r.url;
@@ -304,6 +308,8 @@ export function AssinaturaPainel({
     <div className="flex flex-col gap-7">
       <Grupo titulo="Situação">{situacaoBloco}</Grupo>
 
+      {perguntarMotivo && <PerguntaDoCancelamento aoFechar={() => setPerguntarMotivo(false)} />}
+
       {uso && uso.plano !== "pago" && <UsoGrupo uso={uso} />}
 
       <div className="grid grid-cols-1 items-start gap-7 sm:grid-cols-2 sm:gap-4">
@@ -415,7 +421,16 @@ export function AssinaturaPainel({
 
       {(ativa || tipo === "atrasada" || tipo === "pendente") && (
         <div className="flex justify-center sm:justify-start">
-          <CancelarLink aoCancelar={() => setEsperandoPagamento(false)} />
+          <CancelarLink
+            aoCancelar={() => {
+              setEsperandoPagamento(false);
+              // pendente é quem não concluiu o pagamento: a resposta não entra na leitura de quem cancelou
+              if (tipo === "pendente") return;
+              setPerguntarMotivo(true);
+              // o link fica no fim da tela e a pergunta aparece no topo
+              window.scrollTo({ top: 0 });
+            }}
+          />
         </div>
       )}
     </div>

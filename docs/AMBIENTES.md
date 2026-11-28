@@ -75,7 +75,7 @@ Variáveis do Staging:
 | `ASAAS_ENV` | `sandbox` |
 | `ASAAS_API_KEY` | chave do **sandbox** do Asaas |
 | `ASAAS_WEBHOOK_TOKEN` | o mesmo token do webhook do sandbox |
-| `ADMIN_EMAILS` | e-mail do dono, para ver `/admin` |
+| `ADMIN_EMAILS` | e-mail do dono, para ver `/admin`. Também recebe o aviso de cobrança que falhou (com `RESEND_API_KEY`) |
 
 E-mail (Resend, avisos de fim do teste e da cortesia e de cobrança que falhou): `RESEND_API_KEY` (opcional; sem ela o envio é no-op com log), `APP_URL` (base dos links do e-mail; sem ela vale `https://www.usemarcon.com`, então no Staging defina a URL do `marcon-staging`) e `EMAIL_REMETENTE` (opcional; padrão `UseMarcon <contato@usemarcon.com>`). Os avisos de fim de teste e cortesia só saem onde há `CRON_SECRET`.
 
@@ -86,6 +86,15 @@ Deixar de fora de propósito: `CRON_SECRET`, `ANTHROPIC_API_KEY`, `EVOLUTION_*`,
 - Authentication, URL Configuration: Site URL e Redirect URLs com a URL do Staging (o mesmo ajuste que o domínio de produção exige).
 - Login com Google no Staging exige cadastrar a URL do Staging também no OAuth do Google. Sem isso, usar e-mail e senha.
 - Plano Free: o projeto pausa após 7 dias sem uso. Reativar no painel (os dados ficam). O limite é de 2 projetos ativos por pessoa, somando todas as organizações.
+
+## Extensão do WhatsApp Web (login com Google)
+
+A extensão (`extensao/`, ID fixo `paecegdlhpfepcjinghnhgghpkidpfna`) precisa de duas URLs em Authentication, URL Configuration, Redirect URLs, nos dois projetos. **Staging primeiro**, produção depois:
+
+- `https://paecegdlhpfepcjinghnhgghpkidpfna.chromiumapp.org/google` (janela do navegador, `chrome.identity.launchWebAuthFlow`)
+- `chrome-extension://paecegdlhpfepcjinghnhgghpkidpfna/retorno.html` (plano B, login numa aba)
+
+Sem elas, o Supabase manda o login para o Site URL e a extensão diz "Login com Google cancelado". E-mail e senha funcionam sem nada disso. Nunca usar curinga (`chrome-extension://**`). No Staging o Google também exige o OAuth configurado para o projeto (seção acima). Build e instalação: `extensao/README.md`.
 
 ## Asaas sandbox
 

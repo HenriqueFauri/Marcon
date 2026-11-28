@@ -15,6 +15,7 @@ import {
   linkDePagamento,
 } from "@/lib/asaas";
 import { documentoValido } from "@/lib/documento";
+import { COMENTARIO_MAXIMO, ehMotivoCancelamento, type MotivoCancelamento } from "@/lib/cancelamento";
 import { CICLOS, PLANO_PADRAO, PLANOS, cicloDe, ehCiclo, type Ciclo } from "@/lib/planos";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -176,6 +177,55 @@ export async function cancelarPlano(): Promise<ActionResult> {
         ? `Assinatura cancelada. Nenhuma nova cobrança será feita, e o plano continua liberado até ${formatData(ate)}.`
         : "Assinatura cancelada. Nenhuma nova cobrança será feita.",
     );
+  } catch (e) {
+    return falha(e);
+  }
+}
+
+// resposta opcional da pergunta feita depois do cancelamento; uma por assinatura (migration 0071)
+export async function registrarMotivoCancelamento(motivo: MotivoCancelamento, comentario: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
+
+    if (!ehMotivoCancelamento(motivo) || typeof comentario !== "string") {
+      return { ok: false, error: "Escolha um motivo da lista." };
+    }
+
+    const naoEnviou = { ok: false, error: "Não foi possível enviar sua resposta agora." } as const;
+    const admin = createAdminClient();
+    if (!admin) return naoEnviou;
+
+    const { data: atual, error: erroLeitura } = await admin
+      .from("assinaturas")
+      .select("status, ciclo, asaas_subscription_id")
+      .eq("owner_id", user.id)
+      .maybeSingle();
+    if (erroLeitura) return naoEnviou;
+    if (atual?.status !== "cancelada" || !atual.asaas_subscription_id) {
+      return { ok: false, error: "Não há cancelamento para responder." };
+    }
+
+    const { error } = await admin.from("cancelamento_motivos").upsert(
+      {
+        owner_id: user.id,
+        assinatura_id: atual.asaas_subscription_id,
+        motivo,
+        // o corte por caractere (e não por unidade UTF-16) segue a contagem do banco e não parte emoji
+        comentario: Array.from(comentario.trim()).slice(0, COMENTARIO_MAXIMO).join("") || null,
+        ciclo: cicloDe(atual.ciclo),
+      },
+      { onConflict: "owner_id,assinatura_id" },
+    );
+    if (error) {
+      console.error("motivo do cancelamento não gravado", error.code);
+      return naoEnviou;
+    }
+
+    return ok("Resposta enviada. Obrigado por contar.");
   } catch (e) {
     return falha(e);
   }

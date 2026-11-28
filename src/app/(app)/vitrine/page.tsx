@@ -51,7 +51,8 @@ export default async function VitrineVisaoGeralPage() {
       .from("produtos")
       .select("id, nome, tem_variacoes, estoque_atual, destaque")
       .eq("status", "ativo")
-      .eq("na_vitrine", true),
+      .eq("na_vitrine", true)
+      .order("nome"),
     supabase.from("formas_pagamento").select("id", { count: "exact", head: true }),
     supabase.from("vitrine_metricas").select("visitas, pedidos").gte("dia", desde),
     supabase.from("vitrine_metricas_produto").select("produto_id, aberturas").gte("dia", desde),
@@ -91,18 +92,28 @@ export default async function VitrineVisaoGeralPage() {
 
   const pedidosRecentes = (pedidosData ?? []) as PedidoRecebido[];
 
+  // cada passo abre direto onde se resolve: a foto no produto que falta, o logo e as formas no ponto certo de Configurações
+  const primeiroSemFoto = marcados.find((p) => !comFoto.has(p.id));
   const passos: Passo[] = [
-    { feito: !!vitrine, titulo: "Criar a loja", ajuda: "Escolha o endereço e o WhatsApp que recebe os pedidos.", href: "/vitrine/configuracoes" },
-    { feito: !!vitrine?.ativa, titulo: "Colocar no ar", ajuda: 'Ligue "Vitrine no ar" em Ajustes da loja.', href: "/vitrine/configuracoes" },
+    {
+      feito: !!vitrine?.ativa,
+      titulo: vitrine ? "Colocar a loja no ar" : "Criar a loja",
+      ajuda: vitrine ? 'Ligue "Vitrine no ar" em Ajustes da loja.' : "Escolha o endereço e o WhatsApp que recebe os pedidos.",
+      href: "/vitrine/configuracoes",
+    },
     { feito: marcados.length > 0, titulo: "Escolher os produtos", ajuda: "Ligue os produtos que aparecem na loja.", href: "/vitrine/produtos" },
     {
       feito: marcados.length > 0 && semFoto === 0,
       titulo: "Foto em todos os produtos da vitrine",
-      ajuda: semFoto > 0 ? `${semFoto} ${semFoto === 1 ? "produto está" : "produtos estão"} sem foto. Envie em Anúncios.` : "Envie as fotos em Anúncios.",
-      href: "/anuncios",
+      ajuda: primeiroSemFoto
+        ? semFoto === 1
+          ? `Falta a foto de ${primeiroSemFoto.nome}.`
+          : `${semFoto} produtos estão sem foto. Comece por ${primeiroSemFoto.nome}.`
+        : "Envie as fotos em Anúncios.",
+      href: primeiroSemFoto ? `/anuncios/${primeiroSemFoto.id}` : "/anuncios",
     },
-    { feito: !!meta.empresa_logo_path, titulo: "Logo da loja", ajuda: "Envie em Configurações, Dados da empresa.", href: "/configuracoes" },
-    { feito: (formasPagamento ?? 0) > 0, titulo: "Formas de pagamento", ajuda: "O cliente escolhe no pedido.", href: "/configuracoes" },
+    { feito: !!meta.empresa_logo_path, titulo: "Logo da loja", ajuda: "Envie em Configurações, Empresa.", href: "/configuracoes#empresa" },
+    { feito: (formasPagamento ?? 0) > 0, titulo: "Formas de pagamento", ajuda: "O cliente escolhe no pedido.", href: "/configuracoes#formas-de-pagamento" },
   ];
   const feitos = passos.filter((p) => p.feito).length;
 

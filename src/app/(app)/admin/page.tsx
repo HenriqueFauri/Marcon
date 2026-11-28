@@ -9,10 +9,14 @@ import { rotuloDaSituacao, situacaoDaAssinatura } from "@/lib/assinatura";
 import { formatBRL, formatData, formatDataCurta } from "@/lib/format";
 import { ANUAL_POR_MES, PLANOS } from "@/lib/planos";
 import { rotuloDoMotivo } from "@/lib/cortesia";
+import { MotivosDeCancelamento } from "./motivos-de-cancelamento";
+import { OrigemDosCadastros, type LinhaDeOrigem } from "./origem-dos-cadastros";
 import { Badge, EmptyState, ErrorMessage, PageHeader, Segmentos, StatCard, Table, btnSecondary, tbodyClass, tdClass, thClass, theadClass } from "@/components/ui";
 import { SearchInput } from "@/components/search-input";
 import { bloqueada, contaGerenciavel, diasAtivos, etapaDoFunil, type FunilConta, type ResumoConta } from "./dados";
 import { AcoesRapidas } from "./gerenciar-conta";
+import { ContasParadas, contaParada } from "./contas-paradas";
+import { RolarParaAncora } from "@/components/rolar-para-ancora";
 
 const vendas = (n: number) => `${n} ${n === 1 ? "venda" : "vendas"}`;
 
@@ -55,13 +59,15 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const busca = (typeof sp.q === "string" ? sp.q : "").trim().toLowerCase();
   const grupo = ["pagantes", "cortesia", "teste"].includes(String(sp.situacao)) ? String(sp.situacao) : "todas";
 
-  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }, { data: funis, error: erroFunil }] = await Promise.all([
+  const [contas, { data: assinaturas }, { data: resumos, error: erroResumo }, { data: liberados }, { data: vinculos }, { data: funis, error: erroFunil }, { data: cancelamentos, error: erroCancelamentos }, { data: origens, error: erroOrigens }] = await Promise.all([
     todasAsContas(admin),
     admin.from("assinaturas").select("owner_id, plano, ciclo, status, proximo_vencimento, cortesia_ate, cortesia_em, cortesia_motivo"),
     admin.rpc("admin_resumo_por_conta"),
     admin.from("whatsapp_liberados").select("owner_id, lancar"),
     admin.from("whatsapp_vinculos").select("owner_id, telefone"),
     admin.rpc("admin_funil_por_conta"),
+    admin.from("cancelamento_motivos").select("id, owner_id, motivo, comentario, ciclo, criado_em").order("criado_em", { ascending: false }).limit(20),
+    admin.from("cadastro_origem").select("owner_id, utm_source, utm_medium, utm_campaign, ref, como_conheceu").order("criado_em", { ascending: false }),
   ]);
   const funilPorConta = new Map(((funis ?? []) as FunilConta[]).map((f) => [f.owner_id, f]));
   // contas com o assistente no WhatsApp liberado no painel (o admin tem sempre)
@@ -132,10 +138,40 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     comVenda: base.filter((l) => l.funil?.etapa === 2).length,
     voltaram: base.filter((l) => l.dias >= 3).length,
   };
+  const origemPorConta = new Map(((origens ?? []) as LinhaDeOrigem[]).map((o) => [o.owner_id, o]));
+  const contasComOrigem = base.map((l) => ({
+    origem: origemPorConta.get(l.u.id),
+    vendeu: l.funil?.etapa === 2,
+    pagante: l.situacao.tipo === "ativa" || l.situacao.tipo === "atrasada",
+  }));
+  const paradas = base
+    .filter((l) => !bloqueada(l.u))
+    .map((l) =>
+      contaParada({
+        id: l.u.id,
+        titulo: l.titulo,
+        situacao: l.rotulo.texto,
+        criadaEm: l.u.created_at,
+        ultimoLogin: l.u.last_sign_in_at,
+        ultimaVenda: l.resumo?.ultima_venda,
+      }),
+    )
+    .filter((c) => c !== null);
+  // abrir ou fechar a lista inteira mantém a busca e o filtro da tabela
+  const todasParadas = sp.paradas === "todas";
+  const hrefParadas = (() => {
+    const p = new URLSearchParams();
+    if (grupo !== "todas") p.set("situacao", grupo);
+    if (busca) p.set("q", busca);
+    if (!todasParadas) p.set("paradas", "todas");
+    const qs = p.toString();
+    return qs ? `/admin?${qs}` : "/admin";
+  })();
   const pct = (n: number) => `${base.length ? Math.round((n / base.length) * 100) : 0}%`;
 
   return (
     <div className="mx-auto max-w-6xl">
+      <RolarParaAncora />
       <PageHeader
         title="Administração"
         action={
@@ -176,6 +212,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           <StatCard label="3 dias ativos ou mais" value={funil.voltaram} hint={`${pct(funil.voltaram)} das contas`} />
         </div>
       )}
+
+      <OrigemDosCadastros contas={contasComOrigem} falhou={!!erroOrigens} semFunil={!!erroFunil} />
+
+      {/* sem os números das contas a última venda some e todo mundo pareceria parado */}
+      {!erroResumo && <ContasParadas contas={paradas} todas={todasParadas} hrefAlternar={hrefParadas} />}
 
       <Segmentos
         rotulo="Filtrar contas"
@@ -301,6 +342,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
           </div>
         </>
       )}
+
+      <MotivosDeCancelamento
+        falhou={!!erroCancelamentos}
+        respostas={(cancelamentos ?? []).map((c) => ({ ...c, conta: linhas.find((l) => l.u.id === c.owner_id)?.titulo ?? "Conta removida" }))}
+      />
     </div>
   );
 }

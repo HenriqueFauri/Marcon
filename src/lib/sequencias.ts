@@ -1,0 +1,227 @@
+// Sequências (extensão do WhatsApp Web, parte 4, migration 0076): lista ordenada de passos, cada um
+// com um texto (escrito no passo ou de uma resposta pronta) e/ou um arquivo da biblioteca de mídia.
+// Arquivo puro, sem import, usado pelo app (tela em Configurações) e pela extensão (avanço dos passos
+// no painel; extensao/src/sequencias.ts reexporta). Testes em extensao/teste/sequencias.test.ts.
+//
+// Regra de ouro: cada clique do dono faz UMA ação (põe o texto na caixa ou abre a prévia do anexo)
+// e só então o painel aponta para a próxima. Nada de timer nem de passo que anda sozinho.
+
+export const LIMITE_SEQUENCIAS = 50;
+export const LIMITE_PASSOS = 20;
+export const LIMITE_TITULO_SEQUENCIA = 60;
+export const LIMITE_TEXTO_PASSO = 2000;
+
+export type TipoMidiaPasso = "imagem" | "documento" | "audio";
+
+export interface Sequencia {
+  id: string;
+  titulo: string;
+  ordem: number;
+}
+
+export interface PassoSequencia {
+  id: string;
+  sequencia_id: string;
+  ordem: number;
+  texto: string | null;
+  resposta_id: string | null;
+  midia_id: string | null;
+}
+
+export interface MidiaResumo {
+  id: string;
+  tipo: TipoMidiaPasso;
+  titulo: string;
+}
+
+export interface RespostaResumo {
+  id: string;
+  titulo: string;
+  texto: string;
+}
+
+const ROTULO_MIDIA: Record<TipoMidiaPasso, string> = { imagem: "foto", documento: "PDF", audio: "áudio" };
+
+// Nome do passo nas listas: título da resposta, começo do texto ou título do arquivo
+export function tituloDoPasso(p: PassoSequencia, respostas: RespostaResumo[], midias: MidiaResumo[]): string {
+  const resposta = p.resposta_id ? respostas.find((r) => r.id === p.resposta_id) : undefined;
+  if (resposta) return resposta.titulo;
+  const texto = (p.texto ?? "").replace(/\s+/g, " ").trim();
+  if (texto) return texto.length > 60 ? `${texto.slice(0, 59).trimEnd()}…` : texto;
+  const midia = p.midia_id ? midias.find((m) => m.id === p.midia_id) : undefined;
+  if (midia) return midia.titulo;
+  return "Passo vazio";
+}
+
+// Detalhe do passo ("Resposta pronta · Foto: Catálogo"). Vazio quando não há o que dizer.
+export function detalheDoPasso(p: PassoSequencia, respostas: RespostaResumo[], midias: MidiaResumo[]): string {
+  const partes: string[] = [];
+  if (p.resposta_id && respostas.some((r) => r.id === p.resposta_id)) partes.push("Resposta pronta");
+  else if (p.texto?.trim()) partes.push("Texto");
+  const midia = p.midia_id ? midias.find((m) => m.id === p.midia_id) : undefined;
+  if (midia) {
+    const rotulo = ROTULO_MIDIA[midia.tipo];
+    partes.push(`${rotulo.charAt(0).toUpperCase()}${rotulo.slice(1)}: ${midia.titulo}`);
+  }
+  return partes.join(" · ");
+}
+
+// Texto que o passo leva, ainda com as variáveis ({pix}, {negocio}); null se não tem texto
+export function textoDoPasso(p: PassoSequencia, respostas: RespostaResumo[]): string | null {
+  if (p.resposta_id) {
+    const r = respostas.find((x) => x.id === p.resposta_id);
+    return r?.texto?.trim() ? r.texto : null;
+  }
+  return p.texto?.trim() ? p.texto : null;
+}
+
+// Vazio: sem texto e sem arquivo. Com `preencher`, texto que some todo com os dados da conta
+// (linha com {pix} e a conta sem Pix) também conta como vazio, igual à extensão.
+export function passoVazio(p: PassoSequencia, respostas: RespostaResumo[], midias: MidiaResumo[], preencher?: (texto: string) => string): boolean {
+  if (p.midia_id && midias.some((m) => m.id === p.midia_id)) return false;
+  const texto = textoDoPasso(p, respostas);
+  if (texto === null) return true;
+  return preencher ? !preencher(texto).trim() : false;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Avanço no painel
+
+export type Acao = { tipo: "texto"; texto: string } | { tipo: "midia"; midia: MidiaResumo };
+
+export interface PassoRoteiro {
+  id: string;
+  // nome da resposta pronta, quando o passo usa uma (texto escrito e arquivo já aparecem no painel)
+  titulo: string | null;
+  acoes: Acao[];
+}
+
+export interface Roteiro {
+  titulo: string;
+  passos: PassoRoteiro[];
+  // passos que ficaram vazios (resposta ou arquivo apagado) e saíram do roteiro
+  pulados: number;
+}
+
+// Monta o que o painel percorre. `preencher` troca as variáveis pelo dado da conta (a mesma função das
+// respostas prontas). Texto que fica vazio depois de preencher não vira ação. Passo sem ação sai.
+export function montarRoteiro(
+  seq: Sequencia,
+  passos: PassoSequencia[],
+  respostas: RespostaResumo[],
+  midias: MidiaResumo[],
+  preencher: (texto: string) => string,
+): Roteiro {
+  const daSequencia = passos.filter((p) => p.sequencia_id === seq.id).sort((a, b) => a.ordem - b.ordem);
+  const lista: PassoRoteiro[] = [];
+  let pulados = 0;
+  for (const p of daSequencia) {
+    const acoes: Acao[] = [];
+    const bruto = textoDoPasso(p, respostas);
+    const texto = bruto === null ? "" : preencher(bruto);
+    if (texto.trim()) acoes.push({ tipo: "texto", texto });
+    const midia = p.midia_id ? midias.find((m) => m.id === p.midia_id) : undefined;
+    if (midia) acoes.push({ tipo: "midia", midia });
+    if (acoes.length === 0) pulados++;
+    else {
+      const resposta = p.resposta_id ? respostas.find((r) => r.id === p.resposta_id) : undefined;
+      lista.push({ id: p.id, titulo: resposta?.titulo ?? null, acoes });
+    }
+  }
+  return { titulo: seq.titulo, passos: lista, pulados };
+}
+
+// Onde o dono está: passo e ação dentro do passo (texto primeiro, depois o arquivo)
+export interface Posicao {
+  passo: number;
+  acao: number;
+}
+
+export const INICIO: Posicao = { passo: 0, acao: 0 };
+
+export function terminou(r: Roteiro, pos: Posicao): boolean {
+  return pos.passo >= r.passos.length;
+}
+
+// A ação que o próximo clique faz, ou null no fim
+export function acaoAtual(r: Roteiro, pos: Posicao): Acao | null {
+  return r.passos[pos.passo]?.acoes[pos.acao] ?? null;
+}
+
+// Depois que a ação deu certo (texto entrou na caixa, prévia abriu): aponta para a próxima.
+// Não faz nada sozinho: só muda o que o próximo clique vai fazer.
+export function depoisDaAcao(r: Roteiro, pos: Posicao): Posicao {
+  const passo = r.passos[pos.passo];
+  if (!passo) return { passo: r.passos.length, acao: 0 };
+  if (pos.acao + 1 < passo.acoes.length) return { passo: pos.passo, acao: pos.acao + 1 };
+  return { passo: pos.passo + 1, acao: 0 };
+}
+
+// Pular: vai para o começo do próximo passo, sem fazer a ação
+export function pular(r: Roteiro, pos: Posicao): Posicao {
+  return { passo: Math.min(r.passos.length, pos.passo + 1), acao: 0 };
+}
+
+// Voltar: no meio de um passo, volta ao começo dele; no começo, ao passo anterior; no fim, ao último
+export function voltar(r: Roteiro, pos: Posicao): Posicao {
+  if (r.passos.length === 0) return INICIO;
+  if (pos.passo >= r.passos.length) return { passo: r.passos.length - 1, acao: 0 };
+  if (pos.acao > 0) return { passo: pos.passo, acao: 0 };
+  return { passo: Math.max(0, pos.passo - 1), acao: 0 };
+}
+
+// "Passo 2 de 4" (no fim, "Fim · 4 de 4")
+export function rotuloProgresso(r: Roteiro, pos: Posicao): string {
+  const total = r.passos.length;
+  if (total === 0) return "Sem passos";
+  if (pos.passo >= total) return `Fim · ${total} de ${total}`;
+  return `Passo ${pos.passo + 1} de ${total}`;
+}
+
+// Rótulo do botão principal: diz o que o clique faz
+export function rotuloDaAcao(a: Acao): string {
+  // áudio vai como mensagem de voz, direto na conversa aberta, depois de confirmar o nome dela
+  if (a.tipo === "texto") return "Inserir texto";
+  return a.midia.tipo === "audio" ? "Enviar áudio de voz" : `Anexar ${ROTULO_MIDIA[a.midia.tipo]}`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Criar e editar: as mesmas travas no app (server actions) e na extensão (painel). O banco repete
+// tamanho, limites por conta e posse da resposta e do arquivo (migration 0076).
+
+const UUID_SEQ = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function conferirTituloSequencia(bruto: unknown): { ok: true; titulo: string } | { ok: false; erro: string } {
+  const titulo = String(bruto ?? "").trim().replace(/\s+/g, " ");
+  if (!titulo) return { ok: false, erro: "Dê um nome para a sequência." };
+  if (titulo.length > LIMITE_TITULO_SEQUENCIA) return { ok: false, erro: `O nome vai até ${LIMITE_TITULO_SEQUENCIA} letras.` };
+  return { ok: true, titulo };
+}
+
+export type FontePasso = "escrever" | "resposta" | "nenhum";
+
+// Passo: texto escrito, ou resposta pronta, ou sem texto; e um arquivo da biblioteca, ou nenhum.
+export function conferirPasso(bruto: { fonte: unknown; texto: unknown; respostaId: unknown; midiaId: unknown }):
+  | { ok: true; dados: { texto: string | null; resposta_id: string | null; midia_id: string | null } }
+  | { ok: false; erro: string } {
+  const fonte = String(bruto.fonte ?? "");
+  const texto = String(bruto.texto ?? "").replace(/\r\n?/g, "\n").trim();
+  const respostaId = String(bruto.respostaId ?? "").trim();
+  const midiaId = String(bruto.midiaId ?? "").trim();
+  if (fonte !== "escrever" && fonte !== "resposta" && fonte !== "nenhum") return { ok: false, erro: "Escolha o texto do passo." };
+  if (fonte === "escrever" && !texto) return { ok: false, erro: "Escreva o texto do passo." };
+  if (fonte === "escrever" && texto.length > LIMITE_TEXTO_PASSO) return { ok: false, erro: `O texto vai até ${LIMITE_TEXTO_PASSO} letras.` };
+  if (fonte === "resposta" && !UUID_SEQ.test(respostaId)) return { ok: false, erro: "Escolha a resposta pronta." };
+  if (midiaId && !UUID_SEQ.test(midiaId)) return { ok: false, erro: "Arquivo não encontrado." };
+  if (fonte === "nenhum" && !midiaId) return { ok: false, erro: "O passo precisa de um texto ou de um arquivo." };
+  return {
+    ok: true,
+    dados: { texto: fonte === "escrever" ? texto : null, resposta_id: fonte === "resposta" ? respostaId : null, midia_id: midiaId || null },
+  };
+}
+
+// de onde vem o texto de um passo salvo (para abrir o editor no lugar certo)
+export function fonteDoPasso(p: Pick<PassoSequencia, "texto" | "resposta_id">): FontePasso {
+  if (p.resposta_id) return "resposta";
+  return p.texto?.trim() ? "escrever" : "nenhum";
+}
