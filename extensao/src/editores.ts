@@ -204,6 +204,8 @@ function arquivosDaResposta(conta: RespostasDaConta, resposta: RespostaPronta, c
       if (!deuCerto(r, ctx)) return;
       const m = todas.find((x) => x.id === id);
       ligadas = respostaId ? (m ? [...ligadas, { ...m, resposta_id: respostaId }] : ligadas) : ligadas.filter((x) => x.id !== id);
+      // a foto do momento também muda (outra resposta deixa de ter o arquivo)
+      conta.midias = [...(conta.midias ?? []).filter((x) => x.id !== id), ...(respostaId && m ? [{ ...m, resposta_id: respostaId }] : [])];
       avisar(respostaId ? "Arquivo ligado." : "Arquivo tirado da resposta.");
       desenhar();
       await ctx.mudou();
@@ -212,9 +214,28 @@ function arquivosDaResposta(conta: RespostasDaConta, resposta: RespostaPronta, c
 
   function desenhar() {
     const livres = todas.filter((m) => !ligadas.some((l) => l.id === m.id));
-    const escolha = h("select", { class: "seletor-cheio", "aria-label": "Arquivo para ligar" }, h("option", { value: "" }, "Escolher arquivo"), ...livres.map((m) => h("option", { value: m.id }, `${ROTULO_TIPO[m.tipo]}: ${m.titulo}`)));
+    // cada arquivo fica junto de uma resposta só: o que já está em outra mostra onde, e ligar pergunta antes de mover
+    const emOutra = (id: string) => {
+      const ligada = (conta.midias ?? []).find((x) => x.id === id && x.resposta_id && x.resposta_id !== resposta.id);
+      return ligada ? (conta.respostas.find((r) => r.id === ligada.resposta_id)?.titulo ?? "outra resposta") : null;
+    };
+    const escolha = h(
+      "select",
+      { class: "seletor-cheio", "aria-label": "Arquivo para ligar" },
+      h("option", { value: "" }, "Escolher arquivo"),
+      ...livres.map((m) => {
+        const onde = emOutra(m.id);
+        return h("option", { value: m.id }, `${ROTULO_TIPO[m.tipo]}: ${m.titulo}${onde ? ` (em ${onde})` : ""}`);
+      }),
+    );
     const ligarB = h("button", { class: "btn-pequeno neutro", type: "button" }, "Ligar");
-    ligarB.addEventListener("click", () => (escolha.value ? ligar(escolha.value, resposta.id, ligarB) : avisar("Escolha o arquivo.", true)));
+    ligarB.addEventListener("click", async () => {
+      if (!escolha.value) return avisar("Escolha o arquivo.", true);
+      const onde = emOutra(escolha.value);
+      const titulo = todas.find((m) => m.id === escolha.value)?.titulo ?? "o arquivo";
+      if (onde && !(await confirmarApagar(`Mover “${titulo}” para esta resposta?`, `Ele sai de “${onde}”. Cada arquivo fica junto de uma resposta só.`, "Mover", false))) return;
+      ligar(escolha.value, resposta.id, ligarB);
+    });
     el.replaceChildren(
       h("h2", { class: "grupo-titulo" }, "Arquivos junto"),
       h(
@@ -238,7 +259,7 @@ function arquivosDaResposta(conta: RespostasDaConta, resposta: RespostaPronta, c
 // ---------------------------------------------------------------------------------------------
 // Sequência: nome e passos (texto e/ou arquivo), em ordem
 
-export function editorNovaSequencia(ctx: Contexto & { voltar: () => void; criada: (id: string) => void }) {
+export function editorNovaSequencia(ctx: Contexto & { voltar: () => void; criada: (id: string, titulo: string) => void }) {
   const nome = h("input", { class: "campo", type: "text", maxlength: String(LIMITE_TITULO_SEQUENCIA), placeholder: "Ex.: Primeiro contato", "aria-label": "Nome" });
   const acoes = botoesSalvar(async () => {
     await comBotao(acoes.botao, "Criando...", async () => {
@@ -246,7 +267,7 @@ export function editorNovaSequencia(ctx: Contexto & { voltar: () => void; criada
       if (!deuCerto(r, ctx) || !r.ok) return;
       avisar("Sequência criada. Agora os passos.");
       await ctx.mudou();
-      ctx.criada(r.dados.id);
+      ctx.criada(r.dados.id, nome.value.trim().replace(/\s+/g, " "));
     });
   }, ctx.voltar, "Criar");
   nome.addEventListener("keydown", (e) => e.key === "Enter" && acoes.botao.click());
@@ -272,6 +293,9 @@ export function editorSequencia(
       const r = await pedir({ tipo: "salvarSequencia", id: seq.id, titulo: nome.value });
       if (!deuCerto(r, ctx)) return;
       avisar("Nome salvo.");
+      seq.titulo = nome.value.trim().replace(/s+/g, " ");
+      const h1 = salvarNome.closest(".secao")?.querySelector(".titulo-editor");
+      if (h1) h1.textContent = seq.titulo;
       await ctx.mudou();
     }),
   );
@@ -282,15 +306,18 @@ export function editorSequencia(
   let organizando = false;
   const grupoPassos = h("section", { class: "grupo" });
 
+  let ordenando = false;
   async function mover(i: number, delta: -1 | 1) {
     const j = i + delta;
-    if (j < 0 || j >= passos.length) return;
+    if (ordenando || j < 0 || j >= passos.length) return;
     const antes = passos;
     const nova = [...passos];
     [nova[i], nova[j]] = [nova[j], nova[i]];
     passos = nova;
     desenhar();
+    ordenando = true;
     const r = await pedir({ tipo: "reordenarPassos", sequenciaId: seq.id, ids: nova.map((p) => p.id) });
+    ordenando = false;
     if (!deuCerto(r, ctx)) {
       passos = antes;
       desenhar();

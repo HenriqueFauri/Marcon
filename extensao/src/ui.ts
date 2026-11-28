@@ -110,11 +110,11 @@ export function avisar(texto: string, erro = false, acao?: { rotulo: string; faz
   avisoTimer = window.setTimeout(() => avisoEl && (avisoEl.hidden = true), acao ? 12000 : erro ? 6000 : 3000);
 }
 
-// Pergunta antes de apagar (como o ConfirmButton do app): true só no clique em Apagar
-export function confirmarApagar(titulo: string, texto: string, rotulo = "Apagar"): Promise<boolean> {
+// Pergunta antes de apagar ou mover (como o ConfirmButton do app): true só no clique no botão de ação
+export function confirmarApagar(titulo: string, texto: string, rotulo = "Apagar", perigo = true): Promise<boolean> {
   return new Promise((resolve) => {
     const fundo = h("div", { class: "confirmar-fundo" });
-    const apagar = h("button", { class: "btn btn-perigo", type: "button" }, rotulo);
+    const apagar = h("button", { class: perigo ? "btn btn-perigo" : "btn btn-principal", type: "button" }, rotulo);
     const cancelar = h("button", { class: "btn btn-secundario", type: "button" }, "Cancelar");
     const fechar = (ok: boolean) => {
       fundo.remove();

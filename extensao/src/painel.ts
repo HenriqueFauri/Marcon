@@ -55,6 +55,7 @@ import {
   type Acao,
   type Posicao,
   type Roteiro,
+  type Sequencia,
 } from "./sequencias.ts";
 
 const app = document.getElementById("app")!;
@@ -622,15 +623,18 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void, acoesDaLista: {
 
   // organizar: setas de subir e descer; a ordem vai ao banco a cada toque (como no app)
   let organizando = false;
+  let ordenando = false;
   async function moverSeq(i: number, delta: -1 | 1) {
     const seqs = conta?.sequencias ?? [];
     const j = i + delta;
-    if (!conta || j < 0 || j >= seqs.length) return;
+    if (!conta || ordenando || j < 0 || j >= seqs.length) return;
     const nova = [...seqs];
     [nova[i], nova[j]] = [nova[j], nova[i]];
     conta.sequencias = nova;
     lista();
+    ordenando = true;
     const r = await pedir({ tipo: "reordenarSequencias", ids: nova.map((s) => s.id) });
+    ordenando = false;
     if (!r.ok) {
       conta.sequencias = seqs;
       lista();
@@ -796,8 +800,9 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void, outrasMudaram: (
     if (!conta) return;
     pilha.abrir(editorResposta(conta, r, { ...ctx, voltar }));
   }
-  function telaSequencia(id: string): HTMLElement | null {
-    const seq = conta?.sequencias?.find((s) => s.id === id);
+  // novo: se a lista ainda não trouxe a sequência recém-criada (recarga falhou), abre com o que se sabe
+  function telaSequencia(id: string, novo?: Sequencia): HTMLElement | null {
+    const seq = conta?.sequencias?.find((s) => s.id === id) ?? novo;
     if (!conta || !seq) return null;
     return editorSequencia(conta, seq, {
       ...ctx,
@@ -810,7 +815,7 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void, outrasMudaram: (
             // volta para a sequência já com a lista de passos nova
             voltar: () => {
               pilha.fechar();
-              const nova = telaSequencia(id);
+              const nova = telaSequencia(id, seq);
               if (nova) pilha.trocar(nova);
               else pilha.fechar();
             },
@@ -819,19 +824,20 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void, outrasMudaram: (
       },
     });
   }
-  function abrirSequencia(id: string, trocar = false) {
-    const tela = telaSequencia(id);
+  function abrirSequencia(id: string, trocar = false, novo?: Sequencia) {
+    const tela = telaSequencia(id, novo);
     if (!tela) return avisar("Sequência não encontrada. Atualize a lista.", true);
     if (trocar) pilha.trocar(tela);
     else pilha.abrir(tela);
   }
   const sequencias = blocoSequencias(aoPerderSessao, {
     editar: (id) => abrirSequencia(id),
-    nova: () => pilha.abrir(editorNovaSequencia({ ...ctx, voltar, criada: (id) => abrirSequencia(id, true) })),
+    nova: () => pilha.abrir(editorNovaSequencia({ ...ctx, voltar, criada: (id, titulo) => abrirSequencia(id, true, { id, titulo, ordem: 0 }) })),
   });
 
+  let ordenando = false;
   async function mover(i: number, delta: -1 | 1) {
-    if (!conta) return;
+    if (!conta || ordenando) return;
     const antes = conta.respostas;
     const j = i + delta;
     if (j < 0 || j >= antes.length) return;
@@ -839,7 +845,9 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void, outrasMudaram: (
     [nova[i], nova[j]] = [nova[j], nova[i]];
     conta.respostas = nova;
     desenhar();
+    ordenando = true;
     const r = await pedir({ tipo: "reordenarRespostas", ids: nova.map((x) => x.id) });
+    ordenando = false;
     if (!r.ok) {
       if (conta) conta.respostas = antes;
       desenhar();
