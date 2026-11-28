@@ -2,7 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { dataISONoFuso, hojeISO, somarDias } from "@/lib/format";
 import { DIAS_DE_TESTE } from "@/lib/planos";
-import { avisoDeCobrancaFalhou, avisoDeFim, type TipoAviso } from "./modelos";
+import { emailsAdmin } from "@/lib/admin";
+import { avisoAdminDeCobrancaFalhou, avisoDeCobrancaFalhou, avisoDeFim, type TipoAviso } from "./modelos";
 import { enviarEmail } from "./resend";
 
 type Tipo = TipoAviso | "cobranca_falhou";
@@ -79,12 +80,32 @@ export async function rotinaDeEmailsDeCiclo(admin: SupabaseClient) {
 }
 
 // Chamado pelo webhook do Asaas quando uma cobrança vence sem pagamento. Não altera a cobrança.
-export async function avisarCobrancaFalhou(admin: SupabaseClient, ownerId: string, cobrancaId: string | undefined) {
+// Avisa o assinante e cada e-mail de ADMIN_EMAILS. O aviso ao admin usa o mesmo registro em
+// emails_enviados (tipo cobranca_falhou, na linha do assinante) com a referência "admin:<e-mail>:<cobrança>",
+// para não precisar de outro tipo no check da 0070 e não repetir se o Asaas reenviar o evento.
+export async function avisarCobrancaFalhou(
+  admin: SupabaseClient,
+  ownerId: string,
+  cobrancaId: string | undefined,
+  valor?: number,
+) {
   try {
-    const { data } = await admin.auth.admin.getUserById(ownerId);
-    const email = data.user?.email;
-    if (!email) return;
-    await enviarUmaVez(admin, ownerId, email, "cobranca_falhou", cobrancaId ?? hojeISO(), avisoDeCobrancaFalhou());
+    const referencia = cobrancaId ?? hojeISO();
+    // falha ao buscar a conta não impede o aviso ao admin
+    let email: string | null = null;
+    try {
+      const { data } = await admin.auth.admin.getUserById(ownerId);
+      email = data.user?.email ?? null;
+    } catch (e) {
+      console.error("[email] cobrança falhou: conta", e instanceof Error ? e.message : String(e));
+    }
+    const avisouAssinante = email
+      ? await enviarUmaVez(admin, ownerId, email, "cobranca_falhou", referencia, avisoDeCobrancaFalhou())
+      : false;
+    const avisoAdmin = avisoAdminDeCobrancaFalhou(ownerId, email, valor, avisouAssinante);
+    for (const emailAdmin of emailsAdmin()) {
+      await enviarUmaVez(admin, ownerId, emailAdmin, "cobranca_falhou", `admin:${emailAdmin}:${referencia}`, avisoAdmin);
+    }
   } catch (e) {
     console.error("[email] cobrança falhou", e instanceof Error ? e.message : String(e));
   }

@@ -86,7 +86,7 @@ export async function POST(request: Request) {
           if (error) throw error;
           // aviso por e-mail ao assinante; falha de e-mail nunca derruba o webhook
           // (after: responde ao Asaas primeiro, o envio roda depois da resposta)
-          if (tipo === "PAYMENT_OVERDUE") after(() => avisarCobrancaFalhou(admin, linha.owner_id, evento.payment?.id));
+          if (tipo === "PAYMENT_OVERDUE") after(() => avisarCobrancaFalhou(admin, linha.owner_id, evento.payment?.id, evento.payment?.value));
         }
       }
     }

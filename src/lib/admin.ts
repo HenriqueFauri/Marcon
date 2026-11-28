@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Quem tiver acesso a só um dos dois (a Vercel ou o banco) não vira admin. O e-mail fica no
 // servidor, e não nos metadados do usuário, porque esses o próprio usuário edita.
 // A conta do admin continua sendo uma conta normal, com o próprio negócio.
-function emailsAdmin() {
+export function emailsAdmin() {
   return (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
