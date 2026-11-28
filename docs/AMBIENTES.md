@@ -75,7 +75,7 @@ Variáveis do Staging:
 | `ASAAS_ENV` | `sandbox` |
 | `ASAAS_API_KEY` | chave do **sandbox** do Asaas |
 | `ASAAS_WEBHOOK_TOKEN` | o mesmo token do webhook do sandbox |
-| `ADMIN_EMAILS` | e-mail do dono, para ver `/admin` |
+| `ADMIN_EMAILS` | e-mail do dono, para ver `/admin`. Também recebe o aviso de cobrança que falhou (com `RESEND_API_KEY`) |
 
 E-mail (Resend, avisos de fim do teste e da cortesia e de cobrança que falhou): `RESEND_API_KEY` (opcional; sem ela o envio é no-op com log), `APP_URL` (base dos links do e-mail; sem ela vale `https://www.usemarcon.com`, então no Staging defina a URL do `marcon-staging`) e `EMAIL_REMETENTE` (opcional; padrão `UseMarcon <contato@usemarcon.com>`). Os avisos de fim de teste e cortesia só saem onde há `CRON_SECRET`.
 

@@ -90,12 +90,19 @@ export async function avisarCobrancaFalhou(
   valor?: number,
 ) {
   try {
-    const { data } = await admin.auth.admin.getUserById(ownerId);
-    const email = data.user?.email;
-    if (!email) return;
     const referencia = cobrancaId ?? hojeISO();
-    await enviarUmaVez(admin, ownerId, email, "cobranca_falhou", referencia, avisoDeCobrancaFalhou());
-    const avisoAdmin = avisoAdminDeCobrancaFalhou(ownerId, email, valor);
+    // falha ao buscar a conta não impede o aviso ao admin
+    let email: string | null = null;
+    try {
+      const { data } = await admin.auth.admin.getUserById(ownerId);
+      email = data.user?.email ?? null;
+    } catch (e) {
+      console.error("[email] cobrança falhou: conta", e instanceof Error ? e.message : String(e));
+    }
+    const avisouAssinante = email
+      ? await enviarUmaVez(admin, ownerId, email, "cobranca_falhou", referencia, avisoDeCobrancaFalhou())
+      : false;
+    const avisoAdmin = avisoAdminDeCobrancaFalhou(ownerId, email, valor, avisouAssinante);
     for (const emailAdmin of emailsAdmin()) {
       await enviarUmaVez(admin, ownerId, emailAdmin, "cobranca_falhou", `admin:${emailAdmin}:${referencia}`, avisoAdmin);
     }

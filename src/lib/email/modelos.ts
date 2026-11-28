@@ -79,10 +79,20 @@ export function avisoDeCobrancaFalhou(): Omit<Email, "para"> {
 }
 
 // Aviso interno ao admin (ADMIN_EMAILS) quando a cobrança de um assinante vence sem pagamento.
-export function avisoAdminDeCobrancaFalhou(ownerId: string, emailDoAssinante: string, valor: number | undefined): Omit<Email, "para"> {
-  const paragrafos = [`A cobrança da assinatura de ${emailDoAssinante} venceu sem pagamento.`];
+export function avisoAdminDeCobrancaFalhou(
+  ownerId: string,
+  emailDoAssinante: string | null,
+  valor: number | undefined,
+  avisouAssinante: boolean,
+): Omit<Email, "para"> {
+  const quem = emailDoAssinante ? `de ${emailDoAssinante}` : `da conta ${ownerId}`;
+  const paragrafos = [`A cobrança da assinatura ${quem} venceu sem pagamento.`];
   if (typeof valor === "number" && Number.isFinite(valor)) paragrafos.push(`Valor: ${formatBRL(valor)}.`);
-  paragrafos.push("O assinante também recebeu um aviso por e-mail.");
+  paragrafos.push(
+    avisouAssinante
+      ? "O assinante também recebeu um aviso por e-mail."
+      : "O aviso por e-mail ao assinante não foi enviado. Vale falar com ele direto.",
+  );
   return montar(
     "Cobrança de assinante não foi paga",
     paragrafos,
