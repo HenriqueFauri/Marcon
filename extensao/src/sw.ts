@@ -11,7 +11,30 @@ import { carregarDadosDaVenda, enviarVenda, validarVendaRapida } from "./venda.t
 import type { Pedido, PedidoAba, Resposta, ResultadoAnexar, Sessao } from "./mensagens.ts";
 import { mensagemDeFalha, type ResultadoInsercao } from "./inserir.ts";
 import { mensagemDeFalhaAnexo, type ResultadoAnexo } from "./anexar.ts";
-import { arquivoDaFoto, arquivoDaMidia, fotosDoProduto, listarMidias, renomearMidia, salvarGravacao, urlDaMidia } from "./midias-db.ts";
+import {
+  apagarMidia,
+  arquivoDaFoto,
+  arquivoDaMidia,
+  fotosDoProduto,
+  ligarMidia,
+  listarMidias,
+  renomearMidia,
+  salvarGravacao,
+  salvarMidia,
+  subirMidia,
+  urlDaMidia,
+} from "./midias-db.ts";
+import {
+  apagarPasso,
+  apagarResposta,
+  apagarSequencia,
+  reordenarPassos,
+  reordenarRespostas,
+  reordenarSequencias,
+  salvarPasso,
+  salvarResposta,
+  salvarSequencia,
+} from "./gestao-db.ts";
 import { mensagemDeFalhaVoz, type Conversa, type RespostaPagina } from "./voz.ts";
 import type { ArquivoAnexo } from "./base64.ts";
 
@@ -273,6 +296,44 @@ async function atender(p: Pedido, remetente: chrome.runtime.MessageSender): Prom
         titulo: String(p.titulo ?? ""),
         duracao: Number(p.duracao) || 0,
       });
+    case "salvarResposta":
+      return salvarResposta(supabase, { id: p.id || undefined, titulo: String(p.titulo ?? ""), texto: String(p.texto ?? ""), atalho: String(p.atalho ?? "") });
+    case "apagarResposta":
+      return apagarResposta(supabase, String(p.id ?? ""));
+    case "reordenarRespostas":
+      return reordenarRespostas(supabase, p.ids);
+    case "subirMidia":
+      return subirMidia(supabase, {
+        base64: String(p.base64 ?? ""),
+        nome: String(p.nome ?? ""),
+        mime: String(p.mime ?? ""),
+        duracao: p.duracao == null ? null : Number(p.duracao),
+      });
+    case "salvarMidia":
+      return salvarMidia(supabase, String(p.id ?? ""), String(p.titulo ?? ""), p.respostaId ? String(p.respostaId) : null);
+    case "ligarMidia":
+      return ligarMidia(supabase, String(p.id ?? ""), p.respostaId ? String(p.respostaId) : null);
+    case "apagarMidia":
+      return apagarMidia(supabase, String(p.id ?? ""));
+    case "salvarSequencia":
+      return salvarSequencia(supabase, { id: p.id || undefined, titulo: String(p.titulo ?? "") });
+    case "apagarSequencia":
+      return apagarSequencia(supabase, String(p.id ?? ""));
+    case "reordenarSequencias":
+      return reordenarSequencias(supabase, p.ids);
+    case "salvarPasso":
+      return salvarPasso(supabase, {
+        id: p.id || undefined,
+        sequenciaId: String(p.sequenciaId ?? ""),
+        fonte: String(p.fonte ?? ""),
+        texto: String(p.texto ?? ""),
+        respostaId: String(p.respostaId ?? ""),
+        midiaId: String(p.midiaId ?? ""),
+      });
+    case "apagarPasso":
+      return apagarPasso(supabase, String(p.id ?? ""));
+    case "reordenarPassos":
+      return reordenarPassos(supabase, String(p.sequenciaId ?? ""), p.ids);
     case "abrirMicrofone":
       await chrome.tabs.create({ url: chrome.runtime.getURL("microfone.html") });
       return { ok: true, dados: null };

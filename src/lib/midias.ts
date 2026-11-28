@@ -158,3 +158,21 @@ export function conferirArquivo(nome: string, mime: string, tamanho: number): { 
   if (tamanho > LIMITE_ARQUIVO) return { ok: false, erro: `O arquivo passa de ${formatarTamanho(LIMITE_ARQUIVO)}. Use um menor.` };
   return { ok: true, ext };
 }
+
+// Nome do arquivo na biblioteca (também é o nome com que ele chega na conversa)
+export function conferirTituloMidia(bruto: unknown): { ok: true; titulo: string } | { ok: false; erro: string } {
+  const titulo = String(bruto ?? "").trim().replace(/\s+/g, " ");
+  if (!titulo) return { ok: false, erro: "Dê um nome para o arquivo." };
+  if (titulo.length > LIMITE_TITULO_MIDIA) return { ok: false, erro: `O nome vai até ${LIMITE_TITULO_MIDIA} letras.` };
+  return { ok: true, titulo };
+}
+
+// Mensagens do gatilho preparar_midia (limite da conta, arquivo sumido) já vêm em português
+export function erroDaMidiaNoBanco(m: string): string | null {
+  if (/Limite de 200|passou de 50 MB|Arquivo não encontrado/.test(m)) return m;
+  if (/relacionado/.test(m)) return "Resposta pronta não encontrada.";
+  return null;
+}
+
+// Storage recusou a subida pela política do bucket: a conta chegou ao limite
+export const ERRO_BIBLIOTECA_CHEIA = `A biblioteca chegou ao limite (${formatarTamanho(LIMITE_CONTA)} ou ${LIMITE_ARQUIVOS} arquivos). Apague algum arquivo antes.`;

@@ -184,3 +184,44 @@ export function rotuloDaAcao(a: Acao): string {
   if (a.tipo === "texto") return "Inserir texto";
   return a.midia.tipo === "audio" ? "Enviar áudio de voz" : `Anexar ${ROTULO_MIDIA[a.midia.tipo]}`;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Criar e editar: as mesmas travas no app (server actions) e na extensão (painel). O banco repete
+// tamanho, limites por conta e posse da resposta e do arquivo (migration 0076).
+
+const UUID_SEQ = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function conferirTituloSequencia(bruto: unknown): { ok: true; titulo: string } | { ok: false; erro: string } {
+  const titulo = String(bruto ?? "").trim().replace(/\s+/g, " ");
+  if (!titulo) return { ok: false, erro: "Dê um nome para a sequência." };
+  if (titulo.length > LIMITE_TITULO_SEQUENCIA) return { ok: false, erro: `O nome vai até ${LIMITE_TITULO_SEQUENCIA} letras.` };
+  return { ok: true, titulo };
+}
+
+export type FontePasso = "escrever" | "resposta" | "nenhum";
+
+// Passo: texto escrito, ou resposta pronta, ou sem texto; e um arquivo da biblioteca, ou nenhum.
+export function conferirPasso(bruto: { fonte: unknown; texto: unknown; respostaId: unknown; midiaId: unknown }):
+  | { ok: true; dados: { texto: string | null; resposta_id: string | null; midia_id: string | null } }
+  | { ok: false; erro: string } {
+  const fonte = String(bruto.fonte ?? "");
+  const texto = String(bruto.texto ?? "").replace(/\r\n?/g, "\n").trim();
+  const respostaId = String(bruto.respostaId ?? "").trim();
+  const midiaId = String(bruto.midiaId ?? "").trim();
+  if (fonte !== "escrever" && fonte !== "resposta" && fonte !== "nenhum") return { ok: false, erro: "Escolha o texto do passo." };
+  if (fonte === "escrever" && !texto) return { ok: false, erro: "Escreva o texto do passo." };
+  if (fonte === "escrever" && texto.length > LIMITE_TEXTO_PASSO) return { ok: false, erro: `O texto vai até ${LIMITE_TEXTO_PASSO} letras.` };
+  if (fonte === "resposta" && !UUID_SEQ.test(respostaId)) return { ok: false, erro: "Escolha a resposta pronta." };
+  if (midiaId && !UUID_SEQ.test(midiaId)) return { ok: false, erro: "Arquivo não encontrado." };
+  if (fonte === "nenhum" && !midiaId) return { ok: false, erro: "O passo precisa de um texto ou de um arquivo." };
+  return {
+    ok: true,
+    dados: { texto: fonte === "escrever" ? texto : null, resposta_id: fonte === "resposta" ? respostaId : null, midia_id: midiaId || null },
+  };
+}
+
+// de onde vem o texto de um passo salvo (para abrir o editor no lugar certo)
+export function fonteDoPasso(p: Pick<PassoSequencia, "texto" | "resposta_id">): FontePasso {
+  if (p.resposta_id) return "resposta";
+  return p.texto?.trim() ? "escrever" : "nenhum";
+}

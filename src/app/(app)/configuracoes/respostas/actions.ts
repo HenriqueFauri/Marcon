@@ -3,14 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, texto, type ActionResult } from "@/lib/action";
-import { LIMITE_ATALHO, LIMITE_RESPOSTAS, LIMITE_TEXTO, LIMITE_TITULO, exemplosDaConta, normalizarAtalho } from "@/lib/respostas";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import {
+  LIMITE_RESPOSTAS,
+  atalhoRepetido,
+  conferirResposta,
+  ehUuid,
+  ERRO_ATALHO_REPETIDO,
+  exemplosDaConta,
+  idsParaOrdenar,
+  proximaOrdem,
+} from "@/lib/respostas";
 
 function erroDoBanco(e: { message?: string; code?: string } | null): ActionResult {
-  if (e?.code === "23505" || /respostas_prontas_owner_id_atalho_key/.test(e?.message ?? "")) {
-    return { ok: false, error: "Já existe uma resposta com esse atalho." };
-  }
+  if (atalhoRepetido(e)) return { ok: false, error: ERRO_ATALHO_REPETIDO };
   return falha(e);
 }
 
@@ -23,17 +28,9 @@ function atualizar() {
 export async function salvarResposta(formData: FormData): Promise<ActionResult> {
   try {
     const id = texto(formData, "id");
-    const titulo = texto(formData, "titulo");
-    const corpo = String(formData.get("texto") ?? "").replace(/\r\n?/g, "\n").trim();
-    const atalhoBruto = texto(formData, "atalho");
-    const atalho = atalhoBruto ? normalizarAtalho(atalhoBruto) : "";
-
-    if (!titulo) return { ok: false, error: "Dê um título para a resposta." };
-    if (titulo.length > LIMITE_TITULO) return { ok: false, error: `O título vai até ${LIMITE_TITULO} letras.` };
-    if (!corpo) return { ok: false, error: "Escreva o texto da resposta." };
-    if (corpo.length > LIMITE_TEXTO) return { ok: false, error: `O texto vai até ${LIMITE_TEXTO} letras.` };
-    if (atalhoBruto && !atalho) return { ok: false, error: `O atalho usa só letras e números, até ${LIMITE_ATALHO}.` };
-    if (id && !UUID.test(id)) return { ok: false, error: "Resposta não encontrada." };
+    const conferida = conferirResposta({ titulo: formData.get("titulo"), texto: formData.get("texto"), atalho: formData.get("atalho") });
+    if (!conferida.ok) return { ok: false, error: conferida.erro };
+    if (id && !ehUuid(id)) return { ok: false, error: "Resposta não encontrada." };
 
     const supabase = await createClient();
     const {
@@ -41,7 +38,7 @@ export async function salvarResposta(formData: FormData): Promise<ActionResult> 
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
 
-    const dados = { titulo, texto: corpo, atalho: atalho || null };
+    const dados = conferida.dados;
     if (id) {
       // a RLS só deixa mexer na própria; sem linha de volta, não era dele (ou já foi apagada)
       const { data, error } = await supabase.from("respostas_prontas").update(dados).eq("id", id).select("id");
@@ -58,7 +55,7 @@ export async function salvarResposta(formData: FormData): Promise<ActionResult> 
       .order("ordem", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const ordem = Math.min(10000, ((ultima?.ordem as number | undefined) ?? -1) + 1);
+    const ordem = proximaOrdem(ultima?.ordem as number | undefined);
     const { data, error } = await supabase
       .from("respostas_prontas")
       .insert({ ...dados, owner_id: user.id, ordem })
@@ -74,7 +71,7 @@ export async function salvarResposta(formData: FormData): Promise<ActionResult> 
 
 export async function apagarResposta(id: string): Promise<ActionResult> {
   try {
-    if (!UUID.test(id)) return { ok: false, error: "Resposta não encontrada." };
+    if (!ehUuid(id)) return { ok: false, error: "Resposta não encontrada." };
     const supabase = await createClient();
     const { data, error } = await supabase.from("respostas_prontas").delete().eq("id", id).select("id");
     if (error) return falha(error);
@@ -89,7 +86,7 @@ export async function apagarResposta(id: string): Promise<ActionResult> {
 // a lista inteira na ordem nova; a função do banco só mexe nas do próprio dono
 export async function reordenarRespostas(ids: string[]): Promise<ActionResult> {
   try {
-    if (!Array.isArray(ids) || ids.length > LIMITE_RESPOSTAS || !ids.every((i) => typeof i === "string" && UUID.test(i))) {
+    if (!idsParaOrdenar(ids, LIMITE_RESPOSTAS)) {
       return { ok: false, error: "Não deu para mudar a ordem." };
     }
     const supabase = await createClient();

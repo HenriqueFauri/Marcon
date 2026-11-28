@@ -8,11 +8,12 @@ import {
   FORMATOS,
   LIMITE_TITULO_MIDIA,
   caminhoValido,
+  conferirTituloMidia,
+  erroDaMidiaNoBanco,
   extensaoDoCaminho,
   nomeParaEnvio,
 } from "@/lib/midias";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { ehUuid } from "@/lib/respostas";
 
 function atualizar() {
   revalidatePath("/configuracoes/midias");
@@ -21,10 +22,8 @@ function atualizar() {
 
 // mensagens do gatilho (limite da conta, arquivo sumido) já vêm em português
 function erroDoBanco(e: { message?: string } | null): ActionResult {
-  const m = e?.message ?? "";
-  if (/Limite de 200|passou de 50 MB|Arquivo não encontrado/.test(m)) return { ok: false, error: m };
-  if (/relacionado/.test(m)) return { ok: false, error: "Resposta pronta não encontrada." };
-  return falha(e);
+  const conhecido = erroDaMidiaNoBanco(e?.message ?? "");
+  return conhecido ? { ok: false, error: conhecido } : falha(e);
 }
 
 // O arquivo já subiu direto do navegador para a pasta do dono no Storage (a política do bucket
@@ -74,12 +73,12 @@ export async function registrarMidia(dados: { path: string; titulo: string; dura
 export async function salvarMidia(formData: FormData): Promise<ActionResult> {
   try {
     const id = texto(formData, "id");
-    const titulo = texto(formData, "titulo").replace(/\s+/g, " ");
     const resposta = texto(formData, "resposta_id");
-    if (!UUID.test(id)) return { ok: false, error: "Arquivo não encontrado." };
-    if (!titulo) return { ok: false, error: "Dê um nome para o arquivo." };
-    if (titulo.length > LIMITE_TITULO_MIDIA) return { ok: false, error: `O nome vai até ${LIMITE_TITULO_MIDIA} letras.` };
-    if (resposta && !UUID.test(resposta)) return { ok: false, error: "Resposta pronta não encontrada." };
+    if (!ehUuid(id)) return { ok: false, error: "Arquivo não encontrado." };
+    const conferido = conferirTituloMidia(formData.get("titulo"));
+    if (!conferido.ok) return { ok: false, error: conferido.erro };
+    const titulo = conferido.titulo;
+    if (resposta && !ehUuid(resposta)) return { ok: false, error: "Resposta pronta não encontrada." };
 
     const supabase = await createClient();
     const { data: atual } = await supabase.from("midias").select("path").eq("id", id).maybeSingle();
@@ -101,7 +100,7 @@ export async function salvarMidia(formData: FormData): Promise<ActionResult> {
 // apaga o registro (a RLS só deixa o do dono) e depois o arquivo do Storage
 export async function apagarMidia(id: string): Promise<ActionResult> {
   try {
-    if (!UUID.test(id)) return { ok: false, error: "Arquivo não encontrado." };
+    if (!ehUuid(id)) return { ok: false, error: "Arquivo não encontrado." };
     const supabase = await createClient();
     const { data, error } = await supabase.from("midias").delete().eq("id", id).select("path");
     if (error) return falha(error);
