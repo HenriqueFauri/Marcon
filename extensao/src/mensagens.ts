@@ -32,7 +32,21 @@ export type Pedido =
   // topo e rodapé (como a barra lateral do app), lista de produtos ao abrir e renomear áudio
   | { tipo: "conta" }
   | { tipo: "listarProdutos"; pagina: number }
-  | { tipo: "renomearMidia"; id: string; titulo: string };
+  | { tipo: "renomearMidia"; id: string; titulo: string }
+  // criar, editar, apagar e ordenar no próprio painel (mesmas regras do app)
+  | { tipo: "salvarResposta"; id?: string; titulo: string; texto: string; atalho: string }
+  | { tipo: "apagarResposta"; id: string }
+  | { tipo: "reordenarRespostas"; ids: string[] }
+  | { tipo: "subirMidia"; base64: string; nome: string; mime: string; duracao: number | null }
+  | { tipo: "salvarMidia"; id: string; titulo: string; respostaId: string | null }
+  | { tipo: "ligarMidia"; id: string; respostaId: string | null }
+  | { tipo: "apagarMidia"; id: string }
+  | { tipo: "salvarSequencia"; id?: string; titulo: string }
+  | { tipo: "apagarSequencia"; id: string }
+  | { tipo: "reordenarSequencias"; ids: string[] }
+  | { tipo: "salvarPasso"; id?: string; sequenciaId: string; fonte: string; texto: string; respostaId: string; midiaId: string }
+  | { tipo: "apagarPasso"; id: string }
+  | { tipo: "reordenarPassos"; sequenciaId: string; ids: string[] };
 
 export type Resposta<T = unknown> = { ok: true; dados: T } | { ok: false; erro: string };
 

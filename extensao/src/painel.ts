@@ -3,7 +3,7 @@
 import { AMBIENTE, BASE_LOJA } from "./config.ts";
 import { estoqueTotal, formatarMensagem, formatarPreco, type ProdutoBusca } from "./formatar.ts";
 import { pedir, type Pedido, type ResultadoAnexar, type Sessao } from "./mensagens.ts";
-import { filtrarRespostas, preencherVariaveis } from "./respostas.ts";
+import { filtrarRespostas, preencherVariaveis, type RespostaPronta } from "./respostas.ts";
 import type { RespostasDaConta } from "./respostas-db.ts";
 import {
   assinaturaDaVenda,
@@ -23,12 +23,25 @@ import {
   type VendaRapida,
 } from "./venda.ts";
 import { deBase64, paraBase64, type ArquivoAnexo } from "./base64.ts";
-import { ROTULO_TIPO, detalheDaMidia, filtrarMidias, formatarDuracao, LIMITE_GRAVACAO_SEG, formatoDeGravacao } from "./midias.ts";
+import {
+  ACEITA,
+  FORMATOS,
+  ROTULO_TIPO,
+  conferirArquivo,
+  detalheDaMidia,
+  filtrarMidias,
+  formatarDuracao,
+  LIMITE_GRAVACAO_SEG,
+  formatoDeGravacao,
+} from "./midias.ts";
 import type { FotoProduto, MidiaPainel } from "./midias-db.ts";
 import type { ProdutoComFoto } from "./busca.ts";
 import type { DadosConta } from "./conta-db.ts";
 import { icone } from "./icones.ts";
 import { codificaOpus, paraOggOpus } from "./ogg-opus.ts";
+import { avisar, botaoTexto, cabecaDoGrupo, comBotao, criarAviso, grupo, h, linhaNova, pilhaDeTelas, setas } from "./ui.ts";
+import { editorMidia, editorNovaSequencia, editorPasso, editorResposta, editorSequencia, type Contexto } from "./editores.ts";
+import { comprimirImagem } from "../../src/lib/imagem.ts";
 import {
   INICIO,
   acaoAtual,
@@ -42,37 +55,11 @@ import {
   type Acao,
   type Posicao,
   type Roteiro,
+  type Sequencia,
 } from "./sequencias.ts";
 
 const app = document.getElementById("app")!;
 const embutido = new URLSearchParams(location.search).get("modo") === "embutido";
-
-type Filho = Node | string | null | undefined | false;
-function h<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  props: { [atributo: string]: string | Record<string, (e: Event) => unknown> | undefined } = {},
-  ...filhos: Filho[]
-): HTMLElementTagNameMap[K] {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (v === undefined) continue;
-    if (k === "on" && typeof v === "object") for (const [ev, fn] of Object.entries(v)) el.addEventListener(ev, fn);
-    else if (k === "class") el.className = String(v);
-    else el.setAttribute(k, String(v));
-  }
-  for (const f of filhos) if (f) el.append(f);
-  return el;
-}
-
-function grupo(titulo: string | null, conteudo: Node, rodape?: string) {
-  return h(
-    "section",
-    { class: "grupo" },
-    titulo ? h("h2", { class: "grupo-titulo" }, titulo) : null,
-    h("div", { class: "cartao" }, conteudo),
-    rodape ? h("p", { class: "grupo-rodape" }, rodape) : null,
-  );
-}
 
 // Tema como no app: Claro por padrão, Escuro só com a escolha do dono (guardada neste navegador)
 const CHAVE_TEMA = "marcon-tema";
@@ -96,24 +83,43 @@ try {
   aplicarTema("light", false);
 }
 
-// Topo como o da barra lateral do app: quadrado com a inicial do negócio, nome do negócio e, embaixo,
-// o nome do dono. Antes de entrar (ou enquanto carrega), a marca do Marcon.
-function topo(conta?: { nomeNegocio: string; nome: string }) {
-  const negocio = conta?.nomeNegocio ?? "Marcon";
+// Topo antes de entrar (ou enquanto carrega): a marca do Marcon
+function topo() {
   return h(
     "header",
     { class: "topo" },
-    h("div", { class: "marca-inicial", "aria-hidden": "true" }, negocio.trim().charAt(0).toUpperCase() || (conta ? "G" : "M")),
-    h("div", { class: "marca-textos" }, h("p", { class: "marca-negocio" }, negocio), conta?.nome ? h("p", { class: "marca-dono" }, conta.nome) : null),
-    AMBIENTE === "staging" ? h("span", { class: "selo", title: "Versão de teste, ligada ao Staging" }, "Staging") : null,
-    embutido ? h("button", { class: "fechar", type: "button", "aria-label": "Fechar painel", on: { click: () => pedir({ tipo: "fecharPainel" }) } }, icone("fechar")) : null,
+    h("div", { class: "marca-inicial", "aria-hidden": "true" }, "M"),
+    h("div", { class: "marca-textos" }, h("p", { class: "marca-negocio" }, "Marcon")),
+    seloAmbiente(),
+    botaoFechar(),
   );
 }
 
-// Rodapé como o pé da barra lateral do app: Seu plano (abre a assinatura no Marcon), Claro e Escuro, Sair
-function rodapeDaConta(email: string, sair: HTMLButtonElement) {
+function seloAmbiente() {
+  return AMBIENTE === "staging" ? h("span", { class: "selo", title: "Versão de teste, ligada ao Staging" }, "Staging") : null;
+}
+function botaoFechar() {
+  return embutido ? h("button", { class: "fechar", type: "button", "aria-label": "Fechar painel", on: { click: () => pedir({ tipo: "fecharPainel" }) } }, icone("fechar")) : null;
+}
+
+// A conta num lugar só: o topo (quadrado com a inicial, nome do negócio e nome do dono; o e-mail só
+// quando a conta não tem nome) abre um menu com o e-mail, Seu plano, Claro e Escuro e Sair.
+// O e-mail aparece uma vez só: no topo ou no menu.
+function contaNoTopo(email: string, aoSair: () => Promise<void>) {
+  const inicial = h("div", { class: "marca-inicial", "aria-hidden": "true" }, "M");
+  const negocio = h("p", { class: "marca-negocio" }, "Marcon");
+  const dono = h("p", { class: "marca-dono" }, email);
+  const botao = h(
+    "button",
+    { class: "conta-botao", type: "button", "aria-haspopup": "menu", "aria-expanded": "false", "aria-label": "Conta" },
+    inicial,
+    h("div", { class: "marca-textos" }, negocio, dono),
+    icone("abaixo", 16),
+  );
+
+  const emailNoMenu = h("p", { class: "menu-email", hidden: "" }, email);
   const selo = h("span", { class: "selo-plano" }, "...");
-  const plano = h("a", { class: "plano", href: `${BASE_LOJA}/assinatura`, target: "_blank", rel: "noopener" }, h("span", {}, "Seu plano"), selo);
+  const plano = h("a", { class: "menu-linha", role: "menuitem", href: `${BASE_LOJA}/assinatura`, target: "_blank", rel: "noopener" }, h("span", {}, "Seu plano"), selo);
   const botaoTema = (valor: "light" | "dark", rotulo: string) => {
     const b = h("button", { type: "button", "aria-pressed": String(temaAtual() === valor) }, icone(valor === "light" ? "sol" : "lua", 14), rotulo);
     b.addEventListener("click", () => {
@@ -123,34 +129,56 @@ function rodapeDaConta(email: string, sair: HTMLButtonElement) {
     return b;
   };
   const tema = h("div", { class: "tema", role: "group", "aria-label": "Tema" }, botaoTema("light", "Claro"), botaoTema("dark", "Escuro"));
+  const sair = h("button", { class: "menu-linha sair", type: "button", role: "menuitem" }, h("span", { class: "com-icone" }, icone("sair"), "Sair"));
+  sair.addEventListener("click", async () => {
+    sair.disabled = true;
+    fechar();
+    await aoSair();
+  });
+  const menu = h("div", { class: "menu-conta", role: "menu", "aria-label": "Conta", hidden: "" }, emailNoMenu, plano, h("div", { class: "menu-tema" }, tema), sair);
+
+  function fechar() {
+    menu.hidden = true;
+    botao.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", fora);
+    document.removeEventListener("keydown", tecla);
+  }
+  const fora = (e: Event) => !el.contains(e.target as Node) && fechar();
+  const tecla = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    fechar();
+    botao.focus();
+  };
+  botao.addEventListener("click", () => {
+    if (!menu.hidden) return fechar();
+    menu.hidden = false;
+    botao.setAttribute("aria-expanded", "true");
+    document.addEventListener("pointerdown", fora);
+    document.addEventListener("keydown", tecla);
+  });
+
+  const el = h("header", { class: "topo com-menu" }, botao, seloAmbiente(), botaoFechar(), menu);
   return {
-    el: h("footer", { class: "rodape-conta" }, plano, tema, h("div", {}, sair, h("p", { class: "conta-email" }, email))),
-    mostrarPlano(p: DadosConta["plano"]) {
-      if (!p) return plano.remove();
-      selo.textContent = p.texto;
-      selo.className = `selo-plano tom-${p.tom}`;
+    el,
+    mostrar(conta: DadosConta | null) {
+      if (!conta) {
+        plano.remove();
+        return;
+      }
+      negocio.textContent = conta.nomeNegocio;
+      inicial.textContent = conta.nomeNegocio.trim().charAt(0).toUpperCase() || "G";
+      // mesmos fallbacks do app: sem nome, o nome do dono é o e-mail; aí o e-mail fica só no topo
+      const temNome = Boolean(conta.nome) && conta.nome !== conta.email;
+      dono.textContent = temNome ? conta.nome : conta.email || email;
+      emailNoMenu.hidden = !temNome;
+      emailNoMenu.textContent = conta.email || email;
+      if (!conta.plano) plano.remove();
+      else {
+        selo.textContent = conta.plano.texto;
+        selo.className = `selo-plano tom-${conta.plano.tom}`;
+      }
     },
   };
-}
-
-// Aviso que some sozinho (barra escura no pé do painel).
-let avisoEl: HTMLDivElement | null = null;
-let avisoTimer: number | undefined;
-function avisar(texto: string, erro = false, acao?: { rotulo: string; fazer: () => void }) {
-  if (!avisoEl) return;
-  avisoEl.replaceChildren(h("span", {}, texto));
-  if (acao) {
-    const botao = h("button", { class: "btn-pequeno neutro aviso-acao", type: "button" }, acao.rotulo);
-    botao.addEventListener("click", () => {
-      acao.fazer();
-      if (avisoEl) avisoEl.hidden = true;
-    });
-    avisoEl.append(botao);
-  }
-  avisoEl.className = erro ? "aviso erro" : "aviso";
-  avisoEl.hidden = false;
-  clearTimeout(avisoTimer);
-  avisoTimer = window.setTimeout(() => avisoEl && (avisoEl.hidden = true), acao ? 12000 : erro ? 6000 : 3000);
 }
 
 // Plano B do Anexar: salva o arquivo no computador para o dono arrastar para a conversa
@@ -545,7 +573,7 @@ let tocando: { seqId: string; pos: Posicao } | null = null;
 // "Anexar PDF" vira "anexar PDF" (só a primeira letra)
 const minuscula = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
 
-function blocoSequencias(aoPerderSessao: (erro: string) => void) {
+function blocoSequencias(aoPerderSessao: (erro: string) => void, acoesDaLista: { editar: (id: string) => void; nova: () => void }) {
   const el = h("div", { class: "grupo" });
   let conta: RespostasDaConta | null = null;
   let ocupado = false;
@@ -593,28 +621,51 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
     return false;
   }
 
+  // organizar: setas de subir e descer; a ordem vai ao banco a cada toque (como no app)
+  let organizando = false;
+  let ordenando = false;
+  async function moverSeq(i: number, delta: -1 | 1) {
+    const seqs = conta?.sequencias ?? [];
+    const j = i + delta;
+    if (!conta || ordenando || j < 0 || j >= seqs.length) return;
+    const nova = [...seqs];
+    [nova[i], nova[j]] = [nova[j], nova[i]];
+    conta.sequencias = nova;
+    lista();
+    ordenando = true;
+    const r = await pedir({ tipo: "reordenarSequencias", ids: nova.map((s) => s.id) });
+    ordenando = false;
+    if (!r.ok) {
+      conta.sequencias = seqs;
+      lista();
+      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+      avisar(r.erro, true);
+    }
+  }
+
   function lista() {
     const seqs = conta?.sequencias ?? [];
-    if (seqs.length === 0) return el.replaceChildren();
-    const linhas = seqs.map((s) => {
+    if (seqs.length < 2) organizando = false;
+    const linhas = seqs.map((s, i) => {
       const r = roteiroDe(s.id);
       const n = r?.passos.length ?? 0;
-      const comecar = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Começar ${s.titulo}` }, "Começar");
+      const info = h("div", { class: "info" }, h("span", { class: "nome" }, s.titulo), h("span", { class: "detalhe" }, n === 0 ? "Sem passos" : n === 1 ? "1 passo" : `${n} passos`));
+      if (organizando) return h("div", { class: "linha-seq" }, info, setas(s.titulo, i, seqs.length, moverSeq));
+      const comecar = h("button", { class: "btn-pequeno destaque", type: "button", "aria-label": `Começar ${s.titulo}` }, "Começar");
       if (n === 0) comecar.disabled = true;
       comecar.addEventListener("click", () => {
         tocando = { seqId: s.id, pos: INICIO };
         desenhar();
       });
-      return h(
-        "div",
-        { class: "linha-seq" },
-        h("div", { class: "info" }, h("span", { class: "nome" }, s.titulo), h("span", { class: "detalhe" }, n === 0 ? "Sem passos" : n === 1 ? "1 passo" : `${n} passos`)),
-        comecar,
-      );
+      const editar = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Editar ${s.titulo}` }, icone("lapis", 14), "Editar");
+      editar.addEventListener("click", () => acoesDaLista.editar(s.id));
+      return h("div", { class: "linha-seq" }, info, comecar, editar);
     });
+    const organizar = seqs.length > 1 ? botaoTexto(organizando ? "Pronto" : "Organizar", () => ((organizando = !organizando), lista()), organizando ? "Terminar de organizar as sequências" : "Organizar sequências") : null;
     el.replaceChildren(
-      h("h2", { class: "grupo-titulo" }, seqs.length === 1 ? "1 sequência" : `${seqs.length} sequências`),
-      h("div", { class: "cartao" }, ...linhas),
+      cabecaDoGrupo(seqs.length === 0 ? "Sequências" : seqs.length === 1 ? "1 sequência" : `${seqs.length} sequências`, organizar),
+      h("div", { class: "cartao" }, ...linhas, organizando ? null : linhaNova("Nova sequência", acoesDaLista.nova)),
+      ...(seqs.length === 0 ? [h("p", { class: "grupo-rodape" }, "Passos em ordem, um clique por vez. Quem envia é você.")] : []),
     );
   }
 
@@ -714,7 +765,7 @@ function blocoSequencias(aoPerderSessao: (erro: string) => void) {
 // Respostas prontas (criadas no app, em Configurações). Carrega ao abrir a aba, ao voltar ao painel
 // e no botão Atualizar. O texto já sai com as variáveis preenchidas pelos dados da conta.
 
-function secaoRespostas(aoPerderSessao: (erro: string) => void) {
+function secaoRespostas(aoPerderSessao: (erro: string) => void, outrasMudaram: () => void) {
   const campo = h("input", {
     type: "search",
     placeholder: "Título, texto ou /atalho",
@@ -722,9 +773,9 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
     autocomplete: "off",
   });
   const lista = h("div", { class: "grupo" });
-  const sequencias = blocoSequencias(aoPerderSessao);
   let conta: RespostasDaConta | null = null;
-  let carregando = false;
+  let emCurso: Promise<void> | null = null;
+  let organizando = false;
 
   const atualizar = h(
     "button",
@@ -732,26 +783,98 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
     "Atualizar",
   );
 
+  // ---- editores (abrem no lugar da lista; Voltar traz a lista de volta, com a busca como estava)
+  const ctx: Contexto = {
+    mudou: async () => {
+      await carregar();
+      outrasMudaram();
+    },
+    aoPerderSessao: (erro) => {
+      pilha.fecharTodas();
+      aoPerderSessao(erro);
+    },
+  };
+  const voltar = () => pilha.fechar();
+
+  function abrirResposta(r: RespostaPronta | null) {
+    if (!conta) return;
+    pilha.abrir(editorResposta(conta, r, { ...ctx, voltar }));
+  }
+  // novo: se a lista ainda não trouxe a sequência recém-criada (recarga falhou), abre com o que se sabe
+  function telaSequencia(id: string, novo?: Sequencia): HTMLElement | null {
+    const seq = conta?.sequencias?.find((s) => s.id === id) ?? novo;
+    if (!conta || !seq) return null;
+    return editorSequencia(conta, seq, {
+      ...ctx,
+      voltar,
+      abrirPasso: (passo, numero) => {
+        if (!conta) return;
+        pilha.abrir(
+          editorPasso(conta, seq, passo, numero, {
+            ...ctx,
+            // volta para a sequência já com a lista de passos nova
+            voltar: () => {
+              pilha.fechar();
+              const nova = telaSequencia(id, seq);
+              if (nova) pilha.trocar(nova);
+              else pilha.fechar();
+            },
+          }),
+        );
+      },
+    });
+  }
+  function abrirSequencia(id: string, trocar = false, novo?: Sequencia) {
+    const tela = telaSequencia(id, novo);
+    if (!tela) return avisar("Sequência não encontrada. Atualize a lista.", true);
+    if (trocar) pilha.trocar(tela);
+    else pilha.abrir(tela);
+  }
+  const sequencias = blocoSequencias(aoPerderSessao, {
+    editar: (id) => abrirSequencia(id),
+    nova: () => pilha.abrir(editorNovaSequencia({ ...ctx, voltar, criada: (id, titulo) => abrirSequencia(id, true, { id, titulo, ordem: 0 }) })),
+  });
+
+  let ordenando = false;
+  async function mover(i: number, delta: -1 | 1) {
+    if (!conta || ordenando) return;
+    const antes = conta.respostas;
+    const j = i + delta;
+    if (j < 0 || j >= antes.length) return;
+    const nova = [...antes];
+    [nova[i], nova[j]] = [nova[j], nova[i]];
+    conta.respostas = nova;
+    desenhar();
+    ordenando = true;
+    const r = await pedir({ tipo: "reordenarRespostas", ids: nova.map((x) => x.id) });
+    ordenando = false;
+    if (!r.ok) {
+      if (conta) conta.respostas = antes;
+      desenhar();
+      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+      avisar(r.erro, true);
+    }
+  }
+
   function desenhar() {
     if (!conta) return;
+    const buscando = campo.value.trim() !== "";
     // buscando, só as respostas; sem busca, as sequências ficam em cima
-    sequencias.el.hidden = campo.value.trim() !== "";
+    sequencias.el.hidden = buscando;
     if (conta.respostas.length === 0) {
+      organizando = false;
       lista.replaceChildren(
+        h("h2", { class: "grupo-titulo" }, "Respostas prontas"),
         h(
           "div",
           { class: "cartao" },
-          h(
-            "div",
-            { class: "vazio" },
-            h("strong", {}, "Nenhuma resposta pronta"),
-            "Crie no Marcon, em Configurações. Depois clique em Atualizar.",
-            h("div", { style: "padding-top:12px" }, h("a", { class: "btn btn-secundario", href: `${BASE_LOJA}/configuracoes/respostas`, target: "_blank", rel: "noopener" }, "Abrir no Marcon")),
-          ),
+          h("div", { class: "vazio" }, h("strong", {}, "Nenhuma resposta pronta"), "Textos que você manda sempre: Pix, entrega, saudação."),
+          linhaNova("Nova resposta", () => abrirResposta(null)),
         ),
       );
       return;
     }
+    if (buscando) organizando = false;
     const achadas = filtrarRespostas(conta.respostas, campo.value);
     if (achadas.length === 0) {
       lista.replaceChildren(h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nada encontrado"), "Tente outra palavra ou o atalho.")));
@@ -759,72 +882,106 @@ function secaoRespostas(aoPerderSessao: (erro: string) => void) {
     }
     const dados = conta.dados;
     const titulo = achadas.length === 1 ? "1 resposta" : `${achadas.length} respostas`;
-    lista.replaceChildren(
-      h("h2", { class: "grupo-titulo" }, titulo),
-      h(
+    const organizar =
+      !buscando && conta.respostas.length > 1
+        ? botaoTexto(organizando ? "Pronto" : "Organizar", () => ((organizando = !organizando), desenhar()), organizando ? "Terminar de organizar as respostas" : "Organizar respostas")
+        : null;
+    const linhas = achadas.map((r, i) => {
+      if (organizando) {
+        return h(
+          "div",
+          { class: "linha-item" },
+          h("div", { class: "info" }, h("span", { class: "nome" }, r.titulo, r.atalho ? h("span", { class: "atalho" }, ` /${r.atalho}`) : null)),
+          setas(r.titulo, i, achadas.length, mover),
+        );
+      }
+      const texto = () => preencherVariaveis(r.texto, dados);
+      const editar = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Editar ${r.titulo}` }, icone("lapis", 14), "Editar");
+      editar.addEventListener("click", () => abrirResposta(r));
+      const botoes = inserirCopiar(texto, r.titulo);
+      botoes.append(editar);
+      return h(
         "div",
-        { class: "cartao" },
-        ...achadas.map((r) => {
-          const texto = () => preencherVariaveis(r.texto, dados);
-          return h(
-            "div",
-            { class: "resposta" },
-            h(
-              "div",
-              { class: "info" },
-              h("span", { class: "nome" }, r.titulo, r.atalho ? h("span", { class: "atalho" }, ` /${r.atalho}`) : null),
-              h("span", { class: "previa" }, texto() || "Nada"),
-              inserirCopiar(texto, r.titulo),
-              ...(conta?.midias ?? [])
-                .filter((m) => m.resposta_id === r.id)
-                .map((m) => {
-                  const voz = m.tipo === "audio";
-                  const rotulo = voz ? "Enviar áudio de voz" : "Anexar";
-                  const b = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `${rotulo} ${m.titulo}` }, rotulo);
-                  b.addEventListener("click", () =>
-                    voz ? enviarAudioDeVoz(m.titulo, () => bytesDaMidia(m.id), b, aoPerderSessao) : anexarComBotao({ tipo: "anexarMidia", id: m.id }, b, aoPerderSessao),
-                  );
-                  return h("div", { class: "anexo-ligado" }, h("span", { class: "detalhe" }, `${ROTULO_TIPO[m.tipo]}: ${m.titulo}`), b);
-                }),
-            ),
-          );
-        }),
-      ),
-      h("p", { class: "grupo-rodape" }, "Inserir coloca o texto na conversa aberta. Quem envia é você."),
+        { class: "resposta" },
+        h(
+          "div",
+          { class: "info" },
+          h("span", { class: "nome" }, r.titulo, r.atalho ? h("span", { class: "atalho" }, ` /${r.atalho}`) : null),
+          h("span", { class: "previa" }, texto() || "Nada"),
+          botoes,
+          ...(conta?.midias ?? [])
+            .filter((m) => m.resposta_id === r.id)
+            .map((m) => {
+              const voz = m.tipo === "audio";
+              const rotulo = voz ? "Enviar áudio de voz" : "Anexar";
+              const b = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `${rotulo} ${m.titulo}` }, rotulo);
+              b.addEventListener("click", () =>
+                voz ? enviarAudioDeVoz(m.titulo, () => bytesDaMidia(m.id), b, aoPerderSessao) : anexarComBotao({ tipo: "anexarMidia", id: m.id }, b, aoPerderSessao),
+              );
+              return h("div", { class: "anexo-ligado" }, h("span", { class: "detalhe" }, `${ROTULO_TIPO[m.tipo]}: ${m.titulo}`), b);
+            }),
+        ),
+      );
+    });
+    lista.replaceChildren(
+      cabecaDoGrupo(titulo, organizar),
+      h("div", { class: "cartao" }, ...linhas, organizando || buscando ? null : linhaNova("Nova resposta", () => abrirResposta(null))),
+      h("p", { class: "grupo-rodape" }, organizando ? "A ordem vale no app e na extensão." : "Inserir coloca o texto na conversa aberta. Quem envia é você."),
     );
   }
 
-  async function carregar(manual = false) {
-    if (carregando) return;
-    carregando = true;
-    atualizar.disabled = true;
-    atualizar.textContent = "Atualizando...";
-    if (!conta) lista.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
-    const r = await pedir<RespostasDaConta>({ tipo: "respostas" });
-    carregando = false;
-    atualizar.disabled = false;
-    atualizar.textContent = "Atualizar";
-    if (!r.ok) {
-      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
-      if (conta) avisar(r.erro, true);
-      else lista.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
-      return;
+  // pedido que chega durante outro espera ele acabar e carrega de novo (dado salvo agora aparece)
+  async function carregar(manual = false): Promise<void> {
+    if (emCurso) {
+      await emCurso.catch(() => {});
+      if (manual) return;
     }
-    conta = r.dados;
-    sequencias.atualizar(conta);
-    desenhar();
-    if (manual) avisar(conta.respostas.length === 1 ? "1 resposta." : `${conta.respostas.length} respostas.`);
+    return carregarAgora(manual);
+  }
+  function carregarAgora(manual: boolean): Promise<void> {
+    const agora = (async () => {
+      atualizar.disabled = true;
+      atualizar.textContent = "Atualizando...";
+      if (!conta) lista.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
+      const r = await pedir<RespostasDaConta>({ tipo: "respostas" });
+      atualizar.disabled = false;
+      atualizar.textContent = "Atualizar";
+      if (!r.ok) {
+        if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+        if (conta) avisar(r.erro, true);
+        else lista.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+        return;
+      }
+      conta = r.dados;
+      sequencias.atualizar(conta);
+      desenhar();
+      if (manual) avisar(conta.respostas.length === 1 ? "1 resposta." : `${conta.respostas.length} respostas.`);
+    })().finally(() => {
+      if (emCurso === agora) emCurso = null;
+    });
+    emCurso = agora;
+    return agora;
   }
 
   campo.addEventListener("input", desenhar);
-  const el = h(
+  const principal = h(
     "div",
     { class: "secao" },
     h("div", { class: "linha-busca" }, h("div", { class: "busca" }, iconeLupa(), campo), atualizar),
     sequencias.el,
     lista,
   );
-  return { el, carregar, focar: () => campo.focus(), carregou: () => conta !== null };
+  const el = h("div", { class: "secao" }, principal);
+  const pilha = pilhaDeTelas(principal);
+  return {
+    el,
+    carregar,
+    // com um editor aberto, a busca não rouba o foco
+    focar: () => {
+      if (!pilha.aberta()) campo.focus();
+    },
+    carregou: () => conta !== null,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1376,7 +1533,7 @@ function gravador(aoSalvar: () => void, aoPerderSessao: (erro: string) => void) 
   return { el: corpo, cancelar: () => parar?.() };
 }
 
-function secaoMidia(aoPerderSessao: (erro: string) => void) {
+function secaoMidia(aoPerderSessao: (erro: string) => void, outrasMudaram: () => void) {
   const campo = h("input", { type: "search", placeholder: "Produto ou arquivo", "aria-label": "Buscar produto ou arquivo", autocomplete: "off" });
   const lista = h("div", { class: "grupo" });
   let midias: MidiaPainel[] | null = null;
@@ -1384,7 +1541,10 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
   let tocando: { id: string; audio: HTMLAudioElement; botao: HTMLButtonElement } | null = null;
 
   const atualizar = h("button", { class: "btn-pequeno neutro", type: "button", on: { click: () => carregar(true) } }, "Atualizar");
-  const grav = gravador(() => carregar(), aoPerderSessao);
+  const grav = gravador(() => {
+    carregar();
+    outrasMudaram();
+  }, aoPerderSessao);
 
   async function ouvir(m: MidiaPainel, botao: HTMLButtonElement) {
     if (tocando) {
@@ -1457,43 +1617,72 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
     );
   }
 
-  // Renomear na própria linha: campo com o nome, Salvar e Cancelar. O nome novo vale no app também.
-  function editarNome(m: MidiaPainel, info: HTMLElement) {
-    const campoNome = h("input", { class: "campo-pequeno", type: "text", maxlength: "80", value: m.titulo, "aria-label": "Novo nome" });
-    const salvarNome = h("button", { class: "btn-pequeno destaque", type: "button" }, "Salvar");
-    const cancelar = h("button", { class: "btn-pequeno neutro", type: "button" }, "Cancelar");
-    const gravar = async () => {
-      const novo = campoNome.value.trim();
-      if (!novo) return avisar("Dê um nome ao arquivo.", true);
-      if (novo === m.titulo) return desenhar();
-      salvarNome.disabled = true;
-      salvarNome.textContent = "Salvando...";
-      const r = await pedir<{ id: string; titulo: string }>({ tipo: "renomearMidia", id: m.id, titulo: novo });
+  // ---- Editar um arquivo (nome, resposta ligada, apagar): abre no lugar da lista
+  const ctx: Contexto = {
+    mudou: async () => {
+      await carregar();
+      outrasMudaram();
+    },
+    aoPerderSessao: (erro) => {
+      pilha.fecharTodas();
+      aoPerderSessao(erro);
+    },
+  };
+  function abrirEditor(m: MidiaPainel) {
+    pilha.abrir(editorMidia(m, miniaturaMidia(m), { ...ctx, voltar: () => pilha.fechar() }));
+  }
+
+  // ---- Adicionar arquivo do computador: as mesmas regras e o mesmo caminho da tela do app (confere
+  // tipo e tamanho, reduz foto, sobe para a pasta do dono e registra). Depois abre o editor para o nome.
+  const entrada = h("input", { type: "file", accept: ACEITA, hidden: "", "aria-label": "Escolher arquivo" });
+  const escolher = h("button", { class: "btn-pequeno neutro", type: "button" }, "Escolher arquivo");
+  escolher.addEventListener("click", () => entrada.click());
+  entrada.addEventListener("change", async () => {
+    const original = entrada.files?.[0];
+    entrada.value = "";
+    if (!original) return;
+    const imagem = ["image/jpeg", "image/png", "image/webp"].includes(original.type);
+    const antes = conferirArquivo(original.name, original.type, original.size);
+    // foto grande ainda pode ficar abaixo do limite depois de reduzida: só recusa o resto
+    if (!antes.ok && !imagem) return avisar(antes.erro, true);
+    await comBotao(escolher, "Enviando...", async () => {
+      const arquivo = imagem ? await comprimirImagem(original) : original;
+      const final = conferirArquivo(arquivo.name, arquivo.type, arquivo.size);
+      if (!final.ok) return avisar(final.erro, true);
+      const duracao = FORMATOS[final.ext].tipo === "audio" ? await duracaoDoAudio(arquivo) : null;
+      const r = await pedir<MidiaPainel>({
+        tipo: "subirMidia",
+        base64: paraBase64(await arquivo.arrayBuffer()),
+        nome: arquivo.name,
+        mime: arquivo.type,
+        duracao,
+      });
       if (!r.ok) {
-        salvarNome.disabled = false;
-        salvarNome.textContent = "Salvar";
         if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
         return avisar(r.erro, true);
       }
-      m.titulo = r.dados.titulo;
-      avisar("Nome salvo.");
-      desenhar();
-    };
-    salvarNome.addEventListener("click", gravar);
-    cancelar.addEventListener("click", () => desenhar());
-    campoNome.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") gravar();
-      if (e.key === "Escape") desenhar();
+      avisar("Arquivo adicionado. Confira o nome.");
+      await ctx.mudou();
+      abrirEditor(midias?.find((x) => x.id === r.dados.id) ?? { ...r.dados, miniatura: null });
     });
-    info.replaceChildren(campoNome, h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, salvarNome, cancelar));
-    campoNome.focus();
-    campoNome.select();
-  }
+  });
+  const linhaArquivo = h(
+    "div",
+    { class: "linha-item" },
+    h("div", { class: "info" }, h("span", { class: "nome" }, "Arquivo do computador"), h("span", { class: "detalhe" }, "Foto, PDF ou áudio, até 10 MB.")),
+    escolher,
+    entrada,
+  );
 
   function desenhar() {
     if (!midias) return;
-    // biblioteca da conta: só aparece quando tem arquivo
-    if (midias.length === 0) return lista.replaceChildren();
+    if (midias.length === 0) {
+      lista.replaceChildren(
+        h("h2", { class: "grupo-titulo" }, "Biblioteca"),
+        h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nenhum arquivo ainda"), "Grave um áudio ou escolha um arquivo acima.")),
+      );
+      return;
+    }
     const achadas = filtrarMidias(midias, campo.value);
     if (achadas.length === 0) {
       lista.replaceChildren(h("h2", { class: "grupo-titulo" }, "Biblioteca"), h("div", { class: "cartao" }, h("div", { class: "vazio" }, h("strong", {}, "Nada na biblioteca"), "Tente outra palavra.")));
@@ -1513,9 +1702,9 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
           );
           const ouvirBotao = voz ? h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Ouvir ${m.titulo}` }, "Ouvir") : null;
           ouvirBotao?.addEventListener("click", () => ouvir(m, ouvirBotao));
-          const renomear = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Renomear ${m.titulo}` }, icone("lapis", 14), "Renomear");
-          const info = h("div", { class: "info" }, h("span", { class: "nome" }, m.titulo), h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, acao, ouvirBotao, renomear));
-          renomear.addEventListener("click", () => editarNome(m, info));
+          const editar = h("button", { class: "btn-pequeno neutro", type: "button", "aria-label": `Editar ${m.titulo}` }, icone("lapis", 14), "Editar");
+          editar.addEventListener("click", () => abrirEditor(m));
+          const info = h("div", { class: "info" }, h("span", { class: "nome" }, m.titulo), h("span", { class: "detalhe" }, detalheDaMidia(m)), h("div", { class: "acoes" }, acao, ouvirBotao, editar));
           return h("div", { class: "produto" }, miniaturaMidia(m), info);
         }),
       ),
@@ -1523,25 +1712,34 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
     );
   }
 
-  async function carregar(manual = false) {
-    if (carregando) return;
-    carregando = true;
-    atualizar.disabled = true;
-    atualizar.textContent = "Atualizando...";
-    if (!produtos) listaProdutos.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
-    const [r] = await Promise.all([pedir<MidiaPainel[]>({ tipo: "midias" }), carregarProdutos()]);
-    carregando = false;
-    atualizar.disabled = false;
-    atualizar.textContent = "Atualizar";
-    if (!r.ok) {
-      if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
-      if (midias) avisar(r.erro, true);
-      else lista.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
-      return;
+  // pedido que chega durante outro espera ele acabar e carrega de novo (arquivo salvo agora aparece)
+  let emCurso: Promise<void> | null = null;
+  async function carregar(manual = false): Promise<void> {
+    if (emCurso) {
+      await emCurso.catch(() => {});
+      if (manual) return;
     }
-    midias = r.dados;
-    desenhar();
-    if (manual) avisar("Lista atualizada.");
+    const agora = (async () => {
+      atualizar.disabled = true;
+      atualizar.textContent = "Atualizando...";
+      if (!produtos) listaProdutos.replaceChildren(h("p", { class: "vazio" }, "Carregando..."));
+      const [r] = await Promise.all([pedir<MidiaPainel[]>({ tipo: "midias" }), carregarProdutos()]);
+      atualizar.disabled = false;
+      atualizar.textContent = "Atualizar";
+      if (!r.ok) {
+        if (r.erro.includes("sessão")) return aoPerderSessao(r.erro);
+        if (midias) avisar(r.erro, true);
+        else lista.replaceChildren(h("p", { class: "erro-campo" }, r.erro));
+        return;
+      }
+      midias = r.dados;
+      desenhar();
+      if (manual) avisar("Lista atualizada.");
+    })().finally(() => {
+      if (emCurso === agora) emCurso = null;
+    });
+    emCurso = agora;
+    return agora;
   }
 
   campo.addEventListener("input", () => {
@@ -1549,15 +1747,51 @@ function secaoMidia(aoPerderSessao: (erro: string) => void) {
     clearTimeout(timer);
     timer = window.setTimeout(carregarProdutos, 250);
   });
-  const el = h(
+  const principal = h(
     "div",
     { class: "secao" },
     h("div", { class: "linha-busca" }, h("div", { class: "busca" }, iconeLupa(), campo), atualizar),
-    grupo("Gravar", grav.el),
-    listaProdutos,
+    h("section", { class: "grupo" }, h("h2", { class: "grupo-titulo" }, "Adicionar"), h("div", { class: "cartao" }, grav.el, linhaArquivo)),
     lista,
+    listaProdutos,
   );
-  return { el, carregar, focar: () => campo.focus(), carregou: () => midias !== null, parar: () => { grav.cancelar(); tocando?.audio.pause(); } };
+  const el = h("div", { class: "secao" }, principal);
+  const pilha = pilhaDeTelas(principal);
+  return {
+    el,
+    carregar,
+    focar: () => {
+      if (!pilha.aberta()) campo.focus();
+    },
+    carregou: () => midias !== null,
+    parar: () => {
+      grav.cancelar();
+      tocando?.audio.pause();
+    },
+  };
+}
+
+// duração do áudio pelo próprio navegador (sem baixar nada de novo); null se não der em 3 s (como no app)
+function duracaoDoAudio(arquivo: Blob): Promise<number | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(arquivo);
+    const audio = new Audio();
+    const fim = (v: number | null) => {
+      URL.revokeObjectURL(url);
+      resolve(v);
+    };
+    const espera = setTimeout(() => fim(null), 3000);
+    audio.preload = "metadata";
+    audio.onloadedmetadata = () => {
+      clearTimeout(espera);
+      fim(Number.isFinite(audio.duration) ? audio.duration : null);
+    };
+    audio.onerror = () => {
+      clearTimeout(espera);
+      fim(null);
+    };
+    audio.src = url;
+  });
 }
 
 // voltar ao painel (ou à aba do WhatsApp, no painel embutido) traz a lista nova do app
@@ -1577,7 +1811,7 @@ function telaPrincipal(sessao: Sessao) {
   const lupa = iconeLupa();
 
   const resultados = h("div", { class: "grupo" });
-  avisoEl = h("div", { class: "aviso", hidden: "", role: "status", "aria-live": "polite" });
+  const avisoEl = criarAviso();
 
   let ultimo = 0;
   let timer: number | undefined;
@@ -1669,25 +1903,13 @@ function telaPrincipal(sessao: Sessao) {
     }
   });
 
-  const sair = h(
-    "button",
-    {
-      class: "sair",
-      type: "button",
-      on: {
-        click: async () => {
-          sair.disabled = true;
-          midia.parar();
-          await pedir({ tipo: "sair" });
-          limparVenda();
-          contaDaVenda = null;
-          telaEntrar();
-        },
-      },
-    },
-    icone("sair"),
-    "Sair",
-  );
+  async function sair() {
+    midia.parar();
+    await pedir({ tipo: "sair" });
+    limparVenda();
+    contaDaVenda = null;
+    telaEntrar();
+  }
 
   const produtos = h("div", { class: "secao" }, h("div", { class: "busca" }, lupa, campo), resultados);
   const sairDaSessao = (erro: string) => {
@@ -1695,9 +1917,14 @@ function telaPrincipal(sessao: Sessao) {
     telaEntrar(erro);
   };
   perderSessao = sairDaSessao;
-  const respostas = secaoRespostas(sairDaSessao);
+  // salvar ou apagar numa aba recarrega a outra (arquivo ligado a resposta, passo com arquivo)
+  const respostas = secaoRespostas(sairDaSessao, () => {
+    if (midia.carregou()) midia.carregar();
+  });
   respostas.el.hidden = true;
-  const midia = secaoMidia(sairDaSessao);
+  const midia = secaoMidia(sairDaSessao, () => {
+    if (respostas.carregou()) respostas.carregar();
+  });
   midia.el.hidden = true;
   const vender = secaoVender(sairDaSessao);
   vender.el.hidden = true;
@@ -1734,16 +1961,15 @@ function telaPrincipal(sessao: Sessao) {
     if (midia.carregou() && document.body.contains(midia.el)) midia.carregar();
   };
 
-  const cabecalho = topo();
-  const rodape = rodapeDaConta(sessao.email, sair);
+  // a conta num lugar só, no topo; sem rodapé, o espaço vai para o conteúdo
+  const conta = contaNoTopo(sessao.email, sair);
   app.replaceChildren(
-    cabecalho,
+    conta.el,
     h("div", { class: "abas", role: "tablist", "aria-label": "O que fazer" }, abas.produtos, abas.respostas, abas.midia, abas.vender),
     produtos,
     respostas.el,
     midia.el,
     vender.el,
-    rodape.el,
     avisoEl,
   );
   const salva = sessionStorage.getItem("marcon_aba");
@@ -1752,10 +1978,8 @@ function telaPrincipal(sessao: Sessao) {
 
   // nome do negócio, do dono e o plano chegam depois; o painel já está usável
   pedir<DadosConta>({ tipo: "conta" }).then((r) => {
-    if (!document.body.contains(cabecalho)) return;
-    if (!r.ok) return rodape.mostrarPlano(null);
-    cabecalho.replaceWith(topo(r.dados));
-    rodape.mostrarPlano(r.dados.plano);
+    if (!document.body.contains(conta.el)) return;
+    conta.mostrar(r.ok ? r.dados : null);
   });
 }
 

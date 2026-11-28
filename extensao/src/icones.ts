@@ -8,6 +8,11 @@ const DESENHOS = {
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   lua: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>',
   lapis: '<path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
+  mais: '<path d="M12 5v14M5 12h14"/>',
+  voltar: '<path d="m15 18-6-6 6-6"/>',
+  abaixo: '<path d="m6 9 6 6 6-6"/>',
+  acima: '<path d="m6 15 6-6 6 6"/>',
+  lixo: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>',
 } as const;
 
 export type NomeIcone = keyof typeof DESENHOS;

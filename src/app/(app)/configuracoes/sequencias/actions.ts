@@ -3,9 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { falha, ok, texto, type ActionResult } from "@/lib/action";
-import { LIMITE_PASSOS, LIMITE_SEQUENCIAS, LIMITE_TEXTO_PASSO, LIMITE_TITULO_SEQUENCIA } from "@/lib/sequencias";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { LIMITE_PASSOS, LIMITE_SEQUENCIAS, conferirPasso, conferirTituloSequencia } from "@/lib/sequencias";
+import { ehUuid, idsParaOrdenar, proximaOrdem } from "@/lib/respostas";
 
 function atualizar() {
   revalidatePath("/configuracoes/sequencias");
@@ -24,10 +23,10 @@ async function usuario() {
 export async function salvarSequencia(formData: FormData): Promise<ActionResult> {
   try {
     const id = texto(formData, "id");
-    const titulo = texto(formData, "titulo").replace(/\s+/g, " ");
-    if (!titulo) return { ok: false, error: "Dê um nome para a sequência." };
-    if (titulo.length > LIMITE_TITULO_SEQUENCIA) return { ok: false, error: `O nome vai até ${LIMITE_TITULO_SEQUENCIA} letras.` };
-    if (id && !UUID.test(id)) return { ok: false, error: "Sequência não encontrada." };
+    const conferido = conferirTituloSequencia(formData.get("titulo"));
+    if (!conferido.ok) return { ok: false, error: conferido.erro };
+    const titulo = conferido.titulo;
+    if (id && !ehUuid(id)) return { ok: false, error: "Sequência não encontrada." };
 
     const { supabase, user } = await usuario();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
@@ -41,7 +40,7 @@ export async function salvarSequencia(formData: FormData): Promise<ActionResult>
     }
 
     const { data: ultima } = await supabase.from("sequencias").select("ordem").order("ordem", { ascending: false }).limit(1).maybeSingle();
-    const ordem = Math.min(10000, ((ultima?.ordem as number | undefined) ?? -1) + 1);
+    const ordem = proximaOrdem(ultima?.ordem as number | undefined);
     const { data, error } = await supabase.from("sequencias").insert({ titulo, owner_id: user.id, ordem }).select("id").single();
     if (error) return falha(error);
     atualizar();
@@ -53,7 +52,7 @@ export async function salvarSequencia(formData: FormData): Promise<ActionResult>
 
 export async function apagarSequencia(id: string): Promise<ActionResult> {
   try {
-    if (!UUID.test(id)) return { ok: false, error: "Sequência não encontrada." };
+    if (!ehUuid(id)) return { ok: false, error: "Sequência não encontrada." };
     const { supabase } = await usuario();
     const { data, error } = await supabase.from("sequencias").delete().eq("id", id).select("id");
     if (error) return falha(error);
@@ -67,7 +66,7 @@ export async function apagarSequencia(id: string): Promise<ActionResult> {
 
 export async function reordenarSequencias(ids: string[]): Promise<ActionResult> {
   try {
-    if (!Array.isArray(ids) || ids.length > LIMITE_SEQUENCIAS || !ids.every((i) => typeof i === "string" && UUID.test(i))) {
+    if (!idsParaOrdenar(ids, LIMITE_SEQUENCIAS)) {
       return { ok: false, error: "Não deu para mudar a ordem." };
     }
     const { supabase } = await usuario();
@@ -86,28 +85,20 @@ export async function salvarPasso(formData: FormData): Promise<ActionResult> {
   try {
     const id = texto(formData, "id");
     const sequenciaId = texto(formData, "sequencia_id");
-    const fonte = texto(formData, "fonte");
-    const corpo = String(formData.get("texto") ?? "").replace(/\r\n?/g, "\n").trim();
-    const respostaId = texto(formData, "resposta_id");
-    const midiaId = texto(formData, "midia_id");
-
-    if (!UUID.test(sequenciaId)) return { ok: false, error: "Sequência não encontrada." };
-    if (id && !UUID.test(id)) return { ok: false, error: "Passo não encontrado." };
-    if (fonte !== "escrever" && fonte !== "resposta" && fonte !== "nenhum") return { ok: false, error: "Escolha o texto do passo." };
-    if (fonte === "escrever" && !corpo) return { ok: false, error: "Escreva o texto do passo." };
-    if (fonte === "escrever" && corpo.length > LIMITE_TEXTO_PASSO) return { ok: false, error: `O texto vai até ${LIMITE_TEXTO_PASSO} letras.` };
-    if (fonte === "resposta" && !UUID.test(respostaId)) return { ok: false, error: "Escolha a resposta pronta." };
-    if (midiaId && !UUID.test(midiaId)) return { ok: false, error: "Arquivo não encontrado." };
-    if (fonte === "nenhum" && !midiaId) return { ok: false, error: "O passo precisa de um texto ou de um arquivo." };
+    if (!ehUuid(sequenciaId)) return { ok: false, error: "Sequência não encontrada." };
+    if (id && !ehUuid(id)) return { ok: false, error: "Passo não encontrado." };
+    const conferido = conferirPasso({
+      fonte: texto(formData, "fonte"),
+      texto: formData.get("texto"),
+      respostaId: texto(formData, "resposta_id"),
+      midiaId: texto(formData, "midia_id"),
+    });
+    if (!conferido.ok) return { ok: false, error: conferido.erro };
 
     const { supabase, user } = await usuario();
     if (!user) return { ok: false, error: "Sua sessão expirou. Entre novamente." };
 
-    const dados = {
-      texto: fonte === "escrever" ? corpo : null,
-      resposta_id: fonte === "resposta" ? respostaId : null,
-      midia_id: midiaId || null,
-    };
+    const dados = conferido.dados;
 
     if (id) {
       const { data, error } = await supabase.from("sequencia_passos").update(dados).eq("id", id).eq("sequencia_id", sequenciaId).select("id");
@@ -124,7 +115,7 @@ export async function salvarPasso(formData: FormData): Promise<ActionResult> {
       .order("ordem", { ascending: false })
       .limit(1)
       .maybeSingle();
-    const ordem = Math.min(10000, ((ultimo?.ordem as number | undefined) ?? -1) + 1);
+    const ordem = proximaOrdem(ultimo?.ordem as number | undefined);
     const { error } = await supabase.from("sequencia_passos").insert({ ...dados, sequencia_id: sequenciaId, owner_id: user.id, ordem });
     if (error) return falha(error);
     atualizar();
@@ -136,7 +127,7 @@ export async function salvarPasso(formData: FormData): Promise<ActionResult> {
 
 export async function apagarPasso(id: string): Promise<ActionResult> {
   try {
-    if (!UUID.test(id)) return { ok: false, error: "Passo não encontrado." };
+    if (!ehUuid(id)) return { ok: false, error: "Passo não encontrado." };
     const { supabase } = await usuario();
     const { data, error } = await supabase.from("sequencia_passos").delete().eq("id", id).select("id");
     if (error) return falha(error);
@@ -150,12 +141,7 @@ export async function apagarPasso(id: string): Promise<ActionResult> {
 
 export async function reordenarPassos(sequenciaId: string, ids: string[]): Promise<ActionResult> {
   try {
-    if (
-      !UUID.test(sequenciaId) ||
-      !Array.isArray(ids) ||
-      ids.length > LIMITE_PASSOS ||
-      !ids.every((i) => typeof i === "string" && UUID.test(i))
-    ) {
+    if (!ehUuid(sequenciaId) || !idsParaOrdenar(ids, LIMITE_PASSOS)) {
       return { ok: false, error: "Não deu para mudar a ordem." };
     }
     const { supabase } = await usuario();

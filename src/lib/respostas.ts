@@ -169,3 +169,44 @@ export function exemplosDaConta(formas: string[]): typeof EXEMPLOS {
   const texto = `Aceitamos ${lista}. Qual fica melhor pra você?`.slice(0, LIMITE_TEXTO);
   return EXEMPLOS.map((e) => (e.atalho === "pagamento" ? { ...e, texto } : e));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Criar e editar: as mesmas travas no app (server action) e na extensão (painel). O banco repete
+// tamanho, atalho único e limite por conta (migration 0073).
+
+export const ERRO_ATALHO_REPETIDO = "Já existe uma resposta com esse atalho.";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function ehUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID.test(v);
+}
+
+// item novo vai para o fim da lista (mesma conta do app para respostas, sequências e passos)
+export function proximaOrdem(ultima: number | null | undefined): number {
+  return Math.min(10000, (ultima ?? -1) + 1);
+}
+
+export function conferirResposta(bruto: { titulo: unknown; texto: unknown; atalho: unknown }):
+  | { ok: true; dados: { titulo: string; texto: string; atalho: string | null } }
+  | { ok: false; erro: string } {
+  const titulo = String(bruto.titulo ?? "").trim();
+  const texto = String(bruto.texto ?? "").replace(/\r\n?/g, "\n").trim();
+  const atalhoBruto = String(bruto.atalho ?? "").trim();
+  const atalho = atalhoBruto ? normalizarAtalho(atalhoBruto) : "";
+  if (!titulo) return { ok: false, erro: "Dê um título para a resposta." };
+  if (titulo.length > LIMITE_TITULO) return { ok: false, erro: `O título vai até ${LIMITE_TITULO} letras.` };
+  if (!texto) return { ok: false, erro: "Escreva o texto da resposta." };
+  if (texto.length > LIMITE_TEXTO) return { ok: false, erro: `O texto vai até ${LIMITE_TEXTO} letras.` };
+  if (atalhoBruto && !atalho) return { ok: false, erro: `O atalho usa só letras e números, até ${LIMITE_ATALHO}.` };
+  return { ok: true, dados: { titulo, texto, atalho: atalho || null } };
+}
+
+// lista inteira na ordem nova (a função do banco só mexe nas do próprio dono)
+export function idsParaOrdenar(ids: unknown, limite: number): ids is string[] {
+  return Array.isArray(ids) && ids.length <= limite && ids.every(ehUuid);
+}
+
+// erro do banco quando o atalho já existe na conta (índice único da 0073)
+export function atalhoRepetido(e: { message?: string; code?: string } | null | undefined): boolean {
+  return e?.code === "23505" || /respostas_prontas_owner_id_atalho_key/.test(e?.message ?? "");
+}

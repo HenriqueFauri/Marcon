@@ -3,6 +3,10 @@
 import type { ProdutoBusca } from "../src/formatar.ts";
 import type { Pedido } from "../src/mensagens.ts";
 import type { MidiaPainel } from "../src/midias-db.ts";
+import { ERRO_ATALHO_REPETIDO, conferirResposta, type DadosDaConta, type RespostaPronta } from "../src/respostas.ts";
+import type { MidiaDaResposta } from "../src/respostas-db.ts";
+import { conferirPasso, conferirTituloSequencia, type PassoSequencia, type Sequencia } from "../src/sequencias.ts";
+import { FORMATOS, conferirArquivo, conferirTituloMidia, tituloDoArquivo } from "../src/midias.ts";
 
 const produtos: ProdutoBusca[] = [
   {
@@ -111,7 +115,146 @@ function novaVenda(chave: string, itens: { quantidade: number; preco_unitario: n
 // cada pedido de inserir ou anexar que o painel faz (a simulação confere: um por clique)
 const acoes: string[] = [];
 const ultimo: { texto?: string; anexo?: string; acoes: string[] } = { acoes };
+
+// estado das respostas e sequências (muda com criar, editar, apagar e ordenar no painel)
+const conta: { respostas: RespostaPronta[]; dados: DadosDaConta; midias: MidiaDaResposta[]; sequencias: Sequencia[]; passos: PassoSequencia[] } = {
+  respostas: [
+    { id: "r1", titulo: "Saudação", atalho: "oi", ordem: 0, texto: "Oi! Aqui é da {negocio}, tudo bem?\nComo posso te ajudar?" },
+    { id: "r2", titulo: "Pix", atalho: "pix", ordem: 1, texto: "Pode pagar no Pix.\nChave: {pix}\nAssim que pagar, me manda o comprovante." },
+    { id: "r3", titulo: "Retirada", atalho: "retirada", ordem: 2, texto: "Dá pra retirar aqui.\nEndereço: {endereco}\nMe avisa o horário." },
+    { id: "r4", titulo: "Ainda disponível", atalho: "disponivel", ordem: 3, texto: "Tá disponível, sim!\nVeja mais coisas na loja: {vitrine}" },
+  ],
+  // sem endereço de propósito: a linha some
+  dados: { negocio: "Loja de Teste", pix: "pix@lojadeteste.com", endereco: null, telefone: null, vitrine: "https://marcon-staging.vercel.app/loja/loja-de-teste" },
+  midias: [{ id: "m3", tipo: "imagem", titulo: "Tabela de medidas", resposta_id: "r2" }],
+  // parte 4: "Primeiro contato" tem um passo de texto com arquivo e um passo vazio (arquivo apagado)
+  sequencias: [
+    { id: "s1", titulo: "Primeiro contato", ordem: 0 },
+    { id: "s2", titulo: "Fechar venda", ordem: 1 },
+  ],
+  passos: [
+    { id: "q1", sequencia_id: "s1", ordem: 0, texto: "Oi! Aqui é da {negocio}. Vou te mandar o catálogo.", resposta_id: null, midia_id: null },
+    { id: "q2", sequencia_id: "s1", ordem: 1, texto: null, resposta_id: null, midia_id: "m3" },
+    { id: "q3", sequencia_id: "s1", ordem: 2, texto: "Esse áudio explica a garantia:", resposta_id: null, midia_id: "m2" },
+    { id: "q4", sequencia_id: "s1", ordem: 3, texto: null, resposta_id: null, midia_id: "apagado" },
+    { id: "q5", sequencia_id: "s1", ordem: 4, texto: null, resposta_id: "r2", midia_id: null },
+  ],
+};
+
+let proximo = 100;
+const novoId = () => `00000000-0000-4000-8000-${String(++proximo).padStart(12, "0")}`;
+const gravacoes: string[] = [];
+(globalThis as unknown as { marconGestao: unknown }).marconGestao = { conta, midias: midiasFalsas, gravacoes };
+function reordenar<T extends { id: string; ordem: number }>(lista: T[], ids: string[]) {
+  ids.forEach((id, n) => {
+    const x = lista.find((y) => y.id === id);
+    if (x) x.ordem = n;
+  });
+  lista.sort((a, b) => a.ordem - b.ordem);
+}
+function gestao(p: Pedido): unknown {
+  gravacoes.push(p.tipo);
+  switch (p.tipo) {
+    case "salvarResposta": {
+      const c = conferirResposta(p);
+      if (!c.ok) return { ok: false, erro: c.erro };
+      if (c.dados.atalho && conta.respostas.some((r) => r.atalho === c.dados.atalho && r.id !== p.id)) return { ok: false, erro: ERRO_ATALHO_REPETIDO };
+      if (p.id) {
+        const r = conta.respostas.find((x) => x.id === p.id);
+        if (!r) return { ok: false, erro: "Resposta não encontrada. Atualize a lista." };
+        Object.assign(r, c.dados);
+        return { ok: true, dados: { id: r.id } };
+      }
+      const id = novoId();
+      conta.respostas.push({ id, ordem: conta.respostas.length, ...c.dados });
+      return { ok: true, dados: { id } };
+    }
+    case "apagarResposta":
+      conta.respostas = conta.respostas.filter((r) => r.id !== p.id);
+      for (const m of midiasFalsas) if (m.resposta_id === p.id) m.resposta_id = null;
+      return { ok: true, dados: null };
+    case "reordenarRespostas":
+      reordenar(conta.respostas, p.ids);
+      return { ok: true, dados: null };
+    case "salvarSequencia": {
+      const c = conferirTituloSequencia(p.titulo);
+      if (!c.ok) return { ok: false, erro: c.erro };
+      if (p.id) {
+        const x = conta.sequencias.find((y) => y.id === p.id);
+        if (x) x.titulo = c.titulo;
+        return { ok: true, dados: { id: p.id } };
+      }
+      const id = novoId();
+      conta.sequencias.push({ id, titulo: c.titulo, ordem: conta.sequencias.length });
+      return { ok: true, dados: { id } };
+    }
+    case "apagarSequencia":
+      conta.sequencias = conta.sequencias.filter((x) => x.id !== p.id);
+      conta.passos = conta.passos.filter((x) => x.sequencia_id !== p.id);
+      return { ok: true, dados: null };
+    case "reordenarSequencias":
+      reordenar(conta.sequencias, p.ids);
+      return { ok: true, dados: null };
+    case "salvarPasso": {
+      // os ids falsos (r1, m3) não são uuid: confere com um uuid no lugar e devolve o id falso
+      const u = "00000000-0000-4000-8000-000000000000";
+      const c = conferirPasso({ ...p, respostaId: p.respostaId ? u : "", midiaId: p.midiaId ? u : "" });
+      if (!c.ok) return { ok: false, erro: c.erro };
+      c.dados.resposta_id = c.dados.resposta_id ? p.respostaId : null;
+      c.dados.midia_id = c.dados.midia_id ? p.midiaId : null;
+      if (p.id) {
+        const x = conta.passos.find((y) => y.id === p.id);
+        if (x) Object.assign(x, c.dados);
+        return { ok: true, dados: { id: p.id } };
+      }
+      const daSeq = conta.passos.filter((x) => x.sequencia_id === p.sequenciaId);
+      if (daSeq.length >= 20) return { ok: false, erro: "Limite de 20 passos por sequência." };
+      const id = novoId();
+      conta.passos.push({ id, sequencia_id: p.sequenciaId, ordem: daSeq.length, ...c.dados });
+      return { ok: true, dados: { id } };
+    }
+    case "apagarPasso":
+      conta.passos = conta.passos.filter((x) => x.id !== p.id);
+      return { ok: true, dados: null };
+    case "reordenarPassos":
+      reordenar(conta.passos, p.ids);
+      return { ok: true, dados: null };
+    case "subirMidia": {
+      const c = conferirArquivo(p.nome, p.mime, Math.floor((p.base64.length * 3) / 4));
+      if (!c.ok) return { ok: false, erro: c.erro };
+      const nova: MidiaPainel = { ...base, id: novoId(), tipo: FORMATOS[c.ext].tipo, titulo: tituloDoArquivo(p.nome), nome_arquivo: p.nome, mime: FORMATOS[c.ext].mime, tamanho: 1000, duracao: p.duracao };
+      midiasFalsas.unshift(nova);
+      return { ok: true, dados: nova };
+    }
+    case "salvarMidia": {
+      const c = conferirTituloMidia(p.titulo);
+      if (!c.ok) return { ok: false, erro: c.erro };
+      const m = midiasFalsas.find((x) => x.id === p.id);
+      if (!m) return { ok: false, erro: "Arquivo não encontrado. Atualize a lista." };
+      m.titulo = c.titulo;
+      m.resposta_id = p.respostaId;
+      return { ok: true, dados: { id: m.id, titulo: m.titulo } };
+    }
+    case "ligarMidia": {
+      const m = midiasFalsas.find((x) => x.id === p.id);
+      if (!m) return { ok: false, erro: "Arquivo não encontrado. Atualize a lista." };
+      m.resposta_id = p.respostaId;
+      return { ok: true, dados: null };
+    }
+    case "apagarMidia": {
+      const n = midiasFalsas.findIndex((x) => x.id === p.id);
+      if (n >= 0) midiasFalsas.splice(n, 1);
+      for (const x of conta.passos) if (x.midia_id === p.id) x.midia_id = null;
+      return { ok: true, dados: null };
+    }
+    default:
+      return undefined;
+  }
+}
+
 function responder(p: Pedido): unknown {
+  const g = gestao(p);
+  if (g !== undefined) return g;
   switch (p.tipo) {
     case "sessao":
       return { ok: true, dados: logado ? { email: "teste@usemarcon.com", ambiente: "staging" } : null };
@@ -132,27 +275,9 @@ function responder(p: Pedido): unknown {
       return {
         ok: true,
         dados: {
-          respostas: [
-            { id: "r1", titulo: "Saudação", atalho: "oi", ordem: 0, texto: "Oi! Aqui é da {negocio}, tudo bem?\nComo posso te ajudar?" },
-            { id: "r2", titulo: "Pix", atalho: "pix", ordem: 1, texto: "Pode pagar no Pix.\nChave: {pix}\nAssim que pagar, me manda o comprovante." },
-            { id: "r3", titulo: "Retirada", atalho: "retirada", ordem: 2, texto: "Dá pra retirar aqui.\nEndereço: {endereco}\nMe avisa o horário." },
-            { id: "r4", titulo: "Ainda disponível", atalho: "disponivel", ordem: 3, texto: "Tá disponível, sim!\nVeja mais coisas na loja: {vitrine}" },
-          ],
-          // sem endereço de propósito: a linha some
-          dados: { negocio: "Loja de Teste", pix: "pix@lojadeteste.com", endereco: null, telefone: null, vitrine: "https://marcon-staging.vercel.app/loja/loja-de-teste" },
-          midias: [{ id: "m3", tipo: "imagem", titulo: "Tabela de medidas", resposta_id: "r2" }],
-          // parte 4: "Primeiro contato" tem um passo de texto com arquivo e um passo vazio (arquivo apagado)
-          sequencias: [
-            { id: "s1", titulo: "Primeiro contato", ordem: 0 },
-            { id: "s2", titulo: "Fechar venda", ordem: 1 },
-          ],
-          passos: [
-            { id: "q1", sequencia_id: "s1", ordem: 0, texto: "Oi! Aqui é da {negocio}. Vou te mandar o catálogo.", resposta_id: null, midia_id: null },
-            { id: "q2", sequencia_id: "s1", ordem: 1, texto: null, resposta_id: null, midia_id: "m3" },
-            { id: "q3", sequencia_id: "s1", ordem: 2, texto: "Esse áudio explica a garantia:", resposta_id: null, midia_id: "m2" },
-            { id: "q4", sequencia_id: "s1", ordem: 3, texto: null, resposta_id: null, midia_id: "apagado" },
-            { id: "q5", sequencia_id: "s1", ordem: 4, texto: null, resposta_id: "r2", midia_id: null },
-          ],
+          ...conta,
+          respostas: [...conta.respostas].sort((a, b) => a.ordem - b.ordem),
+          midias: midiasFalsas.filter((m) => m.resposta_id).map((m) => ({ id: m.id, tipo: m.tipo, titulo: m.titulo, resposta_id: m.resposta_id })),
           arquivos: midiasFalsas.map((m) => ({ id: m.id, tipo: m.tipo, titulo: m.titulo })),
         },
       };
@@ -205,7 +330,8 @@ function responder(p: Pedido): unknown {
       vozes.push({ conversa: p.conversa, bytes: p.base64.length });
       return { ok: true, dados: "Áudio de voz enviado." };
     case "conta":
-      return { ok: true, dados: { email: "teste@usemarcon.com", nomeNegocio: "Marcon Utilidades", nome: "Henrique Alves", plano: { texto: "Teste: 12 dias", tom: "info" } } };
+      // ?semnome na URL: conta sem nome (o app usa o e-mail no lugar do nome)
+      return { ok: true, dados: { email: "teste@usemarcon.com", nomeNegocio: "Marcon Utilidades", nome: location.search.includes("semnome") ? "teste@usemarcon.com" : "Henrique Alves", plano: { texto: "Teste: 12 dias", tom: "info" } } };
     case "listarProdutos": {
       // 35 produtos falsos: a primeira página traz 30 e o Mostrar mais traz o resto
       const todos = [...produtos, ...Array.from({ length: 32 }, (_, i) => ({ ...produtos[2], id: "x" + i, nome: "Produto " + String(i + 1).padStart(2, "0"), capa: null, capaPath: null, totalFotos: 0 }))];
